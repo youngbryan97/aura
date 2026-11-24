@@ -247,9 +247,10 @@ def _generation_owner_is_user_foreground(owner: str) -> bool:
     )
 
 
-#: Origins of replies nobody waits on while they are written: her mail (core/skills/her_replies_to_mail.py). A person's
-#: turn at the gate may ask one to stand aside, and her mail round takes the message up again.
-ASYNCHRONOUS_REPLY_ORIGINS: tuple[str, ...] = ("desktop_email_reply",)
+#: Origins of work nobody waits on while it is written: her mail (core/skills/her_replies_to_mail.py), and work a person
+#: asked for that goes on after the turn that asked (core/understanding/carrying_out.py). A person's turn at the gate may
+#: ask one to stand aside, and what it was doing is taken up again.
+ASYNCHRONOUS_REPLY_ORIGINS: tuple[str, ...] = ("desktop_email_reply", "work_asked_for")
 
 
 def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:

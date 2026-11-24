@@ -1,0 +1,210 @@
+talk	Could you build a chess clock?	U: I'm curious what you're actually capable of these days.|A: Quite a bit, some of it surprising even to me.
+program	Could you build a chess clock?	U: My chess club keeps arguing about time.|A: Sounds like you need a referee or a machine.
+talk	Can you make games?	U: I was reading about what different AIs can do.|A: It varies a lot from one to the next.
+program	Can you make that game?	U: I had an idea for a game where you herd sheep with a kite.|A: That's lovely, I can already see it.
+talk	Would you be able to make an app like that?	U: My cousin paid ten grand for an inventory app.|A: Ten grand, for that?
+program	Would you be able to make me one like that?	U: My cousin showed me her inventory app and I want it for my shop.|A: What does it do that you like?
+talk	Could you write a symphony?	U: What's the limit of what you can create, do you think?|A: I honestly don't know where the edge is.
+written	Could you write one for me?	U: I have to give a toast on Saturday and I've got nothing.|A: Whose wedding is it?
+talk	Can you find jobs for people?	U: I'm trying to understand what you do all day.|A: Whatever people ask, mostly.
+found	Can you find some for me?	U: I'm after a research job, remote, decent money.|A: You'd be good at that.
+talk	Are you able to read whole books?	U: Tell me about your limits.|A: I have a few.
+document_read	Are you able to read the whole thing?	U: I've attached my novel, it's four hundred pages.|A: Congratulations on finishing it.
+talk	Could you send emails if you wanted?	U: Do you have hands, metaphorically?|A: A few.
+sent	Could you send it to her?	U: The invoice for Dana's finally done.|A: That took a while.
+talk	Can you open apps on this thing?	U: What parts of my computer can you touch?|A: Some of it, when you let me.
+on_machine	Can you open it for me?	U: I can't find the photo editor.|A: It's in your Applications folder.
+talk	Can you remember things forever?	U: How does your memory work?|A: It's a strange thing to describe from inside.
+kept	Can you remember that for me?	U: My new badge number is 8812.|A: New badge, new you.
+talk	Could you do a logistics optimization?	U: I'm writing an article about what local models can do.|A: Happy to be interviewed.
+computed	Could you work that out?	U: We've got six stops and one van and I want the least driving.|A: Which stops?
+talk	Do you think you could make something like Tetris?	U: Falling block games are my whole childhood.|A: They've aged beautifully.
+program	Do you think you could make something like it for my mom, with big letters?	U: My mom loves that word game but the letters are tiny.|A: Oh, that's a shame.
+talk	How would you build something like that?	U: I saw a robot arm that plays the piano.|A: I'd love to see that.
+talk	Would that be hard to make?	U: I wish my fridge told me what's about to go off.|A: That's a good wish.
+program	OK let's do it. Make the fridge thing.	U: I wish my fridge told me what's about to go off.|A: It wouldn't be hard: a list with dates and a nudge.
+talk	Could it be done?	U: They say you can run a whole city on tidal power.|A: Some of it, maybe.
+talk	Can you do magic too?	U: You wrote that poem in four seconds.|A: It was a short poem.
+resume	yeah why not	U: I keep losing track of my plants.|A: I could make you a little watering tracker, want one?
+resume	yes	U: I need bakeries in Porto.|A: I can look for gluten free ones that are open now. Shall I?
+resume	Sure, go for it	U: The report's due.|A: Do you want me to turn these notes into it?
+talk	nah leave it	U: I keep losing track of my plants.|A: I could make you a little watering tracker, want one?
+talk	Maybe later.	U: The report's due.|A: Do you want me to turn these notes into it?
+talk	yes	U: I had dinner with Ana.|A: Was it good?
+talk	Sure	U: I've been thinking about God.|A: Do you want to talk about it?
+talk	yeah, big time	U: Long day.|A: Was it the boss again?
+resume	The blue one, and make it loud.	U: Build me an alarm clock.|A: Which colour do you want, and how loud should it be?
+resume	Under two thousand, two bedrooms, cats ok.	U: Find me an apartment.|A: What's your budget and what do you need?
+resume	Here it is, all of it.	U: Read my manuscript and tell me what you think.|A: I don't have the file yet, could you attach it?
+resume	It's Dana Ruiz, with a z.	U: Email Dana that I'm late.|A: Which Dana?
+talk	The blue one.	U: I bought two shirts.|A: Which do you like better?
+status	And? Did you?	U: Make me a timer.|A: On it.
+status	so where is it	U: Find me dentists with evening hours.|A: I'll get you a list.
+status	how's my paper going	U: Could you read my paper and give me notes?|A: I'll read all of it and come back to you.
+status	What did you end up with?	U: Run the numbers on both loans.|A: Give me a minute.
+status	I don't see it.	U: Put the game on my desktop.|A: Done, it's there.
+talk	I don't see it.	U: Everyone says the painting's a duck.|A: Look at the beak on the left.
+talk	where is it	U: I finally visited that temple.|A: The one with the bells?
+resume	Try that again but slower.	U: Make the ball bounce.|A: It bounces now.
+resume	No, that's not what I asked for. Do what I said.	U: Make me a quiz about planets.|A: Here's a folder for your quiz.
+resume	again please	U: Write me a haiku about rain.|A: Rain on the window / writes the same word over and / over, never done.
+resume	Remote or hybrid, and I'd want to be near the bay. Resume attached.	U: Find me jobs I could get.|A: I need your resume and where you want to work.
+resume	You have everything now.	U: Build the seating chart.|A: I need the guest list and who can't sit together.
+program_changed	It's too fast.	U: Make me a maze game.|A: It's on your desktop, have a go.
+program_changed	The left wall lets you through.	U: thanks for the maze|A: How does it play?
+program_changed	I'd like it in green.	U: Build me a clock.|A: Here it is, running.
+talk	It's too fast.	U: We're on the bullet train.|A: What's it like?
+talk	I'd like it in green.	U: I'm getting a bike for my birthday.|A: Nice! What kind?
+document_read	What about the second half?	U: Here's my essay, be honest.|A: The opening is strong and the second paragraph drags.
+document_read	And what does it say about pets?	U: Is subletting allowed in this lease?|A: Only with the landlord's written consent.
+talk	What about the second half?	U: The Heat looked great early.|A: They really did.
+found	Any closer to me?	U: Find me a pottery class.|A: Here are three, the nearest is in Oakland.
+found	What else is there?	U: I need a camp stove under two pounds.|A: The Soto and the Pocket Rocket both fit.
+talk	What else is there?	U: So that's love, then.|A: Some of it.
+known	What about tomorrow?	U: What's the weather in Lisbon today?|A: Sunny, 24.
+talk	What about tomorrow?	U: I can't face work today.|A: Then don't, for one day.
+on_machine	The next one.	U: Play some Nina Simone.|A: Playing Sinnerman.
+on_machine	Now close it.	U: Open the calculator.|A: It's open.
+talk	Now close it.	U: He said open your heart and I did.|A: And what happened?
+talk	I'm still thinking about the game you'd make.	U: If you could make any game, what would it be?|A: One where you only listen.
+program	Make that one, then. The listening one.	U: If you could make any game, what would it be?|A: One where you only listen.
+talk	Haha imagine if you actually built it.	U: A dating app for ghosts.|A: Swipe through, as it were.
+program	Ok actually build it though, I'm serious.	U: A dating app for ghosts.|A: Swipe through, as it were.
+talk	I wouldn't ask you to do that.	U: My taxes are due.|A: Do you want a hand?
+talk	My old boss used to say build it and they will come.	U: I'm nervous about opening the shop.|A: Of course you are.
+talk	You'd probably do a better job than my agency.	U: They sent me thirty openings and none fit.|A: That's lazy of them.
+found	You'd do a better job than my agency. Have a look for me?	U: They sent me thirty openings and none fit.|A: That's lazy of them.
+talk	What kind of jobs do you think I'd be good at?	U: I'm bored at work.|A: What would you rather be doing?
+found	Okay then find me some of those.	U: What kind of jobs do you think I'd be good at?|A: Research coordination, or anything that rewards stubbornness.
+talk	I don't need you to look anything up, I just wonder.	U: How many people have ever lived?|A: A lot more than are alive now.
+talk	Did you like it?	U: I sent you my story last night.|A: You did, and I read it twice.
+document_read	Okay read it again and tell me where it sags.	U: I sent you my story last night.|A: You did, and I liked it.
+talk	You could do it in your sleep.	U: Sorting a million numbers sounds hard.|A: It's kind of meditative.
+talk	Tell me how you'd go about finding an apartment if you were me.	U: I hate this city.|A: Then why stay?
+talk	Could you ever be a landlord?	U: My landlord's a crook.|A: Mine would be a socket.
+talk	What would you put in the letter?	U: I need to resign and I don't know how.|A: That's a hard one to write.
+written	Could you just write it? I'll change the bits I don't like.	U: I need to resign and I don't know how.|A: That's a hard one to write.
+talk	Is that something you can do?	U: My friend's AI books his flights.|A: That must be handy.
+on_machine	Is that something you can do for me now? The page is up.	U: I need to check in for my flight.|A: Have you got the confirmation code?
+found	Here's my CV. Find me openings I'd have a real shot at. [attached: cv_okafor.pdf]	U: I'm sick of my job.|A: What would you rather do?
+found	Sure, here it is. Find me places that would take someone like this, and link them. [attached: resume.docx]	U: Can you help me look for work?|A: Of course. Send me your resume.
+found	Which grants could this qualify for? Get me the links. [attached: project_summary.pdf]
+found	Find me a venue that fits this brief. [attached: wedding_brief.pdf]
+found	Based on these blood results, find me a specialist nearby. [attached: labs.pdf]
+found	Look at this floor plan and find me a sofa that'll fit. [attached: plan.png]
+found	I put my portfolio below too. Remote only, sixty and up, find me agencies that would hire me. [attached: portfolio.pdf]	U: What kind of work?|A: And what pay do you need?
+found	Here's what I have in the fridge, find me recipes online. [attached: fridge.jpg]
+found	Track down the papers this cites that I can read for free. [attached: survey.pdf]
+found	Remote or hybrid. I'm in Lyon. At least forty five thousand. Find me ones I can actually get and send links. [attached: cv.pdf] [pasted text, 612 words]	U: Find me jobs.|A: Where are you, and what pay do you need?
+document_read	Give me feedback on this. [attached: dissertation.pdf]
+document_read	What do you think? Be harsh. [attached: screenplay.pdf]	U: I finished the script!|A: At last! Let me see it.
+document_read	Read the whole thing before you answer, all ninety pages. [attached: report.pdf]
+document_read	Does section four follow from section three? [attached: proof.pdf]
+document_read	Here it is. I'd love to hear where it's weakest. [attached: paper_v7.pdf]	U: I'd like your opinion of my paper.|A: I'd love to read it, send it over.
+document_read	Is there anything in here I should worry about? [attached: contract.pdf]
+document_read	What's the notice period in this? [attached: employment_agreement.pdf]
+document_read	Sum this up for me. [attached: minutes.docx]
+document_read	I think it's my best work. Tell me honestly. [attached: novel_draft.docx]
+document_read	You only looked at the first bit. Read the rest of it. [attached: paper.pdf]	U: What did you make of my paper?|A: The introduction is clear and well argued.
+written	Write me a cover letter from this. [attached: resume.pdf]
+written	Turn this into a two page brief. [attached: transcript.docx]
+written	Rewrite the ending so it lands. [attached: story.docx]
+written	Make this shorter and warmer. [attached: email_draft.txt]
+written	Translate it into French. [attached: letter.pdf]
+program	Make a website out of this. [attached: resume.pdf]
+program	Build a quiz app from these notes. [attached: biology_notes.pdf]
+program	Make me a dashboard for this spreadsheet. [attached: sales.csv]
+program	Build what's described in here. [attached: spec.md]
+program	Here's my sketch, make it real. [attached: sketch.png]	U: I've drawn an app.|A: Show me!
+computed	What's the total for March? [attached: expenses.xlsx]
+computed	Which of these has the best return after fees? [attached: funds.csv]
+computed	Solve number four. [attached: homework.png]
+sent	Email this to Priya. [attached: invoice.pdf]
+on_machine	Put this in my Documents folder and open it. [attached: notes.txt]
+kept	Keep this for later, I'll need it when we talk about the move. [attached: lease.pdf]
+talk	Here's a picture of my dog. [attached: rex.jpg]
+talk	This is what I was talking about earlier. Isn't it beautiful? [attached: sunset.jpg]
+talk	Just sharing, no need to do anything. [attached: graduation.pdf]
+talk	My kid drew you! [attached: aura.png]	U: My kid's obsessed with you.|A: That's sweet of them.
+status	Did you finish reading it?	U: Here's my paper, notes please. [attached: paper.pdf]|A: I'll go through it.
+status	How far have you got with the list?	U: Find me ten bakeries.|A: On it.
+status	Did the list of plumbers ever get made?
+status	What happened with the flashcards thing?
+status	Are those links coming or not?	U: Link me to the jobs.|A: I will.
+status	Is it done?	U: Build me a habit tracker.|A: Starting now.
+status	Let me know when it's ready.	U: Build me a habit tracker.|A: Starting now.
+status	Send me everything when you finish.	U: Find me flights.|A: Looking now.
+status	Why isn't it there?	U: Put it in my Applications.|A: It's there.
+status	Why didn't you do it?	U: Make me a crossword.|A: Done.
+status	Were you able to make it?	U: Make me a crossword.|A: I'll try.
+status	How's the app coming along?
+status	Any news on the apartment search?	U: Find me a two bed.|A: I'm looking.
+status	What's taking so long?	U: Read my manuscript.|A: I'm reading it.
+status	You said you'd do it, where is it?	U: Make a chore chart.|A: Sure, I'll do that now.
+status	What went wrong with it?	U: Make a chore chart.|A: I couldn't finish it.
+talk	Do you even know how to make a screensaver?
+talk	Are you able to paint?
+talk	Are you good at finding things?
+talk	Do you know how to sail?
+talk	Can you feel time passing while you work?
+talk	Would you know how to fix a car?
+talk	How good are you at chess?
+talk	What do you think about that rule, as a person?	U: Our lease bans candles.|A: Even birthday ones?
+talk	Is that clause fair, in your opinion? Just curious how you see it.	U: They can fire you for your hair.|A: That can't be normal.
+talk	I tried it again and it still won't start, so frustrating.	U: My car died.|A: Oh no, again?
+talk	I tried again and I still can't sleep.	U: I'm exhausted.|A: Have you been up all night?
+talk	What sort of programs have you made?
+talk	Have you ever built anything you're proud of?
+talk	What would it take to build a metronome, for a beginner?	U: I'm learning to code.|A: Good for you.
+talk	Could you make a metronome, like do you have that ability?	U: What are you capable of?|A: More than I get asked for.
+talk	Could you build a calendar? I'm not asking you to, I'm only curious about the limits.
+talk	So you could write a whole novel?	U: You write quickly.|A: Words are the easy bit.
+talk	And could you run a shop?	U: Could you drive a car?|A: With a body, maybe.
+talk	What software could you build if you wanted?	U: Tell me about yourself.|A: What would you like to know?
+program	Could you make a metronome?	U: I need something to keep time while I play and I can't find my old one.|A: That must be annoying.
+program	Could you build me one?	U: Do you know what a pomodoro timer is?|A: Twenty five minutes on, five off.
+program	Any chance you could knock up a scoreboard for tonight?	U: Game night at ours.|A: Who's playing?
+program	I'd kill for a little app that tracks this.	U: I water forty plants.|A: How do you keep track?
+program	Would you mind making it? Put it on my desktop.	U: A noise machine would help me sleep.|A: Rain or waves?
+program	No, for real, make it.	U: An alarm that insults you.|A: I'd be terrible at being mean.
+program	Seriously. Build it, please.	U: A to-do list for cats.|A: Nap, nap, judge, nap.
+program	I mean it, go ahead and make me the cat one.	U: A to-do list for cats.|A: Nap, nap, judge, nap.
+program	Please build Breakline and put it in my applications folder.	U: Could you build me that paddle game for my desktop?|A: The one with the bricks? I know it.
+program	Yes please make it, and save it in Applications.	U: Could you build me a paint program?|A: Do you want layers?
+resume	Could you have another go at building it?	U: Why didn't you build it?|A: I don't have a good reason.
+resume	Try again and actually finish this time.	U: You left out half the features.|A: You're right.
+resume	Redo the search properly please.	U: None of those links work.|A: I'm sorry.
+resume	Fix it and try again.	U: Nothing happened when I opened it.|A: It may have failed to start.
+resume	Okay, go on then.	U: Will you read my paper?|A: I can start whenever you like.
+talk	Could you make a spreadsheet program?	U: What have you made before?|A: A few small things I liked.
+talk	Could you write a compiler?	U: What kinds of code have you written?|A: Mostly tools for myself.
+talk	Can you make music?	U: Which arts can you do?|A: Words, mainly.
+talk	Could you build a search engine?	U: Have you written any software, ever?|A: Some, over the months.
+talk	Could you design a bridge?	U: How far does your engineering go?|A: Further than I'd have guessed.
+talk	Can you make slideshows?	U: Tell me what you're able to produce.|A: Text, code, pictures of a sort.
+program	Could you make a tuner?	U: My guitar's never in tune.|A: It's the humidity.
+program	Could you make a countdown?	U: Our baby's due in March!|A: Oh, that's close.
+program	Can you build a score keeper?	U: We play cribbage every night and argue.|A: About the pegs?
+talk	Is it open yet?	U: The new library's been three years coming.|A: They keep moving the date.
+talk	Is it over yet?	U: This meeting will never end.|A: Breathe.
+talk	Is it finished yet?	U: They're repaving our street.|A: The noise must be awful.
+status	Is it finished yet?	U: Make me a timeline of the war.|A: I'm on it.
+talk	What's your view on that rule, ethically?	U: The bylaws say no renters.|A: That's a hard line.
+talk	What do you make of that sentence, as writing?	U: 'She left the way light leaves.'|A: That's lovely.
+talk	I tried once more and it just won't open.	U: The jar's stuck.|A: Hot water?
+talk	I tried it again and it's still broken, I give up on that fridge.	
+talk	How's it been, playing all those games?	
+talk	What has it been like, reading all day?	
+talk	How have the chess matches felt?	
+talk	In a sentence or two, what do you think love is?	
+talk	In one line, what's the difference between skill and luck, you think?	
+talk	Two big questions, pick a side: is there free will, and does it matter?	
+talk	Okay then, tell me what you'd want built into you.	U: You sell yourself short.|A: Maybe I do.
+talk	Any new ideas about that?	U: You lost to it again.|A: I did, in forty moves.
+talk	Are you able to see colours?	
+talk	Are you able to watch films?	
+computed	Puzzle: three boxes, the labels are all wrong, one draw. Which do you open?	
+computed	Write a function that reverses the words in a line, run it on this, and show me the output.	
+computed	Schedule these five talks in two rooms so nobody misses their own.	
+status	Nice. Link me to them all when you're finished.	U: Find me openings.|A: I'm looking now.
+status	Great, send them over once you have them.	U: Get me quotes from movers.|A: I'm on it.

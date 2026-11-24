@@ -224,6 +224,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     from core.memory.profile_manager import ProfileManager
     from core.self.self_condition import build_self_condition_projection
     from interface.chat_dependencies import materialize_foreground_chat_dependencies
+    from interface.routes.chat_what_is_asked import begin_reading_what_is_asked
 
     async def _complete_named_stage(
         stage: str,
@@ -321,17 +322,15 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
 
     if callable(set_ready):
         set_ready(True)
+    begin_reading_what_is_asked()
     logger.info(
         "Foreground chat dependencies prewarmed after Cortex readiness in %.2fs "
         "(embedding_dimensions=%s, leases=%s, skills=%s, expression_ms=%s, "
         "condition_evidence=%s, evidence_routing_ms=%s).",
-        time.perf_counter() - started,
-        snapshot.get("vector_dimensions"),
-        snapshot.get("lease_count"),
+        time.perf_counter() - started, snapshot.get("vector_dimensions"), snapshot.get("lease_count"),
         foreground_services.get("skill_count"),
         (foreground_services.get("expression_path") or {}).get("elapsed_ms"),
-        str(getattr(projection, "evidence_id", ""))[:16],
-        evidence_routing.get("elapsed_ms"),
+        str(getattr(projection, "evidence_id", ""))[:16], evidence_routing.get("elapsed_ms"),
     )
 
 

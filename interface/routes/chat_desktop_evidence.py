@@ -12,6 +12,7 @@ from __future__ import annotations
 from core.container import ServiceContainer
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
+from core.runtime.what_this_turn_asks import asked_by
 from core.runtime.structured_input import (
     analyze_prompt_shape,
     answer_surface_token_floor,
@@ -1156,6 +1157,10 @@ def _only_hands_her_something_to_keep(user_message: str) -> bool:
         return False
 
 
+#: What a turn can ask for that a search of the web would only stand other people's pages beside.
+_NEEDS_NOTHING_LOOKED_UP = frozenset({"program", "program_changed", "document_read", "status", "resume", "kept", "on_machine"})
+
+
 async def _what_the_world_says_for_the_turn(
     user_message: str,
     effective_user_message: str,
@@ -1183,6 +1188,11 @@ async def _what_the_world_says_for_the_turn(
     if _chat_desktop_objective._a_page_she_read_awaits_her_answer():
         # Her browser ended on the page for this question: she answers from it, and a search would only stand other
         # pages beside it. LIVE 11 November 2026, r/nosleep read, this search fetched r/nosleep_gonewild into her turn.
+        return None, effective_user_message
+    read = asked_by(user_message)
+    if read is not None and (read.request_id or read.effect in _NEEDS_NOTHING_LOOKED_UP):
+        # Read as asking for nothing from outside: what she says of it, makes of it or reads of it is not on the web.
+        logger.info("🌐 Nothing is looked up for this turn: it was read as %s.", read.effect)
         return None, effective_user_message
     turn_began = time.time()
     # This is the turn's retrieval on her desktop lane, which runs no retrieval phase: LIVE 10 November 2026 every

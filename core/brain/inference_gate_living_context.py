@@ -556,6 +556,13 @@ class _BuildsTheLivingContext:
         if not allow_tools:
             logger.info("🔧 Tool handoff: not offered, this turn does not allow tools.")
             return None
+        # Work the turn asked for has begun, or is being told of: a second way to do it would do it twice.
+        from core.runtime.what_this_turn_asks import this_turn
+
+        asked = this_turn()
+        if asked is not None and asked.request_id:
+            logger.info("🔧 Tool handoff: not offered, the turn belongs to request %s.", asked.request_id)
+            return None
 
         # The person's own words, not the assembled prompt. The scaffold runs
         # to thousands of characters around a request of a hundred, and asking

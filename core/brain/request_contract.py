@@ -186,6 +186,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "expect_next": Field_(Kind.STRING_LIST),
     # What came before, then what was heard, to read how it landed (core/brain/llm/what_she_expects_next.py surprise_of).
     "surprise_of": Field_(Kind.STRING_LIST),
+    # Transcripts whose states are read where her turn opens (core/brain/llm/her_states_at_a_turn.py).
+    "states_at_turn": Field_(Kind.STRING_LIST),
     # A token count: the most the caller's output shape may ever use.
     "hard_output_token_ceiling": Field_(Kind.POSITIVE_INT),
     # How much of a turn her private channel may think, where the caller says (core/brain/llm/a_bounded_private_channel.py).

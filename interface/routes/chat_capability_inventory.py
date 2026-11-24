@@ -20,6 +20,7 @@ from core.runtime.chat_delivery_progress import (
 )
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import resolve_inference_gate
+from core.runtime.what_this_turn_asks import licensed
 from core.utils.word_markers import names_any
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
@@ -450,6 +451,10 @@ def _program_dna_known_host_target(target: str) -> bool:
 
 
 def _looks_like_program_dna_execution_request(user_message: str) -> bool:
+    # LIVE 23 November 2026 a resume pasted beside a request for jobs came here for a quoted title in it and the word
+    # "rebuilt", and the person was refused a program they never mentioned.
+    if licensed(user_message, "program", "program_changed") is False:
+        return False
     text = str(user_message or "").strip()
     lowered = text.lower()
     target = _extract_program_dna_target(text)

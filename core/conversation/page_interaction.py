@@ -27,6 +27,8 @@ import logging
 import re
 from typing import Any
 
+from core.runtime.what_this_turn_asks import asked_by
+
 logger = logging.getLogger(__name__)
 
 __all__ = ["page_interaction_target", "asks_to_act_on_a_page"]
@@ -181,6 +183,12 @@ def page_interaction_target(text: Any) -> str:
     front page, and a request naming no place that goes on with what the
     conversation was doing on a page means that page's site.
     """
+    # A turn read as asking for something no page is worked for (a program, a document read, a search of its own, talk)
+    # has no page to work, whatever its words name. LIVE 23 November 2026 a request for jobs with a resume beside it
+    # opened gmail.com, because the resume holds an address, and 378 s there was marked as done.
+    read = asked_by(text)
+    if read is not None and (not read.acts or read.effect not in {"on_machine", "sent", "known", "kept"}):
+        return ""
     return _the_page_it_names(text) or the_conversations_place(text)
 
 

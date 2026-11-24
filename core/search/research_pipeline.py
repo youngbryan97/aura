@@ -676,7 +676,13 @@ class ResearchSearchPipeline:
                 ddgs_hits = await asyncio.to_thread(self._ddgs_search, query, num_results, recent_days)
                 if ddgs_hits:
                     return ddgs_hits
-            return await asyncio.to_thread(self._legacy_html_search, query, num_results, recent_days)
+            found = await asyncio.to_thread(self._legacy_html_search, query, num_results, recent_days)
+            if not found:  # no engine answers a fetch: asked in her own browser
+                from core.search.engines_in_her_browser import hits_in_her_browser
+
+                found = await hits_in_her_browser(query, num_results, SearchHit)
+                self._store_cached_search_hits(recency_key(query, recent_days), found)
+            return found
 
         query_list = list(queries)
         batches = await asyncio.gather(
@@ -801,6 +807,11 @@ class ResearchSearchPipeline:
 
             soup = None if source_engine == "bing_rss" else BeautifulSoup(raw_html, "html.parser")
             results = parser(raw_html, soup, source_engine=source_engine, limit=num_results)
+            from core.search.engines_in_her_browser import are_decoys
+
+            if are_decoys(query, results, _tokenize):
+                logger.info("🔎 %s gave results about one word of the query, and none of them is taken.", source_engine)
+                continue
             for hit in results:
                 normalized_url = hit.url.rstrip("/")
                 if not normalized_url or normalized_url in seen_urls:

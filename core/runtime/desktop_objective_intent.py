@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from core.runtime.os_automation_effects import extract_direct_application_targets
+from core.runtime.what_this_turn_asks import asked_by
 from core.runtime.skill_task_bridge import (
     looks_like_capability_inventory_dialogue_request,
     strip_negated_action_spans,
@@ -415,6 +416,11 @@ def _asks_about_a_concrete_path(text: str) -> bool:
     return bool(_PATH_OPERATION_RE.search(body))
 
 
+#: What a turn can ask for that the desktop body may be what does it. ``on_machine`` always is; the rest are when the
+#: words below say where. Everything else has a lane of its own that does not touch the screen.
+_MAY_NEED_THE_SCREEN = frozenset({"on_machine", "sent", "kept", "known", "written", "computed"})
+
+
 def looks_like_desktop_objective(user_message: str) -> bool:
     """Return true for user requests that need visible desktop/computer action.
 
@@ -428,6 +434,15 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # Where this turn was read for what it asks (core/understanding), that decides: it is what was meant, and the
+    # vocabulary below is only what it was said with. LIVE 23 November 2026 "Could you build me Snake for my desktop?"
+    # was not building, because Snake is in no list here, and went to a lane that made an empty folder.
+    read = asked_by(user_message)
+    if read is not None:
+        if not read.acts or read.effect not in _MAY_NEED_THE_SCREEN:
+            return False
+        if read.effect == "on_machine":
+            return True
     # Whether she is asked to do anything comes before what it would be done to. Every recogniser below finds a
     # WHAT (a game, an app, a page, a goal to keep at), and naming one is not asking her to act on it. LIVE 19
     # November 2026: "I think you got 2048 in 968 moves. What are the chances that I can beat you what you got?"
@@ -904,6 +919,9 @@ def asks_to_build_software(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message)
     if not text.strip():
         return False
+    read = asked_by(user_message)
+    if read is not None:
+        return read.acts and read.effect in {"program", "program_changed"}
     if _DRIVES_THE_SCREEN_RE.search(text):
         return False
     return bool(_BUILDS_SOFTWARE_RE.search(text))

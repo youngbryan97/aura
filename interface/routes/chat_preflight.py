@@ -2066,6 +2066,22 @@ def _looks_like_desktop_objective(user_message: str) -> bool:
     return _shared_looks_like_desktop_objective(user_message)
 
 
+def the_turns_session(body: Any, request: Any, *, conversation_only_surface: bool = False) -> str:
+    """The conversation a turn belongs to."""
+    device_session_id = paired_device_session_id(request) if conversation_only_surface else None
+    if device_session_id:
+        # A paired caller cannot select another device or owner session by
+        # supplying an arbitrary body.session_id.
+        return str(device_session_id).strip()[:_CHAT_SESSION_ID_MAX_CHARS]
+    if str(body.session_id or "").strip():
+        return str(body.session_id).strip()[:_CHAT_SESSION_ID_MAX_CHARS]
+    try:
+        host = (request.client.host if request.client else "default") or "default"
+    except _CHAT_RECOVERABLE_ERRORS:
+        host = "default"
+    return str(_conversation_session_id(host))
+
+
 @dataclasses.dataclass
 class _ChatPreflight:
     """What the chat-preflight block produces for the rest of the turn.
@@ -2248,19 +2264,7 @@ async def _run_chat_preflight(
             extract_file_references,
         )
 
-        device_session_id = paired_device_session_id(request) if conversation_only_surface else None
-        if device_session_id:
-            # A paired caller cannot select another device or owner session by
-            # supplying an arbitrary body.session_id.
-            _chat_session_id = str(device_session_id).strip()[:_CHAT_SESSION_ID_MAX_CHARS]
-        elif str(body.session_id or "").strip():
-            _chat_session_id = str(body.session_id).strip()[:_CHAT_SESSION_ID_MAX_CHARS]
-        else:
-            try:
-                _host = (request.client.host if request.client else "default") or "default"
-            except _CHAT_RECOVERABLE_ERRORS:
-                _host = "default"
-            _chat_session_id = _conversation_session_id(_host)
+        _chat_session_id = the_turns_session(body, request, conversation_only_surface=conversation_only_surface)
         _CHAT_REQUEST_SESSION.set(str(_chat_session_id or "default")[:_CHAT_SESSION_ID_MAX_CHARS])
 
         if conversation_only_surface:

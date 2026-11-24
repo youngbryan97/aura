@@ -141,8 +141,10 @@ def what_was_finished(text: str) -> str | None:
     return None
 
 
-async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *, router: Any = None) -> BaseModel | None:
-    """Her model's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits."""
+async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *, router: Any = None,
+                        origin: str = "rebuilding_a_program") -> BaseModel | None:
+    """Her model's answer to ``prompt`` as an instance of ``schema``, or None when it gave none that fits. ``origin`` is
+    what it is for, which says whose turn it gives way to (core/brain/llm_health_router_gate_owners.py)."""
     if router is None:
         from core.container import ServiceContainer
 
@@ -160,8 +162,8 @@ async def ask_her_model(prompt: str, schema: type[BaseModel], max_tokens: int, *
             prefer_tier="primary",
             schema=schema.model_json_schema(),
             output_shape="json_object",
-            origin="rebuilding_a_program",
-            purpose="rebuilding_a_program",
+            origin=origin,
+            purpose=origin,
             is_background=False,
             foreground_request=True,
             # Read by code, not a reply to anybody: its shape's parser judges it.

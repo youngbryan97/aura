@@ -1,0 +1,324 @@
+program	Can you make me a little game where I steer a boat around rocks?
+program	I'd love a pomodoro timer that lives on my desktop, could you put one together?
+program	build a budgeting app for me and my wife
+program	Make something I can click to track how many glasses of water I've had.
+program	I need a website for my dog grooming business. One page is fine.
+program	write me a program that renames all my vacation photos by the date they were taken
+program	Whip up a tower defense thing, doesn't have to be fancy
+program	could you code a chess clock I can run full screen
+program	Let's have you create a flashcard tool for my Spanish vocab.
+program	Please develop a platformer with three levels and a boss at the end.
+program	I want a synth I can play with my keyboard keys. Build it.
+program	Any chance you could throw together a kanban board for the kitchen remodel?
+program	yo make me asteroids but with cats
+program	Design and build an interactive map of the solar system where I can zoom in on planets.
+program	Put together a script that watches a folder and zips anything older than a month.
+program	We need an internal tool that lets staff book the two meeting rooms. Go ahead and make it.
+program	I could really use a calculator that does unit conversions too. Would you build that for me?
+program	Make me a Mac app that plays rain sounds with a volume slider.
+program	recreate the kind of brick breaker I had on my old phone, for my laptop
+program	Please write a simulator of a bouncing ball in a spinning hexagon.
+program	Would you mind making a seating chart planner for my wedding?
+program	Create a drawing program with layers and an eraser.
+program	I'd like a typing tutor for my kid. Can you do that?
+program	make a text adventure set on a submarine
+program	Code up a markdown editor with live preview.
+program	It would be great to have a dashboard for my solar panels' output, please make one from this spreadsheet.
+program	Build me a puzzle game, whatever you think is fun.
+program	Could you put a word-guessing game in my Applications folder?
+program	I want you to make a habit tracker with streaks.
+program	Give me a working physics sandbox with ragdolls.
+program	Write an app for tracking my migraines, with a chart.
+program	can u make a wordsearch generator
+program	Set me up with a small inventory system for my comic book store.
+program	Produce a visual sorting algorithm demo I can show my class.
+program	I need a tip calculator that splits the bill unevenly. Make it look nice.
+program	Please make an endless runner with a skateboarder for my son's birthday.
+program	go build a music visualizer
+program	Make the old maze game where things chase you, for fun.
+program	Could I get a recipe scaler app? Something that doubles or halves ingredients.
+program	Take this idea and turn it into software: a plant watering schedule that nags me.
+program	Make a browser extension that hides the comments on every page.
+program	spin up a small API that returns a random haiku
+program_changed	Make the boat go faster when I hold shift.
+program_changed	The timer you made doesn't beep. Fix it?
+program_changed	Add a dark mode to the kanban board.
+program_changed	can you change the font in the app you built, it's too small
+program_changed	The second level is impossible, tone it down.
+program_changed	Please put a high score table in that game.
+program_changed	It crashes when I hit space twice. Sort that out.
+program_changed	Give the flashcards a shuffle button.
+program_changed	Swap the colors, I want blue on white.
+program_changed	Could the water tracker reset at midnight instead?
+program_changed	In the budget app, let me import a CSV from my bank.
+program_changed	Make it full screen and get rid of the sound.
+program_changed	The paddle is upside down, left goes right. Correct that please.
+program_changed	I want the map to remember where I was zoomed.
+program_changed	Put an undo in the drawing program.
+program_changed	Speed up the script, it takes ten minutes.
+program_changed	Refactor that function so it doesn't repeat itself.
+program_changed	There's an off by one in the pagination, patch it.
+program_changed	let me save my progress in the text adventure
+program_changed	Turn the habit tracker's streaks into a calendar view.
+program_changed	Add a second player to the tank game.
+program_changed	Rename the Save button to Keep and move it to the left.
+program_changed	The chart's axes are wrong, dates should be on the bottom.
+program_changed	Make the enemies smarter.
+program_changed	Could you get the seating planner to print properly?
+program_changed	Update my portfolio site so the contact form works.
+program_changed	make the music visualizer respond to the microphone
+program_changed	That build's broken on my iPad, can you adapt it?
+found	Find me an apartment under 2400 that allows big dogs, near a train stop.
+found	I need three dentists who take Delta and have evening hours. Send me links.
+found	Look for jobs I'd actually have a shot at and link me to the postings.
+found	Can you hunt down a used Telecaster under 600 within an hour's drive?
+found	Get me a list of grants a small theater company could apply to this spring.
+found	Dig up five papers on sleep and memory in older adults, with links.
+found	Which summer camps near Denver still have spots for a nine year old? Give me the ones that do.
+found	Find a birthday gift for my dad, he's into fishing and bad puns. Under fifty bucks.
+found	I'm after a direct flight to Lisbon in the second week of May. What's out there?
+found	Show me some beginner pottery classes on weekends around here.
+found	find a therapist who does EMDR and takes out of network, remote ok
+found	Could you round up remote data analyst openings that pay over 90?
+found	See if you can find a replacement lid for a Le Creuset number 26.
+found	Compare a few electric lawnmowers for a half acre and send me where to buy them.
+found	I want scholarships for returning students over thirty. Link them.
+found	Track down the cheapest place to get a passport photo near me.
+found	Please find conferences on urban planning that are still taking abstracts.
+found	give me some good podcasts about the history of medicine, w links
+found	Need a venue for forty people on a Saturday in June, outdoor, not crazy expensive.
+found	What internships could my sister apply to with this transcript? Find some.
+found	Help me find volunteer work with animals that I can do on Sundays.
+found	Locate open source libraries for reading EDF files.
+found	Match me with courses that would fill the gaps in my CV.
+found	I'd like to adopt a senior cat. Who's got one within fifty miles?
+found	Search for affordable hearing aids with good reviews and tell me which you'd pick.
+found	get me contact pages for literary agents who take horror
+found	Find houses like the one in this listing but closer to the coast.
+found	Any kid-friendly hikes under three miles this side of the mountains? Make me a list.
+found	Shop around for car insurance quotes for a 2019 Corolla.
+found	Scout out co-working spaces with day passes downtown.
+found	Pull together every farmers market open on Wednesdays in the county.
+found	find me roommates looking in the same area as me
+found	I've got eight hundred dollars. What laptop should I get? Link a couple.
+found	Look through what's out there and bring me the best three options for a standing desk.
+document_read	Here's my manuscript. Read the whole thing and tell me what you think.
+document_read	Could you go through this contract and flag anything weird?
+document_read	I attached the paper. I'd really value your feedback.
+document_read	Summarize the attached report for me.
+document_read	What does the lease say about subletting?
+document_read	Read this and poke holes in the argument.
+document_read	take a look at my resume and tell me how it comes across
+document_read	I uploaded the board minutes, pull out every decision that was made.
+document_read	Can you review my thesis chapter? All 60 pages if you can stand it.
+document_read	In this PDF, which experiment supports the second claim?
+document_read	Look over the attached syllabus and tell me when the exams are.
+document_read	Proofread this letter for me.
+document_read	Here are two drafts. Which one's stronger?
+document_read	Go over my business plan with a critical eye.
+document_read	what did you make of the script I sent you
+document_read	Please read my novel start to finish and give me notes like an editor would.
+document_read	Check whether the numbers in table 4 match the text.
+document_read	Tell me if this policy covers water damage.
+document_read	I've pasted my essay below, be honest with me about it.
+document_read	Explain this paper to me like I've never taken statistics.
+document_read	Who's liable according to section nine?
+document_read	Read the attached and give me the gist.
+document_read	I want your opinion on the study I just sent.
+document_read	Does my cover letter fit this posting? Both are attached.
+document_read	can you get through this whole manual and make me a cheat sheet from it
+document_read	Mark anything in my dissertation that a reviewer would attack.
+document_read	What are the main themes across these interview transcripts?
+document_read	Pick out the dates and amounts from this invoice.
+document_read	I'd like a page by page critique of the attached deck.
+document_read	Give it a proper read, not a skim, and tell me if the ending lands.
+known	What's the population of Japan right now?
+known	Who won the Heat game last night?
+known	Can you look up what the weather will be in Paris tomorrow?
+known	Is the pharmacy on Fourth still open?
+known	What's the latest on the port strike?
+known	google how long to boil a soft egg
+known	When does the new season come out?
+known	How much is a first class stamp these days?
+known	Check if flights out of JFK are delayed.
+known	What's the current stable version of Node?
+known	find out who designed the Sydney Opera House
+known	What time does the moon rise tonight?
+known	Look into whether ibuprofen interacts with lisinopril.
+known	Did they ever catch the guy who did that?
+known	What's Nvidia trading at?
+known	Tell me what happened in the news today.
+known	How far is it from Tucson to Flagstaff?
+known	Can you check what the exchange rate is?
+known	Where is the headquarters of Lego?
+known	what year did the Berlin wall come down
+known	Is there a recall on my stroller? It's an Uppababy Vista 2021.
+known	How many people died in the Halifax explosion?
+known	Please verify whether that quote is really Twain's.
+known	Who's the mayor of Boise?
+known	What does the law in Ohio say about rental deposits?
+known	Find out if Costco sells generators.
+known	What's the tallest building in South America?
+known	How did the markets close?
+written	Write me a cover letter for this job.
+written	Draft an email to my landlord about the leak.
+written	Make a six slide deck on our Q3 results.
+written	Put together a one page brief on soil erosion.
+written	I need a spreadsheet of our chores split by person and day.
+written	Type up meeting notes from what I just told you.
+written	Could you create a lesson plan on photosynthesis for fourth graders?
+written	Compose a toast for my sister's wedding.
+written	Turn this into a press release.
+written	write a short story about a lighthouse keeper who can't sleep
+written	Make a packing list for a week in Iceland and save it as a document.
+written	Rewrite my bio in a friendlier tone.
+written	Please produce a Word doc with the new refund policy.
+written	I'd like a workout plan for the next month, put it in a table.
+written	Give me a memo I can send to the team about the outage.
+written	Write a haiku about my broken dishwasher.
+written	Draft the opening paragraph of my personal statement.
+written	Make flyers for the bake sale.
+written	Design an invitation to Leo's fifth birthday.
+written	Update my resume with the new job and export a PDF.
+written	Prepare an agenda for Thursday.
+written	could you outline a novel about two brothers and a ferry
+written	I need a poem for my grandmother's funeral.
+written	Make a diagram of how our signup flow works.
+written	Put all of this into a report I can hand to my boss.
+written	Translate this letter into Portuguese for me.
+written	Fill out this template with my details.
+written	write up the recipe so I can print it
+computed	What's 18 percent of 4,312.77?
+computed	Is 2 to the 61 minus one prime? Actually compute it.
+computed	Run the numbers on a 30 year mortgage at 6.4 percent for 410k.
+computed	How many Python files are under that folder and which is biggest? Count them by running something.
+computed	Plot the sales in this CSV by month.
+computed	Solve this system: 3x+2y=12, x-y=1.
+computed	Work out the standard deviation of these scores.
+computed	Simulate rolling two dice a million times and tell me the odds of seven.
+computed	Find the shortest route through these six addresses.
+computed	Execute this snippet and show me what it prints.
+computed	How many days until my lease is up on August 9th?
+computed	What's the integral of x squared e to the x?
+computed	Crunch this dataset and tell me which region grew fastest.
+computed	Convert 14 stone 3 to kilos.
+computed	Solve this blocks puzzle in the fewest moves.
+computed	Test whether that regex matches these five strings.
+computed	figure out what I'd save by switching to the annual plan
+computed	Sort these names by last name and remove duplicates.
+computed	Benchmark both versions and tell me which is quicker.
+computed	What would my take home be on 115k in California?
+computed	Run a regression of price on square footage with this table.
+computed	Check the checksum of that file.
+computed	Balance this chemical equation for me.
+computed	Calculate how much paint I need for a 12 by 14 room.
+on_machine	Open Safari and pull up my calendar.
+on_machine	Turn the brightness down.
+on_machine	Play some Nina Simone.
+on_machine	Move all the screenshots on my desktop into a folder.
+on_machine	Close that window.
+on_machine	Go to the library's site and renew my books.
+on_machine	Put on that documentary and watch it with me.
+on_machine	Set my wallpaper to the beach picture.
+on_machine	Delete the empty folders in Downloads.
+on_machine	Take the personality test on that page, as yourself.
+on_machine	Play a game of chess against the computer in the Chess app.
+on_machine	Start a new note titled groceries and put eggs on it.
+on_machine	What's on my screen right now?
+on_machine	Mute the sound.
+on_machine	Create a folder called Taxes 2026 on my desktop.
+on_machine	Fill in this form with my info and stop before submitting.
+on_machine	scroll down to the comments
+on_machine	Install the update.
+on_machine	Switch to the other tab and read me the headline.
+on_machine	Launch Spotify and shuffle my liked songs.
+on_machine	Rename that file to final_v2.
+on_machine	Log into the portal and download my statement.
+on_machine	Go beat the 2048 game I have open.
+on_machine	Add this song to my gym playlist.
+on_machine	Show me that folder in Finder.
+on_machine	Empty the trash.
+on_machine	Take a screenshot and put it in the project folder.
+on_machine	Watch this YouTube video and tell me your thoughts as it goes.
+sent	Email Priya that I'll be fifteen minutes late.
+sent	Text my mom happy birthday.
+sent	Reply to that thread saying yes.
+sent	Send the report to the whole team.
+sent	Let Marco know the meeting moved to three.
+sent	Forward this to accounting.
+sent	Post this on my Reddit account.
+sent	Message the landlord and ask when the plumber's coming.
+sent	Put dinner with Ana on my calendar for Friday at seven.
+sent	Answer the recruiter for me, politely no.
+sent	Tell Jo on Slack that the build is green.
+sent	Invite the four of them to a call on Monday morning.
+sent	Shoot Dr. Patel's office a note that I need a refill.
+sent	email this to me
+sent	Accept the invitation.
+sent	RSVP no to the gala.
+sent	Write back to them and cc my manager.
+sent	Cancel my three o'clock and apologise to them.
+kept	Remember that my locker code is 4417.
+kept	Don't forget I'm allergic to penicillin.
+kept	Remind me to take the bins out at eight.
+kept	Keep in mind that my sister works late on Tuesdays.
+kept	Note that the wifi password is on the fridge.
+kept	Set a timer for twelve minutes.
+kept	Please save this for later: the plumber is Dave, 555-0142.
+kept	Hold on to this thought for me, the ending should be the dog's point of view.
+kept	From now on call me Bry.
+kept	Make a mental note, no meetings before ten.
+kept	I want you to remember what I said about my father.
+kept	ping me in an hour about the laundry
+kept	Store this: passport expires in March.
+kept	Wake me up at 6:30 tomorrow.
+kept	Log that I ran five miles today.
+kept	Keep track of how many coffees I have this week.
+resume	Could you try again and build it?
+resume	Go ahead.
+resume	Yes, please do that.
+resume	do it
+resume	Okay, finish it then.
+resume	Give it another shot.
+resume	Keep going.
+resume	Pick up where you left off.
+resume	Sweet, send them over when you're done.
+resume	Yep, that one. Start.
+resume	Try it a different way this time.
+resume	Carry on with the rest of it.
+resume	alright let's see it
+resume	You can go now, I gave you what you needed.
+resume	Here's the file you asked for, now do the thing.
+resume	Ok I answered your questions. Proceed.
+resume	Same again but more of them.
+resume	No, do it properly this time.
+resume	I still want it, please make it happen.
+resume	Continue from page 20.
+resume	Yes to all three, get started.
+resume	Redo that, it wasn't what I meant.
+resume	Run it back.
+resume	Sounds good, please proceed with what you described.
+resume	that works, off you go
+resume	Well? Get on with it.
+resume	One more time please.
+resume	Remote only, and at least 80k. Now look again.
+status	Where's the game?
+status	Is it done yet?
+status	Where did you put it?
+status	How's that coming along?
+status	Did you finish the thing I asked for?
+status	What happened to the list?
+status	I don't see anything on my desktop.
+status	Did that actually get sent?
+status	How far have you got?
+status	So did you find anything?
+status	Why didn't you build it?
+status	Nothing opened. What did you do?
+status	Can you show me what you've got so far?
+status	You said you made it. I can't find it.
+status	Any luck?
+status	Are you still working on that?
+status	Did you read all of it?
+status	What's left to do on it?
+status	I'm looking in the folder and it's empty.
+status	ok and the links?

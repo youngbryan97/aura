@@ -7465,6 +7465,30 @@
       "scope": "<module>.TakingItUp._keep"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/understanding/carriers/reading_whole.py",
+      "scope": "<module>._keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/understanding/requests_of_her.py",
+      "scope": "<module>.RequestsOfHer.keep"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes_async",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/understanding/what_is_asked.py",
+      "scope": "<module>.WhatIsAsked._save"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -8327,6 +8351,14 @@
       "count": 4,
       "path": "core/rebuilding/using_it_by_its_controls.py",
       "scope": "<module>.write_it_in"
+    },
+    {
+      "callee": "core.runtime.page_gateway.get_page_gateway().read",
+      "canonical_owner": false,
+      "category": "page_gateway",
+      "count": 1,
+      "path": "core/search/engines_in_her_browser.py",
+      "scope": "<module>.search_in_her_browser"
     },
     {
       "callee": "core.runtime.page_gateway.get_page_gateway().new_page",
@@ -17181,6 +17213,14 @@
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
+      "path": "core/understanding/carriers/building.py",
+      "scope": "<module>.runs_here"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
       "path": "core/utils/memory_monitor.py",
       "scope": "<module>.kernel_memory_pressure_level"
     },
@@ -17554,6 +17594,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "1de5fa07834f15bddf2b59129b67fb26a855cb04654d5b88418f2551fd5de731",
+  "inventory_sha256": "d9794734a4bd138227f4828f784c84bfbb1c0bdfff4c347aaa3bc44a3f6d4a2c",
   "schema_version": 1
 }

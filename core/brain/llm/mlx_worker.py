@@ -20,6 +20,7 @@ from typing import Any
 from core.brain.live_mind_contract import (
     append_text_mutation,
 )
+from core.brain.llm.her_states_at_a_turn import as_a_job_of_the_worker as states_as_a_job
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
@@ -6610,7 +6611,10 @@ def _mlx_worker_loop(
                 continue
 
             action = job.get("action")
-            if action == "generate" and (job.get("expect_next") or job.get("surprise_of")):
+            if action == "generate" and job.get("states_at_turn"):
+                # Her states where her turn opens, for a reading of what was asked; nothing is written.
+                ipc_writer.put(states_as_a_job(job, model, tokenizer, engine, metal_semaphore))
+            elif action == "generate" and (job.get("expect_next") or job.get("surprise_of")):
                 # A pass that scores candidate next turns, or how heard words landed, and writes nothing.
                 ipc_writer.put(as_a_job_of_the_worker(job, model, tokenizer, engine, metal_semaphore))
             elif action == "generate":

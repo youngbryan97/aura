@@ -31,6 +31,7 @@ from core.brain.llm.the_tool_loops_last_pass import this_pass_writes
 from core.runtime import resource_psutil as psutil
 from core.runtime.service_access import resolve_inference_gate
 
+from .her_states_at_a_turn import _ReadsHerStatesAtATurn
 from .mlx_client_artifacts import (  # noqa: F401  (re-exported: they were defined here)
     _validate_adapter_artifact,
     _validate_model_artifact,
@@ -4830,6 +4831,7 @@ def _build_the_generation_request(
         "choose_from": [str(c) for c in (kwargs.get("choose_from") or ())],
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
         "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
+        "states_at_turn": [str(c) for c in (kwargs.get("states_at_turn") or ())],
         "serving_lane": str(
             kwargs.get("serving_lane") or "foreground_standard"
         ).strip().lower(),
@@ -4960,7 +4962,7 @@ def _is_internal_inference(cognitive_context: Any) -> bool:
     return False
 
 
-class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane, _AsksWhatSheExpectsNext):
+class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane, _AsksWhatSheExpectsNext, _ReadsHerStatesAtATurn):
     """
     Parent-process client for the isolated MLX worker.
     Manages the lifecycle, health, and communication with the ForkServer process.

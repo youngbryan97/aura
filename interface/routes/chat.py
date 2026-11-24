@@ -527,6 +527,8 @@ from interface.routes.chat_runtime_proof import (  # noqa: E402
     _verified_live_proof_pwd_result,  # noqa: F401
     _write_live_proof_file,  # noqa: F401
 )
+from interface.routes.chat_carrying_out import take_up_what_is_asked  # noqa: E402
+from interface.routes.chat_what_is_asked import files_meant, read_what_this_turn_asks  # noqa: E402
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
     _EXPECTED_TURN_ORGANS,  # noqa: F401
@@ -7899,6 +7901,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     # runtime computes exactly.
     set_user_question(_semantic_user_message)
     _declared_interlocutor = _interlocutor_turn.evidence()
+    # What this turn asks for, read once and held where every door that could act sees it.
+    _turns_session = _chat_preflight.the_turns_session(body, request, conversation_only_surface=conversation_only_surface)
+    _asked_this_turn = await read_what_this_turn_asks(
+        _semantic_user_message, session_id=_turns_session, attachments=list(body.attachments or []), skip=is_benchmark,
+    )
+    body.attachments = files_meant(_asked_this_turn, _turns_session, list(body.attachments or []))
     _grounded_recall_context, _preflight = await _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_context, _original_user_message, _profile_user_id, _semantic_user_message, body, conversation_only_surface, is_benchmark, request)
     if _preflight.early_response is not None:
         return _preflight.early_response
@@ -9137,7 +9145,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         else:
             prior_answer_provenance = None
 
-        if not _qualified_state_serialization_owner:
+        taken_up = (
+            not is_benchmark
+            and not conversation_only_surface
+            and not _qualified_state_serialization_owner
+            and await take_up_what_is_asked(
+                _semantic_user_message, session_id=str(_chat_session_id),
+                attachments=[str(item) for item in (body.attachments or [])],
+            )
+        )
+        if not _qualified_state_serialization_owner and not taken_up:
             try:
                 (
                     action_episode_evidence,
@@ -9162,6 +9179,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             and not conversation_only_surface
             and not _qualified_state_serialization_owner
             and not action_episode_evidence
+            and not taken_up
         ):
             governed_capability_response = await _chat_capability_inventory._execute_governed_capability_request_from_chat(
                 _semantic_user_message
@@ -9176,7 +9194,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         desktop_objective_response = (
             None
-            if _qualified_state_serialization_owner
+            if _qualified_state_serialization_owner or taken_up
             else await _execute_narrow_desktop_objective_before_cognition()
         )
         if desktop_objective_response is not None:
