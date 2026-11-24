@@ -97,7 +97,7 @@ def _square_along(side: int, start: Square, direction: Direction, times: int) ->
 
 
 #: The counts of a way kept by distance.
-_COUNTED = ("went_at", "took_at", "refused_going_at", "refused_taking_at", "looks_at", "before_looks_at")
+_COUNTED = ("went_at", "took_at", "refused_going_at", "refused_taking_at", "looks_at", "before_looks_at", "jumped_at")
 
 
 def _summed(one: dict[int, int], other: dict[int, int]) -> dict[int, int]:
@@ -138,6 +138,11 @@ class _Seen:
     #: counted by squares before looks were counted is kept as it was, in ``before_looks_at``.
     looks_at: dict[int, int] = field(default_factory=dict)
     before_looks_at: dict[int, int] = field(default_factory=dict)
+    #: For each distance, how often this way was offered, or seen gone, that far over a piece standing between: whether
+    #: a far distance passes over what stands between is what was seen at that distance. LIVE 23 November 2026 one
+    #: misread look had her royal kind take three squares forward over a piece, and its far distances, six and seven,
+    #: each read once with nothing seen between, became leaps over every piece on the board.
+    jumped_at: dict[int, int] = field(default_factory=dict)
 
     def _counted(self, times: int, taking: bool) -> int:
         counts = self.took_at if taking else self.went_at
@@ -218,7 +223,8 @@ class _Seen:
                      refused_going_at=_summed(self.refused_going_at, other.refused_going_at),
                      refused_taking_at=_summed(self.refused_taking_at, other.refused_taking_at),
                      looks_at=_summed(self.looks_at, other.looks_at),
-                     before_looks_at=_summed(self.before_looks_at, other.before_looks_at))
+                     before_looks_at=_summed(self.before_looks_at, other.before_looks_at),
+                     jumped_at=_summed(self.jumped_at, other.jumped_at))
 
 
 @dataclass
@@ -363,6 +369,7 @@ class HowThePiecesMove:
             elif standing:
                 way = self._of(kind, direction)
                 way.jumped += 1
+                way.jumped_at[times] = way.jumped_at.get(times, 0) + 1
                 way.an_offer(times, unmoved, taking=there in position.cells)
                 shown[direction] = max(shown.get(direction, 0), times)
                 if there in position.cells and position.cells[there][0] != side:
@@ -600,6 +607,7 @@ class HowThePiecesMove:
         between = [_square_along(side, move.start, direction, t) for t in range(1, times)]
         if any(b in position.cells for b in between):
             way.jumped += 1
+            way.jumped_at[times] = way.jumped_at.get(times, 0) + 1
         way.an_offer(times, unmoved, taking=move.taken_at is not None)
         # A move seen made is one look at the way it went.
         way.a_look(times)
@@ -715,6 +723,21 @@ class HowThePiecesMove:
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest
+
+    def _sure_as_far_as(self, way: _Seen, rides: int) -> int:
+        """How far along a way, of at most ``rides`` squares (0 the whole line), it can be relied on: up to the first
+        distance the game has also withheld or refused, unless enough looks have shown it going that far or further;
+        ``rides`` itself where nothing stops it. A run of squares in one look, with nothing against it, is a line."""
+        furthest = rides if rides > 0 else max(self.rows, self.columns)
+        held = 1
+        while held < furthest:
+            further = held + 1
+            contested = (further in way.withheld or further in way.withheld_unmoved
+                         or way.refused_going_at.get(further, 0) or way.refused_taking_at.get(further, 0))
+            if contested and way.looks([further]) < SEEN_TO_BELIEVE:
+                break
+            held = further
+        return rides if held >= furthest else held
 
     def seen_going_there(self, position: Position, move: Move) -> int:
         """How often this kind has been offered, or seen to go, the way this move goes, as far as it goes or further:
@@ -848,8 +871,17 @@ class HowThePiecesMove:
                 continue
             sure = way.sightings([t for t in way.offered if moved_reach <= 0 or t <= moved_reach]) >= SEEN_TO_BELIEVE
             if moved_reach >= 0:
-                steps.append(Step((direction,), rides=1 if way.jumped and moved_reach == 1 else moved_reach, may=may,
-                                  takes_in_passing=kind in self.takes_passing and may == "takes", sure=sure))
+                rides = 1 if way.jumped and moved_reach == 1 else moved_reach
+                passing = kind in self.takes_passing and may == "takes"
+                held = self._sure_as_far_as(way, rides) if sure else 0
+                if sure and held != rides:
+                    # Relied on as far as looks have shown it going that far or further, and not past that: sightings
+                    # near it are no evidence of how far it goes. LIVE 23 November 2026 one misread look had her royal
+                    # kind take two and three squares forward, and its twenty sightings one square forward made a
+                    # three-square way of it she was sure of.
+                    steps.append(Step((direction,), rides=held, may=may, takes_in_passing=passing, sure=True))
+                    sure = False
+                steps.append(Step((direction,), rides=rides, may=may, takes_in_passing=passing, sure=sure))
             # Offered further than the run of offers that makes its line: a leap that far or a misreading, each kept as
             # a way she is not sure of until the game has shown it often enough, or withholds it. A way never seen
             # passing over a piece goes that far only where the way is clear, as a line goes: a leap goes over whatever
@@ -863,8 +895,9 @@ class HowThePiecesMove:
                 if reach > 0 and times > reach:
                     far_may = ("moves" if may == "either"
                                and way.refused_taking_at.get(times, 0) > way._counted(times, True) else may)
-                    steps.append(Step(((direction[0] * times, direction[1] * times),) if way.jumped else (direction,),
-                                      rides=1 if way.jumped else times, may=far_may,
+                    leaps = way.jumped_at.get(times, 0) > 0
+                    steps.append(Step(((direction[0] * times, direction[1] * times),) if leaps else (direction,),
+                                      rides=1 if leaps else times, may=far_may,
                                       only_unmoved=times not in way.offered,
                                       sure=way.sightings([times]) >= SEEN_TO_BELIEVE))
             if unmoved_reach != moved_reach and (unmoved_reach == 0 or unmoved_reach > max(moved_reach, 0)):

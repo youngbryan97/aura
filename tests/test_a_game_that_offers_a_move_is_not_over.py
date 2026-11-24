@@ -97,3 +97,38 @@ def test_her_rules_leaving_her_no_move_never_end_a_game_that_offers_one(monkeypa
     assert came["ended"] not in ("lost", "over"), (came["ended"], said)
     assert came["moves"] >= 1, said
     assert any(line.endswith("the move the game offers me.") for line in said), said
+
+
+def _seen_one_square_forward_often() -> HowThePiecesMove:
+    rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    for _ in range(20):
+        rules.offered(OPEN_FILE, E1, AROUND, family=CHESS)  # one square forward, the squares beyond withheld
+    return rules
+
+
+#: Her royal kind boxed in on its file, one of hers in front and one of theirs before that, and a look misread as
+#: offering the square of theirs and the one beyond it: a take and a jump that never happened.
+CROWDED = from_fen("k7/8/8/8/8/4p3/4P3/4K3 w - -")
+MISREAD_OVER_A_PIECE = (AROUND - {(1, 4)}) | {(2, 4), (3, 4)}
+
+
+def test_one_look_against_many_does_not_make_a_way_sure() -> None:
+    """LIVE 23 November 2026, the game after: one misread look had her royal kind take two and three squares forward,
+    and its twenty sightings one square forward made the three-square way one she was sure of."""
+    rules = _seen_one_square_forward_often()
+    rules.offered(CROWDED, E1, MISREAD_OVER_A_PIECE, family=CHESS)
+    forward = [(s.rides, s.sure) for s in rules.family().kinds["K"].steps if s.offsets == ((1, 0),)]
+    assert (1, True) in forward and not any(sure for rides, sure in forward if rides != 1), forward
+
+
+def test_a_far_square_is_a_leap_only_where_a_jump_was_seen_that_far() -> None:
+    """The same game: the jump seen at three made its far squares, six and seven, each read once with nothing between,
+    leaps over every piece again, and their royal kind attacked hers at the start."""
+    from core.agency.pieces_by_their_kind import FIRST as HER_SIDE
+
+    rules = _seen_one_square_forward_often()
+    rules.offered(OPEN_FILE, E1, AROUND | {(6, 4), (7, 4)}, family=CHESS)  # far squares read once, nothing between
+    rules.offered(CROWDED, E1, MISREAD_OVER_A_PIECE, family=CHESS)
+    assert not [s for s in rules.family().kinds["K"].steps if s.offsets in (((6, 0),), ((7, 0),))]
+    start = Position(cells=dict(CHESS.start), turn=HER_SIDE, unmoved=frozenset(CHESS.start))
+    assert not in_check(rules.family(), start, HER_SIDE)

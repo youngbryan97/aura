@@ -37,7 +37,10 @@ def test_a_line_with_one_square_never_offered_stays_a_line() -> None:
     c1 = (0, 2)
     # Along the diagonal to h6: d2, e3, f4 and h6 offered, g5 missed by the reading.
     rules.offered(from_fen("4k3/8/8/8/8/8/8/2B1K3 w - -"), c1, {(1, 3), (2, 4), (3, 5), (5, 7), (1, 1), (2, 0)})
-    assert [s.rides for s in rules.family().kinds["B"].steps if s.offsets == ((1, 1),)] == [0]
+    steps = [s for s in rules.family().kinds["B"].steps if s.offsets == ((1, 1),)]
+    assert [s.rides for s in steps if not s.sure] == [0]
+    # Relied on only as far as the square the look missed: past it, the look says two things.
+    assert [s.rides for s in steps if s.sure] == [3]
 
 
 def test_two_pieces_changing_places_are_relied_on_as_far_as_moves_of_that_sort_were_seen() -> None:
