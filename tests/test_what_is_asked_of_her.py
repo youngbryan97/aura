@@ -224,6 +224,29 @@ def test_it_is_fitted_once_for_a_model_and_kept(tmp_path):
     assert got is not None and got.effect == "program" and got.acts
 
 
+def test_a_batch_waits_for_room_and_for_whoever_is_talking(monkeypatch):
+    slept: list[float] = []
+
+    async def sleep(seconds):
+        slept.append(seconds)
+
+    monkeypatch.setattr(what_is_asked.asyncio, "sleep", sleep)
+    answers = iter([[], ["state"]])
+    talking = iter([True, False, False])
+
+    async def ask(texts, *, in_a_turn):
+        assert in_a_turn
+        return next(answers)
+
+    got = asyncio.run(WhatIsAsked._read_when_it_can(["x"], ask, lambda: next(talking)))
+    assert got == ["state"] and slept == [1.0, 2.0]
+
+    async def never(texts, *, in_a_turn):
+        return []
+
+    assert asyncio.run(WhatIsAsked._read_when_it_can(["x"], never, None)) == []
+
+
 @pytest.mark.parametrize(("p", "decision", "effect"), [
     ({"talk": 0.97, "program": 0.03}, "talk", "talk"),
     ({"talk": 0.02, "program": 0.98}, "act", "program"),

@@ -61,7 +61,7 @@ class Feature(BaseModel):
 
 
 class Genome(BaseModel):
-    name: str = Field(max_length=60, description="a name of its own for the rebuilt program, not the original's")
+    name: str = Field(max_length=60, description="the program's name")
     what_it_is: str = Field(default="", max_length=400)
     work: str = Field(default="", max_length=400, description="what a person works on in the main area, and how it looks")
     accent: str = Field(default="#2b579a", max_length=7, description="the colour of its title bar, as #rrggbb")
@@ -208,7 +208,7 @@ async def genome_of(program: str, sources: list[Source], ask: Asker, *, asked: s
         + f"list the features a person uses, at most {MOST_FEATURES}, the ones a person would miss first ahead. "
         "Everything the person asked for is a feature. Each says what a person does and what they then see. "
         "Leave out what a web page cannot do (installing, licensing, cloud accounts, other programs). "
-        "Give the program a name of its own.\n\n"
+        + ("Give the program a name of its own.\n\n" if program else "Its name is what the person calls it, or one of its own where they gave none.\n\n")
         + (written or ("(nothing written was found; use what you know)" if program else ""))
     )
     genome = await ask(prompt, Genome, 2048)

@@ -45,6 +45,8 @@ REGULARISED = 0.01
 FOLDS = 5
 #: How many examples one job of the worker reads.
 A_BATCH = 8
+#: How long a batch waits for room on the lane, in all, and the longest pause between two tries at it.
+PATIENCE_S, LONGEST_PAUSE_S = 1800.0, 60.0
 
 
 @dataclass
@@ -257,12 +259,11 @@ class WhatIsAsked:
             missing = [(key, text) for key, text in dict(wanted).items() if key not in states]
             logger.info("🧭 Reading what is asked: %d examples held, %d to read.", len(wanted) - len(missing), len(missing))
             for at in range(0, len(missing), A_BATCH):
-                while callable(waiting) and waiting():
-                    await asyncio.sleep(1.0)
                 batch = missing[at:at + A_BATCH]
-                got = await ask([text for _key, text in batch], in_a_turn=False)
-                for (key, _text), state in zip(batch, got, strict=False):
-                    states[key] = state
+                got = await self._read_when_it_can([text for _key, text in batch], ask, waiting)
+                if not got:
+                    break
+                states.update({key: state for (key, _text), state in zip(batch, got, strict=True)})
             if any(key not in states for key, _text in wanted):
                 if states:
                     await self._save(model, states)
@@ -285,6 +286,23 @@ class WhatIsAsked:
         finally:
             with self._lock:
                 self._held.learning = False
+
+    @staticmethod
+    async def _read_when_it_can(texts: list[str], ask: Any, waiting: Any) -> list[np.ndarray]:
+        """One batch, read when nobody is waiting; tried again, at longer pauses, where the lane has no room for it.
+
+        It asks as a turn does. A batch takes a second or two of a model that is resident already, and as background work
+        it was refused for as long as the host was short of memory, which it does not need any of."""
+        waited, pause = 0.0, 1.0
+        while waited < PATIENCE_S:
+            if not (callable(waiting) and waiting()):
+                got = list(await ask(texts, in_a_turn=True))
+                if len(got) == len(texts):
+                    return got
+            await asyncio.sleep(pause)
+            waited += pause
+            pause = min(pause * 2.0, LONGEST_PAUSE_S)
+        return []
 
     # ── reading a turn ───────────────────────────────────────────────
 
