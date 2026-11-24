@@ -190,7 +190,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float,
             "", system_prompt="", tools=tool_definitions(), max_turns=_DESK_GENERATIONS,
             context={"origin": DESK_ORIGIN, "requested_by": "aura"}, origin=DESK_ORIGIN,
             conversation=messages, work_in_background=True, native_tools_only=True, cognitive_mode=_HER_MODE,
-            max_tokens=A_CLOSED_QUESTIONS_FLOOR) or {})
+            max_tokens=A_CLOSED_QUESTIONS_FLOOR, her_choice="by_meaning") or {})
         return result if _she_ended_it(client, DESK_ORIGIN) else {**result, "content": ""}
 
     async def act(client: Any, seconds: float) -> dict[str, Any]:

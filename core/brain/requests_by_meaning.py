@@ -15,7 +15,7 @@ from core.intent.capability_by_meaning import TASK, Meanings
 
 logger = logging.getLogger("Aura.CapabilityByMeaning")
 
-__all__ = ["meant_capability", "meant_shortlist", "prewarm_capability_meanings", "served"]
+__all__ = ["meant_capability", "meant_shortlist", "nearest_by_meaning", "prewarm_capability_meanings", "served"]
 
 
 _SHARED: dict[str, Meanings] = {}
@@ -65,6 +65,22 @@ def prewarm_capability_meanings() -> dict[str, Any]:
     skills = getattr(ServiceContainer.get("capability_engine", default=None), "skills", None) or {}
     embedded = meanings.warm(skills) if meanings is not None and skills else 0
     return {"embedded": embedded, "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 1)}
+
+
+def nearest_by_meaning(text: str, described: Mapping[str, str]) -> list[str]:
+    """``described`` (each name with what it does) nearest first to ``text`` by her embedding of both; [] where there
+    is no embedding model, so a caller keeps its own order."""
+    meanings = _the_meanings()
+    if meanings is None or not str(text or "").strip() or not described:
+        return []
+    from types import SimpleNamespace
+
+    try:
+        return [name for name, _score in meanings.nearest(
+            text, {name: SimpleNamespace(description=what) for name, what in described.items()})]
+    except Exception as why:  # noqa: BLE001 - a reading that fails is no reading; the caller's order stands
+        logger.info("what she is doing could not be read by meaning: %s", why)
+        return []
 
 
 def meant_capability(text: str, skills: Mapping[str, Any]) -> str | None:

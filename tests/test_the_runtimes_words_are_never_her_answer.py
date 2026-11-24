@@ -159,7 +159,8 @@ def test_a_loop_out_of_turns_leaves_the_answer_to_her(gate, monkeypatch):
 
 
 def test_the_loop_writes_no_answer_of_its_own_when_it_runs_out(monkeypatch):
-    """A tool loop that asks for a tool every turn ends exhausted, with what ran and no words put in her mouth."""
+    """A tool loop whose model asks for a tool every turn ends exhausted, with what ran and no words put in her mouth.
+    Her step is taken once: a call that came back done is not made again because her model asks for it again."""
     from core.brain.llm.mlx_client import MLXLocalClient
     from core.container import ServiceContainer
 
@@ -176,5 +177,6 @@ def test_the_loop_writes_no_answer_of_its_own_when_it_runs_out(monkeypatch):
     client.max_tokens, client.model_path, client.generate_text_async = 512, "her-cortex", asks_again
     tools = {"code_repl": {"description": "run code", "parameters": {"code": {"type": "string"}}}}
     out = asyncio.run(client.think_and_act("Run Python to compute 2 + 2", "", tools=tools, max_turns=3))
-    # The last pass is offered no tools, so a call written there is not run (tests/test_the_tool_loops_last_pass.py).
-    assert out["exhausted"] is True and out["content"] == "" and len(out["tool_calls"]) == 2
+    # Once her steps are done the pass is offered no tools, so a call written there is not run
+    # (tests/test_the_tool_loops_last_pass.py, core/brain/llm/her_steps.py).
+    assert out["exhausted"] is True and out["content"] == "" and len(out["tool_calls"]) == 1

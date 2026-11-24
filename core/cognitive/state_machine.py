@@ -979,6 +979,8 @@ class StateMachine:
                     priority=priority,
                     origin=origin,
                     purpose="tool_selection",
+                    # Which tool is hers to choose, by her reading of what was asked; her model writes its call.
+                    her_choice="by_meaning",
                 ),
                 timeout=60.0,
             )

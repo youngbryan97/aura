@@ -11019,18 +11019,20 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         max_turns = max(1, min(_AGENT_MAX_TURNS_CEILING, max_turns))
 
         template_tools = self._normalize_tool_definitions_for_template(tools)
-        tool_block = ""
-        # Both protocols are built. The native one is preferred, and the JSON
-        # contract is the fallback for a checkpoint that will not emit native
-        # calls — see the retry below.
-        if tools:
+
+        def block_for(offered: dict[str, Any] | None) -> str:
+            # Both protocols are built. The native one is preferred, and the JSON
+            # contract is the fallback for a checkpoint that will not emit native
+            # calls — see the retry below.
+            if not offered:
+                return ""
             tool_lines = []
-            for name, defn in list(tools.items())[:20]:  # cap to avoid bloat
+            for name, defn in list(offered.items())[:20]:  # cap to avoid bloat
                 desc = defn.get("description", "")
                 params = defn.get("parameters", {}).get("properties", {})
                 param_str = ", ".join(f'"{k}"' for k in params) if params else "none"
                 tool_lines.append(f"  • {name}: {desc}  [params: {param_str}]")
-            tool_block = (
+            return (
                 "\n\n## TOOLS AVAILABLE\n"
                 + "\n".join(tool_lines)
                 + "\n\nIf you need a tool and the model supports native tool calling, emit the native tool-call format only.\n"
@@ -11038,6 +11040,19 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 + '```json\n{"tool": "tool_name", "args": {"param": "value"}}\n```\n'
                 + "When you have your final answer, respond normally — no JSON block."
             )
+
+        tool_block = block_for(tools)
+        # Which tool each pass offers, and when the work is done, are hers (core/brain/llm/her_steps.py): her model
+        # writes the arguments of the one call her steps hold next. Bryan, 24 November 2026: "the 27b is an organ.
+        # not the central hub. aura should be driving things. not her model."
+        from core.brain.llm.her_steps import HerSteps, came_back_done
+
+        steps = HerSteps.for_loop(tools, str(objective or ""), order=kwargs.get("her_plan"),
+                                  choose_by_meaning=kwargs.get("her_choice") == "by_meaning",
+                                  needs=kwargs.get("her_needs"), already=kwargs.get("her_steps_taken") or ())
+        step: str | None = None
+        last_result = ""
+        native_on = bool(template_tools)
 
         # Native first: the schema goes in the template, not in prose.
         native_tools: list[dict[str, Any]] | None = template_tools or None
@@ -11072,9 +11087,19 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         write_by, longest_pass_s = float((context or {}).get("write_by") or 0.0), 0.0
         for turn in range(max_turns):
             writes = this_pass_writes(turn, max_turns, write_by, longest_pass_s, time.monotonic())
+            step = None
+            if steps is not None and not writes:
+                step = steps.next(last_result)
+                if step is None:
+                    writes = True  # her steps are done: what is left is her answer
             if writes:
                 native_tools, template_tools = None, None
                 messages[0]["content"] = system_prompt
+            elif step is not None:
+                # This pass offers her step alone.
+                template_tools = self._normalize_tool_definitions_for_template({step: tools[step]})
+                native_tools = (template_tools or None) if native_on else None
+                messages[0]["content"] = system_prompt if native_tools else system_prompt + block_for({step: tools[step]})
             pass_began = time.monotonic()
             raw = await self.generate_text_async(
                 "",
@@ -11149,8 +11174,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                         "🔧 Native tool protocol produced nothing; retrying on the "
                         "JSON tool contract."
                     )
-                    native_tools = None
-                    messages[0]["content"] = system_prompt + tool_block
+                    native_tools, native_on = None, False
+                    messages[0]["content"] = system_prompt + (block_for({step: tools[step]}) if step else tool_block)
+                    if step is not None:
+                        steps.taken.pop()  # the protocol failed, not the step: the same step is offered again
                     continue
                 break
 
@@ -11165,6 +11192,11 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 if tools
                 else None
             )
+            if step is not None and not tool_call:
+                # Her model wrote no call for her step: the step is tried once more, or let go, as her steps say.
+                steps.not_filled(step)
+                messages.append({"role": "assistant", "content": response_text})
+                continue
             if not tool_call:
                 # What it said INSTEAD is the only way to tell a malformed
                 # call from a model that simply answered. Without this the two
@@ -11215,6 +11247,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # effect to attempt.
             schema_error = (_tool_arguments_schema_error(tools.get(tool_name), tool_args) if tool_name in tools
                             else "no tool by that name was offered")
+            if step is not None and tool_name != step and not schema_error:
+                schema_error = f"the step being taken is {step}"
+            if schema_error and step is not None:
+                steps.not_filled(step)
             if schema_error:
                 _record_mlx_degradation(
                     ValueError(f"tool_arguments_invalid:{tool_name}:{schema_error}"),
@@ -11289,6 +11325,10 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     "result": tool_result,
                 }
             )
+            if steps is not None:
+                tool_calls_made[-1]["ok"] = came_back_done(raw_result)
+                steps.called(tool_name, tool_calls_made[-1]["ok"])
+                last_result = str(tool_result or "")[-600:]
             # The turn owns this the moment it exists.
             #
             # The caller recorded receipts for the whole loop after the loop

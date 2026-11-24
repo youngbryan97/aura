@@ -35,18 +35,18 @@ def test_native_is_tried_first():
 
 
 def test_an_empty_native_generation_retries_on_the_json_contract():
-    assert "native_tools = None" in SOURCE
+    assert "native_tools, native_on = None, False" in SOURCE
     assert "JSON tool contract" in SOURCE
 
 
 def test_the_fallback_swaps_the_system_message_to_carry_the_block():
     """The JSON contract lives in the system message; native does not use it."""
-    assert 'messages[0]["content"] = system_prompt + tool_block' in SOURCE
+    assert 'messages[0]["content"] = system_prompt + (block_for({step: tools[step]}) if step else tool_block)' in SOURCE
 
 
 def test_the_fallback_cannot_loop_forever():
     """It clears native_tools before continuing, so the retry runs once."""
     fallback = SOURCE[SOURCE.index("Native tool protocol produced nothing") :]
-    assert "native_tools = None" in fallback[: fallback.index("continue")]
+    assert "native_tools, native_on = None, False" in fallback[: fallback.index("continue")]
     # And the loop is still bounded by max_turns.
     assert "for turn in range(max_turns):" in SOURCE

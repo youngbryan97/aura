@@ -61,6 +61,12 @@ def _what_she_reads_of_before() -> int:
     return A_SITTING_READ_WHOLE_CHARS
 
 
+#: Her way of working on a body of work, a step at a time: what went wrong last, where the work is, what is there, the
+#: change, its check, and the change offered. Each pass takes them in this order; her model writes what each takes.
+HER_WAY = ("what_went_wrong", "find_in_source", "read_source", "edit_draft", "check_draft", "offer_draft")
+#: A step and the one that must have come back done first: a draft is checked once made, and offered once it passed.
+HER_WAY_NEEDS = {"check_draft": "edit_draft", "offer_draft": "check_draft"}
+
 #: Where a goal stands.
 WORKING, OFFERED, MERGED, STALLED = "working", "offered", "merged", "stalled"
 
@@ -107,6 +113,8 @@ class HerCortex:
         prior = list(kwargs.pop("prior_turns", None) or [])
         ends_at = monotonic_time() + PASS_SECONDS
         calls: list[dict[str, Any]] = []
+        # Her steps this pass, each with whether it came back done: the next generation goes on from them.
+        taken: list[tuple[str, bool]] = []
         content, generations, empty = "", 0, 0
         while turns_left > 0 and empty < 2:
             if a_person_is_waiting_for_her_model():
@@ -121,7 +129,8 @@ class HerCortex:
                 break
             try:
                 step = await asyncio.wait_for(
-                    client.think_and_act(objective, max_turns=1, prior_turns=list(prior), **kwargs), timeout=left_s)
+                    client.think_and_act(objective, max_turns=1, prior_turns=list(prior), her_steps_taken=list(taken),
+                                         **kwargs), timeout=left_s)
             except TimeoutError:
                 # The pass's own time ran out mid-generation: its end, not a fault, and what it did stays. LIVE to 12
                 # November 2026 the timeout left the pass, its earlier calls were lost, and her self-repair targeted
@@ -141,6 +150,7 @@ class HerCortex:
                 continue
             empty = 0
             calls += made
+            taken += [(str(call.get("tool") or ""), bool(call.get("ok"))) for call in made]
             for n, call in enumerate(made):  # each as the loop's own turns, the way her earlier passes go in
                 step_id = call.get("id") or f"pass_call_{generations}_{n}"
                 prior += turns_from([{**call, "id": step_id, "at": time.time()}], 0)
@@ -452,6 +462,10 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         prior_turns=turns_from(record.steps, _what_she_reads_of_before(), record.said),
         work_in_background=True,
         native_tools_only=True,
+        # Her way of changing a body of work, step by step, and which step waits on which: hers, not her model's
+        # (core/brain/llm/her_steps.py). Her model writes what each step takes.
+        her_plan=HER_WAY,
+        her_needs=HER_WAY_NEEDS,
     )
     calls = list((result or {}).get("tool_calls") or [])
     words = str((result or {}).get("content") or "").strip()
