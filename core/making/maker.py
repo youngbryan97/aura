@@ -25,13 +25,15 @@ from itertools import chain, islice
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from core.making import design as how
 from core.making import her_own_mends as own
 from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
 from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
 from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
-from core.making.trying import Result, Trial, page_of, site_of, try_page
+from core.making.trying import ANOTHER_WAY, Result, Trial, page_of, site_of, try_page
 from core.making.what_has_worked import functions_like, get_kept
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.workbench import PutDown, Work
@@ -110,6 +112,29 @@ def _blocks(text: str) -> list[str]:
     """Each block of code in what was written, the last where it was cut off; all of it where it has no block."""
     found = [block.strip() for block in re.findall(r"```[\w+-]*\n(.*?)(?:```|$)", text, flags=re.S) if block.strip()]
     return found or [_code(text)]
+
+
+class Another(BaseModel):
+    function: str = Field(description="the name of one of its functions that works an answer out from what it is given")
+    claims: str = Field(max_length=160, description="what has to be so of every answer it gives")
+    inputs: str = Field(description="JavaScript, r => [arguments]: small arguments of the shape it takes, made by chance with r(), a number from 0 to 1")
+    surely: str = Field(description="JavaScript, (...arguments) => the answer, or what the claim is about, worked out another way: by trying everything, slow and sure")
+    holds: str = Field(description="JavaScript, (answer, sure, arguments) => true where the claim is so of the function's own answer")
+
+
+class Anothers(BaseModel):
+    checks: list[Another] = Field(default_factory=list, max_length=3)
+
+
+def another_way(check: Another) -> str:
+    """A check as a test: the function's answers, on many small inputs made by chance, held to what is surely so of them."""
+    name = json.dumps(f"{check.claims.rstrip('.')}{ANOTHER_WAY}")
+    return (f"test({name}, t => {{ const inputs = {check.inputs}, surely = {check.surely}, holds = {check.holds}; let z = 11, says_nothing = 0; "
+            "const r = () => (z = (z * 48271) % 2147483647) / 2147483647, copy = (x) => JSON.parse(JSON.stringify(x)); "
+            "for (let i = 0; i < 150; i++) { const args = inputs(r), got = t.call(" + json.dumps(check.function) + ", ...copy(args)), sure = surely(...copy(args)); "
+            "let nothing = false; try { nothing = holds(null, sure, args) === true; } catch (e) { nothing = false; } if (nothing) says_nothing++; "
+            "t.expect(holds(got, sure, args) === true, `for ${JSON.stringify(args).slice(0, 220)} it gives ${JSON.stringify(got).slice(0, 220)}, and ${JSON.stringify(sure).slice(0, 120)} is what is surely so`); } "
+            "if (says_nothing > 100) { const e = new Error('this holds of no answer at all, so it says nothing of one'); e.theTest = true; throw e; } });")
 
 
 class _Maker:
@@ -273,7 +298,30 @@ class _Maker:
             else:
                 await self.added_where_it_is_not(rules)
             await self.kept()
+        await self.worked_out_another_way()
         await self.finished()
+
+    async def worked_out_another_way(self) -> None:
+        """What its functions work out, held to the same worked out another way: by a slow sure method over many small inputs
+        made by chance. LIVE 24 November 2026 an app at 20 of 20 was to settle up in the fewest payments, and its tests held
+        it to settling up. A check that cannot be kept to by what she then writes is told, and not let through."""
+        assert self.design is not None
+        if self.design.kind not in {"app", "game"} or ANOTHER_WAY in self.parts.tests or not self.design.functions:
+            return
+        self.work.step("Working out another way what its functions work out")
+        got = await self.ask(f"Its functions:\n```js\n{self.parts.code()}\n```\n\nWhich of these work an answer out that has to be right: a sum, a best, a "
+                             "fewest, an order, a path, whether a rule of play allows something? For up to three of them, say what has to be so of every "
+                             "answer, and how that is worked out another way, by trying everything, so that the two can be held to each other. None, "
+                             "where none does.", Anothers, EDITS_TOKENS + 900, given=self._given())
+        checks = [c for c in (got.checks if isinstance(got, Anothers) else []) if c.function in self.parts.functions]
+        if not checks:
+            self.work.says("None of them works out an answer that can be.")
+            return
+        was = self.parts.tests
+        self.parts.tests = "\n\n".join([was, *(another_way(c) for c in checks)]).strip()
+        self.work.wrote("tests", "\n\n".join(another_way(c) for c in checks))
+        await self.mended()
+        await self.kept()
 
     async def added_where_it_is_not(self, rules: list[str], words: str = "") -> None:
         """More of its rules: nothing written where the program already holds to them, and nothing kept that leaves it worse

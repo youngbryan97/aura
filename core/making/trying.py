@@ -14,13 +14,13 @@ from pathlib import Path
 from typing import Any
 
 from core.making.code_parts import BEFORE, each_test_in, halves, parts_in
-from core.making.design import Design
+from core.making.design import Design, that_can_be_read_on
 from core.making.pieces import bundle, with_needs
 from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Making.Trying")
 
-__all__ = ["Result", "Trial", "as_object", "page_of", "site_of", "try_page"]
+__all__ = ["ANOTHER_WAY", "Result", "Trial", "as_object", "page_of", "site_of", "try_page"]
 
 _HERE = Path(__file__).resolve().parent
 _TRY = page_script("() => window.__try()")
@@ -28,6 +28,8 @@ _PLAY, _RULES = page_script("() => window.__played()"), page_script("() => windo
 #: Whether the program itself could be read: a test that cannot be leaves it as it is.
 _THERE = page_script("() => { const there = () => { try { return typeof PROGRAM === 'object'; } catch (e) { return false; } };"
                      " return typeof window.__try === 'function' && (there() || (!document.getElementById('program') && document.body.innerText.length > 0)); }")
+#: How the name of a test ends that works out what a function gives another way: what it tests needs nothing to happen.
+ANOTHER_WAY = ", worked out another way"
 #: How long a trial may take before it is taken to be one that does not end.
 TRIAL_S = 120.0
 
@@ -88,7 +90,7 @@ def page_of(design: Design, code: str, *, tests: str | None = None) -> str:
             f"style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:\"><title>{design.name}</title>")
     style = (_HERE / "frame.css").read_text(encoding="utf-8")
     frame = (_HERE / "frame.js").read_text(encoding="utf-8")
-    facts = {"name": design.name, "kind": design.kind, "about": design.about, "look": {"accent": design.look.accent},
+    facts = {"name": design.name, "kind": design.kind, "about": design.about, "look": {"accent": that_can_be_read_on(design.look.accent)},
              "controls": [c.model_dump() for c in design.controls], "ticks": bool(design.moves_by_itself),
              **({"designed": design.state} if tests is not None else {})}
     parts = [_script(frame), _script(bundle(design.pieces))]
@@ -206,7 +208,7 @@ async def try_page(html: str, where: Path, browser: Any) -> Trial:
     if got.get("missing"):
         generic.insert(0, Result("it has its functions", False, f"these are missing: {', '.join(got['missing'])}"))
     return Trial(generic=generic, rules=[_result(r) for r in got.get("rules") or []],
-                 hollow=[str(r["name"]) for r in got.get("hollow") or [] if r["ok"]],
+                 hollow=[str(r["name"]) for r in got.get("hollow") or [] if r["ok"] and not str(r["name"]).endswith(ANOTHER_WAY)],
                  never_ran=_never_ran(got.get("ran") or [], html))
 
 

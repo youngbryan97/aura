@@ -547,6 +547,25 @@ def test_an_app_that_shows_the_machines_words_or_begins_filled_is_told_so(tmp_pa
         assert named in [r.name for r in _tried(page_of(design, bad, tests=""), tmp_path).failing()]
 
 
+def test_an_app_does_not_begin_with_the_examples_own_sums(tmp_path):
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}], "owed": {"Ana": 5000, "Ben": -5000}, "steps": [1, 5]})
+    bad = APP.replace('{ name: "", items: [] }', '{ name: "", items: [], owed: { Ana: 5000, Ben: -5000 }, steps: [] }')
+    named = "it begins with nothing in it that nobody put there"
+    failing = {r.name: r.why for r in _tried(page_of(design, bad, tests=""), tmp_path).failing()}
+    assert "the example's own owed" in failing[named]
+    for good in ("owed: { Ana: 0, Ben: 0 }", "owed: {}"):
+        page = page_of(design, APP.replace('{ name: "", items: [] }', f'{{ name: "", items: [], {good}, steps: [] }}'), tests="")
+        assert named not in [r.name for r in _tried(page, tmp_path).failing()]
+
+
+def test_white_words_can_be_read_on_the_accent_whatever_it_was_designed_as():
+    from core.making.design import _seen_at, that_can_be_read_on
+
+    for accent in ("#4c6ef5", "#ffd43b", "#e63946", "#00ff00", "#ffffff", "#111111"):
+        assert 1.05 / (_seen_at(that_can_be_read_on(accent)) + 0.05) >= 4.5
+    assert that_can_be_read_on("#111111") == "#111111" and that_can_be_read_on("red") == "#4263eb"
+
+
 def test_what_looks_unfinished_is_measured_and_mended_where_that_leaves_less_of_it(tmp_path):
     design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]}, rules=[Rule(says="adding shows it", of="catch the moths")])
     wide = APP.replace('ui.title("Loaves")', 'ui.canvas("c", 10, 10, () => {}), ui.title("Loaves")')
@@ -1126,3 +1145,51 @@ def test_what_it_holds_to_already_is_not_built_again_and_what_leaves_it_worse_is
     again = _in_a_browser(lambda browser: maker.mend(made.folder, ask=model.ask, write=model.write, work=work, browser=browser))
     assert [r.name for r in again.trial.failing()] == ["it rains"] and "nothing.there" not in again.parts.code()
     assert any(r["what"] == "says" and "so it is as it was before" in r["words"] for r in work.seen()["happened"])
+
+
+SETTLES = "settle(b) { const out = [], o = Object.entries(b).filter(([, v]) => v < 0).map(([n, v]) => [n, -v]), c = Object.entries(b).filter(([, v]) => v > 0); let i = 0, j = 0; while (i < o.length && j < c.length) { const a = Math.min(o[i][1], c[j][1]); out.push({ from: o[i][0], to: c[j][0], amount: a }); o[i][1] -= a; c[j][1] -= a; if (!o[i][1]) i++; if (!c[j][1]) j++; } return out; }"
+
+
+def _fewest():
+    return maker.Another(function="settle", claims="It settles everyone up in the fewest payments.",
+                         inputs="r => { const a = 1 + Math.floor(r() * 9), b = 1 + Math.floor(r() * 9); return [r() < 0.5 ? { A: a, B: b, C: -b, D: -a } : { A: a, B: -a }]; }",
+                         surely="b => { const v = Object.values(b); const two = v.length > 2; return two ? 2 : 1; }",
+                         holds="(got, sure) => got.length <= sure")
+
+
+def test_what_is_worked_out_is_held_to_the_same_worked_out_another_way(tmp_path):
+    """20 of 20 on its own tests, and not the fewest payments: A owed 3, B owed 5, C owes 5 and D owes 3 is two, and it makes three."""
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]}, functions=["settle(b): who pays whom"])
+    app = APP.replace("  view(s, ui)", f"  {SETTLES},\n  view(s, ui)")
+    trial = _tried(page_of(design, app, tests=maker.another_way(_fewest())), tmp_path)
+    (result,) = trial.rules
+    assert result.name == "It settles everyone up in the fewest payments, worked out another way" and not result.ok and "is what is surely so" in result.why
+    better = SETTLES.replace("let i = 0, j = 0;", "for (const x of o) { const k = c.findIndex((y) => y[1] === x[1]); if (k >= 0) { out.push({ from: x[0], to: c[k][0], amount: x[1] }); c.splice(k, 1); x[1] = 0; } } for (let k = o.length - 1; k >= 0; k--) if (!o[k][1]) o.splice(k, 1); let i = 0, j = 0;")
+    trial = _tried(page_of(design, app.replace(SETTLES, better), tests=maker.another_way(_fewest())), tmp_path)
+    assert [r.ok for r in trial.rules] == [True] and trial.hollow == [], "it needs nothing to happen, and is no less a check for it"
+    empty = _fewest().model_copy(update={"holds": "() => true"})
+    (result,) = _tried(page_of(design, app, tests=maker.another_way(empty)), tmp_path).rules
+    assert result.the_test and "says nothing" in result.why
+
+
+def test_a_program_is_held_to_another_way_once_it_is_built(tmp_path):
+    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made.design = _design(functions=["settle(b): who pays whom"])
+    made.parts.functions = {"settle": SETTLES}
+    asked, ran = [], []
+
+    async def ask(prompt, schema, n, *, given=""):
+        asked.append(schema)
+        return maker.Anothers(checks=[_fewest(), _fewest().model_copy(update={"function": "nowhere"})])
+
+    async def mended():
+        ran.append(True)
+
+    async def kept():
+        return tmp_path
+
+    made.ask, made.mended, made.kept = ask, mended, kept
+    asyncio.run(made.worked_out_another_way())
+    assert asked == [maker.Anothers] and ran and made.parts.tests.count("worked out another way") == 1
+    asyncio.run(made.worked_out_another_way())
+    assert asked == [maker.Anothers], "once"

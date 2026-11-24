@@ -6,6 +6,7 @@ is asked for again. The rules are what the program is tested by, so they are thi
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -140,6 +141,31 @@ Labels of buttons that stand together differ, so each can be told from the rest.
 SITE = """A site is one HTML document body, with a <style> of its own and, where needed, one <script>. No address outside the page is used: pictures are drawn as inline SVG, fonts are the system's. Every link goes to a part of the page that is there. It reads well at 400 and at 1200 pixels wide, in light and in dark."""
 
 TOOL = """A tool is one file of {language} that is run as: {run}. It reads its arguments and its standard input, writes its answer to standard output and what went wrong to standard error, and leaves with 0 when it did what was asked and not 0 when it did not. With --help it says how it is used. It uses no network and nothing that has to be installed: {has}."""
+
+
+def _seen_at(colour: str) -> float:
+    """How light a colour is, as the eye takes it (WCAG 2 relative luminance)."""
+    parts = [int(colour[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+    r, g, b = (c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in parts)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+#: How far words are to stand out from what is behind them: the standard's 4.5 to 1, and a little over for what is drawn on it.
+STANDS_OUT = 4.8
+
+
+def that_can_be_read_on(accent: str) -> str:
+    """An accent white words can be read on: itself where they can, and darkened until they can where they cannot. LIVE 24
+    November 2026 an app's own button was at 4.3 to 1 in the accent its design chose, and the mend of that made every
+    button of it red."""
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent or ""):
+        return "#4263eb"
+    colour = accent.lower()
+    for _step in range(40):
+        if 1.05 / (_seen_at(colour) + 0.05) >= STANDS_OUT:
+            break
+        colour = "#" + "".join(f"{int(int(colour[i:i + 2], 16) * 0.95):02x}" for i in (1, 3, 5))
+    return colour
 
 
 #: The pieces a game is drawn with, which are told to whoever writes one: what is drawn with them is drawn well.
