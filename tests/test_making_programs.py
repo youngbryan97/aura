@@ -38,6 +38,16 @@ _PAINTED_JS = ("const pen_ = (() => { " + (Path(maker.__file__).parent / "frame.
                "return { bare: bare / (W * H), colours: seen.size, sum, at: (a, b) => [...d.slice((Math.round(b) * W + Math.round(a)) * 4, (Math.round(b) * W + Math.round(a)) * 4 + 4)] }; };")
 
 
+@pytest.fixture(autouse=True)
+def what_has_worked_here(tmp_path, monkeypatch):
+    """What a test's programs taught stays in the test."""
+    from core.making import what_has_worked
+
+    kept = what_has_worked.Kept(tmp_path / "kept" / "what_has_worked.json")
+    monkeypatch.setattr(maker, "get_kept", lambda: kept)
+    return kept
+
+
 def _in_a_browser(act):
     """What ``act(browser)`` gives, in a Chromium of its own."""
     api = pytest.importorskip("playwright.async_api")
@@ -1048,3 +1058,31 @@ def test_an_edit_that_breaks_the_program_is_not_kept_and_a_mend_that_lets_it_be_
     again.trial = Trial(generic=[Result("it can be read", False, "Identifier 'a' has already been declared")])
     read = Trial(generic=[Result("it begins", False, "today is not defined")], rules=[Result(f"rule {n}", False, "today") for n in range(10)])
     assert again._wrong(read) < again._wrong(again.trial)
+
+
+def test_what_mended_one_program_is_there_for_the_next(tmp_path, monkeypatch, what_has_worked_here):
+    import core.cognition.evidence_relevance as relevance
+    from core.making.what_has_worked import Kept
+
+    monkeypatch.setattr(relevance, "vectors_if_ready", lambda texts: [[float("score" in t), float("import" in t or "json" in t), 0.1] for t in texts])
+    asyncio.run(_tool_maker(tmp_path, ADDER, ADDS, _Nobody()).mended())
+    held = Kept(tmp_path / "kept" / "what_has_worked.json")
+    assert any("json" in m for m in held.like("tool", "NameError: name 'json' is not defined"))
+    assert held.like("game", "NameError: name 'json' is not defined") == [], "of its own kind"
+    assert held.pays("missing_import") > held.pays("never_tried") == 0.5
+    held.tried("x", kept=False)
+    assert held.pays("x") == pytest.approx(1 / 3)
+
+
+def test_functions_of_programs_that_held_are_what_the_next_starts_from(tmp_path, monkeypatch):
+    import core.cognition.evidence_relevance as relevance
+    from core.making.what_has_worked import functions_like
+
+    monkeypatch.setattr(relevance, "vectors_if_ready", lambda texts: [[float("wind" in t), float("score" in t)] for t in texts])
+    for name, ok in (("good", True), ("bad", False)):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "program.json").write_text(json.dumps({"design": {"kind": "game", "functions": ["gust(s, dt): moves the wind", "tally(s): the score"]},
+            "parts": {"functions": {"gust": f"gust(s) {{ /* {name} */ }}", "tally": "tally(s) {}"}}, "tried": [{"name": "it begins", "ok": ok}]}))
+    got = functions_like(["blow(s): the wind rises"], tmp_path, kind="game", at_most=1)
+    assert got == ["gust(s) { /* good */ }"] and functions_like(["blow(s): the wind"], tmp_path, kind="app") == []
+    assert functions_like(["blow(s): the wind"], tmp_path, kind="game", but=tmp_path / "good") == []

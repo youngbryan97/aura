@@ -19,7 +19,7 @@ import logging
 import re
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from itertools import chain, islice
 from pathlib import Path
@@ -32,6 +32,7 @@ from core.making.design import Asked, Design, Rule, in_proportion, left_out, wit
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
 from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
 from core.making.trying import Result, Trial, page_of, site_of, try_page
+from core.making.what_has_worked import functions_like, get_kept
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.workbench import PutDown, Work
 
@@ -121,6 +122,7 @@ class _Maker:
         self._looked_at: set[str] = set()
         self._guessed_at: set[str] = set()
         self._known: set[str] = set()
+        self._said_of_it = ""
         self.when_kept: Callable[[Path], None] | None = None
         self.began = time.monotonic()
 
@@ -286,6 +288,10 @@ class _Maker:
             return
         first = "" if len(rules) == len(design.rules) else "Only these of its rules are built now:\n" + "\n".join(f"- {r}" for r in rules) + "\n\n"
         functions = "initial, update, score, over and hud" if design.kind == "game" else "initial and update"
+        earlier = await asyncio.to_thread(functions_like, design.functions, self.folder.parent, kind=design.kind, but=self.folder)
+        if earlier:
+            self.work.says(f"Starting from {len(earlier)} functions of earlier programs whose checks held.")
+            first += "Functions that worked in earlier programs of hers, to start from where they fit:\n```js\n" + ",\n\n".join(earlier) + "\n```\n\n"
         self.work.step("Writing its rules: how it begins and what each event does")
         said = await self.write(f"{first}Say in a sentence or two how you will do it, then write {functions}, as one JavaScript object in "
                                 "one block: `({ ... })`. How it is shown is written after.", CODE_TOKENS, given=self._given())
@@ -409,6 +415,7 @@ class _Maker:
                 self.work.says(f"Kept: {len(failing)} things failed before it and {len(trial.failing())} do now"
                                + (", and what was underneath them is put right." if len(trial.failing()) >= len(failing) else "."))
                 self.parts, self.trial, nothing_gained = parts, trial, 0
+                await self._remembered(failing, self._said_of_it, "written again")
                 await self.kept()
             else:
                 nothing_gained += 1
@@ -428,7 +435,7 @@ class _Maker:
             return False
         self._looked_at.add(code)
         before, began, tried = self._wrong(self.trial), time.monotonic(), 0
-        best: tuple[tuple[int, float], Parts, Trial, str] | None = None
+        best: tuple[tuple[int, float], Parts, Trial, str, str] | None = None
         async for sort, says, parts in self._mends_of_her_own(failing):
             if tried == 0:
                 self.work.step("Trying the mends her own Python writes, before her model is asked")
@@ -438,14 +445,18 @@ class _Maker:
             # What was made to fit one case at a suspicious line may fit nothing else: it counts where it mends what broke, or more than one.
             fits = not sort.startswith(("template:", "ingredient:")) or len(failing) - len(trial.failing()) > 1 or any("Traceback" in r.why for r in failing)
             if wrong < (best[0] if best else before) and fits and not {r.name for r in trial.failing()} - {r.name for r in failing}:
-                best = (wrong, parts, trial, says)
+                best = (wrong, parts, trial, says, sort)
+            else:
+                get_kept().tried(sort, kept=False)
             if time.monotonic() - began > OWN_S or (best is not None and not best[2].failing()):
                 break
         if best is None:
             if tried:
                 self.work.says(f"None of {tried} mends of her own left less wrong.")
             return False
-        _wrong, self.parts, trial, says = best
+        _wrong, self.parts, trial, says, sort = best
+        get_kept().tried(sort, kept=True)
+        await self._remembered(failing, says, sort)
         self.work.says(f"Kept a mend of her own, written without her model: {says}. {len(failing)} things failed before it and {len(trial.failing())} do now.")
         self.trial = trial
         self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
@@ -495,11 +506,24 @@ class _Maker:
             self.work.says(f"None of {len(guesses)} small edits left less wrong.")
             return False
         _wrong, self.parts, trial, why = best
+        await self._remembered(failing, why, "small edit")
         self.work.says(f"Kept a small edit: {why} {len(failing)} things failed before it and {len(trial.failing())} do now.")
         self.trial = trial
         self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
         await self.kept()
         return True
+
+    @staticmethod
+    def _what_pays_first(mends: Iterable[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+        """Her own mends, the sorts that have been kept oftenest first, and otherwise in the order they come."""
+        return sorted(mends, key=lambda mend: -get_kept().pays(mend[0]))
+
+    async def _remembered(self, failing: list[Result], says: str, sort: str) -> None:
+        """A mend that was kept, for the next program a failure like it is met in."""
+        assert self.design is not None
+        worst = max(failing, key=lambda r: _how_much_is_wrong([r]))
+        get_kept().mended(kind=self.design.kind, failing=[r.name for r in failing], why=f"{worst.name}: {worst.why}", says=says, sort=sort)
+        await asyncio.to_thread(get_kept().keep)
 
     def _with_code(self, code: str) -> Parts | None:
         """The program with its code as it is written here; None where that is not the same functions."""
@@ -515,7 +539,7 @@ class _Maker:
         assert self.design is not None
         if self.design.kind != "tool":
             code = assembled(self.parts.functions)
-            for sort, says, changed in await asyncio.to_thread(lambda: list(islice(own.of_its_shapes(code, ".js"), own.MOST))):
+            for sort, says, changed in await asyncio.to_thread(lambda: self._what_pays_first(islice(own.of_its_shapes(code, ".js"), own.MOST))):
                 parts = self._with_code(changed)
                 if parts is not None:
                     yield sort, says, parts
@@ -525,7 +549,7 @@ class _Maker:
             return
         text = self.parts.text
         told = "\n".join(r.why for r in failing)
-        shapes = await asyncio.to_thread(lambda: list(islice(chain(own.missing_imports(text, told), own.of_its_shapes(text, ".py")), own.MOST)))
+        shapes = await asyncio.to_thread(lambda: self._what_pays_first(islice(chain(own.missing_imports(text, told), own.of_its_shapes(text, ".py")), own.MOST)))
         for sort, says, changed in shapes:
             parts = self.parts.copy()
             parts.text = changed
@@ -622,10 +646,13 @@ class _Maker:
         tests = f"\nThe tests of them:\n```js\n{named}\n```\n" if named else ""
         if self.trial.never_ran and any(r in self.trial.generic for r in first):
             told += "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {text}" for text in self.trial.never_ran)
+        worked = await asyncio.to_thread(get_kept().like, design.kind, f"{first[0].name}: {first[0].why}")
+        told += "\nWhat mended failures like these before:\n" + "\n".join(f"- {m}" for m in worked) if worked else ""
         said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
                                 f"Trying it, these fail:\n{told}\n\nSay in a sentence or two what is wrong and what you change, then "
                                 f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm), given=self._given())
         parts = self.parts.copy()
+        self._said_of_it = _prose(said)
         if not self._written(said, "the mend", parts):
             self.work.trouble("The mend changed nothing.")
             return None
