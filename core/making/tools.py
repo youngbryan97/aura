@@ -24,7 +24,7 @@ from core.rebuilding.her_build_writes import governed
 
 logger = logging.getLogger("Making.Tools")
 
-__all__ = ["Case", "Cases", "Language", "languages", "try_tool"]
+__all__ = ["Case", "Cases", "Language", "languages", "try_tool", "lines_each_ran"]
 
 #: The longest one run may take, and the most of what it prints that is read.
 RUN_S, MOST_PRINTED = 20.0, 20000
@@ -115,6 +115,11 @@ def _try(code: str, language: Language, cases: list[Case]) -> Trial:
                 return Trial(generic=[Result("it builds", False, (wrong or printed)[:900])])
             trial.generic.append(Result("it builds", True))
         argv = [part.format(**say) for part in language.run]
+        if language.name == "python":
+            from core.making.her_own_mends import known_by_reading
+
+            wrong = known_by_reading(code)
+            trial.generic.append(Result("nothing in it is wrong that can be read", not wrong, wrong))
         if language.name != "sql":
             trial.generic.append(_told(lambda: _helps(argv, folder)))
         for n, case in enumerate(cases):
@@ -165,6 +170,30 @@ def _one(case: Case, argv: list[str], folder: Path) -> str:
         if holds and holds not in made.read_text(encoding="utf-8", errors="replace"):
             return f"{name} does not hold {holds!r}"
     return ""
+
+
+def _ran(code: str, language: Language, cases: list[Case]) -> list[set[int]]:
+    from core.making.her_own_mends import WHAT_A_RUN_WENT_THROUGH, lines_in
+
+    if language.name != "python":
+        return [set() for _case in cases]
+    with tempfile.TemporaryDirectory(prefix="made-") as made:
+        folder = Path(made).resolve()
+        main, runner = folder / language.file, folder / "runner.py"
+        governed("write_text", main, code, source="making.tools")
+        governed("write_text", runner, WHAT_A_RUN_WENT_THROUGH, source="making.tools")
+        out: list[set[int]] = []
+        for n, case in enumerate(cases):
+            here = folder / f"run{n}"
+            told = here / ".ran"
+            _told(lambda case=case, here=here, told=told: _one(case, [sys.executable, str(runner), str(main), str(told)], here))
+            out.append(lines_in(told.read_text(encoding="utf-8")) if told.is_file() else set())
+        return out
+
+
+async def lines_each_ran(code: str, language: Language, cases: list[Case]) -> list[set[int]]:
+    """The lines of a tool in Python each case goes through; none for any other language."""
+    return await asyncio.to_thread(_ran, code, language, cases)
 
 
 async def try_tool(code: str, language: Language, cases: list[Case]) -> Trial:

@@ -134,7 +134,11 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
 async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str) -> None:
     """Begin what her reply undertakes, as the likeliest thing this turn could have asked for that she can carry out."""
     from core.understanding import carrying_out
-    from core.understanding.what_she_says_she_does import UNDERTAKES, get_what_she_says_she_does
+    from core.understanding.what_she_says_she_does import (
+        UNDERTAKES,
+        get_what_she_says_she_does,
+        get_what_she_undertakes,
+    )
     from interface.routes.chat_what_is_asked import her_client
 
     try:
@@ -142,16 +146,21 @@ async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str
         says = await get_what_she_says_she_does().read(reply, said, client=her_client())
         if says is None or max(says, key=lambda kind: says[kind]) != UNDERTAKES:
             return
-        kinds = {kind: p for kind, p in asked.by_effect.items() if kind != "talk"}
+        # What she is doing is in what she said of it; where that is not read, in what they asked.
+        hers = await get_what_she_undertakes().read(reply, said, client=her_client())
+        kinds = hers if hers is not None else {kind: p for kind, p in asked.by_effect.items() if kind != "talk"}
         kind = max(kinds, key=lambda name: kinds[name], default="")
+        sure = says[UNDERTAKES] * (kinds[kind] / (sum(kinds.values()) or 1.0)) if kind else 0.0
         # Begun where failing to keep her word would cost more than doing what she did not mean she was doing.
-        likelier = says[UNDERTAKES] > (1.0 - says[UNDERTAKES]) * (BY_NAME[kind].unasked if kind in BY_NAME else 1.0)
-        if kind not in carrying_out.carriers() or not likelier or kinds[kind] * 2 < sum(kinds.values()):
+        likelier = sure > (1.0 - sure) * (BY_NAME[kind].unasked if kind in BY_NAME else 1.0)
+        if kind not in carrying_out.carriers() or not likelier:
             logger.info("🧰 Her reply undertakes something (%.2f) that is not hers to begin from here (%s).", says[UNDERTAKES], kind)
             return
         ledger = get_requests_of_her()
         if kind == "document_read" and not ledger.given(session_id):
             return
+        if kind == "program_changed" and not any(request.made.get("page") for request in ledger.of(session_id)):
+            kind = "program"  # there is none of hers here to change
         request = ledger.asked(said, effect=kind, conversation=session_id,
                                materials=ledger.given(session_id, with_words=None if kind == "document_read" else [said]))
         await ledger.keep()

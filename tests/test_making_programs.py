@@ -906,3 +906,108 @@ def test_she_can_say_how_a_work_goes_from_the_work(tmp_path, monkeypatch):
     assert told["doing_now"] == "Mending it: the lamp" and "failing now: it ends" in told["lately"]
     work.finished("done")
     assert chat._as_it_goes(request) == {}
+
+
+# ── her own mends, before her model's ─────────────────────────────────
+
+ADDER = '''import sys
+
+
+def total(rows):
+    out = 0
+    for row in rows:
+        out = out - float(row)
+    return out
+
+
+def main():
+    if "--help" in sys.argv:
+        print("adds up the numbers it is given, one a line")
+        return
+    rows = [line for line in sys.stdin.read().split() if line]
+    print("total", round(total(rows), 2))
+    print(json.dumps(rows))
+
+
+if __name__ == "__main__":
+    main()
+'''
+ADDS = [{"rule": "adds", "typed": "1\n2\n", "prints": ["total 3.0"]}, {"rule": "adds", "typed": "5\n5\n5\n", "prints": ["total 15.0"]},
+        {"rule": "none", "typed": "", "prints": ["total 0"]}]
+
+
+def _tool_maker(tmp_path, text: str, cases: list, model) -> maker._Maker:
+    made = maker._Maker("add these up", ask=model.ask, write=model.write, work=Work("w", "x"), folder=tmp_path, browser=None)
+    made.design = _design(name="Adder", kind="tool", language="python", state={}, controls=[], rules=[Rule(says="adds", of="add")])
+    made.parts = maker.Parts(text=text, cases=[Case.model_validate(c).model_dump() for c in cases])
+    return made
+
+
+class _Nobody:
+    """A model that is not to be asked."""
+
+    def __init__(self):
+        self.asked = []
+
+    async def ask(self, prompt, *_a, **_k):
+        self.asked.append(prompt)
+
+    async def write(self, prompt, *_a, **_k):
+        self.asked.append(prompt)
+        return ""
+
+
+def test_her_own_python_mends_a_tool_before_her_model_is_asked(tmp_path):
+    model = _Nobody()
+    made = _tool_maker(tmp_path, ADDER, ADDS, model)
+    asyncio.run(made.mended())
+    assert made.trial.failing() == [] and model.asked == []
+    assert "import json" in made.parts.text and "out + float(row)" in made.parts.text
+    said = [row["words"] for row in made.work.seen()["happened"] if row["what"] == "says"]
+    assert any(words.startswith("Kept a mend of her own, written without her model: added `import json`") for words in said)
+    assert json.loads((tmp_path / "program.json").read_text())["parts"]["text"] == made.parts.text
+
+
+def test_a_change_made_to_fit_one_case_is_not_kept(tmp_path):
+    """One case of a rule, and a template that makes it so: nothing says the rule holds anywhere else."""
+    model = _Nobody()
+    code = ADDER.replace("import sys", "import json\nimport sys").replace("out = out - float(row)", "out = out + float(row)").replace("round(total(rows), 2)", "round(total(rows), 2) - 0")
+    made = _tool_maker(tmp_path, code, [{"rule": "adds", "typed": "1\n2\n", "prints": ["total 4.0"]}, ADDS[1]], model)
+    asyncio.run(made.mended())
+    assert made.parts.text == code and [r.ok for r in made.trial.rules] == [False, True]
+
+
+def test_what_can_be_read_to_be_wrong_is_told_without_running_it(tmp_path):
+    trial = asyncio.run(try_tool(ADDER, languages()["python"], []))
+    assert any(r.name == "nothing in it is wrong that can be read" and "json" in r.why and not r.ok for r in trial.generic)
+
+
+def test_a_piece_above_a_tool_is_never_what_is_mended(tmp_path):
+    from core.making import her_own_mends as own
+
+    assert own.ran({"a": {3, 40, 41}}, {"b": {3, 41}}, after=10) == [(40, 1.0), (41, pytest.approx(0.707, abs=0.01))]
+    assert list(own.missing_imports("x = 1\n", "name 'nowhere' is not defined")) == []
+    (_sort, says, code), = own.missing_imports('"""What it is."""\nfrom __future__ import annotations\nx = 1\n', "NameError: name \\'re\\' is not defined")
+    assert says == "added `import re`" and code.splitlines()[2] == "import re"
+
+
+def test_small_edits_are_guesses_and_the_one_that_gains_is_kept(tmp_path):
+    from core.self_modification.edits_her_model_proposes import ProposedEdit, ProposedEdits
+
+    wrong = _RULES.replace("s.saved++", "s.saved += 0")
+    work = Work("w", "moths")
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{wrong}\n```", f"```js\n{_LOOKS}\n```"])
+    real = model.ask
+
+    async def ask(prompt, schema, n, *, given=""):
+        if schema is not ProposedEdits:
+            return await real(prompt, schema, n, given=given)
+        line = next(int(row[:4]) for row in prompt.splitlines() if row[4:5] == ":" and "s.saved += 0" in row)
+        return ProposedEdits(edits=[ProposedEdit(line=line, old="s.lamp--", new="s.lamp = 0", why="the lamp"),
+                                    ProposedEdit(line=line, old="s.nowhere", new="1", why="not there"),
+                                    ProposedEdit(line=line, old="s.saved += 0", new="s.saved++", why="a catch did not count.")])
+
+    model.ask = ask
+    made = _make(tmp_path, model, work)
+    assert made is not None and made.trial.failing() == [] and "s.saved++" in made.parts.code() and "s.lamp = 0" not in made.parts.code()
+    assert any(row["what"] == "says" and row["words"].startswith("Kept a small edit: a catch did not count.") for row in work.seen()["happened"])

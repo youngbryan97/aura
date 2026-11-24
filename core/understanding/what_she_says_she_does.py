@@ -19,7 +19,8 @@ from core.runtime.lockdep import checked_lock
 from core.understanding.examples import MOST_OF_AN_EARLIER_TURN
 from core.understanding.fitted_on_her_model import FittedOnHerModel
 
-__all__ = ["REPORTS", "UNDERTAKES", "WhatSheSaysSheDoes", "get_what_she_says_she_does", "reply_transcript", "she_says"]
+__all__ = ["OTHER", "REPORTS", "UNDERTAKES", "WhatSheSaysSheDoes", "WhatSheUndertakes", "get_what_she_says_she_does",
+           "get_what_she_undertakes", "reply_transcript", "she_says", "she_undertakes"]
 
 UNDERTAKES, REPORTS, OFFERS, NONE = "undertakes", "reports", "offers", "none"
 
@@ -54,7 +55,38 @@ class WhatSheSaysSheDoes(FittedOnHerModel):
         return await self.read_one(reply_transcript(reply, said), client=client) if str(reply or "").strip() else None
 
 
+#: What a reply that undertakes something is to bring about, where it is something she carries out on her own time.
+OTHER = "other"
+
+
+@lru_cache(maxsize=1)
+def she_undertakes() -> tuple[tuple[str, str, str], ...]:
+    """Every example of a reply that undertakes something: (what it undertakes, reply, what it answers)."""
+    rows = []
+    for line in (Path(__file__).resolve().parent / "heard" / "she_undertakes.tsv").read_text(encoding="utf-8").splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[1].strip():
+            rows.append((parts[0], parts[1].strip(), parts[2].strip()))
+    return tuple(rows)
+
+
+class WhatSheUndertakes(FittedOnHerModel):
+    """What a reply says she will bring about, from the reply. LIVE 24 November 2026, asked for an app that settles what
+    flatmates owe, the turn was read as a sum to work out; her reply said "I'll build this properly", and nothing was begun,
+    because what she was doing was read from their words and not from hers."""
+
+    def __init__(self, *, root: Path | None = None, given: Sequence[tuple[str, str, str]] | None = None) -> None:
+        super().__init__("what_she_undertakes", lambda: [(kind, reply_transcript(reply, said)) for kind, reply, said in
+                                                         (given if given is not None else she_undertakes())],
+                         kind_of_nothing=OTHER, root=root)
+
+    async def read(self, reply: str, said: str, *, client: Any) -> dict[str, float] | None:
+        """The probability of each kind for a reply, or None where it is not read."""
+        return await self.read_one(reply_transcript(reply, said), client=client) if str(reply or "").strip() else None
+
+
 _READS: WhatSheSaysSheDoes | None = None
+_UNDERTAKEN: WhatSheUndertakes | None = None
 _READS_LOCK = checked_lock("understanding.what_she_says_she_does.singleton")
 
 
@@ -64,3 +96,11 @@ def get_what_she_says_she_does() -> WhatSheSaysSheDoes:
         if _READS is None:
             _READS = WhatSheSaysSheDoes()
         return _READS
+
+
+def get_what_she_undertakes() -> WhatSheUndertakes:
+    global _UNDERTAKEN
+    with _READS_LOCK:
+        if _UNDERTAKEN is None:
+            _UNDERTAKEN = WhatSheUndertakes()
+        return _UNDERTAKEN

@@ -19,16 +19,18 @@ import logging
 import re
 import sys
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
+from itertools import chain, islice
 from pathlib import Path
 from typing import Any
 
 from core.making import design as how
+from core.making import her_own_mends as own
 from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
 from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
-from core.making.tools import Case, Cases, Language, languages, try_tool
+from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
 from core.making.trying import Result, Trial, page_of, site_of, try_page
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.workbench import PutDown, Work
@@ -42,11 +44,13 @@ Asks = Callable[[str, Any, int], Awaitable[Any]]
 Writes = Callable[..., Awaitable[str]]
 
 #: The most tokens of a design, of tests, and of what is written of a program at once.
-DESIGN_TOKENS, TEST_TOKENS, CODE_TOKENS, MEND_TOKENS, A_TEST = 3200, 3600, 4600, 3200, 700
+DESIGN_TOKENS, TEST_TOKENS, CODE_TOKENS, MEND_TOKENS, A_TEST, EDITS_TOKENS = 3200, 3600, 4600, 3200, 700, 1200
 #: How many rules are built at once: a program is built a layer at a time, each tested before the next.
 A_LAYER = 8
 #: How many of what fails are mended at once.
 AT_ONCE = 5
+#: How long her own mends of one state of a program are tried for, in seconds.
+OWN_S = 60.0
 #: How many mends in a row may gain nothing before the last of what fails is left.
 GAINED_NOTHING = 2
 
@@ -114,6 +118,8 @@ class _Maker:
         self.told = ""
         #: The rules built so far, a layer at a time, and what is told where the program stands each time it is kept.
         self.has: list[str] = []
+        self._looked_at: set[str] = set()
+        self._guessed_at: set[str] = set()
         self.when_kept: Callable[[Path], None] | None = None
         self.began = time.monotonic()
 
@@ -383,6 +389,9 @@ class _Maker:
                 nothing_gained = 0
                 self.trial = await self.tried(what="Trying it, with the tests read again")
                 continue
+            if await self._her_own_mend(failing) or await self._small_edits(failing):
+                nothing_gained = 0
+                continue
             parts = await self._a_mend(failing, warm=0.2 + 0.3 * nothing_gained)
             if parts is None:
                 nothing_gained += 1
@@ -400,6 +409,137 @@ class _Maker:
             else:
                 nothing_gained += 1
                 self.work.says(f"Not kept: {len(failing)} things failed before it and {len(trial.failing())} after.")
+
+    async def _her_own_mend(self, failing: list[Result]) -> bool:
+        """A mend she writes without her model, where one leaves less that fails; whether one was kept. Once for each state
+        the program is in: what her own Python has to say of it does not change until it does."""
+        assert self.design is not None
+        code = self.parts.code()
+        if self.design.kind == "site" or code in self._looked_at:
+            return False
+        self._looked_at.add(code)
+        before, began, tried = _how_much_is_wrong(failing), time.monotonic(), 0
+        best: tuple[float, Parts, Trial, str] | None = None
+        async for sort, says, parts in self._mends_of_her_own(failing):
+            if tried == 0:
+                self.work.step("Trying the mends her own Python writes, before her model is asked")
+            tried += 1
+            trial = await self.tried(parts, quiet=True)
+            wrong = _how_much_is_wrong(trial.failing())
+            # What was made to fit one case at a suspicious line may fit nothing else: it counts where it mends what broke, or more than one.
+            fits = not sort.startswith(("template:", "ingredient:")) or len(failing) - len(trial.failing()) > 1 or any("Traceback" in r.why for r in failing)
+            if wrong < (best[0] if best else before) and fits and not {r.name for r in trial.failing()} - {r.name for r in failing}:
+                best = (wrong, parts, trial, says)
+            if time.monotonic() - began > OWN_S or (best is not None and not best[2].failing()):
+                break
+        if best is None:
+            if tried:
+                self.work.says(f"None of {tried} mends of her own left less wrong.")
+            return False
+        _wrong, self.parts, trial, says = best
+        self.work.says(f"Kept a mend of her own, written without her model: {says}. {len(failing)} things failed before it and {len(trial.failing())} do now.")
+        self.trial = trial
+        self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
+        await self.kept()
+        return True
+
+    async def _small_edits(self, failing: list[Result]) -> bool:
+        """Small edits her model thinks could be it, each a guess that is tried by itself and in twos; whether one was kept.
+        A guess is a few words of hers and a second of the machine's, where a function written again is a minute or two."""
+        from core.self_modification.code_that_looks_wrong import applied
+        from core.self_modification.edits_her_model_proposes import (
+            ProposedEdits,
+            edits_from_proposals,
+        )
+        from core.self_modification.repairing_by_behaviour import _pairs
+
+        assert self.design is not None
+        code = self.parts.code()
+        if self.design.kind == "site" or code in self._guessed_at:
+            return False
+        self._guessed_at.add(code)
+        first = sorted(failing, key=lambda r: -_how_much_is_wrong([r]))[:AT_ONCE]
+        told = "\n".join(f"- {r.name}: {r.why}" for r in first)
+        never = "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {t}" for t in self.trial.never_ran) if self.trial.never_ran else ""
+        numbered = "\n".join(f"{n:04d}: {line}" for n, line in enumerate(code.splitlines(), start=1))
+        self.work.step("Asking what small edits could be it, and trying each")
+        got = await self.ask(f"The program, its lines numbered:\n{numbered}\n\nTrying it, these fail:\n{told}{never}\n\nGive up to eight small edits, "
+                             "each of which could by itself make one of these come right: the number of a line, the exact text there (old), and what "
+                             "is to stand in its place (new). An empty old puts new before that line. They are guesses and each will be tried.",
+                             ProposedEdits, EDITS_TOKENS, given=self._given())
+        if not isinstance(got, ProposedEdits):
+            return False
+        guesses = [(s, s.edits) for s in edits_from_proposals(code, got)]
+        before, best = _how_much_is_wrong(failing), None
+        began = time.monotonic()
+        for suspicion, edits in [*guesses, *_pairs(guesses)]:
+            if time.monotonic() - began > OWN_S or (best is not None and not best[2].failing()):
+                break
+            parts = self._with_code(applied(code, edits))
+            if parts is None:
+                continue
+            trial = await self.tried(parts, quiet=True)
+            wrong = _how_much_is_wrong(trial.failing())
+            if wrong < (best[0] if best else before):
+                best = (wrong, parts, trial, suspicion.why)
+        if best is None:
+            self.work.says(f"None of {len(guesses)} small edits left less wrong.")
+            return False
+        _wrong, self.parts, trial, why = best
+        self.work.says(f"Kept a small edit: {why} {len(failing)} things failed before it and {len(trial.failing())} do now.")
+        self.trial = trial
+        self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
+        await self.kept()
+        return True
+
+    def _with_code(self, code: str) -> Parts | None:
+        """The program with its code as it is written here; None where that is not the same functions."""
+        assert self.design is not None
+        parts = self.parts.copy()
+        if self.design.kind in {"tool", "site"}:
+            parts.text = code
+            return parts
+        parts.functions = patched({}, code)[0]
+        return parts if set(self.parts.functions) <= set(parts.functions) else None
+
+    async def _mends_of_her_own(self, failing: list[Result]) -> AsyncIterator[tuple[str, str, Parts]]:
+        assert self.design is not None
+        if self.design.kind != "tool":
+            code = assembled(self.parts.functions)
+            for sort, says, changed in await asyncio.to_thread(lambda: list(islice(own.of_its_shapes(code, ".js"), own.MOST))):
+                parts = self._with_code(changed)
+                if parts is not None:
+                    yield sort, says, parts
+            return
+        language = self.language()
+        if language.name != "python":
+            return
+        text = self.parts.text
+        told = "\n".join(r.why for r in failing)
+        shapes = await asyncio.to_thread(lambda: list(islice(chain(own.missing_imports(text, told), own.of_its_shapes(text, ".py")), own.MOST)))
+        for sort, says, changed in shapes:
+            parts = self.parts.copy()
+            parts.text = changed
+            yield sort, says, parts
+        cases = [Case.model_validate(c) for c in self.parts.cases]
+        ok = [r.ok for r in self.trial.rules]
+        if len(ok) != len(cases) or all(ok):
+            return
+        whole = self.whole(self.parts)
+        lines = await lines_each_ran(whole, language, cases)
+        # What stands above what was written of it, the pieces it calls on, is not what is wrong with it.
+        above = whole[: whole.rfind(text[-200:])].count("\n") - text[: max(0, len(text) - 200)].count("\n") if whole != text else 0
+        ranked = own.ran({str(i): ran for i, ran in enumerate(lines) if not ok[i]}, {str(i): ran for i, ran in enumerate(lines) if ok[i]}, after=above)
+        error = next((m.group(1) for r in failing if (m := re.search(r"\b([A-Z][A-Za-z]+(?:Error|Exception))\b", r.why))), "")
+        bundled = whole[: len(whole) - len(text)] if whole.endswith(text) else ""
+        for sort, says, changed in await asyncio.to_thread(lambda: list(islice(own.of_its_lines(whole, ranked[:12], error), own.MOST))):
+            if bundled and not changed.startswith(bundled):
+                continue
+            parts = self.parts.copy()
+            parts.text = changed[len(bundled):] if bundled else changed
+            if whole != text and not bundled:
+                continue  # its pieces stand in the middle of it, and what is above them cannot be told from what is below
+            yield sort, says, parts
 
     async def _the_best_of(self, mend: Parts, before: float) -> tuple[Parts, Trial] | None:
         """A mend that gained nothing whole, taken apart: each function of it on its own over what gains, and the whole of it

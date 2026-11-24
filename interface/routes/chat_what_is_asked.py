@@ -38,13 +38,14 @@ def begin_reading_what_is_asked() -> None:
     """Fit the reading on the model that is running, while nobody is waiting; asked for again while it is not ready."""
     from core.brain.llm_health_router_gate_owners import a_person_is_waiting_for_her_model
     from core.understanding.what_is_asked import get_what_is_asked
-    from core.understanding.what_she_says_she_does import get_what_she_says_she_does
+    from core.understanding.what_she_says_she_does import get_what_she_says_she_does, get_what_she_undertakes
     from core.utils.task_tracker import get_task_tracker
 
     async def learn() -> None:
         client = her_client()
         if client is not None and await get_what_is_asked().learn(client, waiting=a_person_is_waiting_for_her_model):
             await get_what_she_says_she_does().learn(client, waiting=a_person_is_waiting_for_her_model)
+            await get_what_she_undertakes().learn(client, waiting=a_person_is_waiting_for_her_model)
 
     get_task_tracker().create_task(learn(), name="what_is_asked.learn")
 

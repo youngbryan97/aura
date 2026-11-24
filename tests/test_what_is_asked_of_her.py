@@ -32,8 +32,10 @@ from core.understanding.what_is_asked import WhatIsAsked, decide
 from core.understanding.what_she_says_she_does import (
     UNDERTAKES,
     WhatSheSaysSheDoes,
+    WhatSheUndertakes,
     reply_transcript,
     she_says,
+    she_undertakes,
 )
 
 
@@ -622,7 +624,7 @@ def test_a_reply_is_read_to_the_end_of_her_turn():
         "<|im_start|>user\nMake a clock.<|im_end|>\n<|im_start|>assistant\nOn it.<|im_end|>")
 
 
-def _kept(monkeypatch, tmp_path, says: dict, asked: Asked, reply: str = "On it."):
+def _kept(monkeypatch, tmp_path, says: dict, asked: Asked, reply: str = "On it.", hers: dict | None = None):
     from interface.routes import chat_carrying_out as chat
     from interface.routes import chat_what_is_asked
 
@@ -637,7 +639,11 @@ def _kept(monkeypatch, tmp_path, says: dict, asked: Asked, reply: str = "On it."
         return says
 
     monkeypatch.setattr(chat, "nobody_waiting", nobody)
+    async def undertaken(self, reply, said, *, client):
+        return hers
+
     monkeypatch.setattr(WhatSheSaysSheDoes, "read", read)
+    monkeypatch.setattr(WhatSheUndertakes, "read", undertaken)
     begun: list[Request] = []
     monkeypatch.setattr(carrying_out, "begin", lambda request, **kw: begun.append(request) or True)
     asyncio.run(chat._keep_her_word(reply, asked.said, asked, session_id="c"))
@@ -658,6 +664,24 @@ def test_what_her_reply_says_she_is_doing_is_begun(monkeypatch, tmp_path):
 def test_an_offer_a_report_or_a_remark_begins_nothing(monkeypatch, tmp_path, says):
     asked = Asked(said="A tide clock would be lovely.", effect="talk", decision="talk", by_effect=MAYBE)
     assert _kept(monkeypatch, tmp_path, says, asked) == []
+
+
+def test_what_she_undertakes_is_in_her_words_and_not_in_theirs(monkeypatch, tmp_path):
+    misread = Asked(said="Make an app that tells us who owes what.", effect="computed", decision="act", by_effect=_p(computed=0.87, program=0.12, talk=0.01))
+    says = {UNDERTAKES: 0.95, "none": 0.05}
+    assert [r.effect for r in _kept(monkeypatch, tmp_path, says, misread, hers={"program": 0.93, "found": 0.02, "other": 0.05})] == ["program"]
+    assert _kept(monkeypatch, tmp_path, says, misread) == [], "where her words are not read, theirs say it is a sum"
+    assert _kept(monkeypatch, tmp_path, says, misread, hers={"other": 0.8, "program": 0.2}) == []
+    assert _kept(monkeypatch, tmp_path, says, misread, hers={"program": 0.45, "other": 0.4, "found": 0.15}) == [], "not sure enough"
+    assert _kept(monkeypatch, tmp_path, {UNDERTAKES: 0.3, "offers": 0.7}, misread, hers={"program": 0.99, "other": 0.01}) == [], "only offered"
+    assert [r.effect for r in _kept(monkeypatch, tmp_path, says, misread, hers={"program_changed": 0.9, "other": 0.1})] == ["program"], "none to change"
+
+
+def test_there_are_enough_undertakings_of_each_kind_and_none_is_a_persons():
+    kinds = [kind for kind, _reply, _said in she_undertakes()]
+    assert {kind: kinds.count(kind) >= 10 for kind in set(kinds)} == dict.fromkeys(("program", "program_changed", "found", "document_read", "other"), True)
+    text = "\n".join(f"{reply} {said}" for _kind, reply, said in she_undertakes())
+    assert not re.search(r"[\w.]+@[\w.]+\.\w+|\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b", text)
 
 
 def test_what_she_cannot_begin_from_here_is_not_begun(monkeypatch, tmp_path):
