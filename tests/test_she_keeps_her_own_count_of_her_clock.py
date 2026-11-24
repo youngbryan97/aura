@@ -12,7 +12,7 @@ import asyncio
 import time
 
 import core.agency.playing_pieces_by_kind as playing
-from core.agency.pieces_by_their_kind import FIRST, outcome
+from core.agency.pieces_by_their_kind import FIRST, Move, outcome
 from core.agency.searching_by_kind import search
 from core.cognition.keeping_her_own_count import KeptCount
 from tests.fixtures.a_board_application import BoardApplication
@@ -74,7 +74,14 @@ def test_a_clock_read_in_whole_seconds_teaches_what_each_turn_misses() -> None:
 class _ClockedApplication(BoardApplication):
     """Her clock runs while it is her turn and stands while it is theirs, and gives back half a second after each of
     her moves. Each reading is counted, with whether her clock was running as it was read. The other side thinks
-    somewhere else, as another program does, so she can look at the board while it thinks."""
+    somewhere else, as another program does, so she can look at the board while it thinks.
+
+    Their move lands on the board as she next looks, and her clock starts then. Made anywhere between her looks, an
+    answer that always took 0.6 s fell at the same place among them each move: she saw it about 0.1 s after it landed
+    on the first few moves of a game and about 0.2 s after on most later ones. Her count learned the first lag and
+    missed a tenth of a second on every later move she did not read. In eight runs on 24 November 2026 it drifted by
+    up to 0.5 s before a reading caught it, and a run that failed read 10.54 s against the clock's 9.70 s. The time she
+    takes to see a move once it has landed is still hers to learn: the look that sees it stand, and reading it."""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -82,6 +89,15 @@ class _ClockedApplication(BoardApplication):
         self.running_since: float | None = time.monotonic()
         self.reads_on_her_time = 0
         self.reads_on_theirs = 0
+        #: Their answer, found and waiting for her next look to land on the board.
+        self.answer: Move | None = None
+
+    async def look(self):
+        await asyncio.sleep(0.005)
+        if self.answer is not None:
+            self.make(self.answer)
+            self.answer = None
+        return self.draw()
 
     def shows(self) -> float:
         running = time.monotonic() - self.running_since if self.running_since is not None else 0.0
@@ -100,12 +116,11 @@ class _ClockedApplication(BoardApplication):
     async def answers(self, stop: asyncio.Event) -> None:
         while not stop.is_set():
             await asyncio.sleep(0.02)
-            if self.position.turn != FIRST and not outcome(self.family, self.position):
+            if self.position.turn != FIRST and self.answer is None and not outcome(self.family, self.position):
                 await asyncio.sleep(self.answers_in_s)
                 # By a count of positions, not the clock: the same answer every time, however loaded the machine.
                 found = search(self.family, self.position, seconds=0.01, nodes=2_000)
-                if found.move is not None:
-                    self.make(found.move)
+                self.answer = found.move
 
     async def clock(self) -> float:
         await asyncio.sleep(0.05)
