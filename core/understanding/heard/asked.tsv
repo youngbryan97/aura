@@ -322,3 +322,47 @@ status	Did you read all of it?
 status	What's left to do on it?
 status	I'm looking in the folder and it's empty.
 status	ok and the links?
+program	We can never agree how to split a bar bill. Can you make an app where we put in what each person had and it tells us what they owe with the tip?
+program	Could you make us something where we type in who drove whom and it works out what everyone owes for petrol?
+program	Nobody can remember whose turn it is to cook. Make an app that keeps track and tells us who is next.
+program	I need a thing I can open, put two dates in, and see how many working days there are between them.
+program	Can you make a calculator for my candles? I put in the jar size and it tells me how much wax and how much fragrance.
+program	Make me an app that works out how much paint a room needs from its walls, doors and windows.
+program	My dad keeps his betting record on scraps of paper. Build him something that adds it all up and shows him if he's winning.
+program	It'd be good to have a page where I put in my marks and it tells me what I need in the exam to pass.
+program	Can you build a tool that takes a list of chores and people and gives everyone a fair share each week?
+program	We share a boat between five families. Make something that shows who has it which weekend and stops two of us booking the same one.
+program	Please make an app where I enter what I ate and it tells me the protein for the day.
+program	I'd like a little program that tells me the cheapest way to make up an amount from the coins I have.
+program	Can you make an app that tells us the fewest lorries we need for a set of boxes?
+program	Make something my students can open that gives them fractions to add and tells them whether they got it right.
+program	Could you knock up an app where I log my runs and it works out my pace and my best week?
+program	Build me a script that goes through a folder of invoices and adds up the totals by month.
+program	I want a spreadsheet-like app for my market stall: what I bought, what I sold, what's left, what I made.
+program	Can you write me a program that reads a text file and lists the ten commonest words in it?
+program	Make a converter for my knitting patterns, needle sizes in and needle sizes out.
+program	I could do with an app that picks a film for us from a list by what each of us fancies and how long we've got.
+program	Make us an app that reminds whoever's turn it is to put the bins out and lets them tick it off.
+program	Can you make a page that shows my nan's recipes and scales them for how many are coming?
+program	I want something that takes the temperatures I write down each day and draws me the line.
+program	Build a tool that checks a list of postcodes and tells me which ones aren't real ones.
+program	Could you make me a program that plays through a savings plan month by month so I can see what happens if I change the rate?
+program	Make a timetable maker: I put in the lessons, teachers and rooms and it finds a week with no clashes.
+program	I'd love an app where I put in the seedlings I have and it tells me what to plant out this week.
+program	Can you make something that quizzes me on the bones and keeps asking the ones I get wrong?
+program	The four of us need an app to keep the score at cribbage and say who's ahead over the year.
+program	Make me a thing that takes a paragraph and tells me how long it takes to read out loud.
+computed	Three of us went away: I paid 210 for the cottage, Sam paid 64 for food and Jo paid 30 for fuel. Who owes whom what?
+computed	What do I need to get in the exam to pass if my coursework is 58 and it counts for 40 per cent?
+computed	How many working days are there between the third of March and the twenty first of June?
+computed	Split 148.50 between six of us with a tenth on top.
+computed	Work out how much paint I need for a room four metres by three with two doors, two coats.
+computed	We have 37 boxes and a lorry takes eight. How many trips is that?
+computed	If I run ten kilometres in fifty two minutes, what's my pace per mile?
+computed	Put these in order of what they cost per hundred grams: 400g for 2.10, 250g for 1.45, a kilo for 4.90.
+computed	I've five chores and three people, and each takes a different time: 20, 45, 15, 30 and 10 minutes. What's the fairest share?
+computed	Scale this for nine people, it's written for four: 300g rice, 2 onions, 600ml stock.
+computed	What's the fewest coins that make 88p?
+computed	Can you work out my protein for today? Two eggs, a tin of tuna, a pint of milk and a chicken breast.
+computed	Work out who owes what: Ana put in 40, Ben 25, Cy nothing, and it was 90 in all.
+computed	Which of these two loans costs less in the end, 8,000 over four years at six per cent or over three at seven?

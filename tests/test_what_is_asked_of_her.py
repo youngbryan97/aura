@@ -709,8 +709,11 @@ def test_a_reply_to_a_turn_that_work_carries_out_is_not_held_to_being_the_work()
             "how you would order them, and list three things it shows.")
     reply = "I'm building the plant-watering tracker and will confirm here when it's ready."
     clear()
+    assert _instruction_coverage_reasons(said, reply) != []
+    hold(_read(said, "written"))
+    assert _instruction_coverage_reasons(said, reply) != [], "what was asked for is in the reply, so the reply is to be it"
     hold(_read(said, "program"))
-    assert _instruction_coverage_reasons(said, reply) != [], "nothing carries it out, so the reply is to be it"
+    assert _instruction_coverage_reasons(said, reply) == [], "what was asked of it is asked of the thing made"
     hold(dataclasses.replace(_read(said, "program"), request_id="a1"))
     assert _instruction_coverage_reasons(said, reply) == []
     clear()
