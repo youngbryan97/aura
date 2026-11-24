@@ -1096,3 +1096,33 @@ def test_a_test_some_version_held_to_is_not_the_one_that_is_wrong(tmp_path):
     made._held_by = {"held once": {"c"}}
     failing = [Result(name, False, the_test=name.startswith("asks")) for name in made._failed_by]
     assert [r.name for r in made._to_be_doubted(failing)] == ["never held", "asks for nothing there"]
+
+
+def test_a_test_that_holds_whatever_happens_is_not_one_it_no_longer_gets_as_far_as():
+    from core.making.trying import Result, Trial
+
+    before = Trial(generic=[Result("it begins", True)], rules=[Result("a", True), Result("b", False, "no")])
+    after = Trial(generic=[Result("it begins", True)], rules=[Result("a", True)], hollow=["b"])
+    known = {"it begins", "a", "b"}
+    assert maker._how_wrong(after, known) == (0, 0.0) < maker._how_wrong(before, known)
+
+
+def test_what_it_holds_to_already_is_not_built_again_and_what_leaves_it_worse_is_not_kept(tmp_path):
+    model = _Model([f"```js\n{TESTS}\n```", f"```js\n{_RULES}\n```", f"```js\n{_LOOKS}\n```"])
+    made = _make(tmp_path, model)
+    record = json.loads((made.folder / "program.json").read_text())
+    record["design"]["rules"] += [{"says": "a moth comes in time", "of": ""}]
+    (made.folder / "program.json").write_text(json.dumps(record))
+    here = '```js\ntest("a moth comes in time", t => { t.tick(1); t.expect(t.s.moths.length > 0); });\n```'
+    work, model = Work("w", "x"), _Model([here])
+    again = _in_a_browser(lambda browser: maker.mend(made.folder, ask=model.ask, write=model.write, work=work, browser=browser))
+    assert again.trial.failing() == [] and model.written == [] and any(r["what"] == "says" and "does that already" in r["words"] for r in work.seen()["happened"])
+    record = json.loads((made.folder / "program.json").read_text())
+    record["design"]["rules"] += [{"says": "it rains", "of": ""}]
+    (made.folder / "program.json").write_text(json.dumps(record))
+    rains = '```js\ntest("it rains", t => { t.tick(0.1); t.expect(t.s.rain === 9, "no rain"); });\n```'
+    worse = "Rain.\n```js\n({ update(s, e) { s.nothing.there; } })\n```"
+    work, model = Work("w", "x"), _Model([rains, worse, "Nothing to change.", "Nothing to change.", "It is the program.", "It is the program."])
+    again = _in_a_browser(lambda browser: maker.mend(made.folder, ask=model.ask, write=model.write, work=work, browser=browser))
+    assert [r.name for r in again.trial.failing()] == ["it rains"] and "nothing.there" not in again.parts.code()
+    assert any(r["what"] == "says" and "so it is as it was before" in r["words"] for r in work.seen()["happened"])

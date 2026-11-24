@@ -268,12 +268,36 @@ class _Maker:
             await self.tested(rules)
             if not (self.parts.functions or self.parts.text.strip()):
                 await self.coded(rules)
+                self.has += rules
+                await self.mended()
             else:
-                await self.added(rules)
-            self.has += rules
-            await self.mended()
+                await self.added_where_it_is_not(rules)
             await self.kept()
         await self.finished()
+
+    async def added_where_it_is_not(self, rules: list[str], words: str = "") -> None:
+        """More of its rules: nothing written where the program already holds to them, and nothing kept that leaves it worse
+        than it was. LIVE 24 November 2026 a program at 18 of 18 had a rule built in that it already held to, and was at 14."""
+        was, self._known = self.parts.copy(), set()
+        before = await self.tried(what="Trying it with the tests of what is next")
+        wrong = self._wrong(before)
+        self.trial = before
+        self.has += [rule for rule in rules if rule not in self.has]
+        # A test that holds whatever happens says nothing of whether it does, and neither does one that is not there.
+        shown = {r.name for r in before.rules if r.ok and r.name not in before.hollow}
+        if rules and not words and not before.failing() and all(rule in shown for rule in rules):
+            self.work.says("It does that already.")
+            return
+        await self.added(rules, words)
+        known = set(self._known)
+        await self.mended()
+        self._known |= known
+        if self._wrong(self.trial) > wrong:
+            self.work.says(f"What was built in left it worse ({len(self.trial.failing())} things fail, and {len(before.failing())} did), so it is as it was before.")
+            tests, cases = self.parts.tests, self.parts.cases
+            self.parts = was
+            self.parts.tests, self.parts.cases = tests, cases
+            self.trial = await self.tried(what="Trying it as it was")
 
     async def gone_on_with(self) -> None:
         """A program as it was kept: what fails of it mended, and what of it was not built yet built."""
@@ -800,7 +824,8 @@ def _how_wrong(trial: Trial, known: set[str]) -> tuple[int, float]:
     two, for it failed at one thing where the other failed at eleven."""
     failing = trial.failing()
     stuck = max((_GOT_AS_FAR.get(r.name, 1 if r.name.startswith("it runs without breaking") else 0) for r in failing), default=0)
-    here = {r.name for r in [*trial.generic, *trial.rules]}
+    # A test that holds whatever happens is left out of a trial once it holds, which is not a check it no longer gets as far as.
+    here = {r.name for r in [*trial.generic, *trial.rules]} | set(trial.hollow)
     return stuck, _how_much_is_wrong(failing) + 3.0 * len(known - here)
 
 
@@ -888,9 +913,7 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
             layer = new[at:at + A_LAYER]
             if layer:
                 await maker.tested(layer)
-            await maker.added(layer, maker.asked.splitlines()[-1] if at == 0 else "")
-            maker.has += layer
-            await maker.mended()
+            await maker.added_where_it_is_not(layer, maker.asked.splitlines()[-1] if at == 0 else "")
             await maker.kept()
         await maker.built()
 
