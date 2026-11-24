@@ -426,6 +426,9 @@ class _Game:
     went_wrong: WhatFailedWhere = field(default_factory=WhatFailedWhere)
     #: What the other side answered in each position she has met, and her look on their time at what she expects next.
     they_answered: WhatTheyAnsweredWhere = field(default_factory=WhatTheyAnsweredWhere)
+    #: The moves the other side has made this game, by their squares, and how often: her search tries them early at
+    #: their turns, where they could make them again.
+    they_went: dict[tuple[tuple[int, int], tuple[int, int]], int] = field(default_factory=dict)
     #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
     did: WhatSheDid = field(default_factory=WhatSheDid)
     #: What her judgements of this board have gone on to come to (core/cognition/how_far_her_judgement_holds.py).
@@ -766,6 +769,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.read_this_wait = False
                     game.they_answered.they_answered(_a_place(game.believed, game.learned.start, family),
                                                      _named(move))
+                    game.they_went[(move.start, move.end)] = game.they_went.get((move.start, move.end), 0) + 1
                 game.follow(move)
                 game.waiting_since = monotonic_time()
             if seen_moves:
@@ -904,9 +908,11 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 found = ready
             else:
                 search_began = monotonic_time()
+                theirs = sum(game.they_went.values())
                 found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free(), wary=FIRST,
-                               soft=thinks if most > thinks else None)
+                               soft=thinks if most > thinks else None,
+                               expected={went: n / theirs for went, n in game.they_went.items()} if theirs else None)
                 if ready is not None:
                     # Worked out under rules that have changed since: a hint, checked by the look just made.
                     found = _checked(ready, found, legal, lambda aside, family=family, thinks=thinks, weights=weights:

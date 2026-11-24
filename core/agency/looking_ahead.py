@@ -558,9 +558,20 @@ def look_ahead(
     # deeper pass is nearly free because the shallower one is still
     # remembered. What she hands back is always a completed pass.
     scored = one_pass(depth)
+    # Each pass as her record of when more thought changes the answer takes it: how far it looked, what its best act
+    # was worth, and whether its best act changed (core/cognition/when_more_thought_changes_the_answer.py). How far
+    # a worth moves is counted in how far apart the first pass's acts stood.
+    from core.cognition import when_more_thought_changes_the_answer as thought
+
+    passes: list[tuple[int, float, bool]] = []
+    best_act = _best_of(scored)
+    if best_act is not None:
+        passes.append((depth, scored[best_act][0], False))
+    spread = _spread_of(scored)
     if not fixed_depth and scored:
         ends_at = started + max(0.0, budget_s)
         a_pass = time.monotonic() - started
+        record = thought.kept(thought.LOOKS_AHEAD)
         # No ceiling but the clock. There used to be one — the room left, over
         # how often the world adds something — on the reasoning that past it
         # the arithmetic describes a board that cannot exist. It does not: a
@@ -575,6 +586,10 @@ def look_ahead(
             branching = max(2, len(actions)) * max(1, _how_many_ways(world, state))
             if time.monotonic() + a_pass * branching > ends_at:
                 break
+            # And only while another level is likely enough to change what she would do, as her own looks have
+            # shown: a look whose answer has held gives its time back to the world.
+            if record.goes_on(passes, spread, time.monotonic() - started, budget_s) is False:
+                break
             deeper_at = time.monotonic()
             deeper = one_pass(depth + 1)
             if not deeper:
@@ -582,6 +597,10 @@ def look_ahead(
             depth += 1
             scored = deeper
             a_pass = time.monotonic() - deeper_at
+            now_best = _best_of(scored)
+            passes.append((depth, scored[now_best][0], now_best != best_act))
+            best_act = now_best
+        thought.noted(passes, spread, thought.LOOKS_AHEAD)
 
     spent = time.monotonic() - started
     if settles_how_far:
@@ -593,6 +612,18 @@ def look_ahead(
         depth, len(actions), spent, known.hits,
     )
     return scored
+
+
+def _best_of(scored: dict[str, tuple[float, str]]) -> str | None:
+    """The act a pass found best, the first listed among equals."""
+    return max(scored, key=lambda act: scored[act][0]) if scored else None
+
+
+def _spread_of(scored: dict[str, tuple[float, str]]) -> float:
+    """How far apart a pass's acts stood: the unit a worth's move is counted in."""
+    from core.cognition.when_more_thought_changes_the_answer import how_far_apart
+
+    return how_far_apart([value for value, _why in scored.values()])
 
 
 def _how_many_ways(world: Any, state: Any) -> int:

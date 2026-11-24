@@ -416,9 +416,16 @@ def search(
         # than counted as nothing.
         return total / counted
 
+    from core.cognition import when_more_thought_changes_the_answer as thought
+
     scored: dict[str, tuple[float, tuple[int, ...]]] = {}
     finished = 0
     best_before = best_before_that = ""
+    # Each finished pass as her record of when more thought changes the answer takes it, and the unit a worth's move
+    # is counted in: how far apart the first pass's acts stood.
+    passes: list[tuple[int, float, bool]] = []
+    spread = 1.0
+    record = thought.kept(thought.LOOKS_AHEAD)
     # As deep as the clock allows, and never deeper than her model of this
     # world has been measured to carry: past that, a level is fiction that
     # costs a level's time and looks surer for being deeper.
@@ -454,10 +461,16 @@ def search(
         # chosen.
         best_now = max(this_pass, key=lambda action: this_pass[action][0])
         settled = depth >= 3 and best_now == best_before == best_before_that
+        if not passes:
+            spread = thought.how_far_apart([value for value, _after in this_pass.values()])
+        passes.append((depth, this_pass[best_now][0], bool(passes) and best_now != best_before))
         best_before_that, best_before = best_before, best_now
         scored = this_pass
         finished = depth
-        if fixed_depth or settled:
+        # Once her looks in worlds like this have shown how often another level changes what she would do, that
+        # decides whether to look another; until then, an answer the same three levels running is enough.
+        goes_on = record.goes_on(passes, spread, time.monotonic() - started, budget_s)
+        if fixed_depth or (settled if goes_on is None else not goes_on):
             break
         # A level is started while any time remains and abandoned when it
         # runs out, rather than refused because it looks too expensive to
@@ -470,4 +483,6 @@ def search(
         if time.monotonic() >= ends_at:
             break
         depth += 1
+    if not fixed_depth:
+        thought.noted(passes, spread, thought.LOOKS_AHEAD)
     return scored, finished

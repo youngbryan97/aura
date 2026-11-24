@@ -20,7 +20,16 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from typing import Any
 
-from core.agency.pieces_by_their_kind import Family, Move, Position, after, in_check, moves, outcome
+from core.agency.pieces_by_their_kind import (
+    Family,
+    Move,
+    Position,
+    Square,
+    after,
+    in_check,
+    moves,
+    outcome,
+)
 
 logger = logging.getLogger("Aura.SearchingByKind")
 
@@ -182,13 +191,17 @@ def _position_data(position: Position) -> dict[str, Any]:
             "count": position.count}
 
 
-def placed(position: Position, earlier: list[Position] | None = None, wary: int | None = None) -> str:
-    """A position as the compiled search reads it, with the positions before it for counting repeats, and the side
-    that acts in the world, which does not count on its own unsure ways past its first move."""
+def placed(position: Position, earlier: list[Position] | None = None, wary: int | None = None,
+           expected: dict[tuple[Square, Square], float] | None = None) -> str:
+    """A position as the compiled search reads it, with the positions before it for counting repeats, the side that
+    acts in the world, which does not count on its own unsure ways past its first move, and the moves the other side
+    has been seen to make with the share of its moves each was."""
     data = _position_data(position)
     data["history"] = [_position_data(p) for p in (earlier or [])]
     if wary is not None:
         data["wary"] = int(wary)
+    if expected:
+        data["expected"] = [[a[0], a[1], b[0], b[1], float(share)] for (a, b), share in sorted(expected.items())]
     return json.dumps(data)
 
 
@@ -211,7 +224,8 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
 
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
            earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
-           threads: int = 1, wary: int | None = None, soft: float | None = None) -> Found:
+           threads: int = 1, wary: int | None = None, soft: float | None = None,
+           expected: dict[tuple[Square, Square], float] | None = None) -> Found:
     """The best move for the side to move, searched for ``seconds`` (or ``nodes``), leaving out ``set_aside``: moves
     the game has shown are not moves. With ``threads`` above one, that many searchers look at once, sharing what each
     finds (a count of nodes is searched by one). ``wary`` is the side that acts in the world: what its rules hold on
@@ -219,7 +233,8 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
     that runs through a move she cannot make is no plan; one that ignores a move they might make is a hope. ``soft``,
     where given, is the time she means to take, ``seconds`` then the most she may: between depths the search stops by
     how likely another depth is to change its answer, longer where its best move keeps changing or its judgement
-    falls, sooner where it has held."""
+    falls, sooner where it has held. ``expected``, where given, holds the moves the other side has been seen to make,
+    by their squares, with the share of its moves each was: tried early at its turns."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
     engine = _compiled()
@@ -231,7 +246,7 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
         spends = thought.kept().as_habits()
         if spends:
             weights = replace(weights, habits={**spends, **weights.habits})
-        asked = (described(family), placed(position, earlier, wary), weights.as_json(), float(seconds))
+        asked = (described(family), placed(position, earlier, wary, expected), weights.as_json(), float(seconds))
         excluded = [(m.start[0], m.start[1], m.end[0], m.end[1], m.becomes) for m in aside]
         threaded = {"threads": int(threads)} if threads > 1 else {}
         try:

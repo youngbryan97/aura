@@ -75,3 +75,34 @@ def test_every_board_search_adds_its_passes_to_her_record() -> None:
     before = len(kept().cases)
     search(CHESS, CHESS.the_start(), seconds=5.0, nodes=200_000)
     assert len(kept().cases) > before
+
+
+def test_a_look_ahead_in_a_world_whose_answer_has_held_gives_its_time_back(monkeypatch) -> None:
+    """The same curve, kept for her looks ahead in a world she acts in: where another level is unlikely to change what
+    she would do, she stops looking and acts; where nothing has been learned yet, she looks as deep as the clock
+    lets her finish."""
+    from core.agency.looking_ahead import look_ahead
+    from core.cognition import when_more_thought_changes_the_answer as thought
+    from core.perception.how_it_moves import HowItMoves, shifted_and_combined
+    from tests.test_looking_as_far_ahead_as_there_is_time_for import (  # noqa: F401
+        CORNER,
+        MOVES,
+        knows,
+    )
+
+    model = HowItMoves()
+    state = CORNER
+    for move in ("left", "up", "right", "down", "left", "up"):
+        after = shifted_and_combined(state, move)
+        model.watched(state, move, after)
+        state = after
+    looked: list[list] = []
+    monkeypatch.setattr(thought, "noted", lambda passes, margin, what=thought.BOARD_SEARCHES: looked.append(passes))
+    steady = WhenMoreThoughtChanges(weights=(-12.0, 0.0, 0.0, 0.0, 0.0), mean=0.2)
+    monkeypatch.setitem(thought._KEPT, thought.LOOKS_AHEAD, steady)
+    look_ahead(model, CORNER, MOVES, toward="256", budget_s=2.0)
+    monkeypatch.setitem(thought._KEPT, thought.LOOKS_AHEAD, WhenMoreThoughtChanges())
+    look_ahead(model, CORNER, MOVES, toward="256", budget_s=2.0)
+    held, unlearned = looked
+    assert len(held) == 2
+    assert len(unlearned) > 2

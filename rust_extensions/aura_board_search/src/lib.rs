@@ -90,6 +90,10 @@ struct PosD {
     /// The side that acts in the world this search is for, and so does not count on its own unsure ways.
     #[serde(default)]
     wary: Option<i32>,
+    /// Moves the other side has been seen to make, as (row, column) from and to and the share of its moves each was:
+    /// tried early where they could make them again.
+    #[serde(default)]
+    expected: Vec<(i32, i32, i32, i32, f64)>,
 }
 
 #[derive(Deserialize, Default)]
@@ -209,6 +213,20 @@ struct Habits {
     /// sixty-fourths of a margin a ply: a move that alone holds the position is looked into. Nought never.
     singular_from: f64,
     singular_margins: f64,
+    /// Whether searchers beside the first spread over depths, each passing over some in its own phase, so that they
+    /// look where the first is not yet looking and not where it already is: 1 spreads them, nought lets each go
+    /// depth by depth.
+    helpers_spread: f64,
+    /// Whether the answer is the one of whichever searcher completed the deepest look (its score breaking ties), not
+    /// the first searcher's alone: 1 takes the deepest, nought the first's.
+    deepest_answers: f64,
+    /// How far a move the other side has been seen to make is put forward among the quiet moves at their turns, as
+    /// history counted for its share of their moves (`PosD::expected`). Nought leaves it as any other move.
+    expected_weight: f64,
+    /// How much of what the side to move stands to lose to a second threat is counted against it: where two or more
+    /// of its pieces would each be lost to an exchange on their squares, it can save one, and the next largest loss
+    /// is counted, by this share. Nought counts none: a look that stops with two threats standing sees neither.
+    double_threats: f64,
 }
 
 impl Default for Habits {
@@ -258,6 +276,14 @@ impl Default for Habits {
             passed_turn_margins: 0.0,
             singular_from: 0.0,
             singular_margins: 64.0,
+            // Measured 23 November 2026 against Stockfish held to depth 6 on three threads, 0.2 s a move, 120 games
+            // each: both on 0.350 +- 0.032, both off 0.338 +- 0.032; on eight threads for three seconds, a ply deeper
+            // over four positions.
+            helpers_spread: 1.0,
+            deepest_answers: 1.0,
+            expected_weight: 0.0,
+            // Measured in her model of chess at equal nodes, 300 games: 0.465 +- 0.025 at a full share.
+            double_threats: 0.0,
         }
     }
 }
@@ -788,6 +814,8 @@ struct Board {
     /// Per side, the squares of its royal pieces: changed in place by a move that moved, took or made one, and back
     /// again when it is taken back.
     royal: [Vec<u16>; 2],
+    /// Moves the other side has been seen to make, by square, with the share of its moves each was.
+    expected: Vec<(u16, u16, f64)>,
 }
 
 impl Board {
@@ -807,7 +835,9 @@ impl Board {
         let passable = p.passable.map(|((a, b), (c, d))| (g.sq(a, b) as u16, g.sq(c, d) as u16));
         let wary = p.wary.map(|w| w as usize).filter(|w| *w < 2).unwrap_or(2);
         let mut b = Board { cells, unmoved, turn: p.turn as usize, passable, count: p.count, hash: 0, history: vec![],
-                            wary, at_root: false, royal: [Vec::new(), Vec::new()] };
+                            wary, at_root: false, royal: [Vec::new(), Vec::new()],
+                            expected: p.expected.iter()
+                                .map(|&(a, b, c, d, w)| (g.sq(a, b) as u16, g.sq(c, d) as u16, w)).collect() };
         b.hash = b.full_hash(g);
         b.find_royals(g);
         for h in &p.history {
@@ -1681,6 +1711,8 @@ struct Searcher<'a> {
     extended: Vec<bool>,
     /// At each ply, the move left out while the others are asked whether any comes near it; NONE-filled for none.
     left_out: Vec<Option<u32>>,
+    /// Which searcher beside the first this is (0 for the first): the phase it spreads over depths in.
+    helper: usize,
     g: &'a Game,
     b: Board,
     tt: &'a Table,
@@ -1802,7 +1834,11 @@ impl<'a> Searcher<'a> {
         let any_mobility = g.kinds.iter().any(|k| k.mobility != 0);
         let any_exposed = g.kinds.iter().any(|k| k.exposed != 0);
         let any_beyond = g.beyond.iter().any(|w| *w != 0.0);
-        if any_mobility || any_exposed || any_beyond || g.royal_pressed != 0 {
+        let threats = g.habits.double_threats > 0.0 && g.taking_over.is_empty();
+        let me = self.b.turn;
+        let mut threatened = [NONE; 16];
+        let mut n_threatened = 0;
+        if any_mobility || any_exposed || any_beyond || g.royal_pressed != 0 || threats {
             // One walk of each side's reach answers mobility, pressure on a royal piece and what is left exposed: it
             // used to be a whole move generation per side and a ray scan for every square asked about.
             let b = &self.b;
@@ -1841,6 +1877,18 @@ impl<'a> Searcher<'a> {
                         }
                     }
                 }
+                if threats {
+                    // The mover's pieces the other side could take: each is played out below.
+                    for &sq in &g.on_board {
+                        let c = b.cells[sq];
+                        if c != EMPTY && side_of(c) == me && !g.kinds[kind_of(c)].royal && reach.attacks[1 - me][sq] > 0
+                            && n_threatened < threatened.len()
+                        {
+                            threatened[n_threatened] = sq as u16;
+                            n_threatened += 1;
+                        }
+                    }
+                }
                 if any_beyond {
                     let counted = beyond_the_horizon(g, b, &reach);
                     for side in 0..2 {
@@ -1850,8 +1898,25 @@ impl<'a> Searcher<'a> {
                 }
             });
         }
-        let me = self.b.turn;
-        score[me] - score[1 - me] + g.tempo + self.learned_judgement()
+        let mut second_loss = 0;
+        if n_threatened >= 2 {
+            let mut scratch = std::mem::take(&mut self.scratch);
+            let (mut most, mut next) = (0, 0);
+            for &sq in &threatened[..n_threatened] {
+                let Some(at) = self.least_taker(&self.b.cells, sq as usize, 1 - me) else { continue };
+                let take = Move { from: at as u16, to: sq, taken_at: sq, ..Move::null() };
+                let lost = self.exchange(&take, &mut scratch);
+                if lost > most {
+                    next = most;
+                    most = lost;
+                } else if lost > next {
+                    next = lost;
+                }
+            }
+            self.scratch = scratch;
+            second_loss = (next as f64 * g.habits.double_threats) as i32;
+        }
+        score[me] - score[1 - me] + g.tempo + self.learned_judgement() - second_loss
     }
 
     /// Which (kind, the mover's or not, square in the mover's frame) each piece is: the learned judgement's inputs.
@@ -2549,13 +2614,19 @@ impl<'a> Searcher<'a> {
 
 impl<'a> Searcher<'a> {
     fn fresh(g: &'a Game, b: Board, tt: &'a Table, seconds: f64, started: Instant, max_nodes: u64) -> Searcher<'a> {
+        let mut history = vec![0; g.size * g.size];
+        if g.habits.expected_weight > 0.0 {
+            for &(from, to, share) in &b.expected {
+                history[from as usize * g.size + to as usize] += (share * g.habits.expected_weight) as i32;
+            }
+        }
         Searcher {
             g,
             b,
             tt,
             halt: None,
             killers: vec![[Move::null(); 2]; MAX_PLY],
-            history: vec![0; g.size * g.size],
+            history,
             nodes: 0,
             started,
             seconds,
@@ -2575,6 +2646,7 @@ impl<'a> Searcher<'a> {
             stands: vec![-INF; MAX_PLY + 1],
             extended: vec![false; MAX_PLY + 1],
             left_out: vec![None; MAX_PLY + 1],
+            helper: 0,
         }
     }
 }
@@ -2600,6 +2672,16 @@ impl<'a> Searcher<'a> {
         let mut changes = 0.0f64;
         let mut held = 0;
         for depth in first.max(1)..=deepest.max(first.max(1)) {
+            if self.helper > 0 && self.g.habits.helpers_spread > 0.0 && done > 0 {
+                // Each searcher beside the first passes over depths in its own phase: groups of one, two, three and
+                // four depths, every other group passed over, each searcher starting at a different point.
+                const SIZE: [i32; 20] = [1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4];
+                const PHASE: [i32; 20] = [0, 1, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7];
+                let i = (self.helper - 1) % 20;
+                if ((depth + PHASE[i]) / SIZE[i]) % 2 == 1 {
+                    continue;
+                }
+            }
             let mut score = self.search(depth, window.0, window.1, 0, false);
             // Outside the window, it is widened on that side, twice as far each time, until the score is inside.
             let mut widen = self.g.habits.window.max(1.0) as i32;
@@ -3000,8 +3082,9 @@ fn search(
                 }
             }
             let mut helpers: Vec<Searcher> = (1..threads)
-                .map(|_| {
+                .map(|n| {
                     let mut h = Searcher::fresh(&g, b.clone(), table, seconds, started, 0);
+                    h.helper = n;
                     h.halt = Some(&halt);
                     h.excluded = main.excluded.clone();
                     h.history = main.history.clone();
@@ -3009,15 +3092,27 @@ fn search(
                     h
                 })
                 .collect();
+            let spread = g.habits.helpers_spread > 0.0;
             let (found, best_score, done) = std::thread::scope(|scope| {
+                let mut answers = Vec::new();
                 for (n, helper) in helpers.iter_mut().enumerate() {
                     let legal = &legal;
-                    scope.spawn(move || {
-                        helper.best_from(1 + (n as i32 % 2), deepest, legal);
-                    });
+                    answers.push(scope.spawn(move || {
+                        helper.best_from(if spread { 1 } else { 1 + (n as i32 % 2) }, deepest, legal)
+                    }));
                 }
-                let answer = main.best(deepest, &legal);
+                let mut answer = main.best(deepest, &legal);
                 halt.store(true, Ordering::Relaxed);
+                for handle in answers {
+                    if let Ok(theirs) = handle.join() {
+                        // The deepest completed look answers; between two as deep, the better score.
+                        if g.habits.deepest_answers > 0.0 && theirs.0.is_some()
+                            && (theirs.2 > answer.2 || (theirs.2 == answer.2 && theirs.1 > answer.1))
+                        {
+                            answer = theirs;
+                        }
+                    }
+                }
                 answer
             });
             let best = found.unwrap_or(legal[0]);

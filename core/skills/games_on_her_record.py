@@ -70,9 +70,13 @@ def _what_she_kept_of(page: Any) -> dict[str, Any]:
 
 def _keep_what_she_learned(page: Any, keep: dict[str, Any]) -> None:
     from core.agency.what_she_keeps_of_a_game import to_keep
+    from core.cognition.when_more_thought_changes_the_answer import LOOKS_AHEAD, settled
     from core.runtime.what_she_learned import remember
 
     remember(_this_game(page), to_keep(keep))
+    # How often looking a level further changed what she would do, in her looks ahead while she played: the curve
+    # her looks stop by is fitted again on them, and kept.
+    settled(LOOKS_AHEAD)
 
     ended_play(page)
 
