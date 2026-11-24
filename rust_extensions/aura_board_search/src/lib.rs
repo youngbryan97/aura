@@ -172,6 +172,16 @@ struct Habits {
     exchange_within: f64,
     exchange_takes_margins: f64,
     exchange_quiet_margins: f64,
+    /// Whether what a look past the horizon found is kept in the table, where a deeper look's finding is not
+    /// displaced by it: 1 keeps it, nought does not.
+    keeps_the_horizon: f64,
+    /// From this many plies of look on, a position the table holds no best move for is looked at a ply shorter, for
+    /// a shorter look finds one to begin with next time: nought never.
+    unhinted_from: f64,
+    /// Whether a position judged better for the side to move than the one two plies before (its side's last turn)
+    /// is looked at more fully: where it is not improving, a late quiet move is shortened a ply more and fewer quiet
+    /// moves are tried near the end of a look. Nought looks at both alike.
+    improving: f64,
 }
 
 impl Default for Habits {
@@ -204,6 +214,12 @@ impl Default for Habits {
             exchange_within: 0.0,
             exchange_takes_margins: 1.0,
             exchange_quiet_margins: 0.25,
+            // Measured 23 November 2026 in her model of chess at equal nodes, 300 games against the habits as they
+            // were: keeping the horizon 0.507 +- 0.026; shortening an unhinted look from four plies 0.558 and, from
+            // other openings, 0.493; looking more fully where improving 0.560 and 0.535 (pooled 0.548 +- 0.018).
+            keeps_the_horizon: 0.0,
+            unhinted_from: 0.0,
+            improving: 1.0,
         }
     }
 }
@@ -1620,6 +1636,9 @@ struct Searcher<'a> {
     listed: Vec<Move>,
     /// A board's cells, copied to play an exchange out on.
     scratch: Vec<u8>,
+    /// Her quick judgement of the position at each ply of the line being looked at, for the side to move there;
+    /// -INF where it was not judged (in check).
+    stands: Vec<i32>,
     g: &'a Game,
     b: Board,
     tt: &'a Table,
@@ -2022,7 +2041,26 @@ impl<'a> Searcher<'a> {
         self.quiesce_inner(alpha, beta, ply, false)
     }
 
-    fn quiesce_inner(&mut self, mut alpha: i32, beta: i32, ply: usize, with_checks: bool) -> i32 {
+    fn quiesce_inner(&mut self, alpha: i32, beta: i32, ply: usize, with_checks: bool) -> i32 {
+        let found = self.quiesce_looked(alpha, beta, ply, with_checks);
+        if self.g.habits.keeps_the_horizon > 0.0 && !self.stop && found.abs() < INF {
+            let idx = self.tt_index(self.b.hash);
+            let entry = self.tt.get(idx);
+            if entry.depth <= 0 {
+                let flag = if found >= beta { 1 } else if found <= alpha { 2 } else { 0 };
+                let mut stored = found;
+                if stored > MATE - 1000 {
+                    stored += ply as i32;
+                } else if stored < -MATE + 1000 {
+                    stored -= ply as i32;
+                }
+                self.tt.set(idx, Entry { key: self.b.hash, depth: 0, flag, score: stored, best: None });
+            }
+        }
+        found
+    }
+
+    fn quiesce_looked(&mut self, mut alpha: i32, beta: i32, ply: usize, with_checks: bool) -> i32 {
         self.nodes += 1;
         self.acc.qnodes += 1;
         self.acc.seldepth = self.acc.seldepth.max(ply);
@@ -2195,10 +2233,22 @@ impl<'a> Searcher<'a> {
         }
         let pv_node = beta - alpha > 1;
         let unit = g.margin.load(Ordering::Relaxed);
-        let (stand, corrected_at) = if !checked && !pv_node { self.judged() } else { (-INF, usize::MAX) };
+        let habits = g.habits;
+        if tt_move.is_none() && habits.unhinted_from > 0.0 && depth as f64 >= habits.unhinted_from && !checked {
+            depth -= 1;
+        }
+        let (stand, corrected_at) = if !checked && (!pv_node || habits.improving > 0.0) {
+            self.judged()
+        } else {
+            (-INF, usize::MAX)
+        };
+        let corrected_at = if pv_node { usize::MAX } else { corrected_at };
+        self.stands[ply] = stand;
+        let improving = habits.improving <= 0.0
+            || (stand > -INF && (ply < 2 || self.stands[ply - 2] == -INF || stand > self.stands[ply - 2]));
+        let stand = if pv_node { -INF } else { stand };
         // A position past the bound by more than a margin for each ply still to look: what those plies could find
         // against it is not worth looking for.
-        let habits = g.habits;
         if !checked && !pv_node && unit > 0 && (depth as f64) <= habits.margin_within && beta.abs() < MATE - 1000
             && stand - unit * depth >= beta
         {
@@ -2263,8 +2313,9 @@ impl<'a> Searcher<'a> {
             if legal > 1 && !pv_node && !checked && quiet && !gives_check && best_score > -MATE + 1000 {
                 // Near the end of a look, a quiet move late in the order, or one that even with a margin cannot lift
                 // her to the bound, is not looked at.
+                let tried = habits.quiet_tried + (depth * depth) as f64;
                 let late = (depth as f64) <= habits.quiet_tried_within
-                    && legal as f64 > habits.quiet_tried + (depth * depth) as f64;
+                    && legal as f64 > if improving { tried } else { tried / 2.0 };
                 let futile = unit > 0 && (depth as f64) <= habits.futile_within
                     && stand + ((habits.futile_margins * (unit * depth) as f64) as i32) <= alpha;
                 if late || futile {
@@ -2298,7 +2349,7 @@ impl<'a> Searcher<'a> {
                     // The later a move comes in the order and the deeper the look, the less it is likely to be the
                     // one: reduced by both, in proportion to their logarithms.
                     let r = habits.shorten_from + (depth as f64).ln() * (legal as f64).ln() / habits.shorten_by.max(0.1);
-                    reduction = (r as i32 - pv_node as i32).clamp(1, depth - 2);
+                    reduction = (r as i32 - pv_node as i32 + !improving as i32).clamp(1, depth - 2);
                 }
                 score = -self.search(depth - 1 - reduction, -alpha - 1, -alpha, ply + 1, true);
                 if score > alpha && reduction > 0 {
@@ -2434,6 +2485,7 @@ impl<'a> Searcher<'a> {
             keyed: Vec::new(),
             listed: Vec::new(),
             scratch: Vec::new(),
+            stands: vec![-INF; MAX_PLY + 1],
         }
     }
 }
@@ -2889,30 +2941,8 @@ fn search(
         // Searched by time, a search starts where the last one of this game left its table; searched by a count of
         // nodes, it starts from nothing, so that a count means the same thing every time.
         let table = if nodes == 0 { kept_table(description, weights, entries) } else { Arc::new(Table::new(entries)) };
-        let mut s = Searcher {
-            g: &g,
-            b,
-            tt: &table,
-            halt: None,
-            killers: vec![[Move::null(); 2]; MAX_PLY],
-            history: vec![0; g.size * g.size],
-            nodes: 0,
-            started: Instant::now(),
-            seconds,
-            stop: false,
-            max_nodes: nodes,
-            excluded: vec![],
-            unsteady: 0,
-            played: vec![Move::null(); MAX_PLY],
-            counter: vec![Move::null(); g.size * g.size],
-            commonest: usize::MAX,
-            soft,
-            acc: Accounting::default(),
-            judgements: vec![(0, 0); JUDGEMENTS_KEPT],
-            keyed: Vec::new(),
-            listed: Vec::new(),
-            scratch: Vec::new(),
-        };
+        let mut s = Searcher::fresh(&g, b, &table, seconds, Instant::now(), nodes);
+        s.soft = soft;
         let all = s.b.legal(&g);
         let legal: Vec<Move> = all.into_iter().filter(|m| !excluded.contains(&move_out(&g, m))).collect();
         s.excluded = s.b.legal(&g).into_iter().filter(|m| !legal.contains(m)).collect();
@@ -3013,8 +3043,8 @@ fn self_play(
         for game in 0..games {
             let a_is_first = game % 2 == 0;
             let (ta, tb) = (Table::new(entries), Table::new(entries));
-            let mut sa = Searcher { g: &ga, b: b0.clone(), tt: &ta, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; ga.size * ga.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new(), scratch: Vec::new() };
-            let mut sb = Searcher { g: &gb, b: b0.clone(), tt: &tb, halt: None, killers: vec![[Move::null(); 2]; MAX_PLY], history: vec![0; gb.size * gb.size], nodes: 0, started: Instant::now(), seconds: 1e9, stop: false, max_nodes: nodes_per_move, excluded: vec![], unsteady: 0, played: vec![Move::null(); MAX_PLY], counter: vec![Move::null(); ga.size * ga.size], commonest: usize::MAX, soft: 0.0, acc: Accounting::default(), judgements: vec![(0, 0); JUDGEMENTS_KEPT], keyed: Vec::new(), listed: Vec::new(), scratch: Vec::new() };
+            let mut sa = Searcher::fresh(&ga, b0.clone(), &ta, 1e9, Instant::now(), nodes_per_move);
+            let mut sb = Searcher::fresh(&gb, b0.clone(), &tb, 1e9, Instant::now(), nodes_per_move);
             // The second side looks at as many positions as its own pace affords in the same time, where it is given.
             if nodes_per_move_b > 0 {
                 sb.max_nodes = nodes_per_move_b;
