@@ -548,6 +548,8 @@ class _BuildsTheLivingContext:
         """
         from .inference_gate import (
             _INFERENCE_RECOVERABLE_ERRORS,
+            _REQUESTED_ARTIFACT_EFFECT_CEILING,
+            _REQUESTED_DESKTOP_EFFECT_CEILING,
             _tools_within_reach,
             _what_a_tool_returned,
             logger,
@@ -636,7 +638,11 @@ class _BuildsTheLivingContext:
             # of a confirmation nobody could give. Two of the turn's two tool
             # calls were spent on tools that could never have run, and the
             # one that would have answered was never called.
-            tools, withheld = _tools_within_reach(tools, allowed_scopes)
+            # A ceiling the request set for itself carries its consent (the hand-off tells the permission model so):
+            # what the request asked for needs no second yes. The self-service ceiling is every turn's, and asked for
+            # nothing.
+            consented = frozenset({ceiling}) & {_REQUESTED_ARTIFACT_EFFECT_CEILING, _REQUESTED_DESKTOP_EFFECT_CEILING}
+            tools, withheld = _tools_within_reach(tools, allowed_scopes, consented)
             if withheld:
                 logger.info(
                     "🔧 Tool handoff: withheld %s — above the %s ceiling for this turn.",

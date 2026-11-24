@@ -2063,7 +2063,7 @@ def _what_a_tool_returned(result: Any, depth: int = 0) -> str:
 
 
 def _tools_within_reach(
-    tools: dict, allowed_scopes: object
+    tools: dict, allowed_scopes: object, consented: frozenset[str] = frozenset()
 ) -> tuple[dict, tuple[str, ...]]:
     """The offered tools this turn is actually allowed to run, and the rest.
 
@@ -2077,6 +2077,12 @@ def _tools_within_reach(
     ask for. `code_repl` passes the ceiling and fails the second — running code
     the model just wrote is correctly high risk — so offering it spends a tool
     call on a refusal either way.
+
+    A scope in ``consented`` is one the person's own request asked for, and the
+    permission model is told so: a high-risk tool there needs no confirmation,
+    because asking for it was the confirmation. LIVE 24 November 2026, "Open En
+    Croissant and play a game of chess" opened foreground desktop control, and
+    computer_use, rated critical there, was still withheld.
 
     A skill with no declared scope is offered. Withholding what has not been
     rated would quietly hide new skills, which is a worse failure than one
@@ -2099,7 +2105,7 @@ def _tools_within_reach(
         if scope is None:
             withheld.append(str(name))
             continue
-        if _needs_a_confirmation_nobody_can_give(str(name), scope):
+        if scope not in consented and _needs_a_confirmation_nobody_can_give(str(name), scope):
             withheld.append(str(name))
             continue
         kept[name] = definition
