@@ -43,7 +43,14 @@ def rules_of_the_ending(family: Any, pieces: tuple[Piece, ...]) -> str:
     from core.agency.searching_by_kind import described
 
     held = json.loads(described(family))
+    # Its kinds and every kind they may become: a piece that becomes another leads into an ending of that kind.
     kinds = {piece[1] for piece in pieces}
+    becomes = {str(kind.get("letter")): [str(b) for b in kind.get("becomes") or []] for kind in held.get("kinds", [])}
+    grown = True
+    while grown:
+        more = {b for kind in kinds for b in becomes.get(kind, [])} - kinds
+        kinds |= more
+        grown = bool(more)
     rested = {key: value for key, value in held.items() if key != "kinds"}
     rested["kinds"] = [kind for kind in held.get("kinds", []) if str(kind.get("letter")) in kinds]
     return hashlib.sha1(json.dumps(rested, sort_keys=True).encode()).hexdigest()[:16]
@@ -81,6 +88,9 @@ class Ending:
     columns: int
     rules: str
     values: np.ndarray = field(repr=False)
+    #: Whether every situation that can follow was listed. A situation past what was listed is worked out as
+    #: neither, which is no answer; an ending not wholly worked out is not used (suggestions of 23 November 2026).
+    complete: bool = False
 
     def value_of(self, position: Any) -> int | None:
         """What a situation of this ending comes to for her; None where it is not of this ending."""
@@ -91,7 +101,7 @@ class Ending:
 
     def as_bytes(self) -> bytes:
         head = json.dumps({"pieces": self.pieces, "rows": self.rows, "columns": self.columns,
-                           "rules": self.rules}).encode()
+                           "rules": self.rules, "complete": self.complete}).encode()
         return len(head).to_bytes(4, "big") + head + self.values.astype("<i2").tobytes()
 
     @classmethod
@@ -101,7 +111,8 @@ class Ending:
             head = json.loads(data[4:4 + size])
             values = np.frombuffer(data[4 + size:], dtype="<i2").astype(np.int16)
             return cls(pieces=tuple((int(s), str(k)) for s, k in head["pieces"]), rows=int(head["rows"]),
-                       columns=int(head["columns"]), rules=str(head["rules"]), values=values)
+                       columns=int(head["columns"]), rules=str(head["rules"]), values=values,
+                       complete=bool(head.get("complete", False)))
         # not a failure: nothing kept, or nothing readable, is an ending not worked out.
         except (ValueError, KeyError, TypeError):
             return None
@@ -176,7 +187,7 @@ def an_ending_worked_out(family: Any, pieces: tuple[Piece, ...], *, seconds: flo
             forced = int(worked.forced[index])
             values[name] = forced * (int(worked.turns[index]) + 1) if forced else 0
     solved = Ending(pieces=pieces, rows=rows, columns=columns, rules=rules_of_the_ending(family, pieces),
-                    values=values)
+                    values=values, complete=worked.complete)
     logger.info("worked out the ending %s to the end: %d situations listed%s; %d won for her, %d lost", pieces,
                 len(worked), "" if worked.complete else " (not all)", int((values > 0).sum()),
                 int((values < 0).sum()))
@@ -222,24 +233,43 @@ def endings_worth_working_out(rules: Any) -> list[tuple[Piece, ...]]:
     return [tuple(sorted(((FIRST, royal[FIRST]), (SECOND, royal[SECOND]), piece))) for piece in others]
 
 
+def _as_it_was_worked_out(family: Any, position: Any) -> bool:
+    """Whether a situation has the history an ending was worked out with: no piece that may cross with a partner still
+    standing unmoved with one, since an ending is worked out with every piece as having moved, and nothing passable."""
+    if position.passable:
+        return False
+    for square in position.unmoved:
+        held = position.cells.get(square)
+        partner = family.kind(held[1]).crosses_with if held is not None else ""
+        if partner and any(position.cells.get(other) == (held[0], partner) for other in position.unmoved):
+            return False
+    return True
+
+
 def worked_to_the_end(endings: dict[tuple, Ending] | None, family: Any, position: Any, legal: list) -> Any:
     """Her move in a situation of an ending she has worked out under the rules she plays by, where it is won or lost:
     the quickest win, else the longest a loss can be put off. None where it is neither, or not worked out."""
     if not endings:
         return None
     ending = endings.get(the_ending_of(position))
-    if ending is None or ending.rules != rules_of_the_ending(family, ending.pieces):
+    if ending is None or not ending.complete or ending.rules != rules_of_the_ending(family, ending.pieces):
+        return None
+    if not _as_it_was_worked_out(family, position):
         return None
     worth = ending.value_of(position)
     if not worth:
+        return None
+    # A win or loss that takes more turns than the count toward a draw has left is a draw: each situation before the
+    # last of its ``abs(worth) - 1`` turns is one the count may draw, and the last is decided before the count is read.
+    if family.count_to_draw and position.count + abs(worth) - 2 >= family.count_to_draw:
         return None
     from core.agency.pieces_by_their_kind import after
 
     def comes_to(move: Any) -> int:
         nxt = after(family, position, move)
         there = endings.get(the_ending_of(nxt))
-        held = there.value_of(nxt) if there is not None and there.rules == rules_of_the_ending(family, there.pieces) \
-            else None
+        held = there.value_of(nxt) if there is not None and there.complete \
+            and there.rules == rules_of_the_ending(family, there.pieces) else None
         return 0 if held is None else held
 
     # For her (the first side): a win soonest, else neither, else a loss as late as it can come.

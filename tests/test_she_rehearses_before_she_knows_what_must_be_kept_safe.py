@@ -110,11 +110,16 @@ def test_weights_fitted_in_the_same_game_are_kept() -> None:
 
 def test_each_try_of_a_group_asks_more_of_it() -> None:
     """LIVE-like 21 November 2026 a feature tried seven times at one standard error was kept on the seventh and then
-    lost to the weights without it, 0.446 +- 0.040 over 120 games."""
+    lost to the weights without it, 0.446 +- 0.040 over 120 games. And the chances that a group that does not help is
+    kept, added over all its tries, stay within what BETTER_BY gives one try: shares of chance/t added up without end,
+    a hundred tries near even odds (suggestions of 23 November 2026)."""
+    from statistics import NormalDist
+
     from core.agency.what_a_kind_is_worth import BETTER_BY, how_far_above_even
 
-    bars = [how_far_above_even(t) for t in range(1, 9)]
-    assert abs(bars[0] - BETTER_BY) < 1e-9
+    bars = [how_far_above_even(t) for t in range(1, 1001)]
+    one_try = 1.0 - NormalDist().cdf(BETTER_BY)
+    assert sum(1.0 - NormalDist().cdf(bar) for bar in bars) <= one_try + 1e-12
     assert all(later > earlier for earlier, later in zip(bars, bars[1:]))
     assert bars[6] > (0.584 - 0.5) / 0.074  # the seventh try that was kept by luck is not kept
 

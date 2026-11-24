@@ -57,9 +57,10 @@ class Worked:
     chance: np.ndarray | None = field(repr=False)
     shares: list[list[float]] = field(repr=False)
     complete: bool = True
-    #: Whether her chance of a good end settled, every situation's to within what a float holds; where it did not
-    #: (out of time, in a world whose dealing goes round and round), ``chance`` is a bound from below: each pass only
-    #: raises it toward the true chance.
+    #: Her chance of a good end is known to lie between ``chance`` and ``chance_upper``, each a bound however the
+    #: working-out stopped; ``chance_settled`` where the two meet, every situation's to within what a float holds. Where
+    #: she may go round and round by choice while another way is a gamble, the bounds may never meet, and it says so.
+    chance_upper: np.ndarray | None = field(default=None, repr=False)
     chance_settled: bool = True
     name_of: Callable[[Any], Hashable] = field(default=lambda state: state, repr=False)
 
@@ -154,7 +155,10 @@ def worked_out(starts: Iterable[Any], next_of: Callable[[Any], Iterable[tuple]],
         return index
 
     for state in starts:
-        listed(state)
+        # Past a limit, what is left of the situations to start from is not read at all: declining to list them
+        # while still reading a large supply of them does not bound the work.
+        if listed(state) < 0:
+            break
     while waiting:
         if seconds is not None and time.monotonic() - began > seconds:
             # Out of time: what is still waiting is listed and not followed, and comes to neither.
@@ -197,13 +201,13 @@ def worked_out(starts: Iterable[Any], next_of: Callable[[Any], Iterable[tuple]],
         kind = deciding[owners]
         for side in (1, -1):
             _forced_by(side, forced, turns, owners, first, safe, listed_child, kind)
-    chance, settled = None, True
+    chance, upper, settled = None, None, True
     if (deciding == _WHO[CHANCE]).any() and len(owners):
-        chance, settled = _chance_of_a_good_end(end, owners, first, safe, listed_child, kind,
-                                                np.frombuffer(dealt, dtype=np.float64),
-                                                None if seconds is None else began + seconds)
+        chance, upper, settled = _chance_of_a_good_end(end, owners, first, safe, listed_child, kind,
+                                                       np.frombuffer(dealt, dtype=np.float64),
+                                                       None if seconds is None else began + seconds)
     return Worked(names=names, states=states, acts=acts, who=deciding, forced=forced, turns=turns, chance=chance,
-                  chance_settled=settled,
+                  chance_upper=upper, chance_settled=settled,
                   shares=shares, complete=complete, name_of=name_of)
 
 
@@ -234,24 +238,47 @@ def _forced_by(side: int, forced: np.ndarray, turns: np.ndarray, owners: np.ndar
 
 def _chance_of_a_good_end(end: np.ndarray, owners: np.ndarray, first: np.ndarray, child: np.ndarray,
                           listed_child: np.ndarray, kind: np.ndarray, share: np.ndarray,
-                          until: float | None) -> tuple[np.ndarray, bool]:
+                          until: float | None) -> tuple[np.ndarray, np.ndarray, bool]:
     """Her chance of a good end from each situation, playing for it against a side that plays against it, with the
-    world dealing by its shares, and whether it settled. From nothing, each pass can only raise a situation's chance
-    toward the true one, so whatever pass it stops at is a bound from below; it stops where no situation's chance
-    moves by more than a float holds, or at ``until`` (a time). A cap of as many passes as there are situations
-    stopped a world that deals the same situation again and again short of its answer: a chance of a half each time,
-    over and over, came out three in four where it is certain (suggestions of 23 November 2026)."""
-    chance = np.where(np.isnan(end), 0.0, (end > 0).astype(np.float64))
-    totals = np.add.reduceat(share, first)
+    world dealing by its shares, as two bounds and whether they met. From nothing, each pass can only raise a chance
+    toward the true one, so it is a bound from below wherever it stops; from certainty, each pass can only lower one,
+    a bound from above, once every situation from which no good end can be reached at all is set at nothing. They are
+    passed until they meet, every situation's to within what a float holds, or until ``until`` (a time). A cap of as
+    many passes as there are situations once stopped a world dealing the same situation again and again short of its
+    answer, three in four where it is certain; a pass that moves little is no bound on how far the answer still is, in
+    a world that goes round (suggestions of 23 November 2026)."""
+    good = ~np.isnan(end) & (end > 0)
+    lower = good.astype(np.float64)
+    # Whatever no good end can be reached from, along any acts and dealings at all, is nothing for certain; an act
+    # leading past what was listed could reach one.
+    reaches = good.copy()
+    owner_of = np.repeat(owners, np.diff(np.append(first, len(child))))
     while True:
-        theirs = np.where(listed_child, chance[child], 0.0)
+        more = np.zeros_like(reaches)
+        np.logical_or.at(more, owner_of, ~listed_child | reaches[child])
+        grown = reaches | more
+        if (grown == reaches).all():
+            break
+        reaches = grown
+    upper = np.where(np.isnan(end), reaches.astype(np.float64), good.astype(np.float64))
+    totals = np.add.reduceat(share, first)
+
+    def a_pass(chance: np.ndarray, unknown: float) -> np.ndarray:
+        theirs = np.where(listed_child, chance[child], unknown)
         best = np.maximum.reduceat(theirs, first)
         worst = np.minimum.reduceat(theirs, first)
         dealt = np.add.reduceat(theirs * share, first) / np.where(totals > 0, totals, 1.0)
-        now = np.where(kind == 0, best, np.where(kind == 1, worst, dealt))
-        moved = float(np.max(np.abs(now - chance[owners]))) if len(owners) else 0.0
-        chance[owners] = now
-        if moved <= SETTLED_TO:
-            return chance, True
+        return np.where(kind == 0, best, np.where(kind == 1, worst, dealt))
+
+    while True:
+        was_lower, was_upper = lower[owners].copy(), upper[owners].copy()
+        lower[owners] = a_pass(lower, 0.0)
+        upper[owners] = np.minimum(upper[owners], a_pass(upper, 1.0))
+        if float(np.max(upper[owners] - lower[owners])) <= SETTLED_TO:
+            return lower, upper, True
+        # Each bound only moves one way, and floats are finite: a pass that moves neither will never be followed by
+        # one that does, and the bounds stand apart where they are.
+        if (lower[owners] == was_lower).all() and (upper[owners] == was_upper).all():
+            return lower, upper, False
         if until is not None and time.monotonic() >= until:
-            return chance, False
+            return lower, upper, False

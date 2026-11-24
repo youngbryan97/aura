@@ -296,8 +296,9 @@ def _endings_held(engine: Any, family: Family, endings: dict | None) -> str:
         return ""
     from core.agency.what_a_small_ending_comes_to import rules_of_the_ending
 
+    # Only an ending wholly worked out: one past its cap holds neither for what it never listed.
     valid = {pieces: ending for pieces, ending in endings.items()
-             if ending.rows == family.rows and ending.columns == family.columns
+             if ending.rows == family.rows and ending.columns == family.columns and getattr(ending, "complete", False)
              and ending.rules == rules_of_the_ending(family, pieces)}
     if not valid:
         return ""

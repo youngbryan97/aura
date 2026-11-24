@@ -86,8 +86,12 @@ class WhatTheGameShowed:
         del self.refusals[:-KEPT_AT_MOST]
 
     def checked(self, family: Any) -> Checked:
-        """Her rules, as ``family``, against every answer kept."""
-        from core.agency.pieces_by_their_kind import moves
+        """Her rules, as ``family``, against every answer kept. An offer is read as the act it stands for before it is
+        checked: a game may offer a crossing as its partner's square, and the learner reads that square as the crossing
+        (how_the_pieces_move), so the checker does too. Read as squares, a crossing offered by its partner's square
+        was two disagreements, one square missing and one spurious, about a move her rules and the game agree on
+        (suggestions of 23 November 2026)."""
+        from core.agency.pieces_by_their_kind import _possible, moves
 
         found = Checked()
         for answer in self.offers:
@@ -100,7 +104,10 @@ class WhatTheGameShowed:
             if start not in position.cells or position.cells[start][0] != position.turn:
                 continue
             kind = position.cells[start][1]
-            theirs = {tuple(sq) for sq in answer["to"]}
+            # Each partner's square her rules have the piece crossing with, read as the square the crossing ends on.
+            crossing = {m.partner[0]: m.end for m in _possible(family, position)
+                        if m.start == start and m.partner is not None and m.partner[0] != m.end}
+            theirs = {crossing.get(tuple(sq), tuple(sq)) for sq in answer["to"]}
             mine = {m.end for m in moves(family, position) if m.start == start}
             missing, spurious = theirs - mine, mine - theirs
             found.answers += 1

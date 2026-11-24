@@ -121,3 +121,45 @@ def test_a_world_that_deals_the_same_situation_again_and_again_is_worked_out_to_
     rushed = worked_out(["start"], slow, lambda s: 1.0 if s == "good" else None,
                         lambda s: CHANCE if s == "dealing" else HERS, seconds=0.05)
     assert rushed.complete and not rushed.chance_settled and 0.0 < rushed.chance[rushed.at("start")] < 1.0
+
+
+def test_a_supply_of_situations_to_start_from_is_not_read_past_the_cap() -> None:
+    # Suggestions of 23 November 2026: past its cap it declined to list each start, and went on reading them all.
+    def without_end():
+        n = 0
+        while True:
+            yield n
+            n += 1
+
+    worked = worked_out(without_end(), lambda at: [], lambda at: 0.0, lambda at: HERS, most=10)
+    assert len(worked) == 10 and not worked.complete
+
+
+def test_her_chance_is_held_between_two_bounds_however_the_working_out_stopped() -> None:
+    def slow(state):
+        return [("try", "dealing")] if state == "start" else [("good", "good", 1e-6), ("again", "start", 1 - 1e-6)]
+
+    rushed = worked_out(["start"], slow, lambda s: 1.0 if s == "good" else None,
+                        lambda s: CHANCE if s == "dealing" else HERS, seconds=0.05)
+    at = rushed.at("start")
+    assert not rushed.chance_settled and rushed.chance[at] < 1.0 <= rushed.chance_upper[at]
+    # From where no good end can be reached at all, the bound from above is nothing.
+    def doomed(state):
+        return {"start": [("try", "dealing")], "dealing": [("bad", "bad", 0.5), ("again", "start", 0.5)]}.get(state, [])
+
+    lost = worked_out(["start"], doomed, lambda s: -1.0 if s == "bad" else None,
+                      lambda s: CHANCE if s == "dealing" else HERS)
+    assert lost.chance_settled and lost.chance_upper[lost.at("start")] == 0.0
+
+
+def test_where_she_may_go_round_by_choice_beside_a_gamble_the_bounds_stand_apart_and_it_ends() -> None:
+    # She may wait for ever, which never ends well, or take an even chance: no time limit is given, and it still
+    # stops, saying the chance did not settle, with the true half between its bounds.
+    def next_of(state):
+        return {"start": [("wait", "start"), ("gamble", "dealing")],
+                "dealing": [("good", "good", 0.5), ("bad", "bad", 0.5)]}.get(state, [])
+
+    worked = worked_out(["start"], next_of, lambda s: {"good": 1.0, "bad": -1.0}.get(s),
+                        lambda s: CHANCE if s == "dealing" else HERS)
+    at = worked.at("start")
+    assert not worked.chance_settled and worked.chance[at] <= 0.5 <= worked.chance_upper[at]

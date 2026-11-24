@@ -91,6 +91,13 @@ HER_LONGER_LOOK = "her longer look"
 LONGER_LOOK_NODES = 30_000
 #: Tries of a group taught by results, failed, before her longer look teaches instead.
 RESULTS_TRIED_AT_MOST = 2
+#: The most plies a practice game is played to; one that gets there is unfinished, not drawn.
+GAME_PLIES_AT_MOST = 300
+#: Positions her games gave, kept at most, the latest, by size: a quarter of a gigabyte, and the copy a fit makes of
+#: them twice that. A chess-sized row is 793 numbers, 3.17 KB, so about 85,000 positions, two dozen rounds of forty
+#: games. Kept without bound, a million rows took 3.17 GB and their copy 6.34 GB more, beside her model (suggestions
+#: of 23 November 2026).
+SAMPLES_HELD_AT_MOST_BYTES = 256 * 2 ** 20
 #: Positions her longer look searched, kept at most, the latest: about seven and a half megabytes of her disk.
 LOOKED_AT_LONGER_AT_MOST = 100_000
 
@@ -463,15 +470,18 @@ def _pace(engine: Any, description: str, begin: str, candidate: str, current: st
 
 
 def how_far_above_even(tries: int) -> float:
-    """How many standard errors above even a group must score on its ``tries``-th try to be kept. The first try asks
-    BETTER_BY; later ones ask more, so that the chance a group that does not help is ever kept stays what one try's
-    was, shared out over the tries (Bonferroni). LIVE-like 21 November 2026: a lead-over-what-is-left feature was tried
-    seven times at one standard error, kept on the seventh at 0.584 +- 0.074, and then lost to the weights without it,
+    """How many standard errors above even a group must score on its ``tries``-th try to be kept, so that the chance a
+    group that does not help is ever kept, over all its tries, stays what BETTER_BY gives one try: the ``t``-th try is
+    given that chance over t(t+1), and those add up to it whatever the number of tries. A share of chance/t each, as
+    before, adds up without end: a hundred tries gave a group that does not help about even odds of being kept
+    (suggestions of 23 November 2026). LIVE-like 21 November 2026: a lead-over-what-is-left feature was tried seven
+    times at one standard error, kept on the seventh at 0.584 +- 0.074, and then lost to the weights without it,
     0.446 +- 0.040 over 120 games."""
     from statistics import NormalDist
 
     chance = 1.0 - NormalDist().cdf(BETTER_BY)
-    return NormalDist().inv_cdf(1.0 - chance / max(1, tries))
+    t = max(1, tries)
+    return NormalDist().inv_cdf(1.0 - chance / (t * (t + 1)))
 
 
 def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: int = GAMES_A_ROUND,
@@ -487,7 +497,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     longer = LONGER_LOOK_NODES if rehearsal.teacher == HER_LONGER_LOOK else 0
     played, looked_longer = _played(engine, description, begin, rehearsal.weights.as_json(),
                                     rehearsal.weights.as_json(), games, nodes, longer=longer,
-                                    random_plies=RANDOM_PLIES, seed=seed)
+                                    random_plies=RANDOM_PLIES, seed=seed, max_plies=GAME_PLIES_AT_MOST)
     taught = _what_her_longer_look_found(played) if looked_longer else None
     if looked_longer:
         rehearsal.looked_at_longer.add(played, rehearsal.rounds, family.rows, family.columns)
@@ -502,11 +512,21 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     # against Stockfish and rehearsed in neither.
     standing, spread = _standing_where_it_stopped(played, rehearsal.weights, family)
     games_of = list(played.get("sample_games") or [])
+    plies_of = [int(n) for n in played.get("plies", [])]
+    ends_known = any(kind.royal or kind.wins_arriving for kind in family.kinds.values())
     came_to: list[float] = []
     for index, (features, result) in enumerate(played["samples"]):
         label = float(result)
-        if label == 0.5 and spread > 0 and index < len(games_of) and games_of[index] < len(standing):
-            label = _as_a_result(standing[games_of[index]], spread)
+        game = games_of[index] if index < len(games_of) else None
+        # A game is unfinished where it ran to the most plies a game is played to (the compiled games count the last
+        # ply begun, one short of it), or where her model knows no way a game ends and none could finish. Only an
+        # unfinished game has its material read as an estimate of how it would have gone; one her rules ended level is
+        # a draw, and is learned as one. Read from material, draws became targets of 0.791 and 0.339, teaching that
+        # holding material wins where it drew (suggestions of 23 November 2026).
+        ran_out = game is not None and game < len(plies_of) and plies_of[game] >= GAME_PLIES_AT_MOST - 1
+        unfinished = game is not None and (ran_out or not ends_known)
+        if label == 0.5 and unfinished and spread > 0 and game < len(standing):
+            label = _as_a_result(standing[game], spread)
         came_to.append(label)
         if taught is not None:
             label = taught[index]
@@ -514,6 +534,12 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         # and LIVE 21 November 2026 one game's rehearsal gathered 15,820 of them.
         rehearsal.samples_x.append(np.asarray(features, dtype=np.float32))
         rehearsal.samples_y.append(label)
+    # The oldest rows give way, past what practice beside her may hold. Rows are bounded by their size, not their
+    # number: a row is as long as a board has squares and kinds.
+    row_bytes = max(1, int(rehearsal.samples_x[-1].nbytes)) if rehearsal.samples_x else 1
+    extra = len(rehearsal.samples_y) - max(1, SAMPLES_HELD_AT_MOST_BYTES // row_bytes)
+    if extra > 0:
+        del rehearsal.samples_x[:extra], rehearsal.samples_y[:extra]
     rehearsal.came_to.add(played, came_to, rehearsal.rounds, beyond_at(family))
     rehearsal.rounds += 1
     trying, refreshing = what_to_try(rehearsal)
@@ -573,17 +599,31 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     # Each side looks at as many positions a move as its pace affords in the same time: a judgement that slows her
     # search is judged with the time it costs, as it is in a game on a clock.
     pace = _pace(engine, description, begin, theirs, mine, nodes)
+    # Each opening played twice, the candidate on each side of it: the compiled games draw their openings from the
+    # seed in order and give the first side to each in turn, so the same seed with the two swapped plays the same
+    # openings with the sides the other way round. A fresh opening each game left whose opening it was in the result
+    # (suggestions of 23 November 2026).
+    half = max(1, games // 2)
+    paced = max(1, round(nodes * pace))
     try:
-        match = engine.self_play(description, begin, theirs, mine, games, max(1, round(nodes * pace)),
-                                 random_plies=RANDOM_PLIES, seed=seed + 7919, nodes_per_move_b=nodes)
+        ours = engine.self_play(description, begin, theirs, mine, half, paced, random_plies=RANDOM_PLIES,
+                                seed=seed + 7919, nodes_per_move_b=nodes)
+        swapped = engine.self_play(description, begin, mine, theirs, half, nodes, random_plies=RANDOM_PLIES,
+                                   seed=seed + 7919, nodes_per_move_b=paced)
     # not a failure: a build of the compiled search from before paces gives both sides the same positions.
     except TypeError:
         pace = 1.0
-        match = engine.self_play(description, begin, theirs, mine, games, nodes, random_plies=RANDOM_PLIES,
-                                 seed=seed + 7919)
-    results, ends_known = _match_scored(match, rehearsal.weights, family)
-    mean = float(results.mean()) if len(results) else 0.5
-    error = float(results.std(ddof=1) / math.sqrt(len(results))) if len(results) > 1 else 1.0
+        ours = engine.self_play(description, begin, theirs, mine, half, nodes, random_plies=RANDOM_PLIES,
+                                seed=seed + 7919)
+        swapped = engine.self_play(description, begin, mine, theirs, half, nodes, random_plies=RANDOM_PLIES,
+                                   seed=seed + 7919)
+    first, ends_known = _match_scored(ours, rehearsal.weights, family)
+    second, _ends = _match_scored(swapped, rehearsal.weights, family)
+    count = min(len(first), len(second))
+    # The candidate's points over each pair of games on one opening, a pair the unit of what is measured.
+    pairs = (first[:count] + (1.0 - second[:count])) / 2.0
+    mean = float(pairs.mean()) if count else 0.5
+    error = float(pairs.std(ddof=1) / math.sqrt(count)) if count > 1 else 1.0
     tries = 1
     if trying:
         # A refit of the groups she has, with none new to try, is no group's try.

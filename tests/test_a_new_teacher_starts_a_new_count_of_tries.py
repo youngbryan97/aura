@@ -19,14 +19,16 @@ class _Engine:
     """Games gathered, then a match the candidate wins by about one and a half standard errors."""
 
     def __init__(self) -> None:
-        self.calls = 0
+        self.matched = 0
 
     def self_play(self, description, begin, weights_a, weights_b, games, nodes, **options):
-        self.calls += 1
         width = len(worth._columns(CHESS, list(worth.GROUPS)))
         features = [[float((i + n) % 3) for i in range(width + 64)] for n in range(60)]
-        gathering = self.calls % 2 == 1
-        results = [0.5] * games if gathering else list(_MATCH)
+        # A match paces its second side; gathering does not. A match is played twice, the candidate named first and
+        # then second, and its points are the first named side's.
+        gathering = "nodes_per_move_b" not in options
+        self.matched = 0 if gathering else self.matched + 1
+        results = [0.5] * games if gathering else (list(_MATCH) if self.matched == 1 else [1.0 - p for p in _MATCH])
         return {"samples": [(f, 1.0 if n % 2 else 0.0) for n, f in enumerate(features)],
                 "sample_scores": [400 if n % 2 else -400 for n in range(60)],
                 "sample_games": [0] * 60, "plies": [80] * len(results), "results": results,

@@ -56,3 +56,19 @@ def test_what_the_game_showed_is_kept_as_her_rules_learn_and_read_back() -> None
     again = WhatTheGameShowed.from_bytes(rules.shown.as_bytes())
     assert len(again.offers) == 1 and len(again.refusals) == 1
     assert again.checked(CHESS).answers == 2
+
+
+def test_a_crossing_offered_as_its_partners_square_is_the_crossing_and_no_disagreement() -> None:
+    """A game may offer castling as the rook's square, as En Croissant does; the learner reads that square as the
+    crossing, and so does the check. Read as squares it was a square missing and a square spurious (suggestions of 23
+    November 2026). Where her rules have no such crossing, the partner's square offered is still one she lacks."""
+    king = (0, 4)
+    as_the_game_offers_it = {(0, 5), (1, 4), (0, 7)}  # f1, e2, and h1 for the crossing
+    shown = WhatTheGameShowed()
+    shown.offered(MIDDLE, king, as_the_game_offers_it)
+    assert {m.end for m in moves(CHESS, MIDDLE) if m.start == king} == {(0, 5), (1, 4), (0, 6)}
+    checked = shown.checked(CHESS)
+    assert checked.missing == 0 and checked.spurious == 0, checked.examples
+    never_crosses = replace(CHESS, kinds={**CHESS.kinds, "K": replace(CHESS.kinds["K"], crosses_with="")})
+    lacking = shown.checked(never_crosses)
+    assert lacking.missing == 1 and lacking.examples[0]["missing"] == [(0, 7)]

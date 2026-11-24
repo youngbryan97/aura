@@ -64,7 +64,7 @@ def test_a_group_results_fail_twice_is_taught_by_her_longer_look(monkeypatch) ->
     # What results labelled is let go: her longer look teaches on positions of its own.
     assert rehearsal.samples_y == []
     rehearsal = worth.rehearse(CHESS, CHESS.the_start(), rehearsal, games=4, nodes=10, seed=3)
-    gathered = engine.asked[-2]
+    gathered = next(asked for asked in reversed(engine.asked) if "deep_nodes" in asked)
     assert gathered["deep_nodes"] == worth.LONGER_LOOK_NODES
     # Each position is labelled by what the longer look found, read as a chance to win: a position it found good above
     # even, a bad one below, and none as certain as a result.

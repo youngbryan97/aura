@@ -54,16 +54,21 @@ def test_what_she_gathered_comes_back_from_disk_the_same() -> None:
 
 
 class _Engine:
-    """Games gathered, then a match the candidate wins 30 of 40."""
+    """Games gathered, then a match the candidate wins 30 of 40, played twice: the candidate named first, then
+    second, the points the first named side's."""
+
+    candidates_points = [1.0] * 30 + [0.0] * 10
 
     def __init__(self) -> None:
-        self.calls = 0
+        self.matched = 0
 
     def self_play(self, description, begin, weights_a, weights_b, games, nodes, **options):
-        self.calls += 1
         width = len(worth._columns(CHESS, list(worth.GROUPS)))
         features = [[float((i + n) % 3) for i in range(width + 64)] for n in range(60)]
-        results = [0.5] * games if self.calls % 2 else [1.0] * 30 + [0.0] * 10
+        gathering = "nodes_per_move_b" not in options
+        self.matched = 0 if gathering else self.matched + 1
+        points = list(self.candidates_points)
+        results = [0.5] * games if gathering else (points if self.matched == 1 else [1.0 - p for p in points])
         return {"samples": [(f, 1.0 if n % 2 else 0.0) for n, f in enumerate(features)],
                 "sample_scores": [400 if n % 2 else -400 for n in range(60)],
                 "sample_games": [0] * 60, "plies": [80] * len(results), "results": results,
@@ -104,11 +109,7 @@ def test_one_that_foretells_no_better_than_the_last_tried_is_not_tried(monkeypat
                 "out_bias": 0.0, "held_out": [0.01, after]}
 
     class _LosesEveryMatch(_Engine):
-        def self_play(self, *args, **options):
-            played = super().self_play(*args, **options)
-            if self.calls % 2 == 0:
-                played["results"] = [0.0] * 40
-            return played
+        candidates_points = [0.0] * 40
 
     engine = _LosesEveryMatch()
     monkeypatch.setattr(worth, "_engine", lambda: engine)
@@ -215,7 +216,8 @@ def test_a_slower_judgement_is_matched_with_the_time_it_costs(monkeypatch) -> No
     monkeypatch.setattr(worth, "_engine", lambda: engine)
     monkeypatch.setattr(worth.LookedAtLonger, "judgement", lambda self, seed=0: learned)
     rehearsal = worth.rehearse(CHESS, CHESS.the_start(), _with_every_weighted_group_earned(), games=40, nodes=1000)
-    candidates, current = engine.asked[-1]
+    # The match's first half names the candidate first; its second half, the same openings, names it second.
+    candidates, current = engine.asked[-2]
     assert current == 1000 and 400 < candidates < 650, engine.asked
     assert 0.4 < rehearsal.last["pace"] < 0.65
 
