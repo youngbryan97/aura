@@ -698,3 +698,20 @@ def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch, tmp_path
     monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
     chat.her_word_is_kept("On it.", "Make it.", session_id="c")
     assert "task" in started
+
+
+def test_a_reply_to_a_turn_that_work_carries_out_is_not_held_to_being_the_work():
+    from core.conversation.response_request_coverage import _instruction_coverage_reasons
+    from core.runtime.what_this_turn_asks import clear
+
+    said = ("I keep losing track of which houseplants I've watered. Make me an app for it: each plant has a name, a room and how many "
+            "days it can go between waterings, I tap to say I've watered it, and the ones that are due or late come first. Explain "
+            "how you would order them, and list three things it shows.")
+    reply = "I'm building the plant-watering tracker and will confirm here when it's ready."
+    clear()
+    hold(_read(said, "program"))
+    assert _instruction_coverage_reasons(said, reply) != [], "nothing carries it out, so the reply is to be it"
+    hold(dataclasses.replace(_read(said, "program"), request_id="a1"))
+    assert _instruction_coverage_reasons(said, reply) == []
+    clear()
+    assert _instruction_coverage_reasons("List three rivers, and explain how you chose them.", "I'm on it.") != []
