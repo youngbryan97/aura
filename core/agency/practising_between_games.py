@@ -36,10 +36,11 @@ _WAITING = ""
 #: come back.
 PREPARED_A_ROUND = 4
 PREPARES_TURNS = 20
-#: Which kind of round comes next: they take turns, rehearsing, preparing, looking into where a lost game went wrong,
-#: and working a small ending out to the end; a kind with nothing to do gives its turn to rehearsal.
+#: The kinds of round: rehearsing, preparing, looking into where a lost game went wrong, and working a small ending out
+#: to the end. Which comes next is whichever has lately paid best, with a margin for how little each has been tried
+#: (core/cognition/where_practice_pays.py); a kind with nothing to do gives its turn to the next.
 _ROUNDS = ("rehearses", "prepares", "investigates", "works out an ending")
-_NEXT: dict[str, int] = {"round": 0}
+_PAYS: dict[str, Any] = {}
 
 
 def _waits(why: str) -> bool:
@@ -118,18 +119,34 @@ def _prepare_some(name: str) -> int:
 
 
 def _one_round(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
-    """One round of practice at the board kept as ``name``, kept with it: rehearsal, preparing and looking into where
-    a lost game went wrong take turns, and a kind with nothing left to do gives its turn to rehearsal. Blocks; run it
-    in a thread."""
-    kind = _ROUNDS[_NEXT["round"] % len(_ROUNDS)]
-    _NEXT["round"] += 1
-    if kind == "prepares" and _prepare_some(name):
-        return {"prepared": True}
-    if kind == "investigates" and _investigate_some(name, written):
-        return {"investigated": True}
-    if kind == "works out an ending" and _work_out_an_ending(name, written):
-        return {"worked out an ending": True}
-    return _one_rehearsal(name, written)
+    """One round of practice at the board kept as ``name``, kept with it: of rehearsal, preparing, looking into where a
+    lost game went wrong and working an ending out, the kind that has lately paid best, a kind with nothing left to do
+    giving its turn to the next. A round pays where it changes what she will do: a group of weights kept, a suspect
+    ruled out, an ending worked out, situations worked out ahead. Blocks; run it in a thread."""
+    from core.cognition.where_practice_pays import WherePracticePays
+
+    pays = _PAYS.setdefault(name, WherePracticePays())
+    for kind in pays.ranked(_ROUNDS):
+        if kind == "prepares":
+            done = _prepare_some(name)
+            if done:
+                pays.came_to(kind, True)
+                return {"prepared": True}
+        elif kind == "investigates":
+            settled = _investigate_some(name, written)
+            if settled:
+                pays.came_to(kind, settled == 2)
+                return {"investigated": True, "ruled out": settled == 2}
+        elif kind == "works out an ending":
+            if _work_out_an_ending(name, written):
+                pays.came_to(kind, True)
+                return {"worked out an ending": True}
+        else:
+            last = _one_rehearsal(name, written)
+            if last is not None:
+                pays.came_to(kind, bool(last.get("kept")))
+            return last
+    return None
 
 
 def _work_out_an_ending(name: str, written: tuple[int, int]) -> int:
@@ -187,7 +204,8 @@ def _investigate_some(name: str, written: tuple[int, int]) -> int:
     """A round of looking into where a lost game went wrong: the suspect after which her judgement fell furthest is
     weighed against the best of what else was open there, each by a longer look from the situation it leaves. Worse by
     more than the looks' own unsteadiness, it is ruled out there; otherwise it is cleared, and the next suspect, which
-    may come earlier in the game, is looked into next round. How many were settled. Blocks; run it in a thread."""
+    may come earlier in the game, is looked into next round. Nought where there was nothing to look into, 1 where the
+    suspect was cleared, 2 where it was ruled out. Blocks; run it in a thread."""
     from core.agency.pieces_by_their_kind import FIRST, after, moves
     from core.agency.playing_pieces_by_kind import (
         _cores_free,
@@ -240,7 +258,7 @@ def _investigate_some(name: str, written: tuple[int, int]) -> int:
         if held is not None and held[0] == name:
             _HELD["written"] = held[1]
     logger.info("investigated %s between games in %.0f s", name, time.monotonic() - began)
-    return 1
+    return 2 if worse else 1
 
 
 def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None:

@@ -78,7 +78,8 @@ def _investigated(monkeypatch, *, it: int, instead: int) -> WhatFailedWhere:
     monkeypatch.setattr(practice, "_HELD", {})
     looks = iter([Found(better, 0, 9, 1, [better]), Found(None, it, 9, 1, []), Found(None, instead, 9, 1, [])])
     monkeypatch.setattr(searching, "search", lambda *a, **k: next(looks))
-    assert practice._investigate_some("A Board", (0, 0)) == 1
+    # 2 where the suspect was ruled out, 1 where it was cleared: what practice credits the round with.
+    assert practice._investigate_some("A Board", (0, 0)) == (2 if instead - it < 0 else 1)
     return failed
 
 

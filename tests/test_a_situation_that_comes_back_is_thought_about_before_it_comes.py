@@ -111,21 +111,24 @@ def test_in_a_game_a_situation_worked_out_ahead_is_answered_from_it() -> None:
     assert _worked_out_ahead(None, game, CHESS, weights, moves(CHESS, start)) is None
 
 
-def test_practice_takes_turns_between_rehearsing_and_preparing(monkeypatch) -> None:
+def test_practice_goes_where_it_has_paid_without_leaving_the_rest_untried(monkeypatch) -> None:
+    """Each kind of round is tried first once; then a round that changed what she will do (situations worked out
+    ahead) is chosen over one that did not (a rehearsal that kept nothing), and the other is still tried now and then
+    (core/cognition/where_practice_pays.py)."""
     ran: list[str] = []
-    monkeypatch.setattr(practice, "_NEXT", {"round": 0})
+    monkeypatch.setattr(practice, "_PAYS", {})
     monkeypatch.setattr(practice, "_ROUNDS", ("rehearses", "prepares"))
-    monkeypatch.setattr(practice, "_one_rehearsal", lambda name, written: ran.append("rehearsed") or {})
+    monkeypatch.setattr(practice, "_one_rehearsal", lambda name, written: ran.append("rehearsed") or {"kept": False})
     monkeypatch.setattr(practice, "_prepare_some", lambda name: ran.append("prepared") or 2)
-    for _ in range(4):
+    for _ in range(16):
         practice._one_round("A Board", (0, 0))
-    assert ran == ["rehearsed", "prepared", "rehearsed", "prepared"]
-    # Where nothing is left to work out, the round rehearses instead.
+    assert ran[:2] == ["rehearsed", "prepared"]
+    assert ran.count("prepared") > 2 * ran.count("rehearsed") and ran.count("rehearsed") >= 2
+    # Where nothing is left to work out ahead, the round goes to the next kind.
     ran.clear()
     monkeypatch.setattr(practice, "_prepare_some", lambda name: ran.append("nothing to prepare") and 0)
     practice._one_round("A Board", (0, 0))
-    practice._one_round("A Board", (0, 0))
-    assert ran == ["rehearsed", "nothing to prepare", "rehearsed"]
+    assert ran == ["nothing to prepare", "rehearsed"]
 
 
 def test_a_situation_worked_out_is_not_looked_at_again_for_longer() -> None:
