@@ -399,6 +399,24 @@ async def _its_pointing_emitted(payload: dict[str, Any], objective: str, *, plan
     return payload
 
 
+def _a_program_here_named(text: str) -> str:
+    """The program on this machine ``text`` names, as the machine names it (its name as written, whole words); "" where
+    it names none. A name written otherwise is a word: "a game of chess" asks for chess, "Open Chess" names the
+    program."""
+    try:
+        from core.capabilities.app_registry import get_app_registry
+
+        names = [app.name for app in get_app_registry().all_apps() if app.name]
+    except (ImportError, AttributeError, OSError, RuntimeError) as exc:
+        record_degradation("desktop_task.programs_here", exc, severity="info",
+                           action="read the objective without the programs on this machine")
+        return ""
+    for name in sorted(names, key=len, reverse=True):
+        if re.search(rf"(?<![\w]){re.escape(name)}(?![\w])", text):
+            return name
+    return ""
+
+
 class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill):
     #: What a caller gets back. The shared part only: every skill
     #: here returns `ok`, and a schema claiming to be complete
@@ -4639,6 +4657,11 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         """
 
         objective = str(getattr(params, "objective", "") or "")
+        # An objective that names a program on this machine is about that program, whatever the conversation was
+        # doing on a page before: LIVE 23 November 2026 "Open En Croissant and play a game of chess" went to the page
+        # an earlier request had named, because both asked for something to be played.
+        if _a_program_here_named(objective):
+            return None
         try:
             from core.conversation.page_interaction import page_interaction_target
 

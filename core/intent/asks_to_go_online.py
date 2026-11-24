@@ -76,8 +76,11 @@ def asks_to_go_online(message: object) -> bool:
     return bool(_GO_THERE.search(str(message or "")))
 
 
+#: An address of a page, or a site named by its domain. A domain after an @ is where someone's mail is kept, not a page
+#: to go to: LIVE 23 November 2026 a résumé pasted into the conversation held an address at gmail.com, and a later
+#: "play a game of chess" in a program on the machine was taken to go on with work on gmail.com.
 _AN_ADDRESS = re.compile(r"\bhttps?://([^/\s<>\"')\]]+)|\b(www\.[a-z0-9.-]+\.[a-z]{2,})\b|"
-                         r"\b([a-z0-9-]+\.(?:com|org|net|io|tv|dev|co|edu|gov|ai|app))\b", re.IGNORECASE)
+                         r"(?<![@.\w-])\b([a-z0-9-]+\.(?:com|org|net|io|tv|dev|co|edu|gov|ai|app))\b", re.IGNORECASE)
 
 
 def place_named(message: object) -> str:

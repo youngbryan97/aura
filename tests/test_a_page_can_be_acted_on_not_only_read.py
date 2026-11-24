@@ -353,3 +353,29 @@ def test_a_page_named_to_work_through_reaches_the_browser_body():
     assert not reaches_the_body("open Notes and write a report about quantum mechanics")
     assert not reaches_the_body("what's on my screen right now?")
     assert not reaches_the_body("write a haiku")
+
+
+def test_an_objective_naming_a_program_here_stays_with_the_program(monkeypatch):
+    """LIVE 23 November 2026: "Open En Croissant and play a game of chess against Stockfish" went to gmail.com, the
+    page an earlier request (a pasted résumé, with an address at gmail.com in it) had named, because both asked for
+    something to be played."""
+    import asyncio
+
+    import core.capabilities.app_registry as app_registry
+    import core.conversation.page_interaction as page_interaction
+    from core.intent.asks_to_go_online import place_named
+    from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill, _a_program_here_named
+
+    class _Registry:
+        def all_apps(self):
+            return [app_registry.InstalledApp(name="En Croissant"), app_registry.InstalledApp(name="Chess")]
+
+    monkeypatch.setattr(app_registry, "get_app_registry", lambda: _Registry())
+    monkeypatch.setattr(page_interaction, "page_interaction_target", lambda text: "https://gmail.com")
+    objective = "Open En Croissant and play a game of chess against Stockfish."
+    assert asyncio.run(DesktopTaskSkill()._delegate_page_objective(DesktopTaskParams(objective=objective), {})) is None
+    assert _a_program_here_named(objective) == "En Croissant"
+    assert _a_program_here_named("play a game of chess on the site we used") == "", "a name written as a word"
+    # An address at a domain is someone's mailbox, not a page to go to.
+    assert place_named("Reach me at bryan.young@gmail.com any time") == ""
+    assert place_named("go to gmail.com and open my inbox") == "https://gmail.com"
