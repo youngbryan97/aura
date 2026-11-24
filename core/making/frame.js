@@ -29,10 +29,12 @@ const Frame = (() => {
   const played = [];
   function play(name) { if (live) { if (!muted) sound(name); } else played.push(String(name)); }
 
+  // While a rule is tried with nothing else about: what keeps the lists it does not name empty, whatever comes into them.
+  let emptied = null;
   function apply(state, event) {
     // Whatever kind of event it is, it has the time that passed (none, for a key), the keys that are down and the pointer.
-    const next = P.update(state, { dt: 0, held: {}, pointer: NONE, ...event });
-    return next && typeof next === "object" ? next : state;
+    const next = P.update(state, { dt: 0, held: {}, pointer: NONE, ...event }), now = next && typeof next === "object" ? next : state;
+    return emptied ? emptied(now) : now;
   }
   const isGame = () => P.kind === "game";
   function ended(state) {
@@ -306,7 +308,7 @@ const Frame = (() => {
   let goesOn = null; const later = () => { if (!goesOn) { try { seed = 7; goesOn = Object.keys(run(P.initial(), 2, null)); } catch (e) { goesOn = []; } } return goesOn; };
   function tester(named) {
     const only = (s) => { if (named) for (const k of Object.keys(s)) if (Array.isArray(s[k]) && !named.includes(k)) s[k] = []; return s; };
-    seed = 7; played.length = 0; let s = only(P.initial());
+    emptied = named ? only : null; seed = 7; played.length = 0; let s = only(P.initial());
     const fail = (why) => { throw new Error(why); };
     const find = (label, what) => { const want = String(label).toLowerCase().trim(); const all = every(shown(s)).filter(what); const by = (f) => all.find((v) => f((v.props["aria-label"] || words(v) || v.props.placeholder || "").toLowerCase().trim())); return by((n) => n === want) || by((n) => n.startsWith(want)) || by((n) => n.includes(want)) || fail(`there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`); };
     // A state that is set is set over one that has begun: what a test does not name is as it is at the beginning.
@@ -390,10 +392,12 @@ const Frame = (() => {
   function readIn(body) { const src = String(body), t = (/^\s*(?:async\s*)?(?:function\s*\w*\s*)?\(?\s*([\w$]+)/.exec(src) || [])[1] || "t", found = new Set(), of = (what) => { for (const m of src.matchAll(new RegExp(`(?<![\\w$.])${what}\\??\\.([A-Za-z_$][\\w$]*)`, "g"))) found.add(m[1]); }; of(t.replace("$", "\\$") + "\\.s"); for (const m of src.matchAll(new RegExp(`(?:const|let|var)\\s+([\\w$]+)\\s*=\\s*${t.replace("$", "\\$")}\\.s\\s*[;,\\n]`, "g"))) of(m[1].replace("$", "\\$")); return [...found]; }
   function rules(tests, nothing) { return (tests || []).map(([name, body]) => { const was = tryOne(name, () => once(body)); if (was.ok || was.broke || was.theTest || nothing || !isGame()) return was;
     // What the test does not name may be what came between: a crow that was near takes the letter before it is had. So it is tried again with nothing else about.
-    const alone = tryOne(name, () => { once(body, readIn(body)); return "with nothing else about"; }); return alone.ok ? alone : was; }); }
+    const alone = tryOne(name, () => { try { once(body, readIn(body).filter((k) => !setEmpty(body, k))); } finally { emptied = null; } return "with nothing else about"; }); return alone.ok ? alone : was; }); }
+  // Whether all a test says of a list is that it is empty.
+  function setEmpty(body, k) { const src = String(body), all = src.match(new RegExp(`\\.s\\.${k}(?![\\w$])`, "g")) || [], none = src.match(new RegExp(`\\.s\\.${k}\\s*=\\s*\\[\\s*\\]`, "g")) || []; return all.length > 0 && all.length === none.length; }
   function once(body, named) { { waiting = []; const t = tester(named); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told, odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } } }
   function tried(program, tests, nothing) {
-    P = { ...program }; live = false; goesOn = null;
+    P = { ...program }; live = false; goesOn = emptied = null;
     if (nothing) P.update = (s) => s;
     return { generic: nothing || tests ? [] : generic(), rules: rules(tests, nothing) };
   }

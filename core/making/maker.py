@@ -249,7 +249,7 @@ class _Maker:
             if len(layers) > 1:
                 self.work.happened("layer", n=n + 1, of=len(layers), rules=rules)
             await self.tested(rules)
-            if not self.parts.code().strip():
+            if not (self.parts.functions or self.parts.text.strip()):
                 await self.coded(rules)
             else:
                 await self.added(rules)
@@ -371,7 +371,7 @@ class _Maker:
                 if await self._tests_read_again(amiss):
                     self.trial = await self.tried(what="Trying it, with the tests put right")
                     continue
-            if nothing_gained >= (GAINED_NOTHING if doubted or any(not r.ok for r in self.trial.generic) else 1):
+            if nothing_gained >= (GAINED_NOTHING if any(not r.ok for r in self.trial.generic) else 1):
                 if doubted or self.design.kind == "site" or not [r for r in self.trial.rules if not r.ok]:
                     break
                 doubted = 1

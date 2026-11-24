@@ -383,8 +383,11 @@ def test_a_rule_is_held_to_with_nothing_else_about_where_something_else_came_bet
     tests = ('test("a", t => { t.s.stones = [{ x: 480, y: 300 }]; t.tick(0.1); t.expect(t.s.me.has === 1, "has it not"); });'
              'test("b", t => { t.s.stones = [{ x: 480, y: 300 }]; t.tick(0.05); t.s.thieves[0].x = 480; t.tick(0.1); t.expect(t.s.me.has === 0, "has it still"); });'
              'test("c", t => { t.tick(0.1); t.expect(t.s.me.has === 1, "has nothing"); });')
-    got = {r.name: r for r in _two_steps(code.replace("s.me.has = 0;\n    s.me.x", "s.me.has = 0;\n    s.me.x"), tmp_path, tests).rules}
-    assert (got["a"].ok and got["a"].why == "with nothing else about") or got["a"].ok
+    more = code.replace("< 30) s.me.has = 0;", "< 30) s.me.has = 0; if (s.thieves.length < 9) s.thieves.push({ x: s.me.x, y: s.me.y });")
+    tests += ('test("d", t => { t.s.thieves = []; t.s.stones = [{ x: 480, y: 300 }]; t.tick(2); t.expect(t.s.me.has === 1, "has it not"); });')
+    got = {r.name: r for r in _two_steps(more, tmp_path, tests).rules}
+    assert got["a"].ok and got["a"].why == "with nothing else about"
+    assert got["d"].ok and got["d"].why == "with nothing else about", "kept empty, whatever comes into it"
     assert got["b"].ok and not got["c"].ok
 
 
