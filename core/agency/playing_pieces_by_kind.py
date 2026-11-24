@@ -919,6 +919,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     found = _checked(ready, found, legal, lambda aside, family=family, thinks=thinks, weights=weights:
                                      search(family, game.believed, seconds=max(0.2, thinks / 2), weights=weights,
                                             earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST))
+                # What can still change after the move, proved without looking ahead
+                # (core/agency/what_cannot_change_on_a_board.py).
+                found = _held_to_what_can_change(game, family, legal, set_aside, found,
+                                                 lambda aside, family=family, thinks=thinks, weights=weights:
+                                                 search(family, game.believed, seconds=max(0.2, thinks / 2),
+                                                        weights=weights, earlier=game.earlier, set_aside=aside,
+                                                        threads=_cores_free(), wary=FIRST))
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -968,6 +975,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             how = f"I worked this one out before the game (looked {found.depth} moves deep)"
         elif found.by == "worked out to the end":
             how = "I worked this ending out to the end before the game: every position it can come to"
+        elif found.by == "nothing can change after it":
+            how = ("After it nothing either side can do changes the position, so it can only be drawn, and a sure "
+                   "draw is worth more than how my other moves have turned out from positions like this")
         elif found.by == "worked out ahead, checked":
             _judged(game, here, move, found)
             how = (f"I worked this one out before the game, and a look now ({found.depth} moves deep), with what I "
@@ -1065,6 +1075,45 @@ def _worked_out_ahead(prepared: Any, game: _Game, family: Family, weights: Any, 
     by = "worked out ahead" if prepared.certified(held, family, weights) and not repeats else \
         "worked out ahead, to check"
     return Found(move, int(held.get("score", 0)), int(held.get("depth", 0)), 0, [move], by=by)
+
+
+def _held_to_what_can_change(game: _Game, family: Family, legal: list[Move], set_aside: list[Move], found: Any,
+                             search_only: Callable[[list[Move]], Any]) -> Any:
+    """Her search's move, held to what can still change after it. A position after which nothing that decides a game
+    can ever happen is a draw, whatever her judgement of it: worth a half for certain. Where her judgement of the
+    position has turned out worth less than a half (her own curve, or, before she has one, her judgement below even),
+    a move after which nothing can change is taken in place of the search's; where it has turned out worth more, a
+    move of the search's after which nothing can change is set aside for the best of the rest, kept where that is
+    still worth more than a half (suggestions of 23 November 2026, item 18)."""
+    from core.agency.what_cannot_change_on_a_board import what_can_change
+    from core.agency.searching_by_kind import Found
+
+    if found.move is None:
+        return found
+    open_moves = [m for m in legal if m not in set_aside]
+
+    def worth(score: int) -> float:
+        chance = game.held.chance(score)
+        return chance if chance is not None else 0.5 + 0.5 * ((score > 0) - (score < 0))
+
+    def settled_after(move: Move) -> bool:
+        return not what_can_change(family, after(family, game.believed, move)).can
+
+    if not what_can_change(family, game.believed).can:
+        return found
+    here = worth(int(found.score))
+    if here < 0.5:
+        for move in sorted(open_moves, key=lambda m: m != found.move):
+            if settled_after(move):
+                logger.info("a move after which nothing can change, a sure draw, over a judgement worth %.2f", here)
+                return Found(move, 0, int(found.depth), int(found.nodes), [move], by="nothing can change after it")
+    elif here > 0.5 and settled_after(found.move) and len(open_moves) > 1:
+        other = search_only([*set_aside, found.move])
+        if other.move is not None and worth(int(other.score)) > 0.5:
+            logger.info("her move would leave nothing that can change, a sure draw, from a judgement worth %.2f: "
+                        "another kept", here)
+            return other
+    return found
 
 
 def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list[Move]], Any]) -> Any:
