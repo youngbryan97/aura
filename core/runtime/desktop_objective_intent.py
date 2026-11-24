@@ -438,7 +438,11 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # vocabulary below is only what it was said with. LIVE 23 November 2026 "Could you build me Snake for my desktop?"
     # was not building, because Snake is in no list here, and went to a lane that made an empty folder.
     read = asked_by(user_message)
-    if read is not None:
+    # Read as work on this machine but not sure enough to act on it unasked ("ask_first"), the reading does not settle
+    # it, and nothing asks either: the turn went to her model's tool loop, which opened En Croissant by hand and stopped
+    # (LIVE 24 November 2026, "Open En Croissant and play a game of chess against Stockfish", on_machine at 0.81). What
+    # follows decides as it did before the reading, as for a turn that was not read.
+    if read is not None and not (read.effect == "on_machine" and read.decision == "ask_first"):
         if not read.acts or read.effect not in _MAY_NEED_THE_SCREEN:
             return False
         if read.effect == "on_machine":
