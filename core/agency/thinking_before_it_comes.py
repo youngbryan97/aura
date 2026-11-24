@@ -124,7 +124,7 @@ class Prepared:
 
     def prepare(self, family: Any, start: Any, weights: Any, *, they_answered: Any = None, went_wrong: Any = None,
                 positions: int, plies: int, seconds: float = LOOKS_FOR_S, threads: int = 1, search: Any = None,
-                doubtful: Any = None) -> int:
+                doubtful: Any = None, among_equals: bool = False) -> int:
         """Spends up to ``positions`` looks of ``seconds`` on the situations she expects to meet and has not worked
         out, walking from ``start`` through her own answers and the other side's, ``plies`` turns deep at most: each
         look goes to the one the largest share of her games reach, by the answers they have given on the way. A move
@@ -165,8 +165,11 @@ class Prepared:
             lost_here = went_wrong.already_failed_at(place) if went_wrong is not None else frozenset()
             legal = moves(family, position)
             aside = [m for m in legal if _named(m) in lost_here or (doubtful is not None and doubtful(position, m))]
+            covered = (lambda there: self.answer(_a_place(there), among(moves(family, there))) is not None) \
+                if among_equals else None
             if self._looked(search, family, position, earlier, weights, seconds, threads,
-                            aside if len(aside) < len(legal) else [], place, ply, among(legal)) is None:
+                            aside if len(aside) < len(legal) else [], place, ply, among(legal),
+                            covered=covered) is None:
                 break
             done += 1
         for kept in (self.answers, self.otherwise):
@@ -231,17 +234,44 @@ class Prepared:
         return found
 
     def _looked(self, search: Any, family: Any, position: Any, earlier: list[Any], weights: Any, seconds: float,
-                threads: int, aside: list[Any], place: str, ply: int, choices: str) -> tuple[Any, Any] | None:
-        """One look at a situation of hers, kept as her answer to it: the move, and the reply her look expects."""
+                threads: int, aside: list[Any], place: str, ply: int, choices: str,
+                covered: Any = None) -> tuple[Any, Any] | None:
+        """One look at a situation of hers, kept as her answer to it: the move, and the reply her look expects. With
+        ``covered`` (of a situation: whether she has worked it out), a second look of half the time finds the best
+        move besides; where her looks cannot tell the two apart (their judgements differ by less than either moved
+        while it looked), the one whose line leads to a situation she has worked out is kept (suggestions of 23
+        November 2026, item 6).
+
+        Measured 23 November 2026 against Stockfish limited to 2500 (300 ms a move; she at 0.3 s a move, four
+        situations worked out a game), two seeds: with it, 0.429 over 42 games; without, 0.625 over 52. Two moves
+        whose judgements differ by less than the look's own unsteadiness are often not alike, and the move kept for
+        where it leads was the worse one; so preparation does not call it (``among_equals`` is off). A version that
+        counts as alike only judgements within a hair of each other is still to be measured."""
         from core.agency.playing_pieces_by_kind import _named
 
         began = time.monotonic()
-        from core.agency.pieces_by_their_kind import FIRST
+        from core.agency.pieces_by_their_kind import FIRST, after
 
         found = search(family, position, seconds=seconds, weights=weights, earlier=earlier, threads=threads,
                        wary=FIRST, **({"set_aside": aside} if aside else {}))
         if found.move is None:
             return None
+        if covered is not None:
+            other = search(family, position, seconds=seconds / 2, weights=weights, earlier=earlier, threads=threads,
+                           wary=FIRST, set_aside=[*aside, found.move])
+
+            def leads_to_worked_out(look: Any) -> bool:
+                line = list(look.line or [])
+                if len(line) < 2 or line[0] != look.move:
+                    return False
+                return bool(covered(after(family, after(family, position, line[0]), line[1])))
+
+            alike = other.move is not None and abs(int(found.score) - int(other.score)) <= max(
+                int(found.unsteady), int(other.unsteady))
+            if alike and leads_to_worked_out(other) and not leads_to_worked_out(found):
+                logger.info("two moves her looks cannot tell apart: %s kept for leading where she has worked out, "
+                            "over %s", _named(other.move), _named(found.move))
+                found = other
         move = found.move
         line = list(found.line or [])
         reply = _named(line[1]) if len(line) > 1 and line[0] == move else None

@@ -306,3 +306,25 @@ def test_an_answer_worked_out_under_another_judgement_or_one_that_repeats_the_ga
     game.believed = came_back
     assert _worked_out_ahead(prepared, game, CHESS, weights, moves(CHESS, came_back)).by == \
         "worked out ahead, to check"
+
+
+def test_among_moves_her_looks_cannot_tell_apart_the_one_leading_where_she_has_worked_out_is_kept() -> None:
+    """Item 6, built and measured and not called by her practice: asked for, a second look finds the best move
+    besides, and where the two are alike the one leading to a situation she has worked out is kept."""
+    start, weights = CHESS.the_start(), first_weights(CHESS)
+    legal = sorted(moves(CHESS, start), key=_named)
+    first, second = legal[0], legal[1]
+
+    def search(family, position, *, seconds, weights=None, earlier=None, threads=1, set_aside=(), **_):
+        mine = second if first in set_aside else first
+        replies = sorted(moves(family, after(family, position, mine)), key=_named)
+        return Found(mine, 10, 9, 1000, [mine, replies[0]], unsteady=30)
+
+    prepared = Prepared()
+    there = after(CHESS, after(CHESS, start, second), sorted(moves(CHESS, after(CHESS, start, second)),
+                                                               key=_named)[0])
+    from core.agency.thinking_before_it_comes import _key
+
+    prepared.answers[_key(_a_place(there))] = {"move": "x", "among": among(moves(CHESS, there)), "depth": 1}
+    prepared.prepare(CHESS, start, weights, positions=1, plies=1, search=search, among_equals=True)
+    assert prepared.answer(_a_place(start), among(legal))["move"] == _named(second)
