@@ -7,13 +7,14 @@ not there is added.
 """
 from __future__ import annotations
 
+import ast
 import re
 from collections.abc import Iterator
 
-__all__ = ["BEFORE", "assembled", "halves", "parts_in", "patched", "each_test_in"]
+__all__ = ["BEFORE", "assembled", "halves", "parts_in", "patched", "python_parts_in", "python_patched", "each_test_in"]
 
-#: What marks a part that stands before the object: a constant or a function of its own.
-BEFORE = "before:"
+#: What marks a part that stands before the object, a constant or a function of its own; and what a Python file runs.
+BEFORE, RUNS = "before:", "what runs"
 
 _OPEN, _CLOSE = "([{", ")]}"
 
@@ -214,6 +215,53 @@ def _open_at_the_end(code: str) -> bool:
     for _at, c in _walk(code):
         depth += (c in _OPEN) - (c in _CLOSE)
     return depth != 0
+
+
+def python_parts_in(code: str) -> dict[str, str]:
+    """The parts of a Python file, by name, in order: its functions and classes, its imports and constants, and what runs.
+    {} where it cannot be read."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return {}
+    lines = code.splitlines()
+    parts: dict[str, str] = {}
+    last = 0
+    for node in tree.body:
+        start = min([node.lineno, *(d.lineno for d in getattr(node, "decorator_list", []))]) - 1
+        end = node.end_lineno or node.lineno
+        text = "\n".join(lines[last:end] if last < start else lines[start:end]).strip("\n")
+        last = end
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            name = node.name
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            name = f"import {' '.join(ast.unparse(node).split())}"
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            target = node.targets[0] if isinstance(node, ast.Assign) else node.target
+            name = f"{BEFORE}{ast.unparse(target)}"
+        elif isinstance(node, ast.If) and "__name__" in ast.unparse(node.test):
+            name = RUNS
+        elif isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and not parts:
+            name = "what it is"
+        else:
+            name = f"{RUNS}:{ast.unparse(node)[:60]}"
+        parts[name] = text
+    return parts
+
+
+def python_patched(code: str, new: str) -> tuple[str, list[str]]:
+    """A Python file with what was written again of it in its place and what is new added before what runs; and the names
+    of what changed. What was written stands by itself where it is a whole file, or where either cannot be taken apart."""
+    had, has = python_parts_in(code), python_parts_in(new)
+    if not has or not had or (RUNS in has and len(has) >= len(had) / 2):
+        return (new, ["it"]) if new.strip() != code.strip() else (code, [])
+    changed = [name for name, text in has.items() if had.get(name) != text]
+    runs = {name: text for name, text in had.items() if name.startswith(RUNS)}
+    imports = {name: text for name, text in {**had, **has}.items() if name.startswith("import ") or name == "what it is"}
+    imports = dict(sorted(imports.items(), key=lambda one: (one[0] != "what it is", "__future__" not in one[0])))
+    body = {name: text for name, text in {**had, **has}.items() if name not in imports and not name.startswith(RUNS)}
+    runs.update({name: text for name, text in has.items() if name.startswith(RUNS)})
+    return "\n".join([*imports.values(), "", *(f"{text}\n\n" for text in body.values()), *runs.values()]).strip() + "\n", changed
 
 
 def halves(parts: dict[str, str]) -> tuple[str, str]:

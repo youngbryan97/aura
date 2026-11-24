@@ -10,7 +10,14 @@ import pytest
 
 from core.making import design as how
 from core.making import maker, pieces
-from core.making.code_parts import BEFORE, assembled, each_test_in, parts_in, patched
+from core.making.code_parts import (
+    BEFORE,
+    assembled,
+    each_test_in,
+    parts_in,
+    patched,
+    python_patched,
+)
 from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
 from core.making.tools import Case, Cases, languages, try_tool
 from core.making.trying import as_object, page_of, site_of, try_page
@@ -135,6 +142,36 @@ def test_a_test_that_was_cut_off_is_left_out_and_takes_no_other_with_it(tmp_path
     assert before.strip() == "const K = 1;" and [name for name, _text in found] == ["a moth that is caught is saved", "it ends when the lamp is out", "hollow"]
     trial = _tried(page_of(_design(pieces=["vec"]), GOOD, tests=cut + "); ) }"), tmp_path)
     assert trial.failing() == []
+
+
+TOOL = """import sys
+
+LIMIT = 3
+
+
+def shout(word):
+    return word.upper()
+
+
+# says it
+def main():
+    print(shout(sys.argv[1])[:LIMIT])
+
+
+if __name__ == "__main__":
+    main()
+"""
+
+
+def test_a_tool_is_changed_by_the_functions_that_change():
+    new, changed = python_patched(TOOL, "import json\n\ndef shout(word):\n    return soft(word) + '!'\n\n\ndef soft(word):\n    return word.lower()\n")
+    assert set(changed) == {"import import json", "shout", "soft"}
+    space: dict = {"__name__": "x"}
+    exec(compile(new, "t", "exec"), space)  # noqa: S102 - the test's own text
+    assert space["shout"]("AB") == "ab!" and space["LIMIT"] == 3 and new.rstrip().endswith("main()") and "# says it" in new
+    assert python_patched(TOOL, TOOL.replace("upper", "lower"))[1] == ["it"], "a whole file is taken whole"
+    assert python_patched(TOOL, "from __future__ import annotations\n\ndef shout(word):\n    return word\n")[0].startswith("from __future__")
+    assert python_patched(TOOL, "def broken(:")[0] == "def broken(:"
 
 
 # ── the design ───────────────────────────────────────────────────────

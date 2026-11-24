@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from core.making import design as how
-from core.making.code_parts import BEFORE, assembled, each_test_in, patched
+from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
 from core.making.design import Asked, Design, in_proportion, left_out, with_every_ask
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
 from core.making.tools import Case, Cases, Language, languages, try_tool
@@ -261,6 +261,8 @@ class _Maker:
     def _how_to_change(self) -> str:
         design = self.design
         assert design is not None
+        if design.kind == "tool" and self.language().name == "python" and self.parts.text:
+            return "write the functions you change or add, each whole, in one block; what you leave out stays as it is"
         if design.kind in {"site", "tool"}:
             return f"write {'the whole body of the page' if design.kind == 'site' else 'the whole file'} again, changed, in one block"
         return ("write the functions you change or add, each whole, as one JavaScript object in one block: `({ ... })`. What you leave out "
@@ -273,8 +275,11 @@ class _Maker:
         self.work.says(_prose(said))
         code = _code(said)
         if design.kind in {"site", "tool"}:
-            changed = ["it"] if code and code != parts.text else []
-            parts.text = code or parts.text
+            if design.kind == "tool" and self.language().name == "python" and parts.text:
+                parts.text, changed = python_patched(parts.text, "\n\n".join(_blocks(said)))
+            else:
+                changed = ["it"] if code and code != parts.text else []
+                parts.text = code or parts.text
             if design.kind == "tool" and self.language().name == "python":
                 design.pieces += [name for name in used_in(parts.text, "python") if name not in design.pieces]
             self.work.wrote(name, parts.text, "html" if design.kind == "site" else self.language().name)
