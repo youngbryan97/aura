@@ -97,7 +97,12 @@ _FLAG_BRAINSTEM_MODEL = _declare_flag(
     # deadline. Three times slower per token; per answer the 9B produced
     # none. docs/evidence/TERNARY_BONSAI_2_27B_2026-09-17.md. The live
     # instance had run it through the .env override since 18 Sep.
-    default="Ternary-Bonsai-2-27B-mlx-2bit",
+    #
+    # Ternary Bonsai 2.5 27B replaced it on 24 Nov 2026: the same pack format,
+    # footprint and decode rate, the same 7 of 7 on the checkable prompts,
+    # and it answered the one where Bonsai 2 looped until its budget ran out.
+    # docs/evidence/TERNARY_BONSAI_2_5_27B_2026-11-24.md.
+    default="Ternary-Bonsai-2.5-27B-mlx-2bit",
     description="Migrated from a raw environment read; see owner for the lane.",
     owner="flag-migration",
 )
@@ -889,7 +894,7 @@ _SOLVER_PATH = Path(
 )
 _BRAINSTEM_PATH = Path(
     _FLAG_LLM__MLX_BRAINSTEM_PATH.value()
-    or str(get_models_dir() / "Ternary-Bonsai-2-27B-mlx-2bit")
+    or str(get_models_dir() / "Ternary-Bonsai-2.5-27B-mlx-2bit")
 )
 
 MODEL_PATHS = {
@@ -906,10 +911,10 @@ MODEL_PATHS = {
     "Qwen3-72B-Instruct":         BASE_DIR / "models" / "Qwen3-72B-Instruct",
     "Qwen2.5-72B-Instruct-Q4":    BASE_DIR / "models" / "Qwen2.5-72B-Instruct-Q4",
     # Qwen3.5 27B at two bits with the outlier rotation folded in: a
-    # 27B-class model in the brainstem's footprint class, and the brainstem
-    # since 2026-09-20. Loaded through core/brain/llm/prism_hadamard.py,
-    # which mlx_worker routes to.
-    "Ternary-Bonsai-2-27B-mlx-2bit": _BRAINSTEM_PATH,
+    # 27B-class model in the brainstem's footprint class, the brainstem from
+    # 2026-09-20 as Bonsai 2 and from 2026-11-24 as Bonsai 2.5. Loaded through
+    # core/brain/llm/prism_hadamard.py, which mlx_worker routes to.
+    "Ternary-Bonsai-2.5-27B-mlx-2bit": _BRAINSTEM_PATH,
 }
 
 #: Where MODEL_PATHS was baked. The table above is built once at import, so a

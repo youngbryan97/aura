@@ -435,7 +435,7 @@ class LLMConfig(BaseModel):
     # Tri-Cameral Architecture (Phase 16) — Tuned for M5 Pro 64 GB
     # Tier 1: Brainstem (Heartbeat, telemetry, background tasks). The
     # registry's flag is the authority for the lane; this default matches it.
-    chat_model: str = "Ternary-Bonsai-2-27B-mlx-2bit"
+    chat_model: str = "Ternary-Bonsai-2.5-27B-mlx-2bit"
 
     # Tier 2: Cortex. The registry binds this stable role to one exact artifact.
     fast_model: str = "Aura-Cortex"

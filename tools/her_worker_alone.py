@@ -28,7 +28,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 PERSONA = "/Users/bryan/.aura/models/Aura-Qwen3.8-27B-persona-crsm-7f6a2e83f73f5eef9d15"
-BRAINSTEM = "/Users/bryan/.aura/live-source/models/Ternary-Bonsai-2-27B-mlx-2bit"
+BRAINSTEM = "/Users/bryan/.aura/live-source/models/Ternary-Bonsai-2.5-27B-mlx-2bit"
 QUESTION = "Tell me in a short paragraph how the bicycle changed ordinary people's lives in the 1890s."
 
 

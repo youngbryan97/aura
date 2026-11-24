@@ -28,7 +28,7 @@ from core.brain.llm.prism_hadamard import (
     load_prism_hadamard_text_model,
 )
 
-PACK = Path(__file__).resolve().parents[1] / "models" / "Ternary-Bonsai-2-27B-mlx-2bit"
+PACK = Path(__file__).resolve().parents[1] / "models" / "Ternary-Bonsai-2.5-27B-mlx-2bit"
 needs_pack = pytest.mark.skipif(
     not (PACK / "model.safetensors").is_file(),
     reason="the Ternary Bonsai 2 pack is not installed",

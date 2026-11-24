@@ -922,7 +922,7 @@ The model router uses local lanes under admission control:
 | Cortex | `Aura-Cortex` | Foreground conversation and reasoning |
 | Deep | `Aura-Cortex` | A distinct specialist needs explicit configuration, qualification and memory admission |
 | Vision | `Aura-Cortex` | Image requests need compatible artifact and image encoding |
-| Brainstem | `Ternary-Bonsai-2-27B-mlx-2bit` | Background lane, loaded only when admitted |
+| Brainstem | `Ternary-Bonsai-2.5-27B-mlx-2bit` | Background lane, loaded only when admitted |
 | Reflex | `Qwen2.5-1.5B-Instruct-4bit` | Auxiliary fallback; device and draft compatibility are separate contracts |
 
 There is no opt-in cloud-model fallback. Compatibility names such as

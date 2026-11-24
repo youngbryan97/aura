@@ -143,7 +143,7 @@
       ]
     },
     "model.brainstem": {
-      "value": "Ternary-Bonsai-2-27B-mlx-2bit",
+      "value": "Ternary-Bonsai-2.5-27B-mlx-2bit",
       "owner": "core/config.py LLMConfig.chat_model and registry flag",
       "restated_in": [
         {

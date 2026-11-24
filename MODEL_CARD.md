@@ -24,7 +24,7 @@ running installation's model identity and its request record.
 | Cortex | `Aura-Cortex`, the role bound to the fused/persona 27B artifact | Foreground conversation and reasoning |
 | Deep | `Aura-Cortex` by default | Uses the Cortex unless a distinct specialist is configured and admitted |
 | Vision | `Aura-Cortex` | Image-conditioned requests through the vision path |
-| Brainstem | `Ternary-Bonsai-2-27B-mlx-2bit` | Background work, subject to lane admission |
+| Brainstem | `Ternary-Bonsai-2.5-27B-mlx-2bit` | Background work, subject to lane admission |
 | Reflex/fallback | `Qwen2.5-1.5B-Instruct-4bit` | Auxiliary fallback role; compatibility and admission are checked separately |
 
 The role defaults are in [LLMConfig](core/config.py) and
