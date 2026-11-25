@@ -305,6 +305,15 @@ def _chat_delivery_state_for_response(
     # LIVE 2026-10-02, every reply the smaller model wrote that evening.
     if int(status_code) < 400 and confidence in _SERVED_ANSWER_CONFIDENCES:
         return DeliveryState.COMPLETED
+    # A served draft keeps the status of the check it fell short of. Its
+    # caveat belongs on the reply, while the journal records that it arrived.
+    if (
+        200 <= int(status_code) < 300
+        and confidence in {"degraded", "bounded"}
+        and status.endswith(":served_repairable_draft")
+        and str(payload.get("response") or "").strip()
+    ):
+        return DeliveryState.COMPLETED
     failure_markers = (
         "blocked",
         "denied",

@@ -31,3 +31,15 @@ def test_a_refusal_is_still_a_failed_turn() -> None:
 
 def test_a_strict_benchmark_status_code_still_fails() -> None:
     assert _chat_delivery_state_for_response({**RESCUED, "response_confidence": "fallback"}, 503) is DeliveryState.FAILED
+
+
+@pytest.mark.parametrize("confidence", ["bounded", "degraded"])
+def test_served_draft_with_failure_in_its_route_name_is_delivered(confidence: str) -> None:
+    payload = {
+        "status": "desktop_required_final_quality_failed:served_repairable_draft",
+        "response": "I can answer the first part.",
+        "response_confidence": confidence,
+    }
+    assert _chat_delivery_state_for_response(payload, 200) is DeliveryState.COMPLETED
+    assert _chat_delivery_state_for_response(payload, 503) is DeliveryState.FAILED
+    assert _chat_delivery_state_for_response({**payload, "response": " "}, 200) is DeliveryState.FAILED
