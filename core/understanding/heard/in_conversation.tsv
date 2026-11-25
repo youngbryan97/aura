@@ -283,3 +283,19 @@ talk	how do you work out what's late and what isn't?	U: I need a command line to
 talk	could a game like that ever be sad, do you think?	U: Build me a little game where I'm a moth crossing a garden at night and every lamp pulls me in. I steer against the pull, rest on dark leaves to get my strength back, and reach the pond before the sun is up. Four gardens, each with more lamps than the last, and a calm ending screen. Save it in my Documents folder.|A: I'll build it. Starting with the pull of the lamps, then the gardens.
 status	did it work?	U: Build me a little game where I'm a moth crossing a garden at night and every lamp pulls me in. I steer against the pull, rest on dark leaves to get my strength back, and reach the pond before the sun is up. Four gardens, each with more lamps than the last, and a calm ending screen. Save it in my Documents folder.|A: I'll build it. Starting with the pull of the lamps, then the gardens.
 status	so what have you got	U: Can you write a simulation of a small ring of satellites passing messages round a planet? Let me change how many there are and how far they can talk, knock one out with a click, and show how long a message takes to get to the far side. Plot that over time underneath.|A: I'm building it. I'll have the satellites and the links up first.
+talk	And what would you serve with it?	U: I'm doing a roast chicken for six on Sunday.|A: Salt it the day before and dry the skin.
+talk	which colours would you use in there?	U: My hall gets no light at all.|A: Dark halls can be lovely if you lean into it.
+talk	what would you put along the fence?	U: The back of our yard is just mud.|A: Mud means water, so start there.
+talk	where would you stay if you only had two nights?	U: We might go to Porto in May.|A: May is kind there. Mild, and not yet full.
+talk	what breed would you get, in an apartment?	U: My partner wants a dog.|A: And you?
+talk	what kind of wood would you use for the top?	U: I'm building a desk from scratch.|A: Start with how deep you need it.
+talk	which of those would you do first?	U: My knees hurt on stairs.|A: Strengthen the hips, shorten your stride, and swap the shoes.
+talk	and how deep would you dig it?	U: I want a fire pit.|A: Keep it well off the fence line.
+talk	what would you read first, of hers?	U: Everyone keeps telling me to read Ursula Le Guin.|A: They're right, mostly.
+talk	what plants do well in shade like that?	U: My north wall is a wasteland.|A: It's a gift to a gardener who likes ferns.
+talk	any ideas for what goes in the middle?	U: The flower bed is a ring and the centre's bare.|A: Something tall would pull it together.
+talk	what do you reckon I should wear?	U: Second date, and it's a pottery class.|A: Good choice of date.
+found	find me some that would do well there, from a nursery that ships	U: My north wall is a wasteland.|A: It's a gift to a gardener who likes ferns.
+found	look up three places like that with a free night in May and send me them	U: We might go to Porto in May.|A: May is kind there. Mild, and not yet full.
+found	can you dig up a few desk tops I could buy, oak, under two hundred?	U: I'm building a desk from scratch.|A: Start with how deep you need it.
+found	see what rescues near me have small ones right now	U: My partner wants a dog.|A: And you?

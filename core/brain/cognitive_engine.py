@@ -1559,12 +1559,15 @@ def _her_live_mind(compact: dict[str, Any], whole: dict[str, Any], *, limit: int
     """Her live state as data: what stands out of it, and on a turn about her all that fits."""
     from core.brain.what_she_is_given import _turns_to_her
     from core.brain.what_stands_out_in_her import get_her_usual, what_stands_out
+    from core.self.how_she_does_it import about_her_state
 
     usual = get_her_usual()
     # What the machine is doing and how long her turns take are always hers to read, and are two short rows.
     always = {key: compact[key] for key in ("host", "turn_timing", "lane") if compact.get(key)}
     rest = {key: value for key, value in compact.items() if key not in always}
-    about_her = limit <= _ROOM_FOR_HER_STATE or _turns_to_her(whole.get("user_message"))
+    # Told by its words every turn is about her that says "you", and so is every one after a turn that went badly.
+    read = about_her_state()
+    about_her = limit <= _ROOM_FOR_HER_STATE or (_turns_to_her(whole.get("user_message")) if read is None else read)
     room = limit if about_her else min(limit, _ROOM_FOR_HER_STATE)
     kept = what_stands_out(always, usual, room=room, whole=True)
     told = what_stands_out(rest, usual, room=max(0, room - len(kept)), whole=about_her)

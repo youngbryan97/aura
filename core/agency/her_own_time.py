@@ -19,6 +19,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from core.agency.her_inquiries import KEPT, Inquiry
 from core.agency.what_she_does_next import CameOf, Option, WhatSheDoesNext, get_what_she_does_next
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import checked_lock
@@ -55,6 +56,8 @@ class HerOwnTime:
         self.found: list[dict[str, Any]] = []
         self.told: dict[str, Any] | None = None
         self._read: dict[str, float] = {}
+        #: What she is finding out, by what it is for.
+        self.inquiries: dict[str, Inquiry] = {}
         self.before: dict[str, Any] = {}
         #: What there was to do when it was last looked for.
         self._there: list[Option] = []
@@ -162,6 +165,17 @@ class HerOwnTime:
             if chosen.at == told["choice"]:
                 self.chooser.learn(chosen, CameOf(got=1.0 if soon else 0.0, worth=0.5 if soon else -0.3, what="they answered" if soon else "nobody answered"), cost_s=30.0)
 
+    def inquiry(self, of: str, about: str) -> Inquiry:
+        """What she is finding out about something, begun where it is not."""
+        with self._lock:
+            held = self.inquiries.get(of)
+            if held is None or held.about != about:
+                held = self.inquiries[of] = Inquiry(about, changed_at=time.time())
+            for old in sorted(self.inquiries, key=lambda k: self.inquiries[k].changed_at)[: max(0, len(self.inquiries) - KEPT)]:
+                if old != of:
+                    del self.inquiries[old]
+            return held
+
     # ── between one start and the next ───────────────────────────────
 
     def where_she_is(self, now: float | None = None) -> str:
@@ -194,6 +208,8 @@ class HerOwnTime:
             kept = {}
         self.found = [*list(kept.get("found") or []), *self.found][-HELD:]
         self._read = {**{str(page): float(at) for page, at in dict(kept.get("read") or {}).items()}, **self._read}
+        held = {str(of): Inquiry.of(one) for of, one in dict(kept.get("inquiries") or {}).items()}
+        self.inquiries = {**{of: one for of, one in held.items() if one is not None}, **self.inquiries}
         doing = dict(kept.get("doing") or {})
         self.before = {**doing, "came": "left off when she was closed", "got": 0.0, "ended": float(kept.get("at") or 0.0)} if doing else dict(kept.get("before") or {})
 
@@ -202,7 +218,8 @@ class HerOwnTime:
         from core.rebuilding.her_build_writes import governed
 
         with self._lock:
-            kept = {"at": time.time(), "doing": self.doing, "before": self.before, "found": self.found, "read": self._read}
+            kept = {"at": time.time(), "doing": self.doing, "before": self.before, "found": self.found, "read": self._read,
+                    "inquiries": {of: one.kept() for of, one in self.inquiries.items()}}
 
         def write() -> None:
             governed("ensure_directory", self._where().parent, source="agency.her_own_time")

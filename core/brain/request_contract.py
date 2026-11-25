@@ -188,6 +188,8 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "surprise_of": Field_(Kind.STRING_LIST),
     # Transcripts whose states are read where her turn opens (core/brain/llm/her_states_at_a_turn.py).
     "states_at_turn": Field_(Kind.STRING_LIST),
+    # The conversation is read for the turn to come, and nothing is written (core/brain/llm/reading_ahead.py).
+    "read_ahead": Field_(Kind.BOOL),
     # A token count: the most the caller's output shape may ever use.
     "hard_output_token_ceiling": Field_(Kind.POSITIVE_INT),
     # How much of a turn her private channel may think, where the caller says (core/brain/llm/a_bounded_private_channel.py).

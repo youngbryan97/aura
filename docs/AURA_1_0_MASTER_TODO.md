@@ -8486,6 +8486,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
     own is in front of her at the next start. Left: seen live across a restart, and her thinking between turns.
+  - 25 November, 07:21, live: closed in the middle of mending an app somebody had asked for, she took it up again a minute
+    after she was up, unasked, and went on with the mend.
 - [ ] F19 She acts without being prompted, and F20 she decides for herself and gets better at deciding and wanting.
     Added 24 November, Bryan. Measured 24 November, 11:15 to 18:05: 205 of about 220 choices she made by herself were one
     string, "Acting on curiosity: explore_knowledge", which nothing carried out. Her own time (`core/agency/her_own_time.py`)
@@ -8498,6 +8500,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     goal now (`tests/test_a_state_is_no_goal.py`), and a goal is done by what it asks for: looked up, or worked in her
     source. "Research the history of quantum error correction" had been worked for 12 days with the tools that edit her
     source.
+  - 25 November, 02:06, live: she chose to find out more about "chatting", searched the word, read nothing new, and it came to
+    -1.00, which took as much off every other sort of act. What she finds out is questions now, taken one at a time, each
+    answered by a page in the page's own words or let go, and a goal that asks for something to be known is done when its
+    questions are (`core/agency/her_inquiries.py`, `tests/test_her_inquiries.py`). What one sort of act comes to says less of
+    another than of its own. Her own time is in the Work panel, with what she asked, what answered it and what she expects of
+    each sort of act (`tests/test_her_own_time_is_seen.py`). Left: a day of it, live.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.
@@ -8519,6 +8527,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     her encoder has read is not read again, and her live state is what stands out of it, where it was a prefix by the alphabet
     of about a thousand tokens (`core/brain/what_stands_out_in_her.py`). Left: again, live; and reading ahead for the turn to
     come while nobody waits.
+  - 25 November, 07:21, live on that: the part of a turn before her model has it went from 9.2 s to 4.4, with recall, what the
+    words ask, her senses and the screen inside it; 54 s (just after a start), 53 and 66 s, each her own whole answer. Of those
+    32 to 39 s is her writing, at 17 to 19 tokens a second, and 9 to 14 s her reading. Three mends: her worker reads the
+    conversation for the next turn between turns (`core/brain/llm/reading_ahead.py`); her head drafts as many tokens a pass as
+    has been fastest, measured as she writes (`core/brain/llm/her_head_in_the_stream.py`); and whether a turn is about how she
+    is, is read by her cortex's states, where every turn that says "you" was given her whole state. Left: again, live.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).

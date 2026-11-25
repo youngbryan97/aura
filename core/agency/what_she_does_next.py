@@ -40,6 +40,10 @@ __all__ = ["CameOf", "Chosen", "Option", "REST", "WhatSheDoesNext", "get_what_sh
 #: How sure she is of an act's worth before any has been done: worth lies in [-1, 1], and this is the spread of a number
 #: that could be anywhere in it. And how far one outcome is from what the act is worth, as far as is known beforehand.
 UNSURE, NOISE = 1.0 / 3.0, 1.0 / 3.0
+#: How unsure she is at the start of what acts of every sort have in common: a quarter of it, since what one sort of act comes
+#: to says less of another sort than of its own. LIVE 25 November 2026, held as unsure of both, one search that came to nothing
+#: took as much off every goal, request and telling as off looking things up, and she rested.
+SHARED = UNSURE / 4.0
 #: How much the outcomes before still count when a new one comes: the last two or three hundred acts are what is learned from.
 KEEPS = 0.995
 #: How many choices are kept with their grounds.
@@ -128,6 +132,11 @@ class Chosen:
                 + (f", over {second['what']} at {second['expected']:+.2f}" if second else "") + (f". What counted: {best}." if best else "."))
 
 
+def _unsure_of(feature: str) -> float:
+    """How unsure she is at the start of what a feature is worth: less of what every sort of act has."""
+    return UNSURE if feature.startswith("kind:") or "/" in feature or "<" in feature else SHARED
+
+
 class WhatSheDoesNext:
     """What she has learned of what acts are worth, and her choices by it. Kept, and the same after she has been closed."""
 
@@ -151,7 +160,7 @@ class WhatSheDoesNext:
                     self._names[name] = len(self._names)
             n = len(self._names)
             if n > len(self._pulled):
-                wider = np.eye(n) / UNSURE
+                wider = self._at_the_start()
                 wider[: len(self._pulled), : len(self._pulled)] = self._precision
                 self._precision, self._pulled = wider, np.concatenate([self._pulled, np.zeros(n - len(self._pulled))])
         x = np.zeros(len(self._names))
@@ -160,6 +169,10 @@ class WhatSheDoesNext:
             if at is not None:
                 x[at] = value
         return x
+
+    def _at_the_start(self) -> np.ndarray:
+        """How sure she is of each feature's worth before anything is done, as a precision."""
+        return np.diag([1.0 / _unsure_of(name) for name in self._names])
 
     def _posterior(self) -> tuple[np.ndarray, np.ndarray]:
         spread = np.linalg.inv(self._precision) if len(self._pulled) else np.zeros((0, 0))
@@ -173,7 +186,7 @@ class WhatSheDoesNext:
             self._load()
             x = self._vector(option.features(), grow=False)
             mean, spread = self._posterior()
-            unknown = sum(v * v for n, v in option.features().items() if n not in self._names) * UNSURE
+            unknown = sum(v * v * _unsure_of(n) for n, v in option.features().items() if n not in self._names)
             return float(x @ mean) if len(mean) else 0.0, math.sqrt(max(0.0, float(x @ spread @ x) if len(mean) else 0.0) + unknown)
 
     def learn(self, chosen: Chosen, came: CameOf, *, cost_s: float = 60.0) -> float | None:
@@ -187,9 +200,8 @@ class WhatSheDoesNext:
             with self._lock:
                 self._load()
                 x = self._vector(chosen.features, grow=True)
-                n = len(self._names)
                 # What was learned before counts for a little less, and never for less than was known at the start.
-                self._precision = KEEPS * self._precision + (1.0 - KEEPS) * np.eye(n) / UNSURE + np.outer(x, x) / NOISE
+                self._precision = KEEPS * self._precision + (1.0 - KEEPS) * self._at_the_start() + np.outer(x, x) / NOISE
                 self._pulled = KEEPS * self._pulled + x * reward / NOISE
                 self._done += 1
         return reward

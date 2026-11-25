@@ -69,6 +69,22 @@
   }
   const drawnDiff = (d, language) => `<pre class="wb-diff">${d.rows.slice(0, 400).map(([k, l]) => `<div class="${k === '+' ? 'in' : k === '-' ? 'out' : k === '…' ? 'gap' : ''}"><i>${k === '…' ? '' : k}</i><span>${k === '…' ? esc(l) : lit(l, language)}</span></div>`).join('')}</pre>`;
   const codeIn = (text) => { const at = text.indexOf('```'); if (at < 0) return /^\s*[{(]/.test(text) ? { code: text, said: '' } : { code: '', said: text }; const rest = text.slice(at + 3).replace(/^[\w+-]*\n/, ''); const end = rest.indexOf('```'); return { said: text.slice(0, at).trim(), code: end < 0 ? rest : rest.slice(0, end), after: end < 0 ? '' : rest.slice(end + 3).trim() }; };
+  /* Her own time is in the list beside her works: what she does with nobody asking, and what came of it. */
+  const OWN = 'her-own-time';
+  const SORTS = { carry_on: 'Going on with what was asked', find_out: 'Finding things out', look_up: 'Looking into what she set herself', goal: 'Working on what she set herself', tell: 'Telling what she found', make: 'Making something' };
+  const signed = (v) => (v == null ? '' : `<span class="${v < 0 ? 'minus' : 'plus'}">${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(2)}</span>`);
+  const site = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+  const asked = (q) => `<li class="${{ answered: 'ok', partly: 'ok part' }[q.stands] || (q.stands === 'let go' ? 'no' : 'open')}">${icon({ answered: 'ok', partly: 'ok', 'let go': 'no' }[q.stands] || 'asks')}<span>${esc(q.question)}${q.answer ? `<div class="wb-answer">${esc(q.answer)}${/^https?:/.test(q.where || '') ? ` <a href="${esc(q.where)}" target="_blank" rel="noopener noreferrer">${esc(site(q.where))}</a>` : ''}</div>` : q.stands === 'let go' ? '<div class="wb-why">Nothing she read says.</div>' : ''}</span></li>`;
+  function ownTime(h) {
+    const b = h.before || {}, now = h.doing && h.doing.what ? `<div class="wb-own-now"><span class="wb-spin"></span><div><strong>${esc(h.doing.what)}</strong>${h.doing.why ? `<div class="wb-why">${esc(h.doing.why)}</div>` : ''}</div></div>`
+      : `<div class="wb-own-now">${icon('hold')}<div><strong>At rest</strong>${b.what ? `<div class="wb-why">Last: ${esc(b.what)}${b.came ? `. ${esc(b.came)}` : ''}</div>` : ''}</div></div>`;
+    const part = (title, inner) => (inner ? `<h3>${title}</h3>${inner}` : '');
+    const finding = (h.finding_out || []).filter((f) => (f.questions || []).length).map((f) => `<details class="wb-card" data-of="${esc(f.of)}"><summary>${icon('search')}<span class="wb-card-name">${esc(f.about)}</span><span class="wb-about">${f.questions.filter((q) => q.stands === 'answered').length} of ${f.questions.length} answered</span><span class="wb-chev">${icon('chevron')}</span><span class="wb-meter"><i style="width:${Math.round(100 * (f.met || 0))}%"></i></span></summary><div class="wb-card-in"><ul class="wb-checks">${f.questions.map(asked).join('')}</ul></div></details>`).join('');
+    const did = (h.choices || []).slice(0, 12).map((c) => `<details class="wb-card" data-of="${esc(c.at)}"><summary>${icon(c.reward == null ? 'hold' : c.reward < 0 ? 'no' : 'ok')}<span class="wb-card-name">${esc(c.what)}</span><span class="wb-about">${clock(c.at)} ${signed(c.reward)}</span><span class="wb-chev">${icon('chevron')}</span></summary><div class="wb-card-in">${c.came ? `<p>${esc(c.came)}</p>` : ''}<p class="wb-why whole">${esc(c.why)}</p></div></details>`).join('');
+    const kinds = Object.entries((h.learned || {}).kinds || {}).filter(([, k]) => k.done).sort((x, y) => y[1].expected - x[1].expected).map(([k, v]) => `<tr><td>${esc(SORTS[k] || k.replace(/_/g, ' '))}</td><td>${v.done} done</td><td>${signed(v.expected)}</td></tr>`).join('');
+    const l = h.learned || {}, better = l.before != null && l.lately != null ? `<p class="wb-why">What came of it lately ${signed(l.lately)}, and before ${signed(l.before)}.</p>` : '';
+    return now + part('Finding out', finding) + part('What she did', did) + part('What she expects of each', kinds ? `<table class="wb-learned">${kinds}</table>${better}` : '') || '<div class="wb-empty">Nothing yet.</div>';
+  }
   const el = (tag, cls, html) => { const x = document.createElement(tag); if (cls) x.className = cls; if (html != null) x.innerHTML = html; return x; };
 
   window.mountWorkbench = function (root, options) {
@@ -100,7 +116,17 @@
       if (id === chosen) return;
       clearTimeout(timer); cancelAnimationFrame(raf); raf = 0; live = null; writing = ''; if (chosen) drafts.set(chosen, say.value);
       chosen = id; last = null; after = 0; files = new Map(); checks = []; design = null; program = null; kept = 0; group = null; target = ''; shownN = 0; liveKey = ''; part = ''; pinned = true; asking = [];
-      log.innerHTML = ''; view.innerHTML = ''; say.value = drafts.get(id) || ''; $('.wb-title').textContent = ''; $('.wb-status').textContent = ''; stream(); drawTabs(); drawView();
+      log.innerHTML = ''; view.innerHTML = ''; say.value = drafts.get(id) || ''; $('.wb-title').textContent = ''; $('.wb-status').textContent = ''; root.classList.toggle('wb-own', id === OWN);
+      if (id === OWN) { if (source) { source.close(); source = null; } own(); return; }
+      stream(); drawTabs(); drawView();
+    }
+    async function own() {
+      let h; try { h = await get('/api/her_own_time'); } catch (e) { return; }
+      if (chosen !== OWN) return;
+      const busy = !!(h.doing && h.doing.what), s = $('.wb-state'); s.className = 'wb-state ' + (busy ? 'going' : ''); s.lastElementChild.textContent = busy ? 'Doing something' : 'At rest'; $('.wb-title').textContent = 'Her own time';
+      const html = ownTime(h); if (log.__own === html && log.firstChild) return;
+      const open = new Set([...log.querySelectorAll('details[open]')].map((d) => d.dataset.of)), at = scroller.scrollTop;
+      log.__own = html; log.innerHTML = `<div class="wb-own-time">${html}</div>`; for (const d of log.querySelectorAll('details')) if (open.has(d.dataset.of)) d.open = true; scroller.scrollTop = at;
     }
     scroller.addEventListener('scroll', () => { pinned = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60; latest.hidden = pinned; });
     latest.addEventListener('click', () => { pinned = true; down(true); });
@@ -239,24 +265,31 @@
     // ── streaming, with polling where there is none ────────────────
     function stream() {
       if (source) { source.close(); source = null; }
-      if (!chosen || !visible() || stopped) return;
+      if (!chosen || chosen === OWN || !visible() || stopped) return;
       writing = '';
       const id = chosen, s = new EventSource(`/api/work/${id}/stream?after=${after}`); source = s;
       s.addEventListener('seen', (e) => { if (id !== chosen) return; const w = JSON.parse(e.data); const more = w.now && w.now.more; if (w.now) { if (more) writing = writing.slice(0, more[0]) + more[1]; else if (!w.now.is_writing) writing = ''; if (w.now.is_writing) w.now.writing = writing; delete w.now.more; } came(w); });
       s.onerror = () => { s.close(); if (source === s) { source = null; clearTimeout(timer); timer = setTimeout(() => { if (id === chosen) { poll(); stream(); } }, 1500); } };
     }
-    async function poll() { if (!chosen) return; try { came(await get(`/api/work/${chosen}?after=${after}`)); } catch (e) { /* asked again */ } }
+    async function poll() { if (chosen === OWN) return own(); if (!chosen) return; try { came(await get(`/api/work/${chosen}?after=${after}`)); } catch (e) { /* asked again */ } }
+    function railed(hers) {
+      const rail = $('.wb-works'); if (!rail) return;
+      const html = list.map((w) => `<button data-work="${esc(w.id)}" class="${w.id === chosen ? 'on' : ''}"><span class="wb-thumb">${w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span><span class="wb-work-name">${esc(w.title)}<small>${{ going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state} · ${clock(w.ended || w.began)}</small></span><i class="${w.state}"></i></button>`).join('')
+        + `<button data-work="${OWN}" class="wb-hers ${chosen === OWN ? 'on' : ''}"><span class="wb-thumb">${icon('search')}</span><span class="wb-work-name">${hers.title}<small>With nobody asking</small></span></button>`;
+      if (rail.__h !== html) { rail.__h = html; rail.innerHTML = html; }
+    }
     async function works() {
       try { list = (await get('/api/work')).works || []; } catch (e) { return; }
       const button = document.querySelector('.tab-btn[data-tab="work"]');
       if (button) { const going = list.some((w) => w.state === 'going' || w.state === 'held'); button.classList.toggle('wb-going', going); button.title = going ? 'She is working on something' : 'Her work'; }
       if (!visible()) { if (source) { source.close(); source = null; } return; }
-      if (!list.length) { if (!log.children.length) log.innerHTML = '<div class="wb-empty">Ask her to make something and her work shows here as she does it: what she decides, the code as she writes it, what trying it shows, and the program running. You can speak to it while it goes.</div>'; return; }
-      const rail = $('.wb-works');
-      if (rail) { const html = list.map((w) => `<button data-work="${esc(w.id)}" class="${w.id === chosen ? 'on' : ''}"><span class="wb-thumb">${w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span><span class="wb-work-name">${esc(w.title)}<small>${{ going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state} · ${clock(w.ended || w.began)}</small></span><i class="${w.state}"></i></button>`).join(''); if (rail.__h !== html) { rail.__h = html; rail.innerHTML = html; } }
-      if (pick) { const html = list.map((w) => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join(''); if (pick.__h !== html) { pick.__h = html; pick.innerHTML = html; } }
+      const hers = { id: OWN, title: 'Her own time' };
+      if (pick) { const html = [...list, hers].map((w) => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join(''); if (pick.__h !== html) { pick.__h = html; pick.innerHTML = html; } }
+      if (chosen === OWN) own();
+      if (!list.length && chosen !== OWN) { if (pick) pick.selectedIndex = -1; railed(hers); if (!log.children.length) log.innerHTML = '<div class="wb-empty">Ask her to make something and her work shows here as she does it: what she decides, the code as she writes it, what trying it shows, and the program running. You can speak to it while it goes.</div>'; return; }
+      railed(hers);
       const going = list.find((w) => w.state === 'going');
-      if (!chosen || !list.some((w) => w.id === chosen)) choose((going || list[0]).id);
+      if (!chosen || (chosen !== OWN && !list.some((w) => w.id === chosen))) choose((going || list[0]).id);
       if (pick) pick.value = chosen;
       if (!source) stream();
     }
@@ -267,13 +300,14 @@
       if (e.target.closest('[data-again]')) { const f = view.querySelector('iframe'); if (f) f.src = f.dataset.src + '&again=' + Date.now(); return; }
       const y = e.target.closest('.wb-why'); if (y) { y.classList.toggle('whole'); return; }
       const p = e.target.closest('[data-part]'); if (p) { part = p.dataset.part; drawView(); return; }
-      const b = e.target.closest('[data-do]'); if (!b || !chosen) return; const what = b.dataset.do;
+      const b = e.target.closest('[data-do]'); if (!b) return; const what = b.dataset.do;
+      if (!chosen || chosen === OWN) { if (what === 'wide') window.open('/api/workbench', 'aura-workbench', 'width=1360,height=880'); return; }
       if (what === 'wide') return void window.open('/api/workbench', 'aura-workbench', 'width=1360,height=880');
       await post(`/api/work/${chosen}/${what === 'hold' && last && last.state === 'held' ? 'go_on' : what}`); if (!source) poll();
     });
-    if (pick) pick.addEventListener('change', () => choose(pick.value));
+    if (pick) pick.addEventListener('change', () => { choose(pick.value); });
     const grow = () => { say.style.height = 'auto'; say.style.height = Math.min(160, say.scrollHeight) + 'px'; };
-    const send = async () => { const words = say.value.trim(); if (!words || !chosen) return; say.value = ''; grow(); pinned = true; await post(`/api/work/${chosen}/say`, { words }); if (!source) { poll(); stream(); } };
+    const send = async () => { const words = say.value.trim(); if (!words || !chosen || chosen === OWN) return; say.value = ''; grow(); pinned = true; await post(`/api/work/${chosen}/say`, { words }); if (!source) { poll(); stream(); } };
     $('.wb-say').addEventListener('submit', (e) => { e.preventDefault(); send(); });
     say.addEventListener('input', grow);
     say.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } if (e.key === 'Escape' && last && last.state === 'going') post(`/api/work/${chosen}/stop`); });

@@ -48,6 +48,57 @@ HER_HEAD = state_root() / "models" / "qwen3.8-27b-mtp-source" / "mtp_head.safete
 TEXT_LEAST, TEXT_LONGEST, TEXT_DEPTH, TEXT_DEEPEST = 4, 8, 8, 24
 
 
+#: The most tokens her head drafts a pass, and how often a depth beside the one that has been fastest is tried.
+HEAD_DEEPEST, TRIED_EVERY, PASSES_HELD = 4, 12, 64
+
+
+class HowDeep:
+    """How many tokens her head drafts a pass: as many as has been fastest, in seconds a token, measured as she writes.
+
+    Her head drafts the token after next from her hidden state and the next token. Its own output stands for the hidden state
+    after that, so it drafts again from it, with less to go on each time. A pass that reads one more costs little, and gains a
+    token where the draft holds; where it does not, what was read past it is undone. Which wins turns on what she is writing
+    and on what else the machine is doing, so it is measured: each depth's seconds a token over its last passes, the fastest
+    taken, and one beside it tried now and then."""
+
+    def __init__(self, deepest: int = HEAD_DEEPEST) -> None:
+        self.deepest = max(1, deepest)
+        self._took: dict[int, tuple[float, float]] = {}
+        self._passes = 0
+
+    def a_token(self, depth: int) -> float | None:
+        seconds, tokens = self._took.get(depth, (0.0, 0.0))
+        return seconds / tokens if tokens else None
+
+    @property
+    def fastest(self) -> int:
+        measured = {depth: rate for depth in self._took if (rate := self.a_token(depth)) is not None}
+        return min(measured, key=measured.__getitem__) if measured else 1
+
+    def next(self) -> int:
+        """The depth of the next pass."""
+        self._passes += 1
+        best = self.fastest
+        if self._passes % TRIED_EVERY:
+            return best
+        beside = [depth for depth in (best + 1, best - 1) if 1 <= depth <= self.deepest]
+        # The one measured least lately is tried: a depth never measured before any other.
+        return min(beside, key=lambda depth: self._took.get(depth, (0.0, 0.0))[1], default=best)
+
+    def came(self, depth: int, tokens: int, seconds: float) -> None:
+        """A pass of this depth gave so many tokens in so long. What came before it counts for a little less."""
+        held_seconds, held_tokens = self._took.get(depth, (0.0, 0.0))
+        keeps = 1.0 - 1.0 / PASSES_HELD
+        self._took[depth] = (held_seconds * keeps + max(0.0, seconds), held_tokens * keeps + max(0, tokens))
+
+    def says(self) -> str:
+        return ", ".join(f"{depth}: {1.0 / rate:.1f}/s" for depth in sorted(self._took) if (rate := self.a_token(depth)))
+
+
+#: What has been fastest, kept from one generation to the next.
+_HOW_DEEP = HowDeep()
+
+
 def _switched_on() -> bool:
     """AURA_HER_HEAD_DRAFTS, on unless set to 0. MEASURED 20 October 2026 on her 27B with every channel on
     (tools/her_decode_with_each_channel.py --with-her-head): 15.2 tokens a second without it, 21.5 with it, and her
@@ -94,7 +145,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                        logits_processors: Sequence[Callable[[Any, Any], Any]] | None = None,
                        prompt_cache: list | None = None, prefill_step_size: int = 512,
                        prompt_progress_callback: Callable[[int, int], None] | None = None,
-                       tap: Any = None, drafts_from: Sequence[int] | None = None,
+                       tap: Any = None, drafts_from: Sequence[int] | None = None, how_deep: HowDeep | None = None,
                        **_ignored: Any) -> Generator[tuple[int, mx.array, bool], None, None]:
     """Her tokens for ``prompt``, a pass reading the last kept token and her head's draft after it; and, where
     ``drafts_from`` is given (the whole prompt), what followed the same tokens before in it or in what she has written,
@@ -108,6 +159,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
     from core.consciousness.spoken_positions import speaking_several
 
     text = _text(model)
+    how_deep = how_deep if how_deep is not None else _HOW_DEEP
     # Her worker's hidden-state tap, where it is in: its proxy around her backbone holds it (nonparametric_worker).
     tap = tap if tap is not None else getattr(text.model, "_tap", None)
     embed = text.model.embed_tokens
@@ -147,16 +199,26 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         nonlocal history
         history = mx.concatenate([history, mx.array([token], dtype=history.dtype)])
 
-    def drafted_after(hidden: mx.array, following: list[int]) -> int:
+    def drafted_after(hidden: mx.array, following: list[int], many: int = 1) -> list[int]:
+        """Her head's drafts after what was kept: one from her hidden state, and each after it from her head's own."""
         out = head(hidden, embed(mx.array([following])), head_cache)
-        return int(mx.argmax(_logits(text, out[:, -1, :]), axis=-1).item())
+        drafts = [mx.argmax(_logits(text, out[:, -1, :]), axis=-1)]
+        for _ in range(many - 1):
+            out = head(out[:, -1:], embed(drafts[-1][:, None]), head_cache)
+            drafts.append(mx.argmax(_logits(text, out[:, -1, :]), axis=-1))
+        told = mx.concatenate(drafts).tolist()
+        # What it drafted from its own output is not what she says: her head reads that from her hidden state when it is said.
+        if many > 1:
+            head_cache.trim(many - 1)
+        return [int(one) for one in told]
 
     # First pass: the prompt's last token gives her first token, and her head its first draft.
     hidden = text.model(history[None], cache)
     hiddens = hidden[0] if tap is not None else None
     token, logprobs = choose(_logits(text, hidden[:, -1, :]), -1)
-    draft = drafted_after(hidden[:, -1:], [token])
-    from_draft, made, depth = False, 0, TEXT_DEPTH
+    deep, began = how_deep.next(), time.perf_counter()
+    drafts = drafted_after(hidden[:, -1:], [token], deep)
+    drafting, from_draft, made, depth = time.perf_counter() - began, False, 0, TEXT_DEPTH
     index = None
     if drafts_from is not None:
         index = _TextIndex(TEXT_LONGEST)
@@ -167,12 +229,14 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         if 0 <= max_tokens <= made:
             return
         kept(token)
-        proposal = [draft]
+        # A pass is timed from drafting it to its last token, less what is done with each token as it is given.
+        began, elsewhere, proposal = time.perf_counter(), 0.0, drafts
         if index is not None:
             index.extend([token])
             again = index.draft(depth, least=TEXT_LEAST)
-            if again and again[0] == draft:
+            if again and again[0] == drafts[0]:
                 proposal = again
+        by_her_head = proposal is drafts
         if max_tokens > 0:
             proposal = proposal[:max_tokens - made]
         with speaking_several():  # all are tokens she speaks: steered, and sampled for Φ, as one at a time
@@ -187,7 +251,9 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                     token, logprobs = checked, checked_logprobs
                     break
                 took += 1
+                given = time.perf_counter()
                 yield guess, checked_logprobs, True
+                elsewhere += time.perf_counter() - given
                 made += 1
                 if 0 <= max_tokens <= made:
                     return
@@ -201,9 +267,13 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
             # What was read past the last token kept is as if it had never been, however this ends.
             _unread(cache, saved, whole, 1 + took)
         from_draft = False
-        if len(proposal) > 1:
+        if by_her_head:
+            how_deep.came(deep, 1 + took, drafting + time.perf_counter() - began - elsewhere)
+        elif len(proposal) > 1:
             depth = min(TEXT_DEEPEST, depth * 2) if took == len(proposal) else max(2, took + 1)
-        draft = drafted_after(read[:, :1 + took], [*proposal[:took], token])
+        deep, began = how_deep.next(), time.perf_counter()
+        drafts = drafted_after(read[:, :1 + took], [*proposal[:took], token], deep)
+        drafting = time.perf_counter() - began
 
 
 def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_tokens: int = 256,
@@ -250,6 +320,8 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
                                      generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),
                                      peak_memory=mx.get_peak_memory() / 1e9, finish_reason=None)
     detokenizer.finalize()
+    if n > 1:
+        logger.info("Her head drafts %d a pass; tokens a second by how many: %s", _HOW_DEEP.fastest, _HOW_DEEP.says())
     yield GenerationResponse(text=detokenizer.last_segment, token=token, logprobs=logprobs, from_draft=from_draft,
                              prompt_tokens=prompt.size, prompt_tps=prompt_tps, generation_tokens=n + 1,
                              generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),

@@ -13,6 +13,7 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from core.agency.her_inquiries import Answered, Inquiry, NotNowError
 from core.agency.her_own_time import HERSELF, HerOwnTime
 from core.agency.what_she_does_next import CameOf, Option
 
@@ -24,7 +25,8 @@ LOOKED_UP: frozenset[str] = frozenset({"known", "found"})
 IN_HER_SOURCE: frozenset[str] = frozenset({"program", "program_changed"})
 #: What a goal asks for (core/understanding/effects.py): "" where her model is not there to read it.
 Asks = Callable[[str], Awaitable[str]]
-Search = Callable[[str], Awaitable[dict[str, Any]]]
+#: One pass at an inquiry of hers, which says what pages it read (core/agency/her_inquiries.py).
+LooksInto = Callable[[Inquiry, Callable[[Any], Any]], Awaitable[Answered | None]]
 
 #: How many of a sort are offered at once: what is wanted most of each.
 OF_A_SORT = 4
@@ -70,22 +72,26 @@ def left_unmet(carry_on: Callable[[Any], Awaitable[None]]) -> list[Option]:
     return out
 
 
-async def _look_into(hers: HerOwnTime, search: Search, about: str, query: str) -> tuple[CameOf, list[str]]:
-    """Look something up: what came of it, and the pages it was read on. What it came to is how much of it she had not read."""
-    result = await search(query)
-    if not result.get("ok"):
-        return CameOf(got=0.0, what=f"the search gave nothing: {str(result.get('error') or '')[:120]}"), []
-    pages = [(str(c.get("title") or ""), str(c.get("url") or "")) for c in _citations(result)]
-    new = hers.is_new(url for _title, url in pages)
-    told = _short(str(result.get("summary") or result.get("answer") or result.get("content") or ""), 400)
-    if new and told:
-        title, url = next((p for p in pages if p[1] == new[0]), ("", new[0]))
-        hers.finds(about, f"{title}: {told}" if title else told, url)
-    return (CameOf(got=len(new) / max(1, len(pages)) if pages else 0.0, what=f"read {len(new)} pages she had not, of {len(pages)}, about {about}"),
-            [url for _title, url in pages] if told else [])
+async def _look_into(hers: HerOwnTime, looks: LooksInto, of: str, about: str) -> tuple[CameOf, Inquiry]:
+    """One pass at finding something out: its next question, taken to the pages it finds. What it came to is whether one of them
+    answers it, in its own words, and a little for what she had not read before."""
+    inquiry = hers.inquiry(of, about)
+    new: list[str] = []
+    try:
+        one = await looks(inquiry, lambda urls: new.extend(hers.is_new(urls)))
+    except NotNowError as away:
+        return CameOf(put_down=True, what=f"it could not be gone on with now: {away}"), inquiry
+    if one is None:
+        return CameOf(got=0.0, what=f"there was nothing to ask about {about}"), inquiry
+    question = one.question
+    if question.answer:
+        hers.finds(question.question, question.answer, question.where)
+    unread = 0.1 * len(new) / len(one.read) if one.read else 0.0
+    came = f"asked “{_short(question.question)}”, and {'it is answered' if question.stands == 'answered' else 'it is answered in part' if question.answer else 'nothing read answers it'}"
+    return CameOf(got=min(1.0, max(one.got, unread)), what=f"{came}; {len(one.read)} pages read"), inquiry
 
 
-def things_to_find_out(hers: HerOwnTime, search: Search) -> list[Option]:
+def things_to_find_out(hers: HerOwnTime, looks: LooksInto) -> list[Option]:
     """What she wants to know more of, looked into: each is a thing her own turns have shown is worth going to."""
     from core.conation.what_she_wants import FIND_OUT, get_what_she_wants
 
@@ -97,17 +103,22 @@ def things_to_find_out(hers: HerOwnTime, search: Search) -> list[Option]:
         async def does(want: Any = want) -> CameOf:
             await asyncio.to_thread(record.started, want.thing, "act", label=want.label)
             try:
-                came, _pages = await _look_into(hers, search, want.label, want.label)
+                came, _inquiry = await _look_into(hers, looks, f"want:{want.thing}", want.label)
             finally:
                 await asyncio.to_thread(record.stopped, "act", want.thing)
+            if came.put_down:
+                return came
             await asyncio.to_thread(lambda: record.went(want.thing, FIND_OUT, label=want.label))
-            if not _pages:
+            if came.got <= 0.0:
                 await asyncio.to_thread(record.failed, want.thing)
             return came
 
-        out.append(Option(f"find_out:{want.thing}", "find_out", f"find out more about {want.label}", _short(want.why),
-                          known={"wanted": max(0.0, min(1.0, float(want.utility))), "new": 1.0 / (1.0 + want.contacts), "unfinished": 1.0 if want.unfinished else 0.0},
-                          drives={"curiosity": _asking("curiosity")}, cost_s=60.0, does=does))
+        held = hers.inquiries.get(f"want:{want.thing}")
+        open_one = held.next() if held is not None else None
+        out.append(Option(f"find_out:{want.thing}", "find_out", f"find out more about {want.label}" + (f": {_short(open_one.question)}" if open_one is not None else ""), _short(want.why),
+                          known={"wanted": max(0.0, min(1.0, float(want.utility))), "new": 1.0 / (1.0 + want.contacts), "unfinished": 1.0 if want.unfinished else 0.0,
+                                 "answered": held.met if held is not None else 0.0},
+                          drives={"curiosity": _asking("curiosity")}, cost_s=90.0, does=does))
     return out
 
 
@@ -151,7 +162,7 @@ async def _hers_to_do() -> list[tuple[str, Any, str]]:
     return list(out.values())
 
 
-async def act_of_a_goal(goal: str, *, hers: HerOwnTime, asks: Asks, search: Search, record: Any = None, goal_id: str = "") -> Option | None:
+async def act_of_a_goal(goal: str, *, hers: HerOwnTime, asks: Asks, looks: LooksInto, record: Any = None, goal_id: str = "") -> Option | None:
     """What would do a goal of hers, by what it asks to be brought about; None where nothing would.
 
     LIVE 24 November 2026 "Research the history of quantum error correction." had been her goal for twelve days, chosen again
@@ -162,14 +173,17 @@ async def act_of_a_goal(goal: str, *, hers: HerOwnTime, asks: Asks, search: Sear
     slug, asked = goals.slug_of(goal), await asks(goal)
     if asked in LOOKED_UP:
 
-        async def looks() -> CameOf:
-            came, pages = await _look_into(hers, search, _short(goal, 80), goal)
-            if pages and goal_id:
-                await _is_done(goal_id, came.what, pages)
+        async def looked() -> CameOf:
+            came, inquiry = await _look_into(hers, looks, f"goal:{slug}", goal)
+            # It is done when what would have to be found out for it has been, and is further on by each that is.
+            if goal_id and inquiry.questions:
+                await _is_so_far(goal_id, inquiry)
             return came
 
+        held = hers.inquiries.get(f"goal:{slug}")
         return Option(f"look_up:{slug}", "look_up", f"look into what she set herself: {_short(goal)}", "a goal of hers that asks for something to be known",
-                      drives={"curiosity": _asking("curiosity")}, cost_s=60.0, does=looks)
+                      known={"answered": held.met if held is not None else 0.0},
+                      drives={"curiosity": _asking("curiosity")}, cost_s=90.0, does=looked)
     # One she has begun in her own source is gone on with there while her model is not there to read it.
     if asked not in IN_HER_SOURCE and not (asked == "" and record is not None and record.steps):
         return None
@@ -186,32 +200,27 @@ async def act_of_a_goal(goal: str, *, hers: HerOwnTime, asks: Asks, search: Sear
                   drives={"competence": _asking("competence")}, cost_s=240.0, does=works)
 
 
-async def _is_done(goal_id: str, how: str, pages: list[str]) -> None:
+async def _is_so_far(goal_id: str, inquiry: Inquiry) -> None:
     from core.container import ServiceContainer
 
     engine = ServiceContainer.get("goal_engine", default=None)
-    if engine is not None:
-        await engine.update_goal_status(goal_id, status="completed", summary=how, progress=1.0, evidence=pages[:12])
+    if engine is None:
+        return
+    told = " ".join(f"{q.question} {q.answer}" for q in inquiry.questions if q.answer)
+    await engine.update_goal_status(goal_id, status="completed" if inquiry.is_done else "in_progress", summary=_short(told, 600),
+                                    progress=round(1.0 if inquiry.is_done else inquiry.met, 3), evidence=[q.where for q in inquiry.questions if q.where][:12])
 
 
-async def goals_of_hers(hers: HerOwnTime, asks: Asks, search: Search) -> list[Option]:
+async def goals_of_hers(hers: HerOwnTime, asks: Asks, looks: LooksInto) -> list[Option]:
     """Goals she set herself, each a pass further by whatever does what it asks."""
     out: list[Option] = []
     for goal, record, goal_id in await _hers_to_do():
-        option = await act_of_a_goal(goal, hers=hers, asks=asks, search=search, record=record, goal_id=goal_id)
+        option = await act_of_a_goal(goal, hers=hers, asks=asks, looks=looks, record=record, goal_id=goal_id)
         if option is not None:
             out.append(option)
         if len(out) >= OF_A_SORT:
             break
     return out
-
-
-def _citations(result: dict[str, Any]) -> list[dict[str, Any]]:
-    for name in ("citations", "results", "sources"):
-        held = result.get(name)
-        if isinstance(held, list) and held:
-            return [c for c in held if isinstance(c, dict)]
-    return []
 
 
 def _short(words: str, most: int = 120) -> str:
@@ -223,12 +232,12 @@ async def _nothing_reads(_goal: str) -> str:
     return ""
 
 
-def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[None]], search: Search,
+def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[None]], looks: LooksInto,
                        tell: Callable[[dict[str, Any]], Awaitable[bool]], here: Callable[[], float], asks: Asks = _nothing_reads) -> HerOwnTime:
     """Give her own time what she could do with it."""
     hers.offers("requests", lambda: asyncio.to_thread(left_unmet, carry_on))
-    hers.offers("wants", lambda: asyncio.to_thread(things_to_find_out, hers, search))
+    hers.offers("wants", lambda: asyncio.to_thread(things_to_find_out, hers, looks))
     hers.offers("finds", lambda: things_to_tell(hers, tell, here))
-    hers.offers("goals", lambda: goals_of_hers(hers, asks, search))
-    hers.act_of = lambda goal: act_of_a_goal(goal, hers=hers, asks=asks, search=search)
+    hers.offers("goals", lambda: goals_of_hers(hers, asks, looks))
+    hers.act_of = lambda goal: act_of_a_goal(goal, hers=hers, asks=asks, looks=looks)
     return hers

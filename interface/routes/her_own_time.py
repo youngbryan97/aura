@@ -53,6 +53,34 @@ async def _search(words: str) -> dict[str, Any]:
     return result if isinstance(result, dict) else {"ok": False, "error": "no answer"}
 
 
+async def _pages(words: str) -> list[Any]:
+    """The pages her search finds for some words, each read when it is come to."""
+    from core.agency.her_inquiries import Page
+    from core.understanding.carriers.finding import page_at
+
+    result = await _search(words)
+    held = next((result[name] for name in ("citations", "results", "sources") if isinstance(result.get(name), list) and result[name]), [])
+    found = list(dict.fromkeys(str(c.get("url") or "") for c in held if isinstance(c, dict) and c.get("url")))
+
+    async def read(url: str) -> Page | None:
+        says, _why = await page_at(url)
+        return Page(url, says.title, says.text) if says is not None else None
+
+    return [lambda url=url: read(url) for url in found]
+
+
+async def _looks(inquiry: Any, seen: Any) -> Any:
+    """One pass at something she is finding out, with her model between people's turns."""
+    from core.agency.her_inquiries import NotNowError, look_into_one
+    from core.rebuilding.her_model import HerModelIsAwayError
+    from core.understanding.her_model_between_turns import ask
+
+    try:
+        return await look_into_one(inquiry, ask=ask, pages=_pages, seen=seen)
+    except HerModelIsAwayError as away:
+        raise NotNowError(f"her model is away, {away}") from away
+
+
 async def _asks(goal: str) -> str:
     """What a goal of hers asks to be brought about, read as a person's words are; "" where her model is not there to read it."""
     from core.understanding.what_is_asked import get_what_is_asked
@@ -143,7 +171,7 @@ def begin_what_she_does_unasked() -> None:
 
     from core.container import ServiceContainer
 
-    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, search=_search, tell=_tell, here=_here, asks=_asks)
+    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, looks=_looks, tell=_tell, here=_here, asks=_asks)
     hers.may = _her_will_says
     # Where the runtime's own loop, which is under her agency and may not reach up to it, finds it.
     ServiceContainer.register_instance("her_own_time", hers)
@@ -166,5 +194,8 @@ async def her_own_time(_: None = Depends(_require_internal)) -> JSONResponse:
     choices = await asyncio.to_thread(hers.chooser.choices, 30)
     return JSONResponse({
         "doing": hers.doing, "before": hers.before, "found": len(hers.found), "learned": learned, "goals": dict(_READ),
+        "finding_out": [{"of": of, "about": one.about, "met": round(one.met, 2), "done": one.is_done,
+                         "questions": [{"question": q.question, "stands": q.stands, "answer": q.answer, "where": q.where} for q in one.questions[-8:]]}
+                        for of, one in sorted(hers.inquiries.items(), key=lambda kept: -kept[1].changed_at)[:8]],
         "choices": [{"at": c.at, "what": c.what, "kind": c.kind, "why": c.says(), "over": c.over[:4], "came": c.came.get("what", ""),
                      "reward": None if c.reward is None or math.isnan(c.reward) else round(c.reward, 3)} for c in reversed(choices)]})

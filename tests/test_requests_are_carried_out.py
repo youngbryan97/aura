@@ -152,7 +152,7 @@ def _finding(monkeypatch, pages: dict[str, str | None], reads: dict[str, PageRea
     async def found(queries):
         return [(url, url, "around") for url in hits]
 
-    monkeypatch.setattr(finding, "_page", page)
+    monkeypatch.setattr(finding, "page_at", page)
     monkeypatch.setattr(finding, "_hits", found)
 
     async def ask(prompt, schema, n):

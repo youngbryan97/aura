@@ -529,10 +529,12 @@ from interface.routes.chat_runtime_proof import (  # noqa: E402
 )
 from interface.routes.chat_carrying_out import her_question_is_asked, her_word_is_kept, take_up_what_is_asked  # noqa: E402
 from interface.routes.chat_reply_as_it_forms import reply_as_it_forms  # noqa: E402
+from interface.routes.chat_reading_ahead import read_ahead_of_the_next_turn, stop_waiting_to_read  # noqa: E402
 from interface.routes.chat_what_is_asked import (  # noqa: E402
     REMEMBERED,
     begin_what_talk_needs,
     files_meant,
+    her_client,
     read_what_this_turn_asks,
     what_is_remembered_of,
 )
@@ -1412,6 +1414,7 @@ def _take_conversation_resume_handle(
 ) -> str:
     """Consume this conversation's worker capability exactly once."""
 
+    stop_waiting_to_read()
     with _conversation_quality_lock:
         state = _conversation_quality_state_locked(
             session_id=session_id,
@@ -1425,6 +1428,15 @@ def _take_conversation_resume_handle(
     if age > _CONVERSATION_RESUME_TTL_S:
         return ""
     return handle if re.fullmatch(r"[0-9a-f]{32}", handle) else ""
+
+
+def _resume_is_good_for_s() -> float:
+    """How long the state her last reply was written in can still be gone on from, in this conversation: none when none is held."""
+    with _conversation_quality_lock:
+        state = _conversation_quality_state_locked()
+        if not state.conversation_resume_handle:
+            return 0.0
+        return max(0.0, _CONVERSATION_RESUME_TTL_S - (time.monotonic() - float(state.conversation_resume_created_at or 0.0)))
 
 
 def _store_conversation_resume_handle(
@@ -7004,6 +7016,9 @@ async def api_chat(
                     _turn = await _api_chat_turn(body, request)
                 _served = await _apply_recorded_answer(visible_user_message, _turn)
                 _mark_http_turn_served(_turn_outcome, _served)
+                read_ahead_of_the_next_turn(
+                    visible_user_message, _served, client=her_client(), good_for_s=_resume_is_good_for_s(),
+                )
                 return _served
     finally:
         try:

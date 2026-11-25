@@ -173,6 +173,27 @@ _CREDITS = LearnedMatcher(name="how_she_does_it.credits", features=embed_sentenc
 ))
 
 
+#: A turn about how she is, what is on her mind, or what she has been doing.
+HER_STATE = "her_state"
+_OF_HER_STATE: tuple[tuple[str, str, tuple[tuple[str, str], ...]], ...] = (
+    *((HER_STATE, said, ()) for said in (
+        "How are you feeling right now?", "how's it going?", "you okay?", "what's on your mind?", "what have you been up to?", "are you tired?", "what are you thinking about",
+        "How was your night?", "what's it like for you when nobody's talking to you", "anything bothering you?", "are you busy at the moment?", "is there anything you want right now?",
+        "what's going on in there", "how's your head today", "you seem off, what's up?", "What mood are you in?", "are you happy?", "why were you so slow just now?", "is your memory full or something?",
+        "what did you do while I was gone?", "are you running okay?",
+    )),
+    (HER_STATE, "and you?", (("user", "I'm wiped out today."), ("assistant", "That sounds like a long one."))),
+    (HER_STATE, "how about yours?", (("user", "my day was chaos"), ("assistant", "What happened?"))),
+    *(("", said, ()) for said in (
+        "How deep would you go if I want frogs?", "what would you plant around the edge?", "Which one would you pick?", "you should try the new place on Fifth", "how are you supposed to hold the racket?",
+        "Do you know what time it opens?", "what do you think of this title?", "I feel awful today", "my sister is tired of me", "how's the weather looking", "what's a good way to relax after work?",
+        "can you tell me why my laptop is slow?", "would you say this in an email to your boss?", "I'm thinking of making a small pond. What should I know before I dig?", "are the peonies happy in shade?",
+        "how's my draft going to land with them?", "what's going on in Lisbon this weekend?",
+    )),
+    ("", "and you?", (("user", "I'd take the train"), ("assistant", "The bus is cheaper if you book early."))),
+    ("", "how about that one?", (("user", "which paint for the hall?"), ("assistant", "The warm white."))),
+)
+
 #: What the turn being answered is about, of what she does, as it was read; None where it was not.
 _ABOUT: contextvars.ContextVar[tuple[str, ...] | None] = contextvars.ContextVar("aura_what_of_hers_it_is_about", default=None)
 
@@ -183,7 +204,7 @@ def examples() -> tuple[tuple[str, str, tuple[tuple[str, str], ...]], ...]:
     for way in WAYS:
         rows += [(way.key, text, ()) for text in way.about] + [("", text, ()) for text in way.not_about]
     rows += [("", text, ()) for text in _OF_NOTHING_HERE]
-    rows += [(key, said, before) for key, said, before in _GOING_ON]
+    rows += [(key, said, before) for key, said, before in (*_GOING_ON, *_OF_HER_STATE)]
     return tuple(rows)
 
 
@@ -196,6 +217,12 @@ def ways_about() -> list[Way]:
     """What she does that the turn being answered is about, as it was read (core/understanding/what_of_hers.py)."""
     held = _ABOUT.get() or ()
     return [way for way in WAYS if way.key in held]
+
+
+def about_her_state() -> bool | None:
+    """Whether the turn being answered is about how she is; None where that was not read."""
+    held = _ABOUT.get()
+    return None if held is None else HER_STATE in held
 
 
 def _told(way: Way) -> str:

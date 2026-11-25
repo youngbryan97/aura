@@ -24,6 +24,7 @@ from core.brain.llm.her_states_at_a_turn import as_a_job_of_the_worker as states
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
 )
+from core.brain.llm.reading_ahead import as_a_job_of_the_worker as read_ahead_as_a_job
 from core.brain.llm.token_budget_evidence import CALIBRATION_SCHEMA
 from core.brain.llm.user_surface_recurrence import (
     user_surface_recurrent_ceiling,
@@ -6646,6 +6647,19 @@ def _mlx_worker_loop(
             if action == "generate" and job.get("states_at_turn"):
                 # Her states where her turn opens, for a reading of what was asked; nothing is written.
                 ipc_writer.put(states_as_a_job(job, model, tokenizer, engine, metal_semaphore))
+            elif action == "generate" and job.get("read_ahead"):
+                # The conversation, read while nobody waits for the turn that will need it read.
+                _ahead_seq = _safe_int(job.get("seq"), 0)
+                clear_stale_soft_cancel(cancel_seq, _ahead_seq)
+                _ahead, worker_active = read_ahead_as_a_job(
+                    job, model, tokenizer, engine, metal_semaphore, lru=prompt_cache_lru,
+                    model_key=(_prompt_cache_model_key(model_path), "user_surface"),
+                    step=_runtime_prefill_step_size(model_path), alive=watchdog.activity,
+                    stopped=lambda seq=_ahead_seq: soft_cancel_requested(cancel_seq, seq),
+                )
+                if soft_cancel_requested(cancel_seq, _ahead_seq):
+                    cancel_seq.value = 0
+                ipc_writer.put(_ahead)
             elif action == "generate" and (job.get("expect_next") or job.get("surprise_of")):
                 # A pass that scores candidate next turns, or how heard words landed, and writes nothing.
                 ipc_writer.put(as_a_job_of_the_worker(job, model, tokenizer, engine, metal_semaphore))

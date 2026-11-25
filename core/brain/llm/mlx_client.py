@@ -47,6 +47,7 @@ from .mlx_client_tool_results import (  # noqa: F401  (re-exported: they were de
     _what_the_loop_answers,
 )
 from .mlx_client_waiting import _WaitsForTheResult
+from .reading_ahead import _ReadsAhead
 from .what_is_being_written import watcher as a_watcher
 from .what_she_expects_next import _AsksWhatSheExpectsNext
 from .worker_exit import await_init_while_the_worker_loads
@@ -4834,6 +4835,7 @@ def _build_the_generation_request(
         "expect_next": [str(c) for c in (kwargs.get("expect_next") or ())],
         "surprise_of": [str(c) for c in (kwargs.get("surprise_of") or ())],
         "states_at_turn": [str(c) for c in (kwargs.get("states_at_turn") or ())],
+        "read_ahead": kwargs.get("read_ahead") is True,
         "what_is_asked": carried(kwargs.get("user_surface_validation_prompt")) if kwargs.get("clean_user_surface_contract") else None,
         "show_what_is_written": a_watcher() is not None, "read_by_a_machine": bool(kwargs.get("read_by_a_machine", False)),
         "serving_lane": str(
@@ -4966,7 +4968,7 @@ def _is_internal_inference(cognitive_context: Any) -> bool:
     return False
 
 
-class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane, _AsksWhatSheExpectsNext, _ReadsHerStatesAtATurn):
+class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWorkerAlive, _KnowsWhichWorkerItIsTalkingTo, _WarmsUpAndSwapsAdapters, _ReasonsInLatentSpace, _RunsTheUnifiedRecurrentLane, _AsksWhatSheExpectsNext, _ReadsHerStatesAtATurn, _ReadsAhead):
     """
     Parent-process client for the isolated MLX worker.
     Manages the lifecycle, health, and communication with the ForkServer process.

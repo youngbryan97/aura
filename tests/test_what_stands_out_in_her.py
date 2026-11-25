@@ -81,6 +81,22 @@ def test_her_live_state_holds_the_machine_and_her_timing_whatever_the_turn(monke
         assert len(told) <= 2600
 
 
+def test_what_was_read_of_the_turn_says_whether_it_is_about_her_and_not_its_words(monkeypatch):
+    from core.self import how_she_does_it
+
+    usual = HerUsual()
+    monkeypatch.setattr(what_stands_out_in_her, "get_her_usual", lambda: usual)
+    compact = {"mind_snapshot": {f"z{n}": "x" * 60 for n in range(60)}}
+    said = {"user_message": "How deep would you go if I want frogs?"}
+    try:
+        how_she_does_it.hold_ways([])
+        assert cognitive_engine._her_live_mind(compact, said, limit=2600) == "{}"
+        how_she_does_it.hold_ways([how_she_does_it.HER_STATE])
+        assert len(cognitive_engine._her_live_mind(compact, said, limit=2600)) > 2000
+    finally:
+        how_she_does_it.hold_ways(None)
+
+
 def test_a_turn_about_something_else_is_given_no_more_room_than_a_question_on_her_condition(monkeypatch):
     usual = HerUsual()
     monkeypatch.setattr(what_stands_out_in_her, "get_her_usual", lambda: usual)

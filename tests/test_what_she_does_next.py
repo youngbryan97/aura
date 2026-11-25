@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from core.agency import her_own_time, what_she_could_do
+from core.agency.her_inquiries import Answered, NotNowError, Question
 from core.agency.her_own_time import HerOwnTime
 from core.agency.what_she_does_next import REST, CameOf, Option, WhatSheDoesNext
 
@@ -265,17 +266,25 @@ def test_a_thing_she_wants_is_looked_into_and_only_what_she_had_not_read_counts(
 
     monkeypatch.setattr(what_she_wants, "get_what_she_wants", lambda: Record())
     hers = _hers(tmp_path)
-    given = [{"ok": True, "summary": "They home.", "citations": [{"title": "Limpets", "url": "https://a.example"}, {"title": "More", "url": "https://b.example"}]}] * 2 + [{"ok": False, "error": "offline"}]
-    answers = iter(given)
+    stands = iter(["answered", "partly", "open", None])
 
-    async def search(words):
-        assert words == "limpets"
-        return next(answers)
+    async def looks(inquiry, seen):
+        assert inquiry.about == "limpets"
+        stood = next(stands)
+        if stood is None:
+            raise NotNowError("its lane is held")
+        question = Question("Where do limpets go?", "limpets homing", stood, "They home." if stood != "open" else "", "they home", "https://a.example" if stood != "open" else "")
+        inquiry.questions.append(question)
+        seen(["https://a.example", "https://b.example"])
+        return Answered(question, ("https://a.example", "https://b.example"))
 
-    (option,) = what_she_could_do.things_to_find_out(hers, search)
-    first, second, third = (asyncio.run(option.does()) for _ in range(3))
-    assert (first.got, second.got, third.got) == (1.0, 0.0, 0.0) and went == ["subject:limpets"] * 3 and failed == ["subject:limpets"]
-    assert len(hers.found) == 1 and hers.found[0]["where"] == "https://a.example" and option.known["new"] == 0.25
+    (option,) = what_she_could_do.things_to_find_out(hers, looks)
+    first, second, third, fourth = (asyncio.run(option.does()) for _ in range(4))
+    assert (first.got, second.got, third.got) == (1.0, 0.5, 0.0) and fourth.put_down
+    assert went == ["subject:limpets"] * 3 and failed == ["subject:limpets"], "what her model was away for is no failure of hers"
+    assert [f["where"] for f in hers.found] == ["https://a.example"] * 2 and hers.found[0]["about"] == "Where do limpets go?"
+    (again,) = what_she_could_do.things_to_find_out(hers, looks)
+    assert option.known["new"] == 0.25 and option.known["answered"] == 0.0 and again.known["answered"] == 0.5
 
 
 def test_what_somebody_asked_and_did_not_get_is_gone_on_with(tmp_path, monkeypatch):
@@ -398,9 +407,13 @@ def test_a_goal_is_done_by_what_it_asks_for(tmp_path, monkeypatch):
 
     hers, searched, done, worked = _hers(tmp_path), [], [], []
 
-    async def search(words):
-        searched.append(words)
-        return {"ok": True, "answer": "Shor's code, 1995, was the first.", "citations": [{"title": "History", "url": "https://example.org/qec"}]}
+    async def looks(inquiry, seen):
+        searched.append(inquiry.about)
+        if not inquiry.questions:
+            inquiry.questions += [Question("Which code was first?", "first quantum code"), Question("What did it correct?", "Shor code corrects")]
+        question = inquiry.next()
+        question.stands, question.answer, question.where = "answered", "Shor's code, 1995.", "https://example.org/qec"
+        return Answered(question, ("https://example.org/qec",))
 
     async def asks(goal):
         return {"Research how codes began": "known", "Make the recall faster": "program_changed", "A quiet moment": "talk"}.get(goal, "")
@@ -411,7 +424,7 @@ def test_a_goal_is_done_by_what_it_asks_for(tmp_path, monkeypatch):
                     {"id": "g3", "objective": "A quiet moment", "source": "executive_authority"}, {"id": "g4", "objective": "Maintain her", "source": "boot_default"}]
 
         async def update_goal_status(self, goal_id, **how):
-            done.append((goal_id, how["status"], list(how["evidence"])))
+            done.append((goal_id, how["status"], how["progress"], list(how["evidence"])))
 
     let_go = goals.GoalRecord(goal="Something let go", slug=goals.slug_of("Something let go"), steps=[{"result": "x"}])
     monkeypatch.setattr(goals, "all_records", lambda: [let_go])
@@ -422,10 +435,10 @@ def test_a_goal_is_done_by_what_it_asks_for(tmp_path, monkeypatch):
 
     monkeypatch.setattr(goals, "work_a_while", work)
     monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Engine() if name == "goal_engine" else hers if name == "her_own_time" else default))
-    what_she_could_do.begin_her_own_time(hers, carry_on=_nothing, search=search, tell=_nothing, here=lambda: 0.0, asks=asks)
+    what_she_could_do.begin_her_own_time(hers, carry_on=_nothing, looks=looks, tell=_nothing, here=lambda: 0.0, asks=asks)
 
     async def go():
-        options = {o.what: o for o in await what_she_could_do.goals_of_hers(hers, asks, search)}
+        options = {o.what: o for o in await what_she_could_do.goals_of_hers(hers, asks, looks)}
         assert sorted(o.kind for o in options.values()) == ["goal", "look_up"], "what asks for nothing is offered by nothing, and what was let go of is not under way"
         looked = await next(o for o in options.values() if o.kind == "look_up").does()
         further = await next(o for o in options.values() if o.kind == "goal").does()
@@ -433,6 +446,17 @@ def test_a_goal_is_done_by_what_it_asks_for(tmp_path, monkeypatch):
         return looked, further, as_task
 
     looked, further, as_task = asyncio.run(go())
-    assert looked.got == 1.0 and done[0] == ("g1", "completed", ["https://example.org/qec"]) and searched[0] == "Research how codes began"
+    assert looked.got == 1.0 and searched[0] == "Research how codes began"
+    assert done == [("g1", "in_progress", 0.5, ["https://example.org/qec"])], "one of the two things there were to find out is found out"
     assert further.got == pytest.approx(3 / goals.CALLS_A_PASS) and worked == ["Make the recall faster"]
-    assert "about Research how codes began" in as_task.summary, "the other way her goals are taken up does them the same way"
+    assert "What did it correct?" in as_task.summary, "the other way her goals are taken up does them the same way"
+
+
+def test_what_one_sort_of_act_comes_to_says_less_of_another_sort_than_of_its_own(tmp_path):
+    """LIVE 25 November 2026 one search that came to nothing took as much off every other sort of act."""
+    chooser = WhatSheDoesNext(tmp_path / "c.json", seed=4)
+    looked, told = Option("a", "find_out", "look", does=_nothing), Option("b", "tell", "tell", does=_nothing)
+    chooser.choose([looked, told])
+    _option, chosen = chooser.choose([looked])
+    chooser.learn(chosen, CameOf(got=0.0, what="nothing"))
+    assert chooser.expected(looked)[0] < 2.5 * chooser.expected(told)[0] < 0.0

@@ -29,7 +29,7 @@ from core.understanding.workbench import this_work
 
 logger = logging.getLogger("Aura.Understanding.Finding")
 
-__all__ = ["Found", "Judged", "Wanted", "both_ends", "figure_disagrees", "find", "quoted_in", "told", "wanted_by"]
+__all__ = ["Found", "Judged", "Wanted", "both_ends", "figure_disagrees", "find", "page_at", "quoted_in", "told", "wanted_by"]
 
 #: How much of a material and of a page one reading holds.
 MATERIAL_ROOM, PAGE_ROOM = 7000, 9000
@@ -188,7 +188,7 @@ async def _hits(queries: Sequence[str]) -> list[tuple[str, str, str]]:
     return list(found.values())
 
 
-async def _page(url: str) -> tuple[PageSays | None, str]:
+async def page_at(url: str) -> tuple[PageSays | None, str]:
     """The page at an address, and why not where it cannot be read. Rendered where a fetch holds none of it."""
     from core.runtime.reading_public_pages import ThroughHerGateway
     from core.search.research_pipeline import _HEADERS
@@ -301,7 +301,7 @@ async def _look_through(hits: Sequence[tuple[str, str, str]], search: _Search, g
         search.seen.add(key)
         if (work := this_work()) is not None:
             work.step(f"Reading {url[:110]}")
-        page, why = await _page(url)
+        page, why = await page_at(url)
         if page is None:
             search.dropped.append((url, why))
             continue

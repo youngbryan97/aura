@@ -62,3 +62,12 @@
 .tab-btn.wb-going { position: relative; } .tab-btn.wb-going::after { content: ""; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--aura-ok); animation: wb-beat 1.6s ease-in-out infinite; }
 @media (max-width: 1180px) { .wb-rail { display: none; } } @media (max-width: 780px) { .wb-wide .wb-canvas { display: none; } }
 @media (prefers-reduced-motion: reduce) { .wb *, .tab-btn.wb-going::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition: none !important; } .wb-spin { border-top-color: var(--wb-line); } }
+
+/* Her own time: what she does with nobody asking. There is nothing to say to it and nothing it is made of. */
+.wb-own .wb-foot, .wb-own .wb-tabs, .wb-own .wb-canvas, .wb-own .wb-latest, .wb-own .wb-top [data-do=hold], .wb-own .wb-top [data-do=open] { display: none; } .wb-own .wb-view { display: none; } .wb-own .wb-session { display: block; }
+.wb-works .wb-hers { margin-top: 10px; border-top: 1px solid var(--wb-line); border-radius: 0 0 8px 8px; }
+.wb-own-time { display: flex; flex-direction: column; gap: 8px; max-width: 760px; } .wb-own-time h3 { margin: 14px 0 2px; font-size: 12px; font-weight: 600; color: var(--aura-fg-mute); }
+.wb-own-now { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--wb-line); border-radius: 10px; background: var(--aura-card); } .wb-own-now > svg, .wb-own-now > .wb-spin { flex: none; margin-top: 2px; color: var(--aura-fg-mute); } .wb-own-now strong { font-weight: 550; overflow-wrap: anywhere; }
+.wb-own-time .wb-card > summary { position: relative; } .wb-own-time .wb-card > summary > .wb-meter { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0; height: 2px; } .wb-own-time .wb-card-in p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.wb-own-time .wb-checks li.open > svg { color: var(--aura-fg-mute); } .wb-own-time .wb-checks li.part > svg { opacity: .55; } .wb-answer { color: var(--aura-fg-dim); margin-top: 2px; overflow-wrap: anywhere; } .wb-answer a { color: var(--aura-accent); white-space: nowrap; }
+.wb-learned { border-collapse: collapse; font-size: 13px; } .wb-learned td { padding: 3px 18px 3px 0; color: var(--aura-fg-dim); } .wb-learned td:first-child { color: var(--aura-fg); } .wb-learned td:last-child { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }

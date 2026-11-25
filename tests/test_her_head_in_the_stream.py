@@ -59,11 +59,25 @@ def _plain(model, prompt, count, *, processors=None, cache=None):
                                              prompt_cache=cache, prefill_step_size=4)]
 
 
-def _with_head(model, head, prompt, count, *, processors=None, cache=None, tap=None):
+class _Always:
+    """A depth that is always the same, and what came of its passes."""
+
+    def __init__(self, depth):
+        self.depth, self.passes = depth, []
+
+    def next(self):
+        return self.depth
+
+    def came(self, depth, tokens, seconds):
+        self.passes.append((depth, tokens, seconds))
+
+
+def _with_head(model, head, prompt, count, *, processors=None, cache=None, tap=None, deep=1):
     from core.brain.llm.her_head_in_the_stream import head_generate_step
 
+    how_deep = deep if hasattr(deep, "next") else _Always(deep)
     out = list(head_generate_step(mx.array(prompt), model, head, max_tokens=count, logits_processors=processors,
-                                  prompt_cache=cache, prefill_step_size=4, tap=tap))
+                                  prompt_cache=cache, prefill_step_size=4, tap=tap, how_deep=how_deep))
     return [int(t) for t, _, _ in out], sum(1 for *_, drafted in out if drafted)
 
 
@@ -244,3 +258,73 @@ def test_in_her_heads_pass_every_position_is_steered_and_sampled():
     assert hook._completion_position_mask(pass_of_two) is not None  # a prompt: its last position alone
     with speaking_several():
         assert hook._completion_position_mask(pass_of_two) is None  # two spoken tokens: both
+
+
+@pytest.mark.parametrize("deep", [2, 3, 4])
+def test_however_many_her_head_drafts_the_tokens_are_the_same_and_so_is_what_her_processors_see(on_cpu, deep):
+    for seed in (0, 1, 2, 3):
+        model = _tiny(vocab=7, seed=seed)
+        assert _with_head(model, _head(model), PROMPT, 120, deep=deep)[0] == _plain(model, PROMPT, 120), seed
+        one, several = _Recording(), _Recording()
+        assert _with_head(model, _head(model), PROMPT, 60, processors=[several], deep=deep)[0] == _plain(model, PROMPT, 60, processors=[one]), seed
+        assert several.histories == one.histories[:len(several.histories)]
+
+
+def test_her_head_reads_what_was_said_and_not_what_it_drafted_from_its_own_output(on_cpu):
+    """Whatever it drafted on the way, what it drafts next is from the same hidden states."""
+    from core.brain.llm import her_head_in_the_stream as stream
+
+    class _Seen:
+        def __init__(self, head):
+            self.head, self.offsets = head, []
+
+        def __call__(self, hidden, embedded, cache):
+            out = self.head(hidden, embedded, cache)
+            self.offsets.append((int(hidden.shape[1]), cache.offset))
+            return out
+
+    model = _tiny(vocab=7, seed=2)
+    head = _head(model)
+    ends = []
+    for deep in (1, 3):
+        seen = _Seen(head)
+        list(stream.head_generate_step(mx.array(PROMPT), model, seen, max_tokens=40, prefill_step_size=4, how_deep=_Always(deep)))
+        ends.append(seen.offsets)
+    # It stands at what was said after each draft of a pass, however many more it drafted before they were let go of.
+    said = [offset for count, offset in ends[0]]
+    assert all(offset <= len(PROMPT) + 40 + 3 for _count, offset in ends[1]) and said[-1] <= len(PROMPT) + 40
+
+
+def test_passes_are_timed_by_how_many_were_drafted_and_not_by_what_is_done_with_each_token(on_cpu):
+    import time
+
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+
+    model, deep = _tiny(vocab=7, seed=0), _Always(2)
+    slow = 0.0
+    for _ in head_generate_step(mx.array(PROMPT), model, _head(model), max_tokens=30, prefill_step_size=4, how_deep=deep):
+        time.sleep(0.02)
+        slow += 0.02
+    assert deep.passes and all(depth == 2 for depth, _n, _s in deep.passes)
+    assert sum(seconds for *_ , seconds in deep.passes) < slow and sum(n for _d, n, _s in deep.passes) <= 30
+
+
+def test_the_depth_is_the_one_that_has_been_fastest():
+    from core.brain.llm.her_head_in_the_stream import HowDeep
+
+    def settles(seconds_for):
+        deep = HowDeep()
+        for _ in range(400):
+            depth = deep.next()
+            deep.came(depth, *seconds_for[depth])
+        return deep
+
+    # Two drafted come to 2.6 tokens in little more time; a third gains less than it takes.
+    faster = settles({1: (1.94, 0.090), 2: (2.6, 0.100), 3: (2.9, 0.130), 4: (3.0, 0.170)})
+    assert faster.fastest == 2 and "2: 26.0/s" in faster.says()
+    assert settles({1: (1.94, 0.090), 2: (2.0, 0.110), 3: (2.0, 0.130), 4: (2.0, 0.150)}).fastest == 1
+    # What was fastest stops being so when it is no longer.
+    for _ in range(600):
+        depth = faster.next()
+        faster.came(depth, *{1: (1.94, 0.080), 2: (1.9, 0.120), 3: (1.9, 0.140), 4: (1.9, 0.160)}[depth])
+    assert faster.fastest == 1

@@ -72,7 +72,7 @@ def test_a_turn_about_it_is_given_how_it_is_done(about):
 def test_what_a_turn_is_about_is_read_by_her_models_states_once(tmp_path, monkeypatch):
     """The same states are read for what a turn asks and for what it is about."""
     asked: list[list[str]] = []
-    kinds = {key: i for i, key in enumerate([NONE, *[way.key for way in how.WAYS]])}
+    kinds = {key: i for i, key in enumerate([NONE, *[way.key for way in how.WAYS], how.HER_STATE])}
     where = {}
 
     class Client:
@@ -120,3 +120,23 @@ def test_the_reading_is_taken_with_the_turn():
 
     source = inspect.getsource(chat_what_is_asked.read_what_this_turn_asks)
     assert "get_what_of_hers().read(" in source and "hold_ways(None)" in source
+
+
+def test_a_turn_about_how_she_is_is_one_of_the_kinds_and_is_no_way_of_hers():
+    kinds = {key for key, _said, _before in how.examples()}
+    assert how.HER_STATE in kinds and how.HER_STATE not in {way.key for way in how.WAYS}
+    assert how.about_her_state() is None
+    try:
+        how.hold_ways([how.HER_STATE])
+        assert how.about_her_state() is True and how.ways_about() == [] and how.how_she_does_it_block() == ""
+        how.hold_ways([])
+        assert how.about_her_state() is False
+    finally:
+        how.hold_ways(None)
+
+
+def test_the_same_words_are_about_her_or_not_by_what_came_before_them():
+    by_said: dict[str, set[str]] = {}
+    for key, said, _before in how.examples():
+        by_said.setdefault(said, set()).add(key)
+    assert by_said["and you?"] == {how.HER_STATE, ""}
