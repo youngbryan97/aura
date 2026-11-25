@@ -79,10 +79,11 @@ _EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1),
 #: misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board.
 SEEN_TO_BELIEVE = 3
 #: Which reading of a board's answers gathered what is kept: 2 since an answer is read from the board as it was, once
-#: it holds still (f60209bb0); 3 since a change of kind is learned only once a second look shows it. What an earlier
+#: it holds still (f60209bb0); 3 since a change of kind is learned only once a second look shows it; 4 since a take the
+#: game did not offer counts against taking that way only where nothing else explains it (e9745c00a). What an earlier
 #: reading gathered weighs as kept knowledge does when it comes back (core/runtime/what_she_learned.py,
 #: TRUST_CARRIED_OVER), once, the first time the record is read after.
-READING = 3
+READING = 4
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -281,6 +282,9 @@ class HowThePiecesMove:
     special_seen: dict[str, int] = field(default_factory=dict)
     #: Which reading gathered what is kept here (READING).
     read_by: int = READING
+    #: Takes counted as not offered by a reading before READING 4, to be read again against the answers kept once they
+    #: are attached (``withheld_takes_read_again``).
+    withheld_takes_unchecked: bool = field(default=False, repr=False, compare=False)
 
     def _saw_special(self, kind: str, sort: str) -> None:
         key = f"{kind}|{sort}"
@@ -1050,8 +1054,10 @@ class HowThePiecesMove:
             read_by = int(kept.get("read_by", 1))
             if read_by < 2:
                 learned._weighed_as_read_before_mending()
-            if read_by < READING:
+            if read_by < 3:
                 learned._unlisted_as_read_before_mending()
+            if read_by < 4:
+                learned.withheld_takes_unchecked = True
             learned.read_by = READING
             return learned
         except (KeyError, TypeError, ValueError) as why:
@@ -1095,6 +1101,59 @@ class HowThePiecesMove:
         self.special_seen = {k: less(v) for k, v in self.special_seen.items() if less(v) > 0}
         logger.info("what an earlier reading of this board gathered now weighs %.1f of itself; %d distance(s) it alone "
                     "held are let go", TRUST_CARRIED_OVER, dropped)
+
+    def withheld_takes_read_again(self) -> None:
+        """Takes an earlier reading counted as not offered, read again against the answers kept (``shown``): each way's
+        count stands as far as those answers, read as a take not offered is read now, bear it out, and the rest is let
+        go. Before READING 4 every take not offered counted against taking that way, those withheld because taking would
+        leave the kind the game keeps safe where it could be taken among them, and nothing kept tells the two apart but
+        the answers themselves. LIVE 24 November 2026 her royal kind was held never to take on its right from three
+        such takes, older than every answer kept; measured with true moves for that kind alone, its learned ways cost
+        her more against a stronger program than any other kind's (e9745c00a). What is let go and so is learned again
+        the next time a take that way is not offered with nothing to explain it."""
+        if not self.withheld_takes_unchecked or self.shown is None:
+            return
+        import copy
+
+        from core.agency.what_the_game_showed import _read
+
+        family = self.family()
+        again = copy.deepcopy(self)
+        again.shown = None
+        for ways in again.seen.values():
+            for way in ways.values():
+                way.would_not_take = 0
+        for answer in self.shown.offers:
+            try:
+                position = _read(answer["at"])
+            # not a failure: an answer kept by an older reader that cannot be read back bears out nothing.
+            except (KeyError, TypeError, ValueError):
+                continue
+            start = tuple(answer["from"])
+            if start not in position.cells or position.cells[start][0] != position.turn:
+                continue
+            again.offered(position, start, {tuple(sq) for sq in answer["to"]}, family=family)
+        for answer in self.shown.refusals:
+            try:
+                position = _read(answer["at"])
+            # not a failure: as above.
+            except (KeyError, TypeError, ValueError):
+                continue
+            start, end = tuple(answer["from"]), tuple(answer["to"])
+            if start not in position.cells:
+                continue
+            taken = end if end in position.cells and position.cells[end][0] != position.cells[start][0] else None
+            again.refused(position, Move(start, end, taken_at=taken), family=family)
+        let_go = 0
+        for kind, ways in self.seen.items():
+            for direction, way in ways.items():
+                borne_out = again.seen.get(kind, {}).get(direction)
+                kept = min(way.would_not_take, borne_out.would_not_take if borne_out is not None else 0)
+                let_go += way.would_not_take - kept
+                way.would_not_take = kept
+        self.withheld_takes_unchecked = False
+        logger.info("takes an earlier reading counted as not offered, read again against %d answers kept: %d let go",
+                    len(self.shown.offers) + len(self.shown.refusals), let_go)
 
     def _unlisted_as_read_before_mending(self) -> None:
         """What an earlier reading kept as a bare list with no count, of kinds a piece was read as having become: each

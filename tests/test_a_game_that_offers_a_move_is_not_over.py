@@ -211,3 +211,36 @@ def test_a_take_not_offered_where_it_would_leave_what_is_kept_safe_attacked_says
     before = rules.seen["K"][(0, 1)].would_not_take
     rules.offered(defended, E1, {(1, 3), (1, 4), (0, 3)}, family=rules.family())
     assert rules.seen["K"][(0, 1)].would_not_take == before
+
+
+def test_takes_an_earlier_reading_counted_as_not_offered_stand_as_far_as_the_answers_kept_bear_them_out() -> None:
+    """LIVE 24 November 2026 her royal kind was held never to take on its right from three takes an earlier reading
+    counted as not offered, older than every answer kept. Read again against what is kept: where the only take not
+    offered that way is explained by the square being defended, the count is let go; where one is not explained, as
+    much stands as the answers bear out."""
+    from core.agency.what_the_game_showed import WhatTheGameShowed
+
+    rules = _with_a_misread_way_up_the_file()
+    way = rules.seen["K"][(0, 1)]
+    way.took, way.would_not_take = 0, 3
+    assert any(step.offsets == ((0, 1),) and step.may == "moves" for step in rules.family().kinds["K"].steps)
+    held = rules.as_memory()
+    held["read_by"] = 3
+
+    defended = from_fen("5r1k/8/8/8/8/8/8/4Kp2 w - -")
+    learned = HowThePiecesMove.from_memory(held)
+    learned.shown = WhatTheGameShowed()
+    learned.shown.offered(defended, E1, {(1, 3), (1, 4), (0, 3)})
+    learned.withheld_takes_read_again()
+    assert learned.seen["K"][(0, 1)].would_not_take == 0
+    assert not any(step.offsets == ((0, 1),) and step.may == "moves" for step in learned.family().kinds["K"].steps)
+    learned.withheld_takes_read_again()  # once: the count is not read again
+    assert learned.read_by == 4 and not learned.withheld_takes_unchecked
+
+    undefended = from_fen("7k/8/8/8/8/8/8/4Kp2 w - -")
+    learned = HowThePiecesMove.from_memory(held)
+    learned.shown = WhatTheGameShowed()
+    learned.shown.offered(undefended, E1, {(1, 3), (1, 4), (1, 5), (0, 3)})
+    learned.withheld_takes_read_again()
+    assert learned.seen["K"][(0, 1)].would_not_take == 1
+    assert any(step.offsets == ((0, 1),) and step.may == "moves" for step in learned.family().kinds["K"].steps)
