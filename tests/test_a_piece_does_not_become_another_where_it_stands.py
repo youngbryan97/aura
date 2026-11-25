@@ -55,3 +55,15 @@ def test_a_board_of_two_sides_with_fewer_pieces_than_its_game_begins_with_is_not
     assert _fewer_than_it_begins_with(finished, learned)
     assert not _fewer_than_it_begins_with(dict(CHESS.start), learned)
     assert not _fewer_than_it_begins_with(finished, None), "with no record, any start is taken as one"
+
+
+def test_a_becoming_seen_once_does_not_make_a_mark_a_kind_its_side_holds() -> None:
+    """The glow round her royal piece, read once on a square a move had landed on, was counted as her royal kind
+    becoming the glow's look. Seen once, that becoming is no reason to read the glow as a piece's kind elsewhere."""
+    from core.agency.pieces_by_their_kind import Move
+
+    learned = _learned()
+    learned._becomes("K", Move((0, 6), (1, 7), becomes=GLOW), 1)
+    believed = {H2: (FIRST, "K"), E5: (SECOND, "N")}
+    shown = {H2: (FIRST, GLOW), G4: (SECOND, "N")}
+    assert _read_against(shown, believed, held=_held_by_each(learned), landed=G4)[H2] == (FIRST, None)

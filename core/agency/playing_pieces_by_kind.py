@@ -1773,8 +1773,22 @@ def _only_the_others(learned: HowThePiecesMove) -> dict[int, set[str]]:
 
 
 def _held_by_each(learned: HowThePiecesMove) -> dict[int, set[str]]:
-    """For each side, the kinds it has held: those it began with, and what they are held to become."""
-    return {FIRST: learned.kinds_of(FIRST), SECOND: learned.kinds_of(SECOND)}
+    """For each side, the kinds it has surely held: those it began with, and what they were seen to become as often
+    as a way is believed on. A becoming seen once may be the very mark this tells apart from a piece: LIVE 25 November
+    2026 the glow round her royal piece, read once on a square a move had landed on, was counted as her royal kind
+    becoming the glow's look, and would have let the glow through again."""
+    from core.agency.how_the_pieces_move import SEEN_TO_BELIEVE
+
+    held = {}
+    for side in (FIRST, SECOND):
+        kinds = {kind for owner, kind in learned.start.values() if owner == side}
+        more = set(kinds)
+        while more:
+            more = {other for kind in more for other, seen in learned.became.get(kind, {}).items()
+                    if seen >= SEEN_TO_BELIEVE} - kinds
+            kinds |= more
+        held[side] = kinds
+    return held
 
 
 def _without_marks_where_nothing_stood(shown: dict, believed: dict) -> dict:
