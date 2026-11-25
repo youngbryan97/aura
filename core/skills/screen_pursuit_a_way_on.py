@@ -177,7 +177,9 @@ async def _its_own_pixels_read(target_app: str) -> dict[str, Any] | None:
         # Fractions of the picture, top-left, as every reading gives them.
         layout.append({"text": region.get("text", ""), "center_x": x / wide if x > 1.5 else x,
                        "center_y": y / tall if y > 1.5 else y})
-    return {"ok": True, "layout": layout, "bounds": list(window.bounds)} if layout else None
+    return {
+        "ok": True, "layout": layout, "bounds": list(window.bounds), "window_number": window.number,
+    } if layout else None
 
 
 async def _her_understanding(target_app: str, act: str, texts: list[str]) -> int | None:
@@ -213,19 +215,69 @@ async def _her_understanding(target_app: str, act: str, texts: list[str]) -> int
     return named.index(pressed)
 
 
+def _press_native_button(window_number: int, target_app: str, bounds: list[int], region: dict[str, Any]) -> bool:
+    """Activate the native button under a visible label from the same window."""
+    from core.capabilities import window_server
+
+    try:
+        from ApplicationServices import AXUIElementCopyElementAtPosition, AXUIElementCreateApplication
+
+        from .their_player import _read, press
+
+        window = window_server.window_of(target_app, on_screen_only=True)
+        if window is None or window.number != window_number or tuple(bounds) != window.bounds:
+            return False
+        left, top, width, height = window.bounds
+        x, y = region["x"], region["y"]
+        if not (0 <= x < 1 and 0 <= y < 1):
+            return False
+        root = AXUIElementCreateApplication(window.pid)
+        error, element = AXUIElementCopyElementAtPosition(root, left + x * width, top + y * height, None)
+        if error or element is None or _read(element, "AXRole") != "AXButton":
+            return False
+        label = " ".join(region["text"].split()).casefold()
+        if not any(
+            " ".join(str(_read(element, name) or "").split()).casefold() == label
+            for name in ("AXTitle", "AXDescription")
+        ):
+            return False
+        if not _read(element, "AXEnabled") or window_server.front_owner() != window.owner:
+            return False
+        return press(element)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("native button press unavailable: %s", type(exc).__name__)
+        return False
+
+
+async def _touch_control(region: dict[str, Any], reading: dict[str, Any], target_app: str, *, retry: bool) -> bool:
+    import asyncio
+
+    from core.runtime.proof_policy import proof_run_active
+
+    from .screen_pursuit_surface import click_normalized
+
+    bounds = list(reading.get("bounds") or [])
+    window = reading.get("window_number")
+    if retry and window and not proof_run_active():
+        if await asyncio.to_thread(_press_native_button, window, target_app, bounds, region):
+            return True
+    return await click_normalized(region["x"], region["y"], expect_app=target_app, bounds=bounds)
+
+
 async def _pressed(region: dict[str, Any], before: list[dict[str, Any]], target_app: str, reading: dict[str, Any],
                    keep: dict[str, Any], read_screen: Any, from_a_window: bool) -> bool:
     """Press one label and see whether the screen changed for it."""
     import asyncio
 
     from .screen_pursuit import _tell
-    from .screen_pursuit_surface import click_normalized
-
-    keep.setdefault("ways_on_taken", []).append(region["text"])
-    await click_normalized(region["x"], region["y"], expect_app=target_app, bounds=list(reading.get("bounds") or []))
+    taken = keep.setdefault("ways_on_taken", [])
+    retry = region["text"] in taken
+    taken.append(region["text"])
+    if not await _touch_control(region, reading, target_app, retry=retry):
+        return False
     await asyncio.sleep(SHOWS_IN_S)
-    after = _regions(await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {})
-    if _the_words_differ(before, after):
+    after = await _a_reading(read_screen, target_app, from_a_window=from_a_window)
+    if after and after.get("ok") is not False and _the_words_differ(before, _regions(after)):
         _tell(f"I pressed \"{region['text']}\": it's the next step here toward what you asked.")
         return True
     return False
@@ -294,8 +346,6 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
 
     from core.language.learned_matcher import embed_sentences
 
-    from .screen_pursuit_surface import click_normalized
-
     regions = _regions(reading)
     if len(regions) < 3:
         return False
@@ -357,8 +407,9 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
             return False
         return await _pressed(labels[picked], regions, target_app, reading, keep, read_screen, from_a_window)
     control = controls[chosen]
-    taken.append(" / ".join(r["text"] for r in control))
-    bounds = list(reading.get("bounds") or [])
+    control_label = " / ".join(r["text"] for r in control)
+    retry = control_label in taken
+    taken.append(control_label)
     logger.info("a way on in %r by what it means: %r for %r (%.2f, next %.2f)", target_app, texts[chosen][:80],
                 acts[act][:60], scores[chosen], sorted(scores)[-2])
     from .screen_pursuit import _tell
@@ -373,10 +424,13 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
         closeness = near[1:] @ near[0]
         order = [control[i] for i in np.argsort(-closeness)]
     for region in order:
-        await click_normalized(region["x"], region["y"], expect_app=target_app, bounds=bounds)
+        if not await _touch_control(region, reading, target_app, retry=retry):
+            continue
         await asyncio.sleep(SHOWS_IN_S)
-        after = _regions(await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {})
-        if _the_words_differ(regions, after):
+        after = await _a_reading(read_screen, target_app, from_a_window=from_a_window)
+        if not after or after.get("ok") is False:
+            return False
+        if _the_words_differ(regions, _regions(after)):
             _tell(f"I pressed \"{region['text']}\": it's the nearest thing here to what you asked.")
             return True
     return False

@@ -165,3 +165,56 @@ def test_where_the_way_on_does_not_answer_the_next_best_is_not_pressed(monkeypat
         assert not asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
     assert pressed and all(text.startswith("Play") for text in pressed), pressed
     assert keep["ways_on_taken"].count(keep["ways_on_taken"][0]) == way_on.PRESSES_OF_A_WAY_ON
+
+
+def test_a_retry_uses_the_matching_native_control_when_the_pointer_did_not_change_the_view(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+
+    from core.capabilities import window_server
+    from core.skills import their_player
+
+    receipt = []
+    window = SimpleNamespace(number=7, owner="Example", pid=5, bounds=(32, 48, 800, 600))
+    element = {"AXRole": "AXButton", "AXTitle": "Continue", "AXEnabled": True}
+
+    def hit_test(pid, x, y, out):
+        assert (pid, x, y) == (5, 432, 348)
+        return 0, element
+
+    monkeypatch.setitem(sys.modules, "ApplicationServices", SimpleNamespace(
+        AXUIElementCopyElementAtPosition=hit_test, AXUIElementCreateApplication=lambda pid: pid,
+    ))
+    monkeypatch.setattr(window_server, "window_of", lambda *args, **kwargs: window)
+    monkeypatch.setattr(window_server, "front_owner", lambda: window.owner)
+    monkeypatch.setattr(their_player, "_read", lambda node, name: node.get(name))
+    monkeypatch.setattr(their_player, "press", lambda node: receipt.append("native") or True)
+
+    async def pointer(*args, **kwargs):
+        receipt.append("pointer")
+        return True
+
+    monkeypatch.setattr(surface, "click_normalized", pointer)
+    region = {"x": 0.5, "y": 0.5, "text": "Continue"}
+    reading = {"window_number": 7, "bounds": window.bounds}
+
+    assert asyncio.run(way_on._touch_control(region, reading, "Example", retry=False))
+    assert asyncio.run(way_on._touch_control(region, reading, "Example", retry=True))
+    element["AXRole"] = "AXStaticText"
+    assert asyncio.run(way_on._touch_control(region, reading, "Example", retry=True))
+    assert receipt == ["pointer", "native", "pointer"]
+
+
+def test_a_missing_read_after_a_press_cannot_verify_a_change(monkeypatch):
+    async def touch(*args, **kwargs):
+        return True
+
+    async def lost_read(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(way_on, "_touch_control", touch)
+    monkeypatch.setattr(way_on, "_a_reading", lost_read)
+    monkeypatch.setattr(way_on, "SHOWS_IN_S", 0.0)
+    region = {"x": 0.5, "y": 0.5, "text": "Continue"}
+
+    assert not asyncio.run(way_on._pressed(region, [region], "Example", {}, {}, None, True))
