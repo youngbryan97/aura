@@ -26,6 +26,8 @@ __all__ = ["as_data", "by_her", "colour_word", "icon_at", "paint", "taken_from_i
 
 #: Paint: (what is seen, width, height, seed) -> the file it is in, or None.
 Paints = Callable[[str, int, int, int], Awaitable[Path | None]]
+#: The one thing a program would be known by, other than what it was tried as already; "" where there is none to be had.
+KnownBy = Callable[[list[str]], Awaitable[str]]
 
 #: How many are painted of each kind before the best of them is used, and how big each is.
 OF_EACH = {"icon": 3, "backdrop": 1, "thing": 3}
@@ -34,6 +36,10 @@ SIZE = {"icon": (512, 512), "backdrop": (896, 560), "thing": (512, 512)}
 KEPT = {"backdrop": 960, "thing": 256}
 #: How long one picture is waited for, in seconds: the first has the model to load.
 A_PICTURE_S = 240.0
+#: How many things an icon is tried as: the one it was designed with, and what it is known by where that does not come.
+THINGS = 3
+#: How many lines of lettering a picture has before it is a picture of writing, and how many letters a line has.
+LINES, LETTERS = 2, 3
 
 _COLOURS = {"white": (0.97, 0.97, 0.97), "black": (0.06, 0.06, 0.06), "grey": (0.5, 0.5, 0.5), "red": (0.85, 0.16, 0.16), "orange": (0.95, 0.5, 0.12),
             "amber": (0.98, 0.72, 0.2), "yellow": (0.98, 0.9, 0.25), "lime": (0.6, 0.85, 0.2), "green": (0.2, 0.65, 0.3), "mint": (0.6, 0.92, 0.75),
@@ -79,35 +85,57 @@ async def by_her(seen: str, width: int, height: int, seed: int) -> Path | None:
     return path
 
 
-async def paint(design: Design, folder: Path, work: Work, *, paints: Paints = by_her, others: Iterable[Path] = ()) -> list[str]:
-    """Paint what the design has pictures of, into its folder; the names of those there are now."""
+async def paint(design: Design, folder: Path, work: Work, *, paints: Paints = by_her, others: Iterable[Path] = (), known_by: KnownBy | None = None) -> list[str]:
+    """Paint what the design has pictures of, into its folder; the names of those there are now.
+
+    An icon is of one thing. LIVE 25 November 2026 an app was designed with none, and was painted as how it looks: a screen of
+    it, in letters nobody can read, three times over, and the one that stood apart best was kept. Where nothing is designed for
+    it to be known by, or what is comes out as writing, her model says one thing it would be known by, and that is painted."""
     done: list[str] = []
+    others = list(others)
     for n, picture in enumerate(design.pictures):
-        if await asyncio.to_thread(_file_of(folder, picture).is_file):
+        held = _file_of(folder, picture)
+        if await asyncio.to_thread(held.is_file) and not (picture.kind == "icon" and await asyncio.to_thread(_is_writing, held)):
             done.append(picture.name)
             continue
-        best: tuple[float, Any] | None = None
-        for k in range(OF_EACH[picture.kind]):
-            width, height = SIZE[picture.kind]
-            try:
-                path = await asyncio.wait_for(paints(_seen(picture, design), width, height, 1 + 97 * n + 13 * k), timeout=A_PICTURE_S)
-            except TimeoutError:
-                path = None
-            if path is None:
+        best, tried = None, [picture.shows] if picture.shows.strip() else []
+        for again in range(THINGS if picture.kind == "icon" else 1):
+            if again or not picture.shows.strip():
+                thing = (await known_by(list(tried))).strip() if known_by is not None else ""
+                if not thing or thing in tried:
+                    break
+                tried.append(thing)
+                picture.shows = thing[:200]
+            best = await _best_of(picture, design, paints, others, seeds=[1 + 97 * n + 13 * k + 31 * again for k in range(OF_EACH[picture.kind])])
+            if best is not None:
                 break
-            try:
-                got = await asyncio.to_thread(_judged, path, picture.kind, list(others))
-            except (OSError, ValueError) as exc:
-                logger.info("A picture could not be read: %s", exc)
-                continue
-            if got is not None and (best is None or got[0] > best[0]):
-                best = got
         if best is None:
             continue
         await asyncio.to_thread(_kept, best[1], picture, folder)
         done.append(picture.name)
         work.painted("icon" if picture.kind == "icon" else picture.name, picture.shows)
     return done
+
+
+async def _best_of(picture: Picture, design: Design, paints: Paints, others: list[Path], *, seeds: list[int]) -> tuple[float, Any] | None:
+    """The best of a few paintings of one picture, and how good it is; None where none will do."""
+    best: tuple[float, Any] | None = None
+    for seed in seeds:
+        width, height = SIZE[picture.kind]
+        try:
+            path = await asyncio.wait_for(paints(_seen(picture, design), width, height, seed), timeout=A_PICTURE_S)
+        except TimeoutError:
+            path = None
+        if path is None:
+            break
+        try:
+            got = await asyncio.to_thread(_judged, path, picture.kind, others)
+        except (OSError, ValueError) as exc:
+            logger.info("A picture could not be read: %s", exc)
+            continue
+        if got is not None and (best is None or got[0] > best[0]):
+            best = got
+    return best
 
 
 def _file_of(folder: Path, picture: Picture) -> Path:
@@ -134,10 +162,28 @@ def _judged(path: Path, kind: str, others: list[Path]) -> tuple[float, Any] | No
     with Image.open(path) as opened:
         image = opened.convert("RGB")
     if kind == "icon":
-        return _reads_small(image) * _stands_apart(image, others), image
+        lines = _lines_of_lettering(path)
+        # What is lettered is less of one thing, and what is mostly letters is a picture of writing.
+        return None if lines >= LINES else (_reads_small(image) * _stands_apart(image, others) / (1 + lines), image)
     if kind == "backdrop":
         return 1.0, image
     return taken_from_its_ground(image)
+
+
+def _lines_of_lettering(path: Path) -> int:
+    """How many lines of lettering a picture has, read by the Mac's own reader whether they say anything or not; none where there
+    is no reader."""
+    from core.perception.words_on_screen import words_in
+
+    return sum(1 for line in words_in(path.read_bytes(), least_confidence=0.0) if sum(c.isalpha() for c in line) >= LETTERS)
+
+
+def _is_writing(path: Path) -> bool:
+    try:
+        return _lines_of_lettering(path) >= LINES
+    # not a failure: a picture that cannot be read is left as it is.
+    except (OSError, ValueError, RuntimeError):
+        return False
 
 
 def _reads_small(image: Any) -> float:

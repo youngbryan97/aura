@@ -271,3 +271,95 @@ def test_what_a_test_made_for_itself_breaking_is_the_tests_own(tmp_path):
     by = {r.name: r for r in trial.rules}
     assert next(r for name, r in by.items() if name.startswith("The total is the sum")).ok
     assert not by["Its own"].ok and by["Its own"].the_test
+
+
+# ── what a test put in, and what the program shows ───────────────────
+
+DIARY = '''({
+  initial() { return { kept: [], form: { what: "", least: 0 }, at: null, said: "" }; },
+  update(s, e) {
+    if (e.type === "input") return { ...s, form: { ...s.form, [e.name]: e.value } };
+    if (e.type === "do") {
+      if (e.name === "save") {
+        if (!(s.form.least > 0)) return { ...s, said: "Not a number of minutes" };
+        const one = { what: s.form.what, least: s.form.least };
+        const kept = s.at === null ? [...s.kept, one] : s.kept.map((x, i) => (i === s.at ? one : x));
+        return { ...s, kept, at: null, said: "", form: { what: "", least: 0 } };
+      }
+      if (e.name === "edit") return { ...s, at: e.value, form: { ...s.kept[e.value] } };
+    }
+    return s;
+  },
+  view(s, ui) {
+    return ui.column(ui.title("Diary"), ui.card(ui.title("Add a line"), ui.input("What", "what", s.form.what), ui.number("Minutes", "least", s.form.least), ui.button("Save", "save")), ui.text(s.said),
+      ui.list(s.kept, (x, i) => ui.row(ui.text(x.what + " " + x.least), ui.button("Edit", "edit", i))));
+  },
+})'''
+DIARY_STATE = {"kept": [{"what": "Walk", "least": 20}], "form": {"what": "", "least": 0}, "at": None, "said": ""}
+DIARY_TESTS = '''test("What is not a number of minutes is not kept", t => { t.type("What", "Swim far"); t.type("Minutes", -3); t.click("Save"); t.expect(t.sees("Not a number"), "nothing is said"); t.expect(!t.sees("Swim far"), "it was kept"); });
+test("What is changed is shown as it is now", t => { t.type("What", "Walk"); t.type("Minutes", 20); t.click("Save"); t.click("Edit"); t.type("What", "A long walk"); t.click("Save"); t.expect(t.sees("A long walk 20"), "it is not changed"); t.expect(!t.sees("Walk"), "the old one is still there"); });
+test("What is put in a field by the program is seen there", t => { t.type("What", "Read"); t.type("Minutes", 5); t.click("Save"); t.click("Edit"); t.expect(!t.sees("Read"), "the field is filled"); });'''
+
+
+def test_what_a_test_put_in_itself_is_not_the_program_showing_it(tmp_path):
+    """LIVE 25 November 2026: "Invalid expense should not be saved" failed for what the test had typed, still in its field; and "Old
+    description should be replaced" for "Groceries" in "Supermarket Groceries"."""
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE), DIARY, tests=DIARY_TESTS), tmp_path / "t.html", browser)
+
+    by = {r.name: r for r in _in_a_browser(run).rules}
+    assert by["What is not a number of minutes is not kept"].ok, by["What is not a number of minutes is not kept"].why
+    assert by["What is changed is shown as it is now"].ok, by["What is changed is shown as it is now"].why
+    assert not by["What is put in a field by the program is seen there"].ok, "what the program put there is shown by it"
+
+
+def test_a_program_that_does_keep_what_it_should_not_is_still_caught(tmp_path):
+    for wrong in (DIARY.replace('if (!(s.form.least > 0)) return { ...s, said: "Not a number of minutes" };', 'const said = s.form.least > 0 ? "" : "Not a number of minutes";').replace('at: null, said: "", form', "at: null, said, form"),
+                  DIARY.replace("const kept = s.at === null ? [...s.kept, one] : s.kept.map((x, i) => (i === s.at ? one : x));", "const kept = [...s.kept, one];")):
+        assert wrong != DIARY
+
+        async def run(browser, wrong=wrong):
+            return await try_page(page_of(_design(name="Diary", state=DIARY_STATE), wrong, tests=DIARY_TESTS), tmp_path / "t.html", browser)
+
+        assert any(not r.ok for r in _in_a_browser(run).rules[:2])
+
+
+def test_several_controls_of_one_name_are_taken_as_somebody_would_take_them(tmp_path):
+    """LIVE 25 November 2026 three people put in the rows of a list, a row at a time, were each put over the one before."""
+    code = assembled(patched({}, SHARED.replace('if (e.type === "input") {', 'if (e.type === "input") { const at = /^share_(who|part)_(\\d+)$/.exec(e.name); if (at) return { ...s, form: { ...s.form, shares: s.form.shares.map((x, i) => (i === Number(at[2]) ? { ...x, [at[1]]: e.value } : x)) } };'))[0])
+    tests = '''test("Each in a row of its own", t => { t.choose("Paid by", "Ana"); t.type("Amount", 30); for (const [who, part] of [["Ana", 5], ["Ben", 10], ["Cy", 15]]) { t.click("Add a sharer"); t.choose("Sharer", who); t.type("Part", part); } t.click("Save"); t.expect(t.sees("Ana paid 30 for Ana 5, Ben 10, Cy 15"), "it shows " + t.shown); });
+test("And again after they were let go", t => { for (const who of ["Ana", "Ben"]) { t.choose("Paid by", "Cy"); t.type("Amount", 12); t.click("Add a sharer"); t.choose("Sharer", who); t.type("Part", 12); t.click("Save"); } t.expect(t.sees("for Ana 12") && t.sees("for Ben 12"), "it shows " + t.shown); });'''
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Shared", state=SHARED_STATE), code, tests=tests), tmp_path / "t.html", browser)
+
+    assert [(r.name, r.why[:160]) for r in _in_a_browser(run).rules if not r.ok] == []
+
+
+def test_a_part_of_the_design_is_there_by_its_title(tmp_path):
+    async def run(browser, controls):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE, controls=controls), DIARY, tests=""), tmp_path / "t.html", browser)
+
+    def said(*names):
+        trial = _in_a_browser(lambda browser: run(browser, [{"input": name, "does": "x"} for name in names]))
+        return next(r for r in trial.generic if r.name == "the controls it was designed with are there")
+
+    assert said("What", "Save", "Add a line").ok, "a title over what it is worked by"
+    missing = said("Save", "Send to somebody", "Diary of it")
+    assert not missing.ok and "“Send to somebody”" in missing.why and "“Diary of it”" in missing.why
+
+
+def test_what_is_named_more_fully_than_it_is_called_is_the_one_that_has_just_come(tmp_path):
+    """LIVE 25 November 2026 a test confirmed a deletion by "confirm delete", and what asked was called Confirm."""
+    asking = DIARY.replace('if (e.name === "edit")', 'if (e.name === "drop") return { ...s, at: e.value, said: "Sure?" }; if (e.name === "yes") return { ...s, kept: s.kept.filter((x, i) => i !== s.at), at: null, said: "" }; if (e.name === "edit")').replace(
+        'ui.button("Edit", "edit", i)', 'ui.button("Edit", "edit", i), ui.button("Delete", "drop", i)').replace("ui.text(s.said),", 'ui.text(s.said), s.said === "Sure?" ? ui.row(ui.button("Confirm", "yes"), ui.button("Cancel", "no")) : "",')
+    tests = '''test("What is deleted is gone", t => { t.type("What", "Walk"); t.type("Minutes", 20); t.click("Save"); t.click("Delete"); t.click("confirm delete"); t.expect(t.s.kept.length === 0, "it is still there"); });
+test("What is nowhere is nowhere", t => { t.click("send it away"); });'''
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE), asking, tests=tests), tmp_path / "t.html", browser)
+
+    by = {r.name: r for r in _in_a_browser(run).rules}
+    assert by["What is deleted is gone"].ok, by["What is deleted is gone"].why
+    assert not by["What is nowhere is nowhere"].ok

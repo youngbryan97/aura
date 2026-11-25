@@ -48,6 +48,10 @@ SHARED = UNSURE / 4.0
 KEEPS = 0.995
 #: How many choices are kept with their grounds.
 KEPT = 400
+#: How much an outcome still counts once the way such an act is done has changed: it may have been the way that failed, and
+#: what is left of it is what does not turn on the way. LIVE 25 November 2026 nine acts that came to nothing, done by what has
+#: since been mended, had her expect nothing of anything, and rest.
+DONE_ANOTHER_WAY = 0.25
 
 REST = "rest"
 
@@ -92,6 +96,8 @@ class Option:
     does: Callable[[], Awaitable[CameOf]] | None = field(default=None, compare=False, repr=False)
     #: Whether it is owed to somebody and comes before what is chosen.
     owed: bool = False
+    #: How such an act is done now, as a mark that is another one when that changes; "" where it is not told.
+    way: str = ""
 
     def features(self) -> dict[str, float]:
         """What of it what it is worth is learned from."""
@@ -123,6 +129,7 @@ class Chosen:
     features: dict[str, float] = field(default_factory=dict)
     came: dict[str, Any] = field(default_factory=dict)
     reward: float | None = None
+    way: str = ""
 
     def says(self) -> str:
         """The grounds in a sentence, from what was measured."""
@@ -148,6 +155,8 @@ class WhatSheDoesNext:
         self._pulled = np.zeros(0)
         self._rng = np.random.default_rng(seed)
         self._choices: deque[Chosen] = deque(maxlen=KEPT)
+        #: How each sort of act was done when it was last chosen among.
+        self._ways: dict[str, str] = {}
         self._done = 0
         self._loaded = path is not None and not Path(path).is_file()
 
@@ -199,12 +208,31 @@ class WhatSheDoesNext:
         if chosen.kind != REST:
             with self._lock:
                 self._load()
-                x = self._vector(chosen.features, grow=True)
-                # What was learned before counts for a little less, and never for less than was known at the start.
-                self._precision = KEEPS * self._precision + (1.0 - KEEPS) * self._at_the_start() + np.outer(x, x) / NOISE
-                self._pulled = KEEPS * self._pulled + x * reward / NOISE
+                self._weigh(chosen.features, reward, 1.0)
                 self._done += 1
         return reward
+
+    def _weigh(self, features: Mapping[str, float], reward: float, counts: float) -> None:
+        """One outcome, into what acts are expected to be worth, as much as it counts."""
+        x = self._vector(features, grow=True)
+        # What was learned before counts for a little less, and never for less than was known at the start.
+        self._precision = KEEPS * self._precision + (1.0 - KEEPS) * self._at_the_start() + counts * np.outer(x, x) / NOISE
+        self._pulled = KEEPS * self._pulled + counts * x * reward / NOISE
+
+    def _as_they_are_done_now(self, options: Iterable[Option]) -> None:
+        """Where the way a sort of act is done has changed, what it is expected to be worth is taken again from the outcomes kept,
+        those of another way counting for less."""
+        now = {option.kind: option.way for option in options if option.way}
+        changed = sorted(kind for kind, way in now.items() if self._ways.get(kind) != way)
+        if not changed:
+            return
+        self._ways.update(now)
+        self._names, self._precision, self._pulled = {}, np.zeros((0, 0)), np.zeros(0)
+        for chosen in self._choices:
+            if chosen.reward is not None and chosen.kind != REST and chosen.features:
+                same = self._ways.get(chosen.kind, chosen.way) == chosen.way
+                self._weigh(chosen.features, chosen.reward, 1.0 if same else DONE_ANOTHER_WAY)
+        logger.info("🧭 Done another way than when she last chose: %s; what came of it before counts for less.", ", ".join(changed))
 
     # ── choosing ─────────────────────────────────────────────────────
 
@@ -218,6 +246,7 @@ class WhatSheDoesNext:
         rows: list[tuple[float, float, float, Option]] = []
         with self._lock:
             self._load()
+            self._as_they_are_done_now(held)
             for option in held:
                 self._vector(option.features(), grow=True)
             mean, spread = self._posterior()
@@ -231,7 +260,7 @@ class WhatSheDoesNext:
             counted = sorted(((name, float(x[at] * mean[at])) for name, at in self._names.items() if x[at]), key=lambda one: -abs(one[1]))[:6]
         chosen = Chosen(time.time(), best.id, best.kind, best.what, best.why, expected, unsure, drawn,
                         over=[{"id": o.id, "kind": o.kind, "what": o.what, "expected": round(e, 3), "unsure": round(u, 3), "drawn": round(d, 3)} for d, e, u, o in rows[1:7]],
-                        counted=[(name, round(value, 3)) for name, value in counted], features=best.features())
+                        counted=[(name, round(value, 3)) for name, value in counted], features=best.features(), way=best.way)
         # What has never been done is expected to come to nothing in particular, and is found out by doing it.
         if drawn <= 0.0 and expected < 0.0 and not best.owed:
             logger.info("🧭 She rests: the best of %d things to do, %s, would come to %+.2f.", len(held), best.what[:80], drawn)
@@ -290,6 +319,7 @@ class WhatSheDoesNext:
                 raise ValueError("what was kept does not fit together")
             self._names, self._precision, self._pulled = {name: i for i, name in enumerate(names)}, precision, pulled
             self._done = int(kept.get("done") or 0)
+            self._ways = {str(kind): str(way) for kind, way in dict(kept.get("ways") or {}).items()}
             for row in kept.get("choices") or []:
                 row["counted"] = [tuple(one) for one in row.get("counted") or ()]
                 self._choices.append(Chosen(**row))
@@ -301,7 +331,7 @@ class WhatSheDoesNext:
         from core.rebuilding.her_build_writes import governed
 
         with self._lock:
-            kept = {"names": list(self._names), "precision": np.round(self._precision, 9).tolist(), "pulled": np.round(self._pulled, 9).tolist(), "done": self._done,
+            kept = {"names": list(self._names), "precision": np.round(self._precision, 9).tolist(), "pulled": np.round(self._pulled, 9).tolist(), "done": self._done, "ways": self._ways,
                     "choices": [asdict(c) for c in self._choices]}
         governed("ensure_directory", self._where().parent, source="agency.what_she_does_next")
         governed("write_text", self._where(), json.dumps(kept, ensure_ascii=False), source="agency.what_she_does_next")

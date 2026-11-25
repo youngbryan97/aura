@@ -49,6 +49,11 @@ class Result:
     got: int = 0
 
 
+#: What nothing runs without.
+CANNOT_DO_WITHOUT = frozenset({"it can be read", "it has its functions", "it can be tried", "it comes to an end", "it begins", "it is drawn",
+                               "it is shown", "it builds"})
+
+
 @dataclass
 class Trial:
     generic: list[Result] = field(default_factory=list)
@@ -63,6 +68,10 @@ class Trial:
 
     def passing(self) -> list[Result]:
         return [r for r in [*self.generic, *self.rules] if r.ok]
+
+    def breaks(self) -> list[Result]:
+        """What it fails that nothing runs without."""
+        return [r for r in self.generic if not r.ok and r.name in CANNOT_DO_WITHOUT]
 
 
 def rule_of(name: str) -> str:
@@ -92,10 +101,15 @@ def as_object(code: str) -> str:
     return f"(() => {{ return ({code or '{}'}); }})()"
 
 
+#: What a test says is not seen.
+_NOT_SEEN = re.compile(r"!\s*(\w+)\.sees\(")
+
+
 def _tests_apart(tests: str) -> list[str]:
-    """Each test in a script of its own, so that one that cannot be read is one that cannot be read."""
+    """Each test in a script of its own, so that one that cannot be read is one that cannot be read. What it says is not seen is
+    asked as that, which takes what the test itself put in a control for what the test put there."""
     before, found = each_test_in(tests)
-    return [*([before] if before.strip() else []), *(text + ";" for _name, text in found)]
+    return [*([before] if before.strip() else []), *(_NOT_SEEN.sub(r"\1.unseen(", text) + ";" for _name, text in found)]
 
 
 def _script(body: str) -> str:

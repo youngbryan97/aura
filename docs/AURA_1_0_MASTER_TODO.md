@@ -8482,6 +8482,13 @@ needs her 27B free (her app down, or her app's own influence trials).
     now. No picture had ever been kept: the write it was kept by was not there (`tests/test_her_build_writes.py`).
   - 24 November, night: the search is for Python tools too (`searching_python.py`): the candidates of every repair module
     she has, thousands of them, tried in one process. 10 planted mistakes of 10 are put right with no model.
+  - 25 November, 07:35, live: the flat-sharing app ended at 38 of 43, from 22 of 42, with no word of anybody's. Of the five that
+    failed, four were the tests': what a test had typed, still in its field, was taken for the program showing it; an old name
+    was found in the new one it is part of; three people put in the rows of a list were each put over the one before; and a
+    "confirm delete" that says Confirm was not there to press. A test asks what a person would see and does what a person would
+    do of each now (`tests/test_many_ways.py`), and the same program is 47 of 50. Its icon was a picture of its own screen in
+    letters nobody can read: an icon is of one thing, and a picture of writing is painted again
+    (`tests/test_the_pictures_she_paints.py`). What runs is not put out by a change that does not.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
@@ -8506,6 +8513,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     questions are (`core/agency/her_inquiries.py`, `tests/test_her_inquiries.py`). What one sort of act comes to says less of
     another than of its own. Her own time is in the Work panel, with what she asked, what answered it and what she expects of
     each sort of act (`tests/test_her_own_time_is_seen.py`). Left: a day of it, live.
+  - 25 November: what came of an act that was done another way counts for less once the way has changed, told by the source that
+    does it, so acts that could not work do not stand against the same acts mended.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.

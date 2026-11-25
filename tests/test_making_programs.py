@@ -1487,3 +1487,24 @@ def test_a_change_that_is_in_the_design_already_is_gone_on_with(tmp_path):
     for carrier in (building.build, building.change):
         source = inspect.getsource(carrier)
         assert "_taken_in" in source and "maker.mend(" in source
+
+
+def test_what_runs_is_not_put_out_by_a_change_that_does_not(tmp_path, monkeypatch):
+    """A change is kept as it goes, so that it can be gone on with; what is opened meanwhile is what ran before it."""
+    from core.making.trying import Result, Trial
+
+    made = maker._Maker("a clock", ask=None, write=None, work=Work("w", "a clock"), folder=tmp_path, browser=None)
+    made.design = _design()
+    made.parts = maker.Parts(functions={"initial": "initial() { return { t: 0 }; }"})
+    monkeypatch.setattr(made, "page", lambda: "<p>it runs</p>")
+    made.trial = Trial(generic=[Result("it begins", True)], rules=[Result("It counts", False, "no")])
+    path = asyncio.run(made.kept())
+    assert path.read_text(encoding="utf-8") == "<p>it runs</p>", "a rule that fails is no reason not to open it"
+    monkeypatch.setattr(made, "page", lambda: "<p>it does not</p>")
+    made.parts.functions["initial"] = "initial() { return nothing; }"
+    made.trial = Trial(generic=[Result("it begins", False, "nothing is not defined")], rules=[])
+    assert asyncio.run(made.kept()).read_text(encoding="utf-8") == "<p>it runs</p>"
+    kept = json.loads((tmp_path / "program.json").read_text(encoding="utf-8"))
+    assert "nothing" in kept["parts"]["functions"]["initial"], "and what it has come to is gone on with"
+    made.trial = Trial(generic=[Result("it begins", True)])
+    assert "does not" in asyncio.run(made.kept()).read_text(encoding="utf-8")

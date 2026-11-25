@@ -49,6 +49,7 @@ from core.making.tools import Case, Cases, Language, languages, lines_each_ran, 
 from core.making.trying import (
     AGAIN,
     ANOTHER_WAY,
+    CANNOT_DO_WITHOUT,
     Result,
     Trial,
     page_of,
@@ -113,12 +114,7 @@ class Made:
 
     def working(self) -> bool:
         """Whether it runs, and something it was asked for is so."""
-        broken = [r for r in self.trial.generic if not r.ok and r.name in _CANNOT_DO_WITHOUT]
-        return not broken and (not self.trial.rules or any(r.ok for r in self.trial.rules))
-
-
-_CANNOT_DO_WITHOUT = frozenset({"it can be read", "it has its functions", "it can be tried", "it comes to an end", "it begins", "it is drawn",
-                                "it is shown", "it builds"})
+        return not self.trial.breaks() and (not self.trial.rules or any(r.ok for r in self.trial.rules))
 
 
 def _first_up(text: str) -> str:
@@ -329,7 +325,15 @@ class _Maker:
         if self.paints is None or self.design is None or not self.design.pictures or (self.painting is not None and not self.painting.done()):
             return
         others = [p for p in self.folder.parent.glob("*/icon.png") if p.parent != self.folder]
-        self.painting = asyncio.create_task(paint(self.design, self.folder, self.work, paints=self.paints, others=others))
+        self.painting = asyncio.create_task(paint(self.design, self.folder, self.work, paints=self.paints, others=others, known_by=self._known_by))
+
+    async def _known_by(self, tried: list[str]) -> str:
+        """The one thing it would be known by, other than what was tried."""
+        from core.making.design import KnownBy
+
+        told = f"{self.design.name}: {self.design.about}" if self.design is not None else ""
+        said = await self.ask(f"{told}\n\n" + (f"Painted as its icon, and it could not be told what it was: {'; '.join(tried)}\n\n" if tried else "") + "What one thing would it be known by?", KnownBy, 200)
+        return said.thing if isinstance(said, KnownBy) else ""
 
     async def painted(self) -> None:
         """Until its pictures are painted, or cannot be."""
@@ -1079,7 +1083,11 @@ class _Maker:
             await asyncio.to_thread(governed, "write_text", path, self.whole(self.parts))
         else:
             path = self.folder / "index.html"
-            await asyncio.to_thread(lambda: governed("write_text", path, self.page()))
+            # What runs is not put out by what does not: a change on its way that breaks it is gone on with, and is not what is opened.
+            if self.trial.breaks() and await asyncio.to_thread(path.is_file):
+                logger.info("%s does not run as it stands (%s); what ran before it is what is opened.", design.name, ", ".join(r.name for r in self.trial.breaks()))
+            else:
+                await asyncio.to_thread(lambda: governed("write_text", path, self.page()))
         record = {"title": design.name, "accent": design.look.accent, "asked": self.asked, "design": design.model_dump(),
                   "parts": {"functions": self.parts.functions, "text": self.parts.text, "tests": self.parts.tests,
                             "cases": self.parts.cases}, "built": self.has,
@@ -1126,7 +1134,7 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
     """What fails, by how much stands on it: a program that breaks hides whatever is behind that, so putting it right counts
     for more than the rules it uncovers count against it."""
     def weight(result: Result) -> float:
-        if result.name in _CANNOT_DO_WITHOUT or result.name.startswith(("it runs without breaking", "it has its functions")):
+        if result.name in CANNOT_DO_WITHOUT or result.name.startswith(("it runs without breaking", "it has its functions")):
             return 12.0
         if result.name.startswith("it can be ") or result.name in {"time passes in it", "it is not over before it can be played"}:
             return 4.0

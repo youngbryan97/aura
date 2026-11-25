@@ -43,6 +43,12 @@ class Picture(BaseModel):
     shows: str = Field(max_length=200, description="what is seen in it, as a painter would be told")
 
 
+class KnownBy(BaseModel):
+    """What a program is known by, seen small."""
+
+    thing: str = Field(max_length=80, description="one object or creature, seen whole and by itself, that stands for what it is; something that can be held or pointed at")
+
+
 class Design(BaseModel):
     name: str = Field(max_length=60, description="what they call it, or a name of its own where they gave none")
     kind: Literal["game", "app", "site", "tool"] = Field(description=(
@@ -86,10 +92,11 @@ class Design(BaseModel):
 
 
 def with_an_icon(design: Design) -> Design:
-    """The design with something to be known by, where it has nothing: what it is about, seen."""
+    """The design with something to be known by, where it has nothing. What it is, is for whoever paints it to find out: how it
+    looks is a screen, and a screen is no icon."""
     icons = [p for p in design.pictures if p.kind == "icon"]
     if design.kind in {"game", "app"} and not icons:
-        icons = [Picture(name="icon", kind="icon", shows=(design.look.scene or design.about)[:200])]
+        icons = [Picture(name="icon", kind="icon", shows="")]
     names: dict[str, Picture] = {}
     for picture in design.pictures:
         if picture.kind != "icon" and picture.name.strip() and design.kind in {"game", "app"}:

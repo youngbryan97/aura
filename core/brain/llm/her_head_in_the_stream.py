@@ -98,6 +98,25 @@ class HowDeep:
 #: What has been fastest, kept from one generation to the next.
 _HOW_DEEP = HowDeep()
 
+#: One position in this many is timed step by step, with the GPU waited for after each, and no other waits for it.
+TIMED_EVERY = 40
+
+
+class WhereItGoes:
+    """Where a generation's time goes: reading a pass, choosing at each position, drafting; and at a choice, each of what is done
+    to her logits. LIVE 25 November 2026 a pass of hers that read one token more took 26 ms more, and nothing said of what."""
+
+    def __init__(self) -> None:
+        self.seconds: dict[str, float] = {}
+        self.times: dict[str, int] = {}
+
+    def spent(self, on: str, seconds: float) -> None:
+        self.seconds[on] = self.seconds.get(on, 0.0) + seconds
+        self.times[on] = self.times.get(on, 0) + 1
+
+    def says(self) -> str:
+        return ", ".join(f"{on} {1000 * self.seconds[on] / self.times[on]:.1f} ms x{self.times[on]}" for on in sorted(self.seconds, key=lambda on: -self.seconds[on]))
+
 
 def _switched_on() -> bool:
     """AURA_HER_HEAD_DRAFTS, on unless set to 0. MEASURED 20 October 2026 on her 27B with every channel on
@@ -146,7 +165,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                        prompt_cache: list | None = None, prefill_step_size: int = 512,
                        prompt_progress_callback: Callable[[int, int], None] | None = None,
                        tap: Any = None, drafts_from: Sequence[int] | None = None, how_deep: HowDeep | None = None,
-                       **_ignored: Any) -> Generator[tuple[int, mx.array, bool], None, None]:
+                       goes: WhereItGoes | None = None, **_ignored: Any) -> Generator[tuple[int, mx.array, bool], None, None]:
     """Her tokens for ``prompt``, a pass reading the last kept token and her head's draft after it; and, where
     ``drafts_from`` is given (the whole prompt), what followed the same tokens before in it or in what she has written,
     wherever that begins with her head's own draft. A program mended is mostly the program again.
@@ -184,16 +203,30 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
     history = y[done:]  # what mlx_lm hands its processors first: the prompt's tail
     hiddens: Any = None
 
+    goes, positions = goes if goes is not None else WhereItGoes(), 0
+
     def choose(row: mx.array, at: int) -> tuple[int, mx.array]:
         """Her token at a position: her processors on its logits (shape [1, vocab]), then her sampler."""
+        nonlocal positions
         if tap is not None and hiddens is not None:
             tap.last_hidden = hiddens[at]
+        positions += 1
+        timed_here = positions % TIMED_EVERY == 0
+        if timed_here:
+            mx.eval(row)
+        began = time.perf_counter()
         for processor in processors:
             row = processor(history, row)
+            if timed_here:
+                mx.eval(row)
+                goes.spent(f"one {type(processor).__name__}", time.perf_counter() - began)
+                began = time.perf_counter()
         logprobs = row - mx.logsumexp(row, axis=-1, keepdims=True)
         chosen = sampler(logprobs)
         mx.eval(chosen)
-        return int(chosen.reshape(-1)[0].item()), logprobs.squeeze(0)
+        token = int(chosen.reshape(-1)[0].item())
+        goes.spent("one sampling" if timed_here else "choosing", time.perf_counter() - began)
+        return token, logprobs.squeeze(0)
 
     def kept(token: int) -> None:
         nonlocal history
@@ -243,6 +276,9 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
             read, saved = _read(text, mx.array([[token, *proposal]]), cache)
         hiddens = read[0] if tap is not None else None
         logits = _logits(text, read)
+        reading = time.perf_counter()
+        mx.eval(logits)
+        goes.spent(f"reading {1 + len(proposal)}", time.perf_counter() - reading)
         took, whole = 0, 1 + len(proposal)
         try:
             for at, guess in enumerate(proposal):
@@ -274,6 +310,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         deep, began = how_deep.next(), time.perf_counter()
         drafts = drafted_after(read[:, :1 + took], [*proposal[:took], token], deep)
         drafting = time.perf_counter() - began
+        goes.spent(f"drafting {deep}", drafting)
 
 
 def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_tokens: int = 256,
@@ -300,13 +337,13 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
         kwargs.pop(unused, None)
     detokenizer = tokenizer.detokenizer
     tic = time.perf_counter()
-    prompt_tps, n, token, logprobs, from_draft = 0.0, -1, 0, None, False
+    prompt_tps, n, token, logprobs, from_draft, goes = 0.0, -1, 0, None, False, WhereItGoes()
     # Her weights held in memory for the generation, as mlx_lm's own stream holds them: unwired, they could be paged
     # out between passes while her app's other processes ran (MEASURED 20 October 2026: 9.9 tokens a second in her
     # worker, 21.5 by itself; prompts read at 145 a second against 390).
     with wired_limit(model, [generation_stream]):
         for n, (token, logprobs, from_draft) in enumerate(head_generate_step(prompt, model, draft_model,
-                                                                              max_tokens=max_tokens, **kwargs)):
+                                                                              max_tokens=max_tokens, goes=goes, **kwargs)):
             if n == 0:
                 prompt_tps = prompt.size / max(1e-9, time.perf_counter() - tic)
                 tic = time.perf_counter()
@@ -322,6 +359,7 @@ def stream_generate_with_her_head(model: Any, tokenizer: Any, prompt: Any, max_t
     detokenizer.finalize()
     if n > 1:
         logger.info("Her head drafts %d a pass; tokens a second by how many: %s", _HOW_DEEP.fastest, _HOW_DEEP.says())
+        logger.info("Where her writing went: %s", goes.says())
     yield GenerationResponse(text=detokenizer.last_segment, token=token, logprobs=logprobs, from_draft=from_draft,
                              prompt_tokens=prompt.size, prompt_tps=prompt_tps, generation_tokens=n + 1,
                              generation_tps=(n + 1) / max(1e-9, time.perf_counter() - tic),

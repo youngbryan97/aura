@@ -8,9 +8,13 @@ which is done, or that any is.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import hashlib
 import math
 import time
 from collections.abc import Awaitable, Callable
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from core.agency.her_inquiries import Answered, Inquiry, NotNowError
@@ -32,6 +36,28 @@ LooksInto = Callable[[Inquiry, Callable[[Any], Any]], Awaitable[Answered | None]
 OF_A_SORT = 4
 #: How long a request of somebody's that came to less than was asked is still gone on with unasked, in seconds.
 STILL_WANTED_S = 2 * 86400.0
+
+
+#: What does each sort of act, by its source: where that changes, what came of it before was done another way.
+DOES: dict[str, tuple[str, ...]] = {
+    "carry_on": ("core/understanding/carriers/*.py", "core/making/*.py", "core/making/*.js"),
+    "find_out": ("core/agency/her_inquiries.py",), "look_up": ("core/agency/her_inquiries.py",),
+    "goal": ("core/agency/her_goal_at_work.py",), "tell": ("core/agency/what_she_could_do.py",),
+}
+
+
+@lru_cache(maxsize=16)
+def way_of(kind: str) -> str:
+    """How a sort of act is done now, as a mark of the source that does it; "" where that cannot be read."""
+    root, read = Path(__file__).resolve().parents[2], hashlib.sha256()
+    files = sorted(path for pattern in DOES.get(kind, ()) for path in root.glob(pattern))
+    try:
+        for path in files:
+            read.update(path.read_bytes())
+    # not a failure: with no source to read beside her, every outcome counts for as much as it did.
+    except OSError:
+        return ""
+    return read.hexdigest()[:16] if files else ""
 
 
 def _asking(drive: str) -> float:
@@ -235,9 +261,15 @@ async def _nothing_reads(_goal: str) -> str:
 def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[None]], looks: LooksInto,
                        tell: Callable[[dict[str, Any]], Awaitable[bool]], here: Callable[[], float], asks: Asks = _nothing_reads) -> HerOwnTime:
     """Give her own time what she could do with it."""
-    hers.offers("requests", lambda: asyncio.to_thread(left_unmet, carry_on))
-    hers.offers("wants", lambda: asyncio.to_thread(things_to_find_out, hers, looks))
-    hers.offers("finds", lambda: things_to_tell(hers, tell, here))
-    hers.offers("goals", lambda: goals_of_hers(hers, asks, looks))
+    def as_done_now(options: list[Option]) -> list[Option]:
+        return [dataclasses.replace(option, way=way_of(option.kind)) for option in options]
+
+    async def goals() -> list[Option]:
+        return as_done_now(await goals_of_hers(hers, asks, looks))
+
+    hers.offers("requests", lambda: asyncio.to_thread(lambda: as_done_now(left_unmet(carry_on))))
+    hers.offers("wants", lambda: asyncio.to_thread(lambda: as_done_now(things_to_find_out(hers, looks))))
+    hers.offers("finds", lambda: as_done_now(things_to_tell(hers, tell, here)))
+    hers.offers("goals", goals)
     hers.act_of = lambda goal: act_of_a_goal(goal, hers=hers, asks=asks, looks=looks)
     return hers

@@ -52,7 +52,7 @@ def _thing(path: Path, colour=(200, 40, 40), ground=(250, 250, 250), box=(150, 1
 
 def test_a_program_has_something_to_be_known_by_though_its_design_named_nothing():
     (icon,) = with_an_icon(_design()).pictures
-    assert icon.kind == "icon" and icon.shows == "Keep the moths from the lamp."
+    assert icon.kind == "icon" and icon.shows == "", "what it is known by is found out when it is painted, and is not how it looks"
     several = _design(pictures=[Picture(name="a", kind="icon", shows="a moth"), Picture(name="b", kind="icon", shows="a lamp"), Picture(name="moth", kind="thing", shows="a moth"),
                                 Picture(name="moth", kind="thing", shows="another")])
     assert [(p.kind, p.shows) for p in with_an_icon(several).pictures] == [("icon", "a moth"), ("thing", "a moth")]
@@ -142,7 +142,12 @@ def test_a_game_draws_what_was_painted_and_is_drawn_without_it_too(tmp_path):
 
 
 def test_its_pictures_are_painted_beside_the_writing_and_waited_for_at_the_end(tmp_path):
-    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    from core.making.design import KnownBy
+
+    async def ask(_prompt, _shape, _room):
+        return KnownBy(thing="a moth")
+
+    made = maker._Maker("x", ask=ask, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
     made.design = with_an_icon(_design())
 
     async def paints(seen, *_a):
@@ -186,3 +191,95 @@ def test_half_of_her_painter_is_held_in_half_precision_and_its_decoder_whole():
     pipe.unet = Part("whole")
     assert skill._as_latents(pipe) == {} and skill._decoded(pipe, ["picture"]) == "picture"
 
+
+
+def _lettered(path: Path) -> Path:
+    from PIL import ImageFont
+
+    image = Image.new("RGB", (512, 512), "white")
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 44) if Path("/System/Library/Fonts/Helvetica.ttc").is_file() else ImageFont.load_default(44)
+    for n, line in enumerate(("Expenses", "Payer Amount", "Balances today", "Settle debts")):
+        draw.text((40, 60 + 100 * n), line, fill="black", font=font)
+    image.save(path)
+    return path
+
+
+def _reads(monkeypatch, lettered: set[str]):
+    monkeypatch.setattr(pictures, "_lines_of_lettering", lambda path: 4 if Path(path).name in lettered else 0)
+
+
+def test_an_icon_that_comes_out_as_writing_is_painted_as_what_it_is_known_by(tmp_path, monkeypatch):
+    """LIVE 25 November 2026 an app's icon was a picture of its own screen, in letters nobody can read."""
+    asked, known = [], []
+    screen, coin = _lettered(tmp_path / "screen.png"), _thing(tmp_path / "coin.png", colour=(250, 220, 60), ground=(20, 30, 80))
+    _reads(monkeypatch, {"screen.png"})
+
+    async def paints(seen, *_how):
+        asked.append(seen)
+        return screen if "window" in seen else coin
+
+    async def known_by(tried):
+        known.append(tried)
+        return "a split coin"
+
+    design = _design(kind="app", pictures=[Picture(name="icon", kind="icon", shows="a window with a table of expenses")])
+    work = Work("w", "flat")
+    assert asyncio.run(pictures.paint(design, tmp_path / "flat", work, paints=paints, known_by=known_by)) == ["icon"]
+    assert known == [["a window with a table of expenses"]] and design.pictures[0].shows == "a split coin"
+    assert len([a for a in asked if "a split coin" in a]) == 3 and not pictures._is_writing(tmp_path / "flat" / "icon.png")
+
+
+def test_an_app_designed_with_no_icon_is_painted_as_what_it_is_known_by_and_one_already_painted_as_writing_is_painted_again(tmp_path, monkeypatch):
+    folder = tmp_path / "flat"
+    folder.mkdir()
+    Image.open(_lettered(tmp_path / "screen.png")).save(folder / "icon.png")
+    coin = _thing(tmp_path / "coin.png", colour=(250, 220, 60), ground=(20, 30, 80))
+    held = {"icon.png"}
+    monkeypatch.setattr(pictures, "_lines_of_lettering", lambda path: 4 if Path(path).name in held else 0)
+    known = []
+
+    async def paints(seen, *_how):
+        held.clear()
+        return coin
+
+    async def known_by(tried):
+        known.append(tried)
+        return "a split coin"
+
+    design = with_an_icon(_design(kind="app"))
+    assert asyncio.run(pictures.paint(design, folder, Work("w", "flat"), paints=paints, known_by=known_by)) == ["icon"] and known == [[]]
+    again = []
+    assert asyncio.run(pictures.paint(design, folder, Work("w", "flat"), paints=lambda *a: again.append(a), known_by=known_by)) == ["icon"] and again == []
+
+
+def test_nothing_is_painted_where_nothing_is_known_to_paint(tmp_path):
+    async def nothing(_tried):
+        return ""
+
+    async def paints(*_a):
+        raise AssertionError("nothing to paint")
+
+    assert asyncio.run(pictures.paint(with_an_icon(_design(kind="app")), tmp_path / "x", Work("w", "x"), paints=paints, known_by=nothing)) == []
+    assert asyncio.run(pictures.paint(with_an_icon(_design(kind="app")), tmp_path / "x", Work("w", "x"), paints=paints)) == []
+
+
+def test_lettering_is_read_by_the_macs_own_reader(tmp_path):
+    pytest.importorskip("Vision")
+    assert pictures._lines_of_lettering(_lettered(tmp_path / "screen.png")) >= pictures.LINES
+    assert pictures._lines_of_lettering(_thing(tmp_path / "coin.png")) == 0
+
+
+def test_her_model_is_asked_what_it_is_known_by_and_told_what_would_not_come(tmp_path):
+    from core.making.design import KnownBy
+
+    asked = []
+
+    async def ask(prompt, shape, _room):
+        asked.append(prompt)
+        return KnownBy(thing="a split coin")
+
+    made = maker._Maker.__new__(maker._Maker)
+    made.design, made.ask = _design(kind="app", name="Flat Split", about="Who owes what."), ask
+    assert asyncio.run(made._known_by(["a window"])) == "a split coin"
+    assert "Flat Split: Who owes what." in asked[0] and "a window" in asked[0]

@@ -460,3 +460,50 @@ def test_what_one_sort_of_act_comes_to_says_less_of_another_sort_than_of_its_own
     _option, chosen = chooser.choose([looked])
     chooser.learn(chosen, CameOf(got=0.0, what="nothing"))
     assert chooser.expected(looked)[0] < 2.5 * chooser.expected(told)[0] < 0.0
+
+
+def test_what_came_of_an_act_done_another_way_counts_for_less(tmp_path, written):
+    """LIVE 25 November 2026 what she had learned of acts that could not work held against them after they could."""
+    path = tmp_path / "c.json"
+    chooser = WhatSheDoesNext(path, seed=4)
+    look, tell = (Option(kind, kind, kind, does=_nothing, way=way) for kind, way in (("find_out", "one"), ("tell", "t")))
+    chooser.choose([look, tell])
+    for _ in range(6):
+        _option, chosen = chooser.choose([dataclasses.replace(look, owed=True)])
+        chooser.learn(chosen, CameOf(got=0.0, what="nothing"))
+    before = chooser.expected(look)[0]
+    chooser.keep()
+    again = WhatSheDoesNext(path, seed=4)
+    again.choose([look, tell])
+    assert again.expected(look)[0] == pytest.approx(before, abs=1e-6), "nothing has changed, and nothing is learned again"
+    again.choose([dataclasses.replace(look, way="two"), tell])
+    assert before < again.expected(look)[0] < 0.0
+    assert again.expected(look)[1] > chooser.expected(look)[1], "and she is less sure of it"
+    _option, chosen = again.choose([dataclasses.replace(look, way="two", owed=True)])
+    assert chosen.way == "two"
+    again.learn(chosen, CameOf(got=1.0, what="answered"))
+    settled = again.expected(look)[0]
+    again.choose([dataclasses.replace(look, way="two"), tell])
+    assert again.expected(look)[0] == pytest.approx(settled)
+
+
+def test_the_way_an_act_is_done_is_told_by_the_source_that_does_it():
+    ways = {kind: what_she_could_do.way_of(kind) for kind in what_she_could_do.DOES}
+    assert all(ways.values()) and ways["find_out"] == ways["look_up"] and len(set(ways.values())) == len(ways) - 1
+    assert what_she_could_do.way_of("nothing she does") == ""
+
+
+def test_what_is_offered_says_how_it_is_done(tmp_path, monkeypatch):
+    from core.agency import what_she_could_do as could
+
+    monkeypatch.setattr(could, "left_unmet", lambda carry_on: [Option("a", "carry_on", "x", does=_nothing)])
+    monkeypatch.setattr(could, "things_to_find_out", lambda hers, looks: [])
+    hers = _hers(tmp_path)
+
+    async def no_goals(*_a):
+        return []
+
+    monkeypatch.setattr(could, "goals_of_hers", no_goals)
+    could.begin_her_own_time(hers, carry_on=_nothing, looks=_nothing, tell=_nothing, here=lambda: 0.0)
+    (offered,) = asyncio.run(hers.options())
+    assert offered.way == could.way_of("carry_on")

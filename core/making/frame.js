@@ -327,18 +327,26 @@ const Frame = (() => {
     const called = (tree, want, what) => { const all = every(tree).filter((v) => usable(v, what)); return all.find((v) => nameOf(v) === want) || all.find((v) => isWords(nameOf(v), want)) || (want.length > 3 && all.find((v) => nameOf(v).startsWith(want))) || null; };
     // What stands with some words: the smallest part of what is shown that has them and something to use, as a card has.
     const beside = (tree, want, what) => { let found = null; const of = (v) => { if (v.tag === "#") return; const has = nameOf(v).includes(want) && isWords(nameOf(v), want); if (!has) return; const all = every(v).filter((n) => n !== v && usable(n, what)); if (usable(v, what)) found = v; else if (all.length) found = all[0]; v.kids.forEach(of); }; tree.kids.forEach(of); return found; };
+    let prior = null;  // how it stood before the last thing done
     // Found as a person finds it: by its name, by what it stands with, or behind a button that shows it and takes nothing away.
     const find = (label, what, by, soft) => { const want = String(label).toLowerCase().trim(), here = shown(s); const now = called(here, want, what) || (by && beside(here, want, what)); if (now) return now;
       const size = (x) => (x && typeof x === "object" ? Object.values(x).reduce((n, y) => n + (Array.isArray(y) ? y.length : 0) + size(y), 0) : 0), held = size(s); let edge = [s];
       for (let deep = 0; deep < 2; deep++) { const next = []; for (const from of edge) for (const v of every(shown(from)).filter((n) => n.props.do && !n.props.disabled).slice(0, 24)) { let then; try { then = apply(copy(from), { type: "do", name: v.props.do[0], value: v.props.do[1] }); } catch (e) { continue; } if (size(then) !== held || JSON.stringify(then) === JSON.stringify(from)) continue; const got = called(shown(then), want, what); if (got) { act(() => then); return called(shown(s), want, what); } if (next.length < 12) next.push(then); } edge = next; }
       if (soft) return null;
+      // What is named more fully than it is called, as a "confirm delete" that says Confirm: the one of those that has just come,
+      // where one has, and the one called by most of it.
+      if (by) { const before = new Set(prior ? every(shown(JSON.parse(prior))).map(nameOf) : []), names = every(here).filter((v) => usable(v, what) && nameOf(v).length > 2 && isWords(want, nameOf(v))), come = names.filter((v) => !before.has(nameOf(v))), one = (come.length ? come : names).sort((a, b) => nameOf(b).length - nameOf(a).length)[0]; if (one) return one; }
       if (every(here).some((v) => what(v) && v.props.disabled && nameOf(v) === want)) fail(`“${label}” cannot be used now`);
       const all = every(here).filter((v) => usable(v, what)), why = `there is no “${label}” to use; there are: ${all.map((v) => v.props["aria-label"] || words(v)).slice(0, 12).join(", ")}`;
       // What it is worked by is in its design, which the test and the program are both written to: a label the design has not is the test's own. One that comes of what is in it ("Take rice") is told by the words the design's has.
       const designed = (P.controls || []).map((c) => String(c.input).toLowerCase().trim()).filter(Boolean); if (!isGame() && designed.length && !designed.some((d) => d === want || isWords(want, d) || isWords(d, want) || d.split(/\s+/).some((w) => w.length > 2 && isWords(want, w)))) { const e = new Error(`the test uses a control called “${label}”, and the design has none of that name; it has: ${designed.join(", ")}`); e.theTest = true; throw e; }
       return fail(why); };
     // A state that is set is set over one that has begun: what a test does not name is as it is at the beginning.
-    let first = null, did = 0; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); s = f(s); did++; return t; };
+    // What the test put in each control, while it is there as it was put, and all it put under each label.
+    const put = new Map(), putBy = new Map(), done = new Set(), keyOf = (n) => JSON.stringify(n.props.in), valueOf = (n) => String(n.props.value ?? "").toLowerCase();
+    const still = () => { if (!put.size) return; const now = new Map(every(shown(s)).filter((n) => n.props.in).map((n) => [keyOf(n), valueOf(n)])); for (const [k, v] of put) if (now.get(k) !== v) put.delete(k); };
+    const wasPut = (label, v, value) => { const k = keyOf(v), said = String(value).toLowerCase(), l = String(label).toLowerCase().trim(); put.set(k, said); done.add(k); putBy.set(l, [...(putBy.get(l) || []), said]); };
+    let first = null, did = 0; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); prior = isGame() ? null : JSON.stringify(s); s = f(s); did++; still(); return t; };
     // What each control shown sets, seen by setting it: a label that no control has may be what one of them sets. A list kept
     // in a form is set by controls that are there once there is something in it to set, so what adds to it is tried first.
     // LIVE 24 November 2026 the design had a control called "Beneficiaries" and the program a row for each of them, and
@@ -354,9 +362,13 @@ const Frame = (() => {
     // Puts a value where what a label names is kept; false where nothing shown keeps it.
     const putWhere = (label, value, again) => { const want = wordsIn(label); let all = setting(s, want, value), v = again ? null : emptyFirst(all) || (all.length === 1 ? all[0] : null);
       if (!v) for (const n of every(shown(s)).filter((x) => x.props.do && !x.props.disabled).slice(0, 24)) { let then; try { then = apply(copy(s), { type: "do", name: n.props.do[0], value: n.props.do[1] }); } catch (e) { continue; } const more = setting(then, want, value); if (more.length > all.length) { act(() => then); v = emptyFirst(more) || more[more.length - 1]; break; } }
-      v = v || all[all.length - 1]; if (!v) return false; const set = meant(v, value); act((x) => apply(x, { type: "input", name: v.props.in, value: set })); return true; };
-    const set = (label, value) => { const v = find(label, (n) => n.props.in, false, true);
-      if (v && !Array.isArray(value)) { const ready = v.props.number ? Number(value) : v.props.type === "checkbox" ? !!value : String(value); return act((x) => apply(x, { type: "input", name: v.props.in, value: ready })); }
+      v = v || all[all.length - 1]; if (!v) return false; const set = meant(v, value); act((x) => apply(x, { type: "input", name: v.props.in, value: set })); wasPut(label, v, set); return true; };
+    // Of several controls of one name, the one somebody would take: one that is empty and not put in yet, then one that is
+    // empty, then one not put in, then the last. LIVE 25 November 2026 a test put three people in the rows of a list, a row
+    // at a time, and each was put over the one before, in the first row.
+    const ofThem = (v) => { const same = every(shown(s)).filter((n) => n.props.in && !n.props.disabled && nameOf(n) === nameOf(v)); if (same.length < 2) return v; const empty = same.filter((n) => emptyFirst([n])), fresh = (n) => !done.has(keyOf(n)); return empty.find(fresh) || empty[0] || same.find(fresh) || same[same.length - 1]; };
+    const set = (label, value) => { const named = find(label, (n) => n.props.in, false, true), v = named && ofThem(named);
+      if (v && !Array.isArray(value)) { const ready = v.props.number ? Number(value) : v.props.type === "checkbox" ? !!value : String(value); act((x) => apply(x, { type: "input", name: v.props.in, value: ready })); wasPut(label, v, ready); return t; }
       if (!isGame() && (Array.isArray(value) ? value.length > 0 && value.every((one, i) => putWhere(label, one && typeof one === "object" ? Object.values(one)[0] : one, i > 0)) : putWhere(label, value, false))) return t;
       // What chooses among some things takes one of them: nobody could put another in it.
       const takes = !isGame() && !Array.isArray(value) ? every(shown(s)).filter((n) => n.tag === "select" && meant(n, value) === undefined && setsOf(s, n).some((path) => path.some((k) => { const has = wordsIn(k), want = wordsIn(label); return want.length && want.every((w) => has.includes(w)); })))[0] : null;
@@ -373,6 +385,12 @@ const Frame = (() => {
       choose(label, value) { return t.type(label, value); },
       enter(label) { const v = find(label, (n) => n.props.enter); return act((s) => apply(s, { type: "do", name: v.props.enter, value: null })); },
       sees(text) { if (isGame()) { const said = [...t.draw().filter((c) => c.what === "text").map((c) => c.args[0]), ...(P.hud ? P.hud(s) : []).flatMap((r) => [r.label, r.value]), ...(P.score ? ["score", scoreOf(s)] : [])].join(" ").toLowerCase(); return said.includes(String(text).toLowerCase()); } const all = words(shown(s)).toLowerCase(); return every(shown(s)).some((v) => String(v.props.value || "").toLowerCase().includes(String(text).toLowerCase())) || all.includes(String(text).toLowerCase()); },
+      // That something is not seen: what the test put in a control, and is there as it was put, is not the program showing
+      // it, and a thing put in place of another is not the other seen again for having its words in it.
+      unseen(text) { if (isGame()) return !t.sees(text); const want = String(text).toLowerCase(), longer = [];
+        for (const said of putBy.values()) said.forEach((one, i) => { if (one === want) longer.push(...said.slice(i + 1).filter((later) => later !== want && later.includes(want))); });
+        const less = (x) => longer.reduce((left, one) => left.split(one).join(" "), x);
+        return !less(words(shown(s)).toLowerCase()).includes(want) && !every(shown(s)).some((v) => less(valueOf(v)).includes(want) && !(v.props.in && put.get(keyOf(v)) === valueOf(v))); },
       // A function of the program's own, given these and nothing else.
       call(name, ...args) { if (typeof P[name] !== "function") { const e = new Error(`the test calls ${name}, and the program has no such function`); e.theTest = true; throw e; } return P[name](...args); },
       // Which of two things shown comes first.
@@ -449,9 +467,12 @@ const Frame = (() => {
       const used = new Map();
       const act = (s) => { const v = shownAt(s), all = every(v).filter((n) => (n.props.do && !n.props.disabled) || n.props.in); if (!all.length) return s; const n = all[Math.floor(rnd() * all.length)]; const label = n.props["aria-label"] || words(n); const before = JSON.stringify(s); let next; if (n.props.do) next = apply(s, { type: "do", name: n.props.do[0], value: n.props.do[1] }); else next = apply(s, { type: "input", name: n.props.in, value: n.props.type === "checkbox" ? rnd() < 0.5 : n.tag === "select" && n.kids.length ? n.kids[Math.floor(rnd() * n.kids.length)].props.value : n.props.number ? Math.floor(rnd() * 50) : n.props.type === "date" ? "2026-11-2" + Math.floor(rnd() * 9) : chance.pick(["milk", "a longer thing to do", "7", "", "Ana"]) }); if (JSON.stringify(next) !== before) used.set(label, true); else if (!used.has(label)) used.set(label, false); return next; };
       check("it runs without breaking, whatever is used", () => { for (let sd = 1; sd <= 6; sd++) { seed = sd; let s = P.initial(); for (let i = 0; i < 160; i++) { s = act(s); if (P.ticks && i % 8 === 0) s = apply(s, { type: "tick", dt: 1, now: 1.79e12 + i * 1000 }); const w = wrong(s, "state", 0); must(!w, w); } shownAt(s); } });
-      check("the controls it was designed with are there", () => { const designed = (P.controls || []).map((c) => String(c.input).trim()).filter(Boolean); if (!designed.length) return ""; const said = new Set(); const look = (s) => { for (const n of every(shown(s))) if (n.props.do || n.props.in || n.props.enter) said.add(String(n.props["aria-label"] || words(n) || n.props.placeholder || "").toLowerCase()); };
+      check("the controls it was designed with are there", () => { const designed = (P.controls || []).map((c) => String(c.input).trim()).filter(Boolean); if (!designed.length) return ""; const said = new Set(), over = new Set(), uses = (n) => n.props.do || n.props.in || n.props.enter;
+        // A part of it is there by its title, where what it is worked by stands under that: "Add Expense" over a form is one.
+        const titles = (v) => { if (v.tag === "#" || !every(v).some(uses)) return; for (const k of v.kids) { if (k.tag !== "#" && !every(k).some(uses)) over.add(words(k).toLowerCase().trim()); titles(k); } };
+        const look = (s) => { const tree = shown(s); titles(tree); for (const n of every(tree)) if (uses(n)) said.add(String(n.props["aria-label"] || words(n) || n.props.placeholder || "").toLowerCase()); };
         for (let sd = 1; sd <= 4; sd++) { seed = sd * 5; let s = sd === 4 && P.designed ? { ...P.initial(), ...copy(P.designed) } : P.initial(); for (let i = 0; i < 70; i++) { look(s); s = act(s); } look(s); }
-        const all = [...said], gone = designed.filter((d) => { const w = d.toLowerCase(); return !all.some((x) => x === w || x.includes(w) || (x && w.includes(x) && x.length > 2)); }); must(!gone.length, `the design has ${gone.map((g) => `“${g}”`).join(", ")}, and wherever it was used nothing was called that; there are: ${all.filter(Boolean).slice(0, 16).join(", ")}`); });
+        const all = [...said], gone = designed.filter((d) => { const w = d.toLowerCase(); return !over.has(w) && !all.some((x) => x === w || x.includes(w) || (x && w.includes(x) && x.length > 2)); }); must(!gone.length, `the design has ${gone.map((g) => `“${g}”`).join(", ")}, and wherever it was used nothing was called that; there are: ${all.filter(Boolean).slice(0, 16).join(", ")}`); });
       check("every control does something", () => { const dead = [...used].filter(([, did]) => !did).map(([label]) => label); must(dead.length === 0, `these change nothing: ${dead.slice(0, 8).join(", ")}`); must(used.size > 0, "there is nothing to use"); });
       // What is true of any program that keeps things, whatever it is for, and that no test of a rule of it says.
       const records = (s) => { const out = []; const of = (x, path, d) => { if (!x || typeof x !== "object" || d > 4) return; if (Array.isArray(x)) { if (x.length && x.every((y) => y && typeof y === "object" && !Array.isArray(y))) out.push([path, x]); x.slice(0, 60).forEach((y, i) => of(y, `${path}[${i}]`, d + 1)); } else for (const k of Object.keys(x)) of(x[k], path ? `${path}.${k}` : k, d + 1); }; of(s, "", 0); return out; };
