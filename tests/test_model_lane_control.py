@@ -925,6 +925,27 @@ async def test_an_owner_held_in_a_process_that_has_ended_is_let_go_and_the_lane_
 
 
 @pytest.mark.asyncio
+async def test_a_reservation_made_without_a_drain_first_is_not_refused_for_an_owner_of_an_ended_process(
+    tmp_path: Path,
+) -> None:
+    """LIVE 25 November 2026 her voice reserved its lane, synchronously, before any drain had run, and was refused for
+    the image model of the runtime before."""
+    alive = AliveTable(459, 460)
+    held_inside = LaneOwnerObservation(
+        owner_id="in-process:460:image-generation", model_path="/m/sdxl-turbo", declared_gb=25.0,
+        process=ProcessIdentity(460, 460.0), metadata={"in_process_model_owner": True},
+    )
+    controller, decision = await _cancelled_with_owner_pending(tmp_path, alive, held_inside, "before-the-drain")
+    alive.alive.discard(460)
+    voice = controller.reserve_sync(
+        LaneClaim(owner_id="voice:piper", model_path="/m/piper", request_gb=1.0, request_id="voice-first"),
+        observations=[_owner("mlx:cortex", "/m/Aura-32B-cortex", 20.0, 459)],
+    )
+    assert voice.request_id == "voice-first"
+    assert _reservation(controller, decision.request_id)["compensation_pending_owner_ids"] == []
+
+
+@pytest.mark.asyncio
 async def test_an_owner_held_in_a_process_still_running_is_not_let_go(tmp_path: Path) -> None:
     alive = AliveTable(459, 460)
     held_inside = LaneOwnerObservation(

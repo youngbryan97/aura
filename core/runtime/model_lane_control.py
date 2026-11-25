@@ -1681,6 +1681,35 @@ class ModelLaneController(LockedLaneSteps):
                 return ProcessLiveness.UNKNOWN
         return root_liveness
 
+    def _let_go_of_owners_gone_locked(self, state: dict[str, Any], now: float) -> bool:
+        """Owners pending restore that were held inside a process since ended, let go as unrecoverable: the model went
+        with that process, and so did the adapter that could have restored it, so no process can. Left pending, such
+        an owner refuses every other reservation for good. LIVE 25 November 2026 an image model held in a runtime
+        stopped mid-load kept the next runtime's cortex from warming, 256 restores failing each call, and refused its
+        voice before any drain had run. Whether anything was let go."""
+        changed = False
+        for request_id, record in state["reservations"].items():
+            pending = [str(owner_id) for owner_id in record.get("compensation_pending_owner_ids") or ()]
+            if not pending:
+                continue
+            owners = {**dict(record.get("evicted_owners") or {}), **dict(record.get("compensation_owners") or {})}
+            claims = record.get("compensation_claims") or {}
+            for owner_id in pending:
+                payload = owners.get(owner_id)
+                if owner_id in claims or not isinstance(payload, Mapping):
+                    continue
+                if not self._held_in_a_process_that_is_gone(payload):
+                    continue
+                record.setdefault("compensation", {})[owner_id] = False
+                record["compensation_pending_owner_ids"] = [
+                    candidate for candidate in record.get("compensation_pending_owner_ids") or ()
+                    if str(candidate) != owner_id
+                ]
+                self._append_event(state, "expired_compensation_unrecoverable", at=now, request_id=str(request_id),
+                                   owner_id=owner_id, reason="owner_process_gone")
+                changed = True
+        return changed
+
     def _held_in_a_process_that_is_gone(self, record: Mapping[str, Any]) -> bool:
         """Whether ``record`` is an owner held inside one process, that process seen ended. A process whose start time
         was never read is not taken for ended: unknown is not dead."""
@@ -2290,6 +2319,7 @@ class ModelLaneController(LockedLaneSteps):
         with self._thread_lock, interprocess_file_lock(self.lock_path):
             state = self._load_locked()
             changed = self._prune_locked(state, now)
+            changed = self._let_go_of_owners_gone_locked(state, now) or changed
             for request_id, record in state["reservations"].items():
                 if request_id_filter and str(request_id) != str(request_id_filter):
                     continue
@@ -2328,30 +2358,6 @@ class ModelLaneController(LockedLaneSteps):
                             request_id=str(request_id),
                             owner_id=owner_id,
                             reason="evicted_owner_payload_missing",
-                        )
-                        changed = True
-                        continue
-                    if self._held_in_a_process_that_is_gone(payload):
-                        # A model held inside a process that has since ended went with it, and so did the adapter
-                        # that could have restored it: no process can. Left pending, it refuses every other
-                        # reservation for good. LIVE 25 November 2026 an image model held in a runtime that was
-                        # stopped mid-load kept the next runtime's cortex from warming: 256 restores failed each call.
-                        record.setdefault("compensation", {})[owner_id] = False
-                        record["compensation_pending_owner_ids"] = [
-                            candidate
-                            for candidate in record.get(
-                                "compensation_pending_owner_ids"
-                            )
-                            or ()
-                            if str(candidate) != owner_id
-                        ]
-                        self._append_event(
-                            state,
-                            "expired_compensation_unrecoverable",
-                            at=now,
-                            request_id=str(request_id),
-                            owner_id=owner_id,
-                            reason="owner_process_gone",
                         )
                         changed = True
                         continue
@@ -2553,6 +2559,7 @@ class ModelLaneController(LockedLaneSteps):
         with self._thread_lock, interprocess_file_lock(self.lock_path):
             state = self._load_locked()
             self._prune_locked(state, now)
+            self._let_go_of_owners_gone_locked(state, now)
             pending_compensation = {
                 str(request_id)
                 for request_id, record in state["reservations"].items()
