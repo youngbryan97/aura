@@ -31,11 +31,14 @@ from core.together.what_was_proposed import Proposal, WhatItAsksOfHer
 
 logger = logging.getLogger("Aura.Together")
 
-__all__ = ["TakingItUp", "get_taking_it_up", "install", "the_person_she_is_with"]
+__all__ = ["TakingItUp", "begin_hearing", "get_taking_it_up", "install", "the_person_she_is_with"]
 
 HEADER = "## WHAT WAS PROPOSED TO YOU AND WHAT YOUR RECORD SAYS YOU WANT"
 SENSES_HEADER = "## WHAT YOU CAN SENSE AND REACH NOW"
 SCREEN_HEADER = "## WHAT IS ON THE SCREEN"
+
+#: The parts of hearing that are begun with the turn (core/runtime/begun_early.py).
+SCORES, SENSES, SCREEN = "what the words ask of her", "her senses", "the screen"
 
 #: What a with is of when what was proposed named nothing she can name.
 BEING_TOGETHER = "being together"
@@ -185,6 +188,7 @@ class TakingItUp:
             scored = None
             if client is not None:
                 from core.brain.llm.what_she_expects_next import asked_of_the_worker
+                from core.runtime.begun_early import begun
                 from core.together.what_was_proposed import CONTENT_FREE
 
                 reader = self._reads()
@@ -193,7 +197,10 @@ class TakingItUp:
                     # score after nothing in particular.
                     for empty in CONTENT_FREE:
                         reader.remember(empty, scored=await asked_of_the_worker(client, empty, reader.seconds()) or None)
-                scored = await asked_of_the_worker(client, said, reader.seconds())
+                scored = await begun(
+                    SCORES, (id(client), " ".join(str(said or "").split())),
+                    lambda: asked_of_the_worker(client, said, reader.seconds()),
+                )
                 if not scored:
                     return {}
             return await asyncio.to_thread(self.read, said, who=who, at=at, scored=scored)
@@ -250,18 +257,18 @@ class TakingItUp:
         """
         if not self.needs_her_senses():
             return
+        from core.runtime.begun_early import begun
+
         read = self._this
         try:
-            from core.self.capability_ledger import get_capability_ledger
-
-            measured = await asyncio.to_thread(get_capability_ledger().measure_all)
+            measured = await begun(SENSES, "", _her_senses_now)
             read["senses"] = [
                 f"- {availability.as_evidence_line()}" for availability in measured.values() if availability.known
             ]
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("together", exc, severity="warning", action="her senses were not measured for this turn")
         if (read.get("proposal") or {}).get("kind") == "join" or read.get("with"):
-            read["screen"] = await _the_screen_now()
+            read["screen"] = await begun(SCREEN, "", _the_screen_now)
             held = self._withs().current(read.get("who", ""))
             if held is not None and read["screen"]:
                 held.shown(_what_is_in_front(read["screen"]), time.time(), change=_how_much_changed(held, read["screen"]))
@@ -408,6 +415,38 @@ async def heard_in_a_turn(said: str, client: Any) -> dict[str, Any]:
     read = await taking.heard(said, who=who_she_is_with(taking._her_record()), client=client)
     await taking.take_what_it_needs()
     return read
+
+
+def begin_hearing(said: str, client: Any) -> None:
+    """The slow parts of hearing what was said, begun while its turn is prepared (core/runtime/begun_early.py).
+
+    What her worker makes of the words, and where she is keeping somebody company, her senses and the screen. Nothing is
+    recorded of it: the reading itself is taken where her model is handed the turn, and finds these done. LIVE 25 November
+    2026 the two were 2.8 s of every turn at the desk, taken one after the other with everything else already there.
+    """
+    from core.brain.llm.what_she_expects_next import asked_of_the_worker
+    from core.runtime.begun_early import begin
+
+    said = " ".join(str(said or "").split())
+    if not said:
+        return
+    try:
+        taking = install()
+        reader = taking._reads()
+        if client is not None and reader.has_a_reference():
+            begin(SCORES, (id(client), said), lambda: asked_of_the_worker(client, said, reader.seconds()))
+        if taking._withs().current(who_she_is_with(taking._her_record())) is not None:
+            begin(SENSES, "", _her_senses_now)
+            begin(SCREEN, "", _the_screen_now)
+    except (ImportError, LookupError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("together", exc, severity="warning", action="what was said is read where it is used instead")
+
+
+async def _her_senses_now() -> Any:
+    """What she can sense and reach, each measured by the precondition its executor runs."""
+    from core.self.capability_ledger import get_capability_ledger
+
+    return await asyncio.to_thread(get_capability_ledger().measure_all)
 
 
 async def _the_screen_now() -> str:

@@ -529,7 +529,13 @@ from interface.routes.chat_runtime_proof import (  # noqa: E402
 )
 from interface.routes.chat_carrying_out import her_question_is_asked, her_word_is_kept, take_up_what_is_asked  # noqa: E402
 from interface.routes.chat_reply_as_it_forms import reply_as_it_forms  # noqa: E402
-from interface.routes.chat_what_is_asked import files_meant, read_what_this_turn_asks  # noqa: E402
+from interface.routes.chat_what_is_asked import (  # noqa: E402
+    REMEMBERED,
+    begin_what_talk_needs,
+    files_meant,
+    read_what_this_turn_asks,
+    what_is_remembered_of,
+)
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
     _EXPECTED_TURN_ORGANS,  # noqa: F401
@@ -2194,6 +2200,7 @@ async def _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, 
     if conversation_recall_context:
         context["conversation_recall_evidence"] = conversation_recall_context[:3000]
     recalls = not (capability_inventory_contract or state_native_output_owner)
+    from core.runtime.begun_early import begun
 
     async def of_nothing() -> str:
         return ""
@@ -2210,7 +2217,7 @@ async def _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, 
         if recalls and not conversation_only_surface
         else of_nothing(),
         _build_context_challenge_repair_reply(visible, session_id=session_id) if recalls else of_nothing(),
-        _fetch_deep_memory_context(visible) if recalls else of_nothing(),
+        begun(REMEMBERED, what_is_remembered_of(visible), lambda: _fetch_deep_memory_context(visible)) if recalls else of_nothing(),
     )
     if retained_memory_evidence_context:
         context["retained_memory_evidence_context"] = retained_memory_evidence_context
@@ -6991,8 +6998,9 @@ async def api_chat(
                         ),
                     )
                 from core.brain.llm_health_router_gate_owners import a_turn_is_live
+                from core.runtime.begun_early import in_a_turn
 
-                with reply_as_it_forms(), a_turn_is_live(f"typed:{exact_turn_id}"):
+                with reply_as_it_forms(), a_turn_is_live(f"typed:{exact_turn_id}"), in_a_turn():
                     _turn = await _api_chat_turn(body, request)
                 _served = await _apply_recorded_answer(visible_user_message, _turn)
                 _mark_http_turn_served(_turn_outcome, _served)
@@ -7830,6 +7838,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _semantic_user_message, session_id=_turns_session, attachments=list(body.attachments or []), skip=is_benchmark,
     )
     body.attachments = files_meant(_asked_this_turn, _turns_session, list(body.attachments or []))
+    if not is_benchmark:
+        begin_what_talk_needs(_semantic_user_message, _asked_this_turn)
     _grounded_recall_context, _preflight = await _api_chat_turn__grounded_recall_context(_chat_session_id, _defensive_context, _original_user_message, _profile_user_id, _semantic_user_message, body, conversation_only_surface, is_benchmark, request)
     if _preflight.early_response is not None:
         return _preflight.early_response

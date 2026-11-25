@@ -15,7 +15,7 @@ def test_every_governed_write_that_is_asked_for_is_there():
 
     root = Path(her_build_writes.__file__).resolve().parents[2]
     texts = [path.read_text(encoding="utf-8") for path in (*root.glob("core/**/*.py"), *root.glob("interface/**/*.py"))]
-    asked = {name for text in texts if "her_build_writes import" in text for name in re.findall(r"\bgoverned\(?,?\s*[\"'](\w+)[\"']", text)}
+    asked = {name for text in texts if "her_build_writes import" in text or "her_writes import" in text for name in re.findall(r"\bgoverned\(?,?\s*[\"'](\w+)[\"']", text)}
     there = {node.value for node in ast.walk(ast.parse(inspect.getsource(her_build_writes.governed))) if isinstance(node, ast.Constant) and isinstance(node.value, str)}
     assert {"write_text", "write_bytes", "ensure_directory", "delete_file"} <= there and asked <= there, sorted(asked - there)
 

@@ -1551,6 +1551,29 @@ async def _commit_the_thought_with_retries(
     return commit_outcome, state
 
 
+#: The room her live state takes on a turn that is not about her: what a question on her condition is given.
+_ROOM_FOR_HER_STATE = 700
+
+
+def _her_live_mind(compact: dict[str, Any], whole: dict[str, Any], *, limit: int) -> str:
+    """Her live state as data: what stands out of it, and on a turn about her all that fits."""
+    from core.brain.what_she_is_given import _turns_to_her
+    from core.brain.what_stands_out_in_her import get_her_usual, what_stands_out
+
+    usual = get_her_usual()
+    # What the machine is doing and how long her turns take are always hers to read, and are two short rows.
+    always = {key: compact[key] for key in ("host", "turn_timing", "lane") if compact.get(key)}
+    rest = {key: value for key, value in compact.items() if key not in always}
+    about_her = limit <= _ROOM_FOR_HER_STATE or _turns_to_her(whole.get("user_message"))
+    room = limit if about_her else min(limit, _ROOM_FOR_HER_STATE)
+    kept = what_stands_out(always, usual, room=room, whole=True)
+    told = what_stands_out(rest, usual, room=max(0, room - len(kept)), whole=about_her)
+    usual.learn(rest)
+    usual.keep()
+    parts = [part[1:-1] for part in (kept, told) if len(part) > 2]
+    return "{" + ",".join(parts) + "}" if parts else "{}"
+
+
 def _note_the_quick_reply_contract(
     *,
     ambient_grounding_blocks: Any,
@@ -1619,9 +1642,11 @@ def _note_the_quick_reply_contract(
         # for the reply, not text to recite...", "Use the current user turn...") and the
         # route's mind_context_contract told her model how to read it; they were removed
         # on 17 October with every other instruction (tests/test_no_instruction_reaches_her.py).
+        # What stands out of it, or all that fits on a turn about her: cut by the alphabet, most of it never arrived and what
+        # did was the same each turn (core/brain/what_stands_out_in_her.py).
         live_mind_grounding = (
             "[LIVE MIND CONTEXT]\n"
-            f"{_compact_json(compact_mind_context, limit=mind_context_limit)}"
+            f"{_her_live_mind(compact_mind_context, live_mind_context, limit=mind_context_limit)}"
         )
         ambient_grounding_blocks.append(
             f"{live_mind_grounding}\n[END LIVE MIND CONTEXT]"

@@ -5681,38 +5681,6 @@
       "scope": "<module>.RealityHistorian._initialize"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/her_build_writes.py",
-      "scope": "<module>.governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/her_build_writes.py",
-      "scope": "<module>.governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/her_build_writes.py",
-      "scope": "<module>.governed"
-    },
-    {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
-      "canonical_owner": false,
-      "category": "file_write_gateway",
-      "count": 1,
-      "path": "core/rebuilding/her_build_writes.py",
-      "scope": "<module>.governed"
-    },
-    {
       "callee": "<file_write_gateway>.ensure_directory_async",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6111,6 +6079,38 @@
       "count": 2,
       "path": "core/runtime/flight_recorder.py",
       "scope": "<module>.FlightRecorder.start_sync"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/her_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().delete_file",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/her_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/her_writes.py",
+      "scope": "<module>.governed"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/runtime/her_writes.py",
+      "scope": "<module>.governed"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().ensure_directory",
@@ -17666,6 +17666,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "a95b9b20fdd94a74ac3942b8da764099a894b5df31cb739a4081236509e6b1e1",
+  "inventory_sha256": "6c3f7d0749fb6ac478177be1ddb6d84d7814f897bb7e66494952e8378eda2b17",
   "schema_version": 1
 }

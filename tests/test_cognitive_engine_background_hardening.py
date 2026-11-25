@@ -1266,7 +1266,9 @@ async def test_cognitive_engine_desktop_quick_includes_live_mind_context_without
     assert captured["skip_runtime_payload"] is True
     grounding_prompt = captured["messages"][-2]["content"]
     assert "LIVE MIND CONTEXT" in grounding_prompt
-    assert "must_answer_from_full_mind_path" in grounding_prompt
+    assert '"lane":{"state":"ready","conversation_ready":true}' in grounding_prompt
+    # What is the same on every turn tells her nothing and is not given (core/brain/what_stands_out_in_her.py).
+    assert "must_answer_from_full_mind_path" not in grounding_prompt
     # The route's mind_context_contract no longer rides with her state (tests/test_no_instruction_reaches_her.py).
     assert "Answer through the live mind context." not in grounding_prompt
     assert captured["messages"][-1]["content"] == "You with me?"

@@ -19,7 +19,8 @@ from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["begin_reading_what_is_asked", "files_meant", "her_client", "names_of", "read_what_this_turn_asks"]
+__all__ = ["REMEMBERED", "begin_reading_what_is_asked", "begin_what_talk_needs", "files_meant", "her_client", "names_of",
+           "read_what_this_turn_asks", "what_is_remembered_of"]
 
 #: The longest a turn waits to be read. One pass over the exchange takes well under a second on a warm lane; past this
 #: the lane is busy with something else and the turn goes on unread.
@@ -142,3 +143,30 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
 
     tell_the_window(doing=DOING.get(asked.effect if asked.acts else "talk", "Thinking"))
     return asked
+
+
+#: What she remembers that bears on the turn, as it is begun with the turn and waited for where it is used.
+REMEMBERED = "what she remembers of it"
+
+
+def what_is_remembered_of(said: str) -> tuple[str, str, str]:
+    """What a recall is about: whose memory may answer it, and the words."""
+    from interface.routes.chat_memory_state import _chat_memory_identity
+
+    return (*_chat_memory_identity(), " ".join(str(said or "").split()))
+
+
+def begin_what_talk_needs(said: str, asked: Asked | None) -> None:
+    """The slow readings of a turn that is talked through, begun together while it is prepared.
+
+    A turn that asks for something to be done has her worker to itself: none of these is for it, and each is taken where it is
+    used if the turn comes to be talked through after all.
+    """
+    if not str(said or "").strip() or (asked is not None and asked.acts):
+        return
+    from core.runtime.begun_early import begin
+    from core.together.taking_it_up import begin_hearing
+    from interface.routes.chat_lane_bookkeeping import _fetch_deep_memory_context
+
+    begin(REMEMBERED, what_is_remembered_of(said), lambda: _fetch_deep_memory_context(said))
+    begin_hearing(said, her_client())

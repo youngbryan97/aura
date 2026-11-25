@@ -8513,6 +8513,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     answer, two thirds of the third one's prompt kept read. At a person's pace, 02:23: 128 s (a finished answer of hers put
     aside as cut off), 57 s, and none in 240 s (a question answered by setting her browser to work at a page another
     conversation had named). The first and third are mended. Left: again, live.
+  - 25 November, 02:45, the three turns live on that: 52, 63 and 56 s, each her own whole answer, her first word at 17 to 26 s.
+    Of the time before it, 2.7 s went to recall, then 1.5 to what the words ask of her, then 1.3 to her senses and the screen,
+    one after another. They are begun with the turn and waited for where they are used (`core/runtime/begun_early.py`), a text
+    her encoder has read is not read again, and her live state is what stands out of it, where it was a prefix by the alphabet
+    of about a thousand tokens (`core/brain/what_stands_out_in_her.py`). Left: again, live; and reading ahead for the turn to
+    come while nobody waits.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).

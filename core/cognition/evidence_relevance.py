@@ -262,6 +262,11 @@ _SHARED_ENGINE_LEASE: Any | None = None
 _CACHE_ENGINE_TOKEN: tuple[str, str, int, int] | None = None
 #: Bounded: this is a per-turn lookup, not a store.
 _REQUEST_CACHE_MAX = 256
+#: Texts read by meaning already, by their digest: a turn asks again about the memories and the earlier requests the turn
+#: before it asked about. LIVE 25 November 2026 a recall read 51 texts, 40 of them the same as the last one's, in 1.6 s.
+_MEANT: OrderedDict[str, Any] = OrderedDict()
+#: How many are kept: six megabytes of them.
+_MEANT_MAX = 2048
 
 _ALIGNMENT_POSITIVES: tuple[tuple[str, str], ...] = (
     (
@@ -363,6 +368,7 @@ def _bind_cache_to_engine(engine: Any) -> None:
         _REQUEST_CACHE.clear()
         _ALIGNMENT_QUERY_CACHE.clear()
         _DOCUMENT_CACHE.clear()
+        _MEANT.clear()
         _CACHE_ENGINE_TOKEN = token
     # The anchors are cold again, so the next turn may ask for a warm again.
     _WARMING["asked"] = False
@@ -458,10 +464,33 @@ def vectors_if_ready(texts: Sequence[str]) -> list[Any]:
     embedder = _embedder(initialize=False)
     by_meaning = getattr(embedder, "embed_batch_by_meaning", None)
     if callable(by_meaning):
-        vectors = by_meaning(wanted)
-        return [] if vectors is None else [[float(x) for x in vector] for vector in vectors]
+        return _read_by_meaning(wanted, by_meaning)
     vectors = _encode_documents(wanted, embedder)
     return [] if any(vector is None for vector in vectors) else [[float(x) for x in vector] for vector in vectors]
+
+
+def _read_by_meaning(wanted: list[str], by_meaning: Callable[[list[str]], Any]) -> list[list[float]]:
+    """The vectors of ``wanted``, reading only the texts not read already by the engine that is loaded."""
+    keys = [hashlib.sha256(text.encode("utf-8", "surrogatepass")).hexdigest() for text in wanted]
+    with _LOCK:
+        generation = _CACHE_ENGINE_TOKEN
+        found = {key: _MEANT[key] for key in keys if key in _MEANT}
+        for key in found:
+            _MEANT.move_to_end(key)
+    missing = {key: text for key, text in zip(keys, wanted, strict=True) if key not in found}
+    if missing:
+        made = by_meaning(list(missing.values()))
+        if made is None or len(made) != len(missing):
+            return []
+        found.update(zip(missing, made, strict=True))
+        with _LOCK:
+            # Vectors of an engine that has since been changed are for this answer alone.
+            if generation == _CACHE_ENGINE_TOKEN:
+                for key in missing:
+                    _MEANT[key] = found[key]
+                while len(_MEANT) > _MEANT_MAX:
+                    _MEANT.popitem(last=False)
+    return [[float(x) for x in found[key]] for key in keys]
 
 
 def anchors_warm() -> bool:
@@ -652,9 +681,11 @@ def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
 def document_cache_is_bounded():
     """Retained document vectors cannot grow past their serving budget."""
     with _LOCK:
-        count = len(_DOCUMENT_CACHE)
+        count, meant = len(_DOCUMENT_CACHE), len(_MEANT)
     if count > _REQUEST_CACHE_MAX:
         yield Violation(subject='evidence-documents', message=f'{count} retained vectors exceed {_REQUEST_CACHE_MAX}.')
+    if meant > _MEANT_MAX:
+        yield Violation(subject='texts-read-by-meaning', message=f'{meant} retained vectors exceed {_MEANT_MAX}.')
 
 
 def _cosine(left: Any, right: Any) -> float:
