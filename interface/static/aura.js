@@ -3084,6 +3084,8 @@ function handleWsEvent(data) {
             $('typing-ind').classList.remove('show');
             setChatPanelState('idle');
         }
+    } else if (type === 'aura_turn') {
+        replyAsItForms(data);
     } else if (type === 'aura_message' || type === 'chat_response') {
         const msg = data.message || data.content;
         const meta = data.metadata || {};
@@ -6565,8 +6567,31 @@ function typesetMath(h, protect) {
     return h;
 }
 
+// Her reply as it forms: what she took the message for, and her words as they are written, in this window and for the turn
+// it asked. What is finished takes its place, whole.
+function replyAsItForms(data) {
+    const item = state.activeChatRequest;
+    if (!item || data.key !== item.idempotencyKey) return;
+    if (data.doing) updateTypingLabel(`${data.doing}…`);
+    const messages = DOM.messages || $('messages');
+    let forming = $('reply-forming');
+    if (data.done) { if (forming) forming.dataset.done = '1'; window.setTimeout(() => $('reply-forming')?.remove(), 4000); return; }
+    if (!data.text || !messages) return;
+    if (!forming) {
+        forming = document.createElement('div'); forming.id = 'reply-forming'; forming.className = 'msg aura forming'; forming.setAttribute('aria-live', 'off');
+        forming.innerHTML = '<div class="aura-avatar"></div><div class="msg-content"></div>';
+        messages.appendChild(forming); $('typing-ind')?.classList.remove('show');
+    }
+    if (forming.nextSibling) messages.appendChild(forming);
+    forming.querySelector('.msg-content').innerHTML = renderMessageMarkdown(data.text, false);
+    if (!state.userScrolledUp) messages.scrollTop = messages.scrollHeight;
+}
+
 async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode = null) {
     const messages = DOM.messages || $('messages');
+    // What was shown of it as it formed has been read: what is finished is put in its place and not typed out again.
+    const formed = role === 'aura' ? $('reply-forming') : null;
+    if (formed) { formed.remove(); metadata = { ...metadata, formed: true }; }
     const div = document.createElement('div');
     div.className = `msg ${role} typing`;
     if (metadata.transcriptEvent === true) div.dataset.transcriptEvent = 'true';
@@ -6637,6 +6662,7 @@ async function appendMsg(role, text, isHtml = false, metadata = {}, beforeNode =
         && text.length > 5
         && !isHtml
         && !metadata.historyTurnId
+        && !metadata.formed
         && !prefersReducedMotion
         && words.length <= 180
         // requestAnimationFrame does not run while the document is hidden, so a

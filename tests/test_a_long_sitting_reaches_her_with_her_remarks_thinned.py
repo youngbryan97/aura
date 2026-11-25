@@ -13,7 +13,7 @@ import pytest
 
 from core.cognition import evidence_relevance
 from core.conversation.delivered_history import LEFT_OUT, reached_exchange_messages
-from core.conversation.history_reach import A_SITTING_READ_WHOLE_CHARS
+from core.conversation.history_reach import READ_AS_IT_GOES_CHARS
 from core.utils.injected_blocks import stamp_runtime_payload
 
 ASKED = "So what did you think of all three?"
@@ -27,17 +27,17 @@ def bears_on_nothing(monkeypatch):
     monkeypatch.setattr(evidence_relevance, "assess_evidence_alignments", assess)
 
 
-def _watching(name: str, at: float) -> dict:
-    remarks = [f"{name} remark {number}: " + "something on screen " * 30 for number in range(12)]
+def _watching(name: str, at: float, words: int) -> dict:
+    remarks = [f"{name} remark {number}: " + "something on screen " * words for number in range(12)]
     remarks.append(f"It's over. My verdict on {name}: the prediction I made was wrong.")
     return stamp_runtime_payload({"user": f"Watch {name} with me.", "aura": f"My prediction for {name}: it goes deeper.",
                                   "said_after": remarks, "timestamp": at})
 
 
-def _the_demo(now: float) -> list[dict]:
+def _the_demo(now: float, words: int = 60) -> list[dict]:
     earlier = [stamp_runtime_payload({"user": ASKED, "aura": "Of three other videos.", "timestamp": now - 30_000})]
-    return earlier + [_watching("Kurzgesagt", now - 2100), _watching("Allen Pan", now - 1200),
-                      _watching("Salad Fingers", now - 120)]
+    return earlier + [_watching("Kurzgesagt", now - 2100, words), _watching("Allen Pan", now - 1200, words),
+                      _watching("Salad Fingers", now - 120, words)]
 
 
 def test_every_watching_of_the_sitting_reaches_her_with_her_answer_and_her_thoughts_after(bears_on_nothing):
@@ -48,7 +48,7 @@ def test_every_watching_of_the_sitting_reaches_her_with_her_answer_and_her_thoug
         assert f"My verdict on {name}: the prediction I made was wrong." in said
     assert "Of three other videos." not in said
     assert LEFT_OUT in said
-    assert sum(len(message["content"]) for message in reached.messages) <= A_SITTING_READ_WHOLE_CHARS
+    assert sum(len(message["content"]) for message in reached.messages) <= READ_AS_IT_GOES_CHARS
 
 
 def test_a_sitting_that_fits_reaches_her_as_it_was(bears_on_nothing):
@@ -60,6 +60,6 @@ def test_a_sitting_that_fits_reaches_her_as_it_was(bears_on_nothing):
 
 
 def test_her_own_turns_read_the_sitting_as_it_was(bears_on_nothing):
-    reached = reached_exchange_messages(_the_demo(time.time()), request="")
+    reached = reached_exchange_messages(_the_demo(time.time(), words=30), request="")
     said = "\n".join(message["content"] for message in reached.messages)
     assert LEFT_OUT not in said and "Kurzgesagt remark 0:" in said

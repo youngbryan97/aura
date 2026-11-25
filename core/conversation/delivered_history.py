@@ -82,7 +82,7 @@ def _the_sitting_fitted(pairs: list[dict[str, Any]], now: float | None = None) -
 
     LIVE 8 November 2026, the demo: asked "So what did you think of all three?", her conversation held the sitting's
     three watchings, each an exchange of the request, her answer and what she said while it played, 24,000 characters
-    in all. The sitting was over the room it is read whole in (A_SITTING_READ_WHOLE_CHARS), the request bore by meaning
+    in all. The sitting was over the room it is read whole in (READ_AS_IT_GOES_CHARS), the request bore by meaning
     on none of it, and only the last exchange reached her: she said she had predicted "a moral panic" of a video she
     had predicted the opposite of, and thanked the video's makers for "admitting his prediction was wrong".
 
@@ -91,7 +91,7 @@ def _the_sitting_fitted(pairs: list[dict[str, Any]], now: float | None = None) -
     of them left out marked where it was.
     """
     from core.conversation.history_reach import (
-        A_SITTING_READ_WHOLE_CHARS,
+        READ_AS_IT_GOES_CHARS,
         _exchange_chars,
         _this_sitting,
     )
@@ -115,7 +115,7 @@ def _the_sitting_fitted(pairs: list[dict[str, Any]], now: float | None = None) -
             parts.append(remark)
         return "\n\n".join(parts)
 
-    while sum(_exchange_chars(fitted[index]) for index in sitting) > A_SITTING_READ_WHOLE_CHARS:
+    while sum(_exchange_chars(fitted[index]) for index in sitting) > READ_AS_IT_GOES_CHARS:
         open_to_it = [index for index in sitting
                       if "reply" in fitted[index] and len(left_out[index]) < len(fitted[index]["remarks"]) - 1]
         if not open_to_it:

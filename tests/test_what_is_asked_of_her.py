@@ -908,3 +908,59 @@ def test_what_work_asks_is_kept_with_the_request_and_taken_to_them(tmp_path, mon
     assert request.asks[0].answer == "Whoever paid." and bench.heard() == ["Whoever paid."]
     again = RequestsOfHer(tmp_path / "r.json")
     assert again.get(request.id).asks[0].answer == "Whoever paid.", "kept across a restart"
+
+
+# ── what is cut short ────────────────────────────────────────────────
+
+def _away(monkeypatch, closing: bool):
+    monkeypatch.setattr(carrying_out, "AWAY_S", 0.001)
+    monkeypatch.setattr(carrying_out, "is_shutdown_requested", lambda: closing)
+
+    async def closed(within_s=0.0):
+        return closing
+
+    monkeypatch.setattr(carrying_out, "_closing", closed)
+
+
+def test_work_her_model_went_from_as_she_was_closed_is_left_off_and_not_reported_done(tmp_path, monkeypatch):
+    """LIVE 24 November 2026: she was closed as a program was being mended, and it was told as finished."""
+    from core.rebuilding.her_model import HerModelIsAwayError
+    from core.understanding.requests_of_her import LEFT_OFF
+
+    _away(monkeypatch, closing=True)
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    request = ledger.asked("Make it.", effect="program", conversation="c")
+
+    async def carrier(request, tell):
+        raise HerModelIsAwayError("an empty answer")
+
+    asyncio.run(carrying_out.carry_out(request, carrier, tell=lambda line: None, ledger=ledger))
+    assert request.stands == CUT_SHORT and request.tries[-1].how == LEFT_OFF and ledger.left_off() == [request]
+    again = RequestsOfHer(tmp_path / "r.json")
+    assert [r.id for r in again.left_off()] == [request.id], "and is gone on with when she is opened"
+
+
+def test_work_her_model_went_from_for_a_while_is_gone_on_with_when_it_is_back(tmp_path, monkeypatch):
+    from core.rebuilding.her_model import HerModelIsAwayError
+
+    _away(monkeypatch, closing=False)
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    request, tries = ledger.asked("Make it.", effect="program", conversation="c"), []
+
+    async def carrier(request, tell):
+        tries.append(1)
+        if len(tries) < 3:
+            raise HerModelIsAwayError("no answer")
+        return carrying_out.CameTo(how="built", parts=[Part("it runs", "met")])
+
+    asyncio.run(carrying_out.carry_out(request, carrier, tell=lambda line: None, ledger=ledger))
+    assert request.stands == MET and len(tries) == 3
+
+    async def never(request, tell):
+        tries.append(1)
+        raise HerModelIsAwayError("gone")
+
+    gone = ledger.asked("Make that.", effect="program", conversation="c")
+    tries.clear()
+    asyncio.run(carrying_out.carry_out(gone, never, tell=lambda line: None, ledger=ledger))
+    assert gone.stands == CUT_SHORT and len(tries) == carrying_out.AWAY_TRIES + 1 and ledger.left_off() == []

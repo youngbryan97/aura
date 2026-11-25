@@ -27,7 +27,7 @@ from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Understanding")
 
-__all__ = ["ASKED", "Ask", "Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her", "line_of"]
+__all__ = ["LEFT_OFF", "ASKED", "Ask", "Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her", "line_of"]
 
 #: How a request stands. ``met`` and ``partly`` and ``unmet`` are what a check found; ``cut_short`` is work that stopped
 #: before a check; ``set_aside`` is the person's own word.

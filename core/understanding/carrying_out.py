@@ -20,9 +20,11 @@ from typing import Any
 
 from core.runtime import work_somebody_asked_for
 from core.runtime.errors import record_degradation
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.understanding.her_model_between_turns import nobody_waiting
 from core.understanding.requests_of_her import (
     CUT_SHORT,
+    LEFT_OFF,
     MET,
     OPEN,
     PARTLY,
@@ -85,17 +87,32 @@ def stands_by(parts: list[Part]) -> str:
 
 async def carry_out(request: Request, carrier: Carrier, *, tell: Tell, ledger: RequestsOfHer | None = None) -> Request:
     """Try, check, and try again for what is missing while that gains anything; what it came to is on the request."""
+    from core.rebuilding.her_model import HerModelIsAwayError
+
     ledger = ledger or get_requests_of_her()
     missing_before: int | None = None
+    away = 0
     while True:
         await ledger.changed(request, stands=WORKING, now="")
         began = time.time()
         try:
             came = await carrier(request, tell)
         except asyncio.CancelledError:
-            request.tries.append(Try(at=began, how="it was stopped", came_to="cut short"))
+            request.tries.append(Try(at=began, how=LEFT_OFF if is_shutdown_requested() else "it was stopped", came_to="cut short"))
             await ledger.changed(request, stands=CUT_SHORT)
             raise
+        except HerModelIsAwayError as exc:
+            # Her model gone is not the work having come to an end. Where she is being closed it is left off, to be gone on
+            # with; where she is not, her model comes back. LIVE 24 November 2026 she was closed as a program was being
+            # mended, and it was reported finished, for her model had given an empty answer on its way out.
+            if await _closing() or away >= AWAY_TRIES:
+                request.tries.append(Try(at=began, how=LEFT_OFF if is_shutdown_requested() else f"her model was away: {exc}"[:200], came_to="cut short"))
+                await ledger.changed(request, stands=CUT_SHORT)
+                return request
+            away += 1
+            logger.info("🧰 Request %s waits for her model (%s).", request.id, exc)
+            await asyncio.sleep(AWAY_S * away)
+            continue
         except PutDown:
             request.tries.append(Try(at=began, how="it was stopped by them", came_to="set aside"))
             await ledger.changed(request, stands=SET_ASIDE)
@@ -119,6 +136,18 @@ async def carry_out(request: Request, carrier: Carrier, *, tell: Tell, ledger: R
         missing_before = len(missing)
         await ledger.changed(request, stands=stands, now="")
         tell(f"Trying again for what is missing: {'; '.join(part.what for part in missing[:6])}.")
+
+
+#: How often, and how long each time, her model is waited for where it is away, in seconds.
+AWAY_TRIES, AWAY_S = 8, 15.0
+
+
+async def _closing(within_s: float = 3.0) -> bool:
+    """Whether she is being closed: her model goes before she has been told, so a little is waited to see."""
+    ends = time.monotonic() + within_s
+    while not is_shutdown_requested() and time.monotonic() < ends:
+        await asyncio.sleep(0.2)
+    return is_shutdown_requested()
 
 
 def _the_whole(request: Request) -> str:
@@ -207,7 +236,7 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
             bench.finished("stopped" if bench.stopped or request.stands in {CUT_SHORT, SET_ASIDE} else "done")
             keeper.cancel()
             await _bench_kept()
-        if request.stands not in {OPEN, SET_ASIDE}:
+        if request.stands not in {OPEN, SET_ASIDE, CUT_SHORT}:
             await told(request)
 
     _UNDER_WAY[request.id] = get_task_tracker().create_task(work(), name=f"request.{request.effect}.{request.id}")

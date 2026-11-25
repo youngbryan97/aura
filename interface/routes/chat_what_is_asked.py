@@ -125,4 +125,7 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
     # Held by the person's own words, which is what the doors ask by.
     asked = dataclasses.replace(asked, said=said)
     hold(asked)
+    from interface.routes.chat_reply_as_it_forms import DOING, tell_the_window
+
+    tell_the_window(doing=DOING.get(asked.effect if asked.acts else "talk", "Thinking"))
     return asked

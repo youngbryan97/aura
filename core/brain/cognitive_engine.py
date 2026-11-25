@@ -315,10 +315,13 @@ def _fit_history_to_what_is_left(
     the reply to it and is kept or dropped together.
     """
 
-    from core.conversation.history_reach import measure_reach
+    from core.conversation.history_reach import READ_AS_IT_GOES_CHARS, measure_reach
 
     budget = _history_budget_for(system_prompt, max_tokens)
     if budget <= 0 or not history_messages:
+        return history_messages, ""
+    # A conversation that is read as it goes on is read already but for what is new in it.
+    if sum(len(str(m.get("content") or "")) for m in history_messages) <= READ_AS_IT_GOES_CHARS:
         return history_messages, ""
     pairs: list[list[dict[str, str]]] = []
     for message in history_messages:

@@ -55,6 +55,7 @@ from core.making.trying import (
     try_page,
 )
 from core.making.what_has_worked import functions_like, get_kept
+from core.rebuilding.her_model import HerModelIsAwayError
 from core.understanding.carriers.finding import quoted_in
 from core.understanding.workbench import PutDown, Work
 
@@ -939,6 +940,30 @@ class _Maker:
         twice = {rule_of(r.name) for r in self.trial.rules if r.ok and r.name.endswith(AGAIN)}
         return [r for r in failing if r.the_test or r.name in twice or (not self._held_by.get(r.name) and len(self._failed_by.get(r.name, ())) >= 2)]
 
+    def tests_of_another_shape(self, before: Design | None) -> list[str]:
+        """The rules whose tests set or read what the state has no longer, or has as another kind of thing, those tests taken
+        out: they are of the design as it was, and are written again to the design as it is. LIVE 24 November 2026 an expense
+        came to be for several people, every test of the app put one in that was for one, and the change was taken back for
+        the tests it broke."""
+        assert self.design is not None
+        if before is None or self.design.kind not in {"app", "game"} or before.kind != self.design.kind:
+            return []
+        was, now = shape_of(before.state), shape_of(self.design.state)
+        other = {name for name, kinds in was.items() if now.get(name) != kinds}
+        if not other:
+            return []
+        first, tests = each_test_in(self.parts.tests)
+        gone = [name for name, text in tests if any(re.search(rf"(?:\.|[{{,]\s*[\"']?){re.escape(n)}(?![\w$])", text) for n in other)]
+        if gone:
+            self.parts.tests = "\n\n".join([*([first.strip()] if first.strip() else []), *(f"{text};" for name, text in tests if name not in gone)])
+            self.work.says(f"The state has another shape now ({', '.join(sorted(other)[:6])}), so {len(gone)} tests of it as it was are written again.")
+            for name in gone:
+                self._held_by.pop(name, None)
+                self._failed_by.pop(name, None)
+            self._twice -= {rule_of(name) for name in gone}
+        rules = {rule.says for rule in self.design.rules}
+        return [rule for rule in dict.fromkeys(rule_of(name) for name in gone) if rule in rules]
+
     async def _tests_read_again(self, failing: list[Result]) -> bool:
         """The tests that still fail, read again against the rule each is of: kept, corrected, or taken out with its reason."""
         assert self.design is not None
@@ -1028,6 +1053,27 @@ class _Maker:
     def made(self, path: Path, why_not: str = "") -> Made:
         assert self.design is not None
         return Made(self.design, self.parts, self.folder, path, self.trial, time.monotonic() - self.began, why_not, frozenset(self.corrected))
+
+
+def shape_of(state: Any) -> dict[str, tuple[str, ...]]:
+    """Every name a state has, at any depth, with the kinds of thing it holds."""
+    found: dict[str, set[str]] = {}
+
+    def kind(value: Any) -> str:
+        if isinstance(value, list):
+            held = sorted({kind(item) for item in value})
+            return f"list of {held[0]}" if len(held) == 1 else "list"
+        return "truth" if isinstance(value, bool) else "number" if isinstance(value, (int, float)) else "words" if isinstance(value, str) else "thing" if isinstance(value, dict) else "nothing"
+
+    def of(value: Any) -> None:
+        for name, held in value.items() if isinstance(value, dict) else ():
+            found.setdefault(str(name), set()).add(kind(held))
+            of(held)
+        for item in value if isinstance(value, list) else ():
+            of(item)
+
+    of(state)
+    return {name: tuple(sorted(kinds)) for name, kinds in found.items()}
 
 
 def _named(test: str, name: str) -> str:
@@ -1126,6 +1172,11 @@ async def _run(maker: _Maker, first: Callable[[], Awaitable[None]]) -> Made | No
             words = work.heard()
             maker.asked = "\n".join([maker.asked, *words])
             stage = maker_again(maker)
+        except HerModelIsAwayError:
+            # Not a step that broke off: she is to go on with it when her model is there.
+            if maker.design is not None and maker.parts.code().strip():
+                await maker.kept()
+            raise
         except Exception as why:  # noqa: BLE001 - a step that broke off leaves the program as it stood before it
             if maker.design is None or not (maker.trial.passing() and maker.parts.code().strip()):
                 raise
@@ -1147,6 +1198,7 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
         if maker.design is None:
             return
         new = [rule.says for rule in maker.design.rules if rule.says not in rules]
+        new += [rule for rule in maker.tests_of_another_shape(before) if rule not in new]
         same_kind = before is not None and before.kind == maker.design.kind
         if before is None or not same_kind or not (maker.parts.functions or maker.parts.text):
             maker.parts, maker.has = Parts(), []

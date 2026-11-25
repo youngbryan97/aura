@@ -528,6 +528,7 @@ from interface.routes.chat_runtime_proof import (  # noqa: E402
     _write_live_proof_file,  # noqa: F401
 )
 from interface.routes.chat_carrying_out import her_question_is_asked, her_word_is_kept, take_up_what_is_asked  # noqa: E402
+from interface.routes.chat_reply_as_it_forms import reply_as_it_forms  # noqa: E402
 from interface.routes.chat_what_is_asked import files_meant, read_what_this_turn_asks  # noqa: E402
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
@@ -7068,10 +7069,9 @@ async def api_chat(
                             else "tool-governance spine was not ready at turn ingress"
                         ),
                     )
-                _served = await _apply_recorded_answer(
-                    visible_user_message,
-                    await _api_chat_turn(body, request),
-                )
+                with reply_as_it_forms():
+                    _turn = await _api_chat_turn(body, request)
+                _served = await _apply_recorded_answer(visible_user_message, _turn)
                 _mark_http_turn_served(_turn_outcome, _served)
                 return _served
     finally:

@@ -19,7 +19,15 @@ from core.making.code_parts import (
     patched,
     python_patched,
 )
-from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
+from core.making.design import (
+    Asked,
+    Control,
+    Design,
+    Rule,
+    in_proportion,
+    left_out,
+    with_every_ask,
+)
 from core.making.tools import Case, Cases, languages, try_tool
 from core.making.trying import Result, as_object, page_of, site_of, try_page
 from core.understanding.workbench import PutDown, Work, get_workbench, this_work, working_on
@@ -1425,3 +1433,42 @@ def test_only_what_is_new_of_what_she_writes_is_sent():
         pass_on({"id": "r1", **message})
     forget("r1")
     assert got == ["const", "const x", "const x = 1", "again"] and read == [(5, 9)]
+
+
+# ── a change that gives the state another shape ──────────────────────
+
+def test_a_state_of_another_shape_is_told_by_its_names_and_what_they_hold():
+    was = {"items": [{"name": "rye", "who": "Ana", "cost": 3}], "open": False, "by": {"Ana": 1}}
+    now = {"items": [{"name": "rye", "who": ["Ana"], "cost": 3}], "open": False, "by": {"Ana": 1}, "note": ""}
+    a, b = maker.shape_of(was), maker.shape_of(now)
+    assert {n for n in a if a[n] != b.get(n)} == {"who"} and maker.shape_of({"a": [1, "x"]})["a"] == ("list",)
+
+
+def test_tests_of_the_state_as_it_was_are_written_again_to_the_state_as_it_is(tmp_path):
+    """LIVE 24 November 2026: an expense came to be for several people, and every test of the app set one that was for one."""
+    made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
+    state = {"expenses": [{"id": 1, "payer": "Ana", "for": "Ben", "cents": 300}], "people": ["Ana"]}
+    before = _design(kind="app", state=state, rules=[Rule(says="An expense is for somebody"), Rule(says="People can be added"), Rule(says="It adds up")])
+    made.design = before.model_copy(deep=True)
+    made.design.state = {"expenses": [{"id": 1, "payer": "Ana", "for": ["Ben"], "cents": 300}], "people": ["Ana"]}
+    made.parts.tests = ('test("An expense is for somebody", t => { t.s.expenses = [{ id: 1, payer: "Ana", for: "Ben", cents: 300 }]; t.expect(t.sees("Ben")); });\n\n'
+                        'test("People can be added", t => { t.type("Name", "Cy"); t.click("Add"); t.expect(t.s.people.includes("Cy")); });\n\n'
+                        'test("It adds up, tested again", t => { t.s = { expenses: [{ "for": "Ana", cents: 1 }] }; t.expect(t.sees("1")); });')
+    assert made.tests_of_another_shape(before) == ["An expense is for somebody", "It adds up"]
+    assert [name for name, _text in maker.each_test_in(made.parts.tests)[1]] == ["People can be added"]
+    assert made.tests_of_another_shape(made.design) == [] and made.tests_of_another_shape(None) == []
+
+
+def test_a_label_the_design_has_not_is_the_tests_own_and_one_it_has_is_looked_for(tmp_path):
+    design = _design(name="Shelf", kind="app", state=SHELF_STATE, controls=[Control(input="Title", does="what it is called"), Control(input="Add", does="puts it in"), Control(input="Drop", does="takes it out")])
+    tests = '''test("a", t => { t.type("Title", "Emma"); t.click("Add"); t.click("Drop Emma"); t.expect(t.s.books.length === 0); });
+test("b", t => { t.type("Heading", "Emma"); });
+test("c", t => { t.click("Drop"); });'''
+    trial = _tried(page_of(design, SHELF, tests=tests), tmp_path)
+    got = {r.name: r for r in trial.rules}
+    assert got["a"].ok and got["b"].the_test and "the design has none of that name" in got["b"].why and not got["c"].the_test
+    assert "the controls it was designed with are there" in {r.name for r in trial.passing()}
+    design.controls.append(Control(input="Lend to", does="lends it"))
+    trial = _tried(page_of(design, SHELF, tests=""), tmp_path)
+    (gone,) = [r for r in trial.failing() if r.name == "the controls it was designed with are there"]
+    assert "“Lend to”" in gone.why

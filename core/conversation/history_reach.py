@@ -69,6 +69,7 @@ does not need what was left out.
 from __future__ import annotations
 
 import time
+from collections import deque
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -168,6 +169,38 @@ def _from_earlier_sittings(exchanges: Sequence[Any], now: float | None) -> int:
 A_SITTING_READ_WHOLE_CHARS = 12_000
 
 
+#: How much of the sitting going on now is read as it goes on, in characters, before the oldest of it is let go; and how much
+#: is left when it is. About 7,000 tokens, of the 22,000 her model keeps read for one conversation.
+#:
+#: What was read for the turn before is read already. Her model keeps what it has read, and reads on from the first thing
+#: that is different; a conversation whose beginning is the same each turn costs what is new in it. LIVE 24 November 2026,
+#: over 43 turns, the median turn waited 14 s for its prompt to be read and the 90th in a hundred 53 s: of the prompts read
+#: for a person, 28 in 28 that were looked up shared no more than three tokens with one read before, because which exchanges
+#: a turn bore on, and how many its answer could afford, were chosen again each turn, and the first was never the same one.
+READ_AS_IT_GOES_CHARS, LEFT_WHEN_LET_GO_CHARS = 28_000, 14_000
+
+#: Where the conversation that is read began, for the sittings read lately: each the exchange it began with.
+_BEGAN_WITH: deque[int] = deque(maxlen=64)
+
+
+def _read_as_it_goes(exchanges: Sequence[Any], sitting: range, sizes: Sequence[int]) -> range:
+    """The exchanges of this sitting that are read: all of it, and once that is more than is read, the last of it, from one
+    exchange on that stays where it is until what has been said since is as much again."""
+    if sum(sizes[index] for index in sitting) <= READ_AS_IT_GOES_CHARS:
+        return sitting
+    marks = {index: hash(_exchange_text(exchanges[index])) for index in sitting}
+    since, began = 0, {}
+    for index in reversed(sitting):
+        since += sizes[index]
+        began[index] = since
+    for index in sitting:
+        if marks[index] in _BEGAN_WITH and began[index] <= READ_AS_IT_GOES_CHARS:
+            return range(index, sitting.stop)
+    first = next((index for index in sitting if began[index] <= LEFT_WHEN_LET_GO_CHARS), sitting.stop - 1)
+    _BEGAN_WITH.append(marks[first])
+    return range(first, sitting.stop)
+
+
 def _this_sitting(exchanges: Sequence[Any], now: float | None) -> range | None:
     """The indices of the sitting going on now; None where an exchange's time is unknown, so where it began is too."""
     from core.conversation.sitting import when
@@ -194,6 +227,18 @@ def measure_reach(
     total = sum(sizes)
     if count == 0:
         return HistoryReach(boundary=0, retained=0, reason="no delivered exchanges")
+
+    sitting = _this_sitting(exchanges, now)
+    if sitting is not None and len(sitting):
+        # The conversation in front of her: read already but for what is new, so neither what an answer affords nor what
+        # this turn bears on is what decides how much of it there is.
+        read = _read_as_it_goes(exchanges, sitting, sizes)
+        kept = tuple(read)
+        return HistoryReach(
+            boundary=read.start, retained=len(kept), dropped=count - len(kept), kept_chars=sum(sizes[index] for index in kept),
+            budget_chars=max(0, budget_chars), kept=kept,
+            reason=f"this sitting's {len(kept)} of {len(sitting)} exchange(s) are read as it goes on"
+                   + (f"; {sitting.start} from sittings before this one, which reach her as memory" if sitting.start else ""))
 
     boundary = 0
     reasons = []
@@ -224,11 +269,6 @@ def measure_reach(
         if earlier:
             bearing = [index for index in bearing if index >= begins]
             said += f"; {len(earlier)} of them from sittings before this one, which reach her as memory"
-        # The sitting going on now is the conversation in front of her, and read whole while it is short.
-        sitting = _this_sitting(exchanges, now)
-        if sitting is not None and sum(sizes[index] for index in sitting) <= A_SITTING_READ_WHOLE_CHARS:
-            bearing = sorted(set(bearing) | set(sitting))
-            said += f"; this sitting's {len(sitting)} exchange(s) are read whole"
         reasons.append(said)
         kept = tuple(index for index in kept if index in bearing or index == count - 1)
         boundary = kept[0]
