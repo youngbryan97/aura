@@ -70,6 +70,14 @@ class Checked:
                 "by_kind": dict(self.by_kind)}
 
 
+def _held_by(family: Any, position: Any) -> bool:
+    """Whether her rules hold every kind standing in ``position``. A board with a piece of a look she has no rules for
+    cannot be checked under them: what that piece could take or block is unknown. LIVE 25 November 2026, at the end of
+    a game, one such board ended her account of the game with a KeyError, and what the game had taught her was not
+    kept."""
+    return all(letter in family.kinds for _side, letter in position.cells.values())
+
+
 @dataclass
 class WhatTheGameShowed:
     """The answers the game gave: squares offered to a piece picked up, and moves refused."""
@@ -106,6 +114,8 @@ class WhatTheGameShowed:
             # up on a game's setup board were counted as six disagreements.
             if start not in position.cells or position.cells[start][0] != position.turn or not answer["to"]:
                 continue
+            if not _held_by(family, position):
+                continue
             kind = position.cells[start][1]
             # Each partner's square her rules have the piece crossing with, read as the square the crossing ends on.
             crossing = {m.partner[0]: m.end for m in _possible(family, position)
@@ -128,7 +138,7 @@ class WhatTheGameShowed:
             except (KeyError, TypeError, ValueError):
                 continue
             start, end = tuple(answer["from"]), tuple(answer["to"])
-            if start not in position.cells:
+            if start not in position.cells or not _held_by(family, position):
                 continue
             found.answers += 1
             if any(m.start == start and m.end == end for m in moves(family, position)):
