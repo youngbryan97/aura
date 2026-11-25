@@ -927,10 +927,15 @@ class HowThePiecesMove:
             unmoved_reach = self._reach(way, unmoved=True)
             # Seen taking, and seldom or never going to an empty square that way though kept off one: it only takes
             # along it. Seen stopped at a piece of the other side it could have reached, and seldom or never taking:
-            # it only moves.
-            if way.took and way.moved_to_empty <= AGAINST_AT_MOST * way.took and (way.withheld or way.withheld_unmoved):
+            # it only moves. Taking seen fewer times than a way is believed on, and stopped short of a piece more often
+            # than that, is a misreading, not a way of taking: LIVE 25 November 2026 one capture read two squares
+            # straight ahead stood against four times the kind would not take, and she tried to take straight ahead;
+            # at one in ten against, ten refusals would have been needed to let go of what one look had shown.
+            thinly_taken = way.took < SEEN_TO_BELIEVE and way.would_not_take > way.took
+            if (way.took and not thinly_taken and way.moved_to_empty <= AGAINST_AT_MOST * way.took
+                    and (way.withheld or way.withheld_unmoved)):
                 may = "takes"
-            elif way.would_not_take and way.took <= AGAINST_AT_MOST * way.would_not_take:
+            elif way.would_not_take and (thinly_taken or way.took <= AGAINST_AT_MOST * way.would_not_take):
                 may = "moves"
             else:
                 may = "either"
