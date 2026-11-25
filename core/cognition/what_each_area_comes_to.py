@@ -378,15 +378,25 @@ class SumPlayed:
 def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, int], Iterable[Any]],
                  after: Callable[[Any, Any], Any], judge: Callable[[Any], float], plies_at_most: int, seconds: float,
                  name_of: Callable[[Any], Hashable] | None = None, may_pass: bool = False,
-                 stop: Callable[[], bool] | None = None, first: int = HERS) -> SumPlayed:
+                 stop: Callable[[], bool] | None = None, first: int = HERS,
+                 joined: Callable[[tuple, int], Sequence[Any]] | None = None,
+                 whole: Callable[[tuple], float] | None = None) -> SumPlayed:
     """The parts played together as one game, exactly, as far as the time allows: a state is every part's state at
     once, a move is one act in one part, the sides take turns over all of them, and the whole stands at the sum of what
     the parts stand at. Where ``put_together`` takes the most urgent part and says one act settles it, this follows a
     part that needs several acts in a row, two threats in two parts that one answer cannot meet, and whose turn it is
     when each part is settled. ``may_pass``: whether a side with acts left may still act nowhere (a world where a turn
     can be let go); where not, a side acts while it has an act anywhere. A part's acts are worked out once for each
-    state it is in, however the other parts stand, and so is what it is judged to stand at. ``first`` is the side to
-    act. ``stop()``, where given, ends it as running out of time does."""
+    state it is in, and so is what it is judged to stand at. ``first`` is the side to act. ``stop()``, where given,
+    ends it as running out of time does.
+
+    Parts that are truly apart keep states of their own. Where they are views of one world, an act in one can change
+    what another can do, what it draws on and what it is worth, and each part's own state would go on as if it had not
+    happened (a review Bryan passed on, 24 November 2026: "Where dependencies emerge, their states must be synchronized
+    or the regions merged within the combined search itself"). ``joined(states, i)``, where given, is the world's
+    own say after an act in part ``i``: the parts as they now stand, each brought up to date with the act, and parts
+    the act tied together made one. ``whole(states)``, where given, is what parts that share one world stand at
+    together, where adding up what each stands at would count what they share more than once."""
     until = time.monotonic() + seconds
     name = name_of or (lambda st: st)
     over = stop or (lambda: False)
@@ -410,6 +420,18 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
             judged[key] = judge(state)
         return judged[key]
 
+    def standing(states: tuple) -> float:
+        if whole is None:
+            return sum(judged_at(st) for st in states)
+        key = ("whole", tuple(name(st) for st in states))
+        if key not in judged:
+            judged[key] = whole(states)
+        return judged[key]
+
+    def acted(states: tuple, i: int, act: Any) -> tuple:
+        moved = states[:i] + (after(states[i], act),) + states[i + 1:]
+        return tuple(joined(moved, i)) if joined is not None else moved
+
     def value(states: tuple, side: int, left: int, low: float, high: float, known: dict) -> float:
         nonlocal cut
         if time.monotonic() > until or over():
@@ -417,7 +439,7 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
         key = (tuple(name(st) for st in states), side, left)
         if key in known:
             return known[key]
-        here = sum(judged_at(st) for st in states)
+        here = standing(states)
         if left <= 0:
             cut = True
             return here
@@ -426,7 +448,7 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
             return here
         best = here if may_pass else (-math.inf if side == HERS else math.inf)
         for i, act in options:
-            moved = states[:i] + (after(states[i], act),) + states[i + 1:]
+            moved = acted(states, i, act)
             if side == HERS:
                 best = max(best, value(moved, THEIRS, left - 1, max(low, best), high, known))
                 if best >= high:
@@ -440,8 +462,7 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
         return best
 
     start = tuple(state for _part, state in parts)
-    found = SumPlayed(comes_to=sum(judged_at(st) for st in start), part=None, act=None, deep=0, complete=False,
-                      first=first)
+    found = SumPlayed(comes_to=standing(start), part=None, act=None, deep=0, complete=False, first=first)
     for plies in range(1, plies_at_most + 1):
         known: dict = {}
         cut = False
@@ -449,7 +470,7 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
             each = []
             for i, state in enumerate(start):
                 for act in acts_of(state, first):
-                    moved = start[:i] + (after(state, act),) + start[i + 1:]
+                    moved = acted(start, i, act)
                     each.append((names[i], act, value(moved, 1 - first, plies - 1, -math.inf, math.inf, known)))
             if not each:
                 return replace(found, complete=True, ended=True)

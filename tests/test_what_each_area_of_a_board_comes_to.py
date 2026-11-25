@@ -192,3 +192,49 @@ def test_a_judgement_held_once_judges_each_board_as_judging_it_afresh_does() -> 
     held = engine.Judgement(described(CHESS), weights)
     assert held.of_each([placed(board) for board in boards]) == [
         engine.evaluate(described(CHESS), placed(board), weights) for board in boards]
+
+
+def test_the_areas_played_as_one_game_come_to_what_searching_the_whole_board_does() -> None:
+    """Boards where a move in one area changes another: what it can do, by leaving a royal piece open or closing a way,
+    and what stands in it, by taking from it. Played as one game on one board, each move's whole is what a plain search
+    of the whole board finds two moves deep, with her to move and with them to move (a review Bryan passed on,
+    24 November 2026: "Verify the composed results against exhaustive global search on small interacting worlds")."""
+    import math
+    import random
+    from dataclasses import replace
+
+    import core.agency.what_each_area_of_a_board_comes_to as areas
+    from core.agency.pieces_by_their_kind import after, moves
+    from core.cognition.what_each_area_comes_to import HERS, THEIRS, play_the_sum
+
+    worth = first_weights(CHESS).worth
+    boards = []
+    for seed in (1, 10, 4):
+        rng = random.Random(seed)
+        board = CHESS.the_start()
+        for _ in range(rng.randrange(14, 34)):
+            board = after(CHESS, board, rng.choice(moves(CHESS, board)))
+        boards.append(board)
+    for board in boards:
+        for first in (HERS, THEIRS):
+            hers = board.turn if first == HERS else 1 - board.turn
+            base = areas._standing(board, worth, hers)
+
+            def searched(position, side, left, hers=hers, base=base):
+                mover = hers if side == HERS else 1 - hers
+                legal = moves(CHESS, replace(position, turn=mover)) if left > 0 else []
+                if not legal:
+                    return areas._standing(position, worth, hers) - base
+                found = [searched(after(CHESS, replace(position, turn=mover), m), 1 - side, left - 1) for m in legal]
+                return max(found) if side == HERS else min(found)
+
+            mover = board.turn
+            truth = {(m.start, m.end, m.becomes): searched(after(CHESS, board, m), 1 - first, 1)
+                     for m in moves(CHESS, board)}
+            acts, moved, judge = areas._the_world_of(CHESS, board, worth, hers)
+            parts = [(areas._named(area), (board, area)) for area in areas.areas_of(CHESS, board)]
+            played = play_the_sum(parts, acts=acts, after=moved, judge=judge, plies_at_most=2, seconds=math.inf,
+                                  name_of=lambda state: (state[0].key(), state[1]), first=first,
+                                  joined=areas._held_together, whole=lambda states, judge=judge: judge(states[0]))
+            got = {(act.start, act.end, act.becomes): comes_to for _part, act, comes_to in played.each}
+            assert mover == board.turn and got == truth

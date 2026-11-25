@@ -146,14 +146,38 @@ def read_board(family: Family, position: Position, worth: dict[str, float], *, h
                         threats=tuple(threats(readings)), played=played)
 
 
+def _held_together(states: tuple, i: int) -> list[tuple[Position, frozenset[Square]]]:
+    """The areas after a move in area ``i``, as one board: every area stands on the board the move left, so that what
+    the move did (a royal piece left open, a way closed or opened) is what every area's moves are worked out on; and an
+    area the move reached (one of its squares now tied to the mover's area, or a piece of it taken or moved) is made one
+    with the mover's area, so that no piece is counted, or moved, in two of them."""
+    board, mine = states[i]
+    mine = set(mine)
+    others = [(j, area) for j, (_board, area) in enumerate(states) if j != i]
+    merged = True
+    while merged:
+        merged = False
+        for j, area in list(others):
+            was = states[j][0]
+            reached = bool(area & mine) or any(board.cells.get(sq) != was.cells.get(sq) for sq in area)
+            if reached:
+                mine |= {sq for sq in area if sq in board.cells}
+                others.remove((j, area))
+                merged = True
+    kept = dict(others)
+    return [(board, frozenset(mine)) if j == i else (board, kept[j]) for j in range(len(states)) if j == i or j in kept]
+
+
 def _played_as_one(family: Family, position: Position, areas: Sequence[frozenset[Square]], acts: Any, moved: Any,
                    judge: Any, plies: int, seconds: float) -> tuple[SumPlayed, SumPlayed] | None:
     """The areas played as one game, as deep as each was read, her to move and them to move, each given ``seconds``:
-    a move is a move in one area, and the sides take turns over all of them. None where either was not played that
-    deep in its time: the quick sum is then all there is."""
+    a move is a move in one area, and the sides take turns over all of them, on one board (``_held_together``). The
+    whole stands where the board does. None where either was not played that deep in its time: the quick sum is then
+    all there is."""
     parts = [(_named(area), (position, area)) for area in areas]
     played = tuple(play_the_sum(parts, acts=acts, after=moved, judge=judge, plies_at_most=plies, seconds=seconds,
-                                name_of=lambda state: (state[0].key(), state[1]), first=side)
+                                name_of=lambda state: (state[0].key(), state[1]), first=side,
+                                joined=_held_together, whole=lambda states: judge(states[0]))
                    for side in (HERS, THEIRS))
     if not all(one.complete and (one.deep >= plies or one.ended) for one in played):
         return None

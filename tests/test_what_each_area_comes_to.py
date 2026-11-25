@@ -414,3 +414,70 @@ def test_a_move_that_keeps_everything_held_but_leaves_fewer_ways_changes_somethi
     held = read_part("camp", (3, 4), acts=acts, after=after, judge=held_alone, plies=2)
     told = replace(held, weakens=("shuffle",))
     assert not changes_nothing(weigh_acts([told])[0], [told])
+
+
+def _a_shared_pool_world():
+    """Three plots that draw on one pool of tokens: a side claims an unclaimed plot by spending a token, and on the first
+    plot a side may instead spend a token to double what every claim is worth. A claim is worth its worth to the side
+    that holds it. Each part's state carries the pool and the worth it last saw."""
+    def acts(state, side):
+        (pool, worth), plot, held = state
+        if pool <= 0:
+            return []
+        mine = [("claim", side)] if held is None else []
+        return mine + ([("double", side)] if plot == "a" and worth == 1 else [])
+
+    def after(state, act):
+        (pool, worth), plot, held = state
+        kind, side = act
+        if kind == "double":
+            return (pool - 1, worth * 2), plot, held
+        return (pool - 1, worth), plot, side
+
+    def judge(state):
+        (_pool, worth), _plot, held = state
+        return 0.0 if held is None else (float(worth) if held == HERS else -float(worth))
+
+    def joined(states, i):
+        shared = states[i][0]
+        return [(shared, plot, held) for _seen, plot, held in states]
+
+    def whole(states):
+        return sum(judge(state) for state in states)
+
+    return acts, after, judge, joined, whole
+
+
+def _the_whole_searched(states, acts, after, joined, whole, side, left):
+    """Every line of the whole world, followed: the plain search a sum must agree with."""
+    options = [(i, act) for i, state in enumerate(states) for act in acts(state, side)] if left > 0 else []
+    if not options:
+        return whole(states)
+    found = [_the_whole_searched(tuple(joined(states[:i] + (after(states[i], act),) + states[i + 1:], i)), acts,
+                                 after, joined, whole, 1 - side, left - 1) for i, act in options]
+    return max(found) if side == HERS else min(found)
+
+
+def test_parts_that_draw_on_one_pool_are_played_as_one_world_and_come_to_what_searching_the_whole_does() -> None:
+    """Two tokens for three plots, and an act on one plot that changes what every claim is worth. Kept apart, each plot
+    spends the pool as if it were its own and knows nothing of the doubling: the sum is wrong. Held together, every act's
+    whole is what a plain search of the whole world finds, whichever side acts first (a review Bryan passed on,
+    24 November 2026: "Verify the composed results against exhaustive global search on small interacting worlds,
+    including cases where an action in one region changes the legal actions, resources, or strategic value of another
+    region")."""
+    from core.cognition.what_each_area_comes_to import play_the_sum
+
+    acts, after, judge, joined, whole = _a_shared_pool_world()
+    start = tuple(((2, 1), plot, None) for plot in "abc")
+    parts = [(state[1], state) for state in start]
+    for first in (HERS, THEIRS):
+        held = play_the_sum(parts, acts=acts, after=after, judge=judge, plies_at_most=6, seconds=10.0, first=first,
+                            joined=joined, whole=whole)
+        apart = play_the_sum(parts, acts=acts, after=after, judge=judge, plies_at_most=6, seconds=10.0, first=first)
+        assert held.complete and apart.complete
+        for part, act, comes_to in held.each:
+            i = next(n for n, state in enumerate(start) if state[1] == part)
+            moved = tuple(joined(start[:i] + (after(start[i], act),) + start[i + 1:], i))
+            assert comes_to == _the_whole_searched(moved, acts, after, joined, whole, 1 - first, 5), (part, act)
+        assert held.comes_to == _the_whole_searched(start, acts, after, joined, whole, first, 6)
+        assert apart.comes_to != held.comes_to, "kept apart, the pool is spent three times over"
