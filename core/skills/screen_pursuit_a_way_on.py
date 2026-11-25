@@ -336,7 +336,16 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
                             target_app, texts[boxed[among]][:60], scores[boxed[among]], texts[chosen][:60],
                             scores[chosen])
             chosen = boxed[among]
-    if chosen is None:
+    # The control that means most nearly what was asked, pressed as often as a way on is given, without what was asked
+    # coming of it, has been answered: it is not the way. Which other control does the next step is the question put
+    # where nothing stands out. LIVE 25 November 2026 at a finished game "BLACK Stockfish" was pressed twice, the board
+    # still took no move, and the run ended with "New Game" on the screen, never pressed.
+    exhausted = chosen is not None and taken.count(" / ".join(r["text"] for r in controls[chosen])) >= \
+        PRESSES_OF_A_WAY_ON
+    if exhausted:
+        logger.info("the way on in %r, %r, has not answered %d presses; which other control does the next step is put "
+                    "to her", target_app, texts[chosen][:80], PRESSES_OF_A_WAY_ON)
+    if chosen is None or exhausted:
         # Nothing stands out by what the words are about ("Start game" is not about chess against an engine, and is
         # what starts one): which control does the next step is a question of understanding the place, put to her own
         # model, with the controls as the only answers. A still screen gives her the time to think.
@@ -348,10 +357,6 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
             return False
         return await _pressed(labels[picked], regions, target_app, reading, keep, read_screen, from_a_window)
     control = controls[chosen]
-    if taken.count(" / ".join(r["text"] for r in control)) >= PRESSES_OF_A_WAY_ON:
-        logger.info("the way on in %r, %r, has not answered %d presses", target_app, texts[chosen][:80],
-                    PRESSES_OF_A_WAY_ON)
-        return False
     taken.append(" / ".join(r["text"] for r in control))
     bounds = list(reading.get("bounds") or [])
     logger.info("a way on in %r by what it means: %r for %r (%.2f, next %.2f)", target_app, texts[chosen][:80],
