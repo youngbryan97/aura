@@ -48,11 +48,28 @@ async def _her_account_of_a_game(request: str, record: str) -> str:
     try:
         # Room to tell what she is handed: LIVE 21 November 2026 her account of a 66-move game had the room of a remark
         # on a film, and stopped at "25." before it said how the game ended.
-        return (await her_turn(request, f"the game she has just played, as her record of it has it: {handed}", [],
+        told = (await her_turn(request, f"the game she has just played, as her record of it has it: {handed}", [],
                                room_to_say=estimate_tokens(handed))).strip()
     except (RuntimeError, OSError, ValueError, TypeError, AttributeError, TimeoutError) as exc:
         record_degradation("chat", exc, severity="info", action="told the game's record as it stands")
         return ""
+    # A turn with no tool to call that writes a call out has not told the game: the record is told as it stands.
+    from core.conversation.response_reliability import first_call_written_out
+
+    written_out = first_call_written_out(told, _her_tool_names())
+    if written_out is not None:
+        logger.info("her account of the game wrote out a call it could not make (%r); the record is told as it stands",
+                    told[written_out:written_out + 60])
+        return ""
+    return told
+
+
+def _her_tool_names() -> list[str]:
+    """The names of the tools she has, as the capability engine holds them; none where it is not running."""
+    from core.container import ServiceContainer
+
+    engine = ServiceContainer.peek("capability_engine", None)
+    return [str(name) for name in (getattr(engine, "skills", None) or {})]
 
 
 def _asked_to_watch_and_nothing_plays(result: dict[str, Any], objective: str) -> bool:

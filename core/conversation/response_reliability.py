@@ -39,6 +39,7 @@ the moment someone is most tempted to skip it.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from collections.abc import Callable, Iterable, Mapping
@@ -245,6 +246,64 @@ def first_prompt_artifact(reply_text: Any) -> PromptArtifact | None:
         if terse_run := _first_terse_scaffold_run(prose, span_start=span_start):
             candidates.append(terse_run)
     return min(candidates, key=lambda item: item.start) if candidates else None
+
+
+def first_call_written_out(reply_text: Any, tool_names: Iterable[str]) -> int | None:
+    """Where a reply first writes out a call to one of her tools in place of making it: the tool's name and, after it
+    on the same line, an object of arguments (``{"...": ...}``), whole or cut off where the reply ends. None where it
+    writes none. A tool named in a sentence is not a call; a name followed by its arguments is, whatever brackets or
+    words are around it.
+
+    LIVE 25 November 2026, her account of a game served as her reply: "Let me try to find my way back to the board
+    ... [TOOLCALL computer_use {"action": "pursue_on_screen", ...}] Wait — I need to use the proper tool format." No
+    tool was offered to that turn, and nothing was done."""
+    text = str(reply_text or "")
+    names = sorted({str(name) for name in tool_names if str(name).strip()}, key=len, reverse=True)
+    if not text or not names:
+        return None
+    found: list[int] = []
+    for name in names:
+        for match in re.finditer(rf"(?<![\w.]){re.escape(name)}(?![\w])[ \t]*(?=\{{)", text):
+            body = _balanced_object_from(text, match.end())
+            if body is None:
+                # Cut off where the reply ends: a call begun is a call written out.
+                rest = text[match.end():]
+                if "\n\n" not in rest and re.match(r'\{\s*"', rest):
+                    found.append(match.start())
+                continue
+            try:
+                arguments = json.loads(body)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if isinstance(arguments, dict) and arguments:
+                found.append(match.start())
+    return min(found) if found else None
+
+
+def _balanced_object_from(text: str, opening: int) -> str | None:
+    """The complete ``{...}`` that begins at ``opening``, braces inside strings not counted; None where it does not
+    close."""
+    depth, in_string, escaped = 0, False, False
+    for index in range(opening, len(text)):
+        char = text[index]
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = in_string
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[opening:index + 1]
+    return None
 
 
 def contains_prompt_artifact(reply_text: Any) -> bool:
