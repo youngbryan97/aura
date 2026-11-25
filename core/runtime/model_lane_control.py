@@ -1681,6 +1681,16 @@ class ModelLaneController(LockedLaneSteps):
                 return ProcessLiveness.UNKNOWN
         return root_liveness
 
+    def _held_in_a_process_that_is_gone(self, record: Mapping[str, Any]) -> bool:
+        """Whether ``record`` is an owner held inside one process, that process seen ended. A process whose start time
+        was never read is not taken for ended: unknown is not dead."""
+        if not dict(record.get("metadata") or {}).get("in_process_model_owner", False):
+            return False
+        identity = self._identity_from_record(record)
+        if identity.pid <= 0 or identity.started_at <= 0.0:
+            return False
+        return self._process_liveness(identity) is ProcessLiveness.DEAD
+
     def _owner_process_tree_alive(self, record: Mapping[str, Any]) -> bool:
         return self._owner_process_tree_liveness(record) is ProcessLiveness.ALIVE
 
@@ -2274,6 +2284,7 @@ class ModelLaneController(LockedLaneSteps):
         self,
         *,
         request_id_filter: str = "",
+        passed_over: frozenset[tuple[str, str]] = frozenset(),
     ) -> tuple[str, str, str, str, LaneOwnerObservation] | None:
         now = self._clock()
         with self._thread_lock, interprocess_file_lock(self.lock_path):
@@ -2297,7 +2308,7 @@ class ModelLaneController(LockedLaneSteps):
                     **dict(record.get("compensation_owners") or {}),
                 }
                 for owner_id in pending:
-                    if owner_id in claims:
+                    if owner_id in claims or (str(request_id), owner_id) in passed_over:
                         continue
                     payload = evicted.get(owner_id)
                     if not isinstance(payload, Mapping):
@@ -2317,6 +2328,30 @@ class ModelLaneController(LockedLaneSteps):
                             request_id=str(request_id),
                             owner_id=owner_id,
                             reason="evicted_owner_payload_missing",
+                        )
+                        changed = True
+                        continue
+                    if self._held_in_a_process_that_is_gone(payload):
+                        # A model held inside a process that has since ended went with it, and so did the adapter
+                        # that could have restored it: no process can. Left pending, it refuses every other
+                        # reservation for good. LIVE 25 November 2026 an image model held in a runtime that was
+                        # stopped mid-load kept the next runtime's cortex from warming: 256 restores failed each call.
+                        record.setdefault("compensation", {})[owner_id] = False
+                        record["compensation_pending_owner_ids"] = [
+                            candidate
+                            for candidate in record.get(
+                                "compensation_pending_owner_ids"
+                            )
+                            or ()
+                            if str(candidate) != owner_id
+                        ]
+                        self._append_event(
+                            state,
+                            "expired_compensation_unrecoverable",
+                            at=now,
+                            request_id=str(request_id),
+                            owner_id=owner_id,
+                            reason="owner_process_gone",
                         )
                         changed = True
                         continue
@@ -2423,10 +2458,13 @@ class ModelLaneController(LockedLaneSteps):
         """Recover owners displaced by an expired or cancelled reservation."""
 
         completed = 0
+        # An owner whose restore failed is not asked again in the same drain: it stays pending for the next.
+        failed: set[tuple[str, str]] = set()
         for _attempt in range(max(0, int(max_compensations))):
             claimed = await asyncio.to_thread(
                 self._claim_expired_compensation_sync,
                 request_id_filter=str(request_id or ""),
+                passed_over=frozenset(failed),
             )
             if claimed is None:
                 break
@@ -2474,6 +2512,8 @@ class ModelLaneController(LockedLaneSteps):
                     restored=restored,
                 )
             )
+            if not restored:
+                failed.add((str(request_id), str(owner.owner_id)))
             completed += 1
         else:
             logger.warning(

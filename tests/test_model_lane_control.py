@@ -18,6 +18,7 @@ from core.runtime.model_lane_control import (
     InProcessModelLaneLease,
     LaneClaim,
     LaneOwnerObservation,
+    LaneTransactionDecision,
     LaneTransactionState,
     ModelLaneControlError,
     ModelLaneController,
@@ -865,6 +866,90 @@ async def test_failed_ambiguous_compensation_remains_pending_and_retries(
     assert reservation["compensation_pending_owner_ids"] == []
     assert reservation["compensation"]["trainer:retry-restore"] is True
     assert reservation["terminal_receipt_id"]
+
+
+async def _cancelled_with_owner_pending(
+    tmp_path: Path, alive: AliveTable, owner: LaneOwnerObservation, request_id: str
+) -> tuple[ModelLaneController, LaneTransactionDecision]:
+    """A reservation that displaced ``owner`` and was cancelled before it was done, leaving the owner to restore."""
+    controller = _controller(tmp_path, alive)
+    observations = [_owner("mlx:cortex", "/m/Aura-32B-cortex", 20.0, 459), owner]
+    decision = await controller.reserve(
+        LaneClaim(owner_id="mlx:reflex", model_path="/m/qwen-1.5b-reflex", request_gb=4.0, request_id=request_id),
+        observations=observations,
+    )
+
+    async def ambiguous_evict(_owner: LaneOwnerObservation, _reason: str) -> bool:
+        await asyncio.sleep(60.0)
+        return True
+
+    await controller.prepare(decision, evict=ambiguous_evict, observe=lambda: observations,
+                             compensate=lambda *_args: False, timeout_s=0.05)
+    return controller, decision
+
+
+def _reservation(controller: ModelLaneController, request_id: str) -> dict:
+    return next(item for item in controller.snapshot()["reservations"] if item["request_id"] == request_id)
+
+
+@pytest.mark.asyncio
+async def test_an_owner_held_in_a_process_that_has_ended_is_let_go_and_the_lane_reserves_again(
+    tmp_path: Path,
+) -> None:
+    """LIVE 25 November 2026: an image model held inside a runtime that was stopped mid-load stayed pending, and the
+    next runtime's every reservation was refused, its cortex never warming."""
+    alive = AliveTable(459, 460)
+    held_inside = LaneOwnerObservation(
+        owner_id="in-process:460:image-generation", model_path="/m/sdxl-turbo", declared_gb=25.0,
+        process=ProcessIdentity(460, 460.0), metadata={"in_process_model_owner": True},
+    )
+    controller, decision = await _cancelled_with_owner_pending(tmp_path, alive, held_inside, "ended-holder")
+    assert _reservation(controller, decision.request_id)["compensation_pending_owner_ids"] == [held_inside.owner_id]
+    alive.alive.discard(460)  # the process that held it has ended
+    asked: list[str] = []
+
+    def compensate(owner: LaneOwnerObservation, _reason: str) -> bool:
+        asked.append(owner.owner_id)
+        return False
+
+    await controller.reconcile_expired_compensations(compensate=compensate)
+    reservation = _reservation(controller, decision.request_id)
+    assert reservation["compensation_pending_owner_ids"] == []
+    assert reservation["compensation"][held_inside.owner_id] is False
+    assert asked == [], "no process can restore it: nothing is asked to"
+    again = await controller.reserve(
+        LaneClaim(owner_id="mlx:reflex", model_path="/m/qwen-1.5b-reflex", request_gb=4.0, request_id="after-it"),
+        observations=[_owner("mlx:cortex", "/m/Aura-32B-cortex", 20.0, 459)],
+    )
+    assert again.request_id == "after-it"
+
+
+@pytest.mark.asyncio
+async def test_an_owner_held_in_a_process_still_running_is_not_let_go(tmp_path: Path) -> None:
+    alive = AliveTable(459, 460)
+    held_inside = LaneOwnerObservation(
+        owner_id="in-process:460:image-generation", model_path="/m/sdxl-turbo", declared_gb=25.0,
+        process=ProcessIdentity(460, 460.0), metadata={"in_process_model_owner": True},
+    )
+    controller, decision = await _cancelled_with_owner_pending(tmp_path, alive, held_inside, "running-holder")
+    await controller.reconcile_expired_compensations(compensate=lambda *_args: False)
+    assert _reservation(controller, decision.request_id)["compensation_pending_owner_ids"] == [held_inside.owner_id]
+
+
+@pytest.mark.asyncio
+async def test_a_restore_that_failed_is_not_asked_again_in_the_same_drain(tmp_path: Path) -> None:
+    alive = AliveTable(459, 460)
+    trainer = _owner("trainer:retry-restore", "/m/trainer", 25.0, 460, purpose="train")
+    controller, decision = await _cancelled_with_owner_pending(tmp_path, alive, trainer, "asked-once")
+    asked: list[str] = []
+
+    def compensate(owner: LaneOwnerObservation, _reason: str) -> bool:
+        asked.append(owner.owner_id)
+        return False
+
+    await controller.reconcile_expired_compensations(compensate=compensate)
+    assert asked == [trainer.owner_id]
+    assert _reservation(controller, decision.request_id)["compensation_pending_owner_ids"] == [trainer.owner_id]
 
 
 @pytest.mark.asyncio
