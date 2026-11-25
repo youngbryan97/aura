@@ -1120,6 +1120,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         found = None
         areas = None
         learned_until, searched_s = monotonic_time(), 0.0
+        search_deadline = min(began + seconds, learned_until + _the_most_a_look_may_take(
+            share, on_her_clock, game.count.value,
+        ))
         for _ in range(CHECKS_A_TURN):
             # What is left of the turn, less what making the move and seeing it shown has taken her this game. After a
             # move the game refused, her model was wrong where she was about to act: the look that replaces it gets a
@@ -1129,8 +1132,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                       else share)
             if set_aside and on_her_clock:
                 thinks = max(thinks, share)
-            # The most it may take, where the answer will not settle (``_the_most_a_look_may_take``).
-            most = _the_most_a_look_may_take(thinks, on_her_clock, game.count.value)
+            # Retries and comparisons spend from the same allowance as the first search.
+            most = min(_the_most_a_look_may_take(thinks, on_her_clock, game.count.value),
+                       search_deadline - monotonic_time())
+            if most <= 0:
+                found = None
+                break
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
@@ -1153,24 +1160,38 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 search_began = monotonic_time()
                 # The board read area by area: what they could do to her in each fight is what her search looks at
                 # first at their turns, beside what they have done.
-                areas = _the_areas(game, family, weights)
+                areas = await asyncio.to_thread(_the_areas, game, family, weights)
                 game.weights_seen = dict(weights.worth) if weights else {}
                 expected = _expected_with_the_areas(game, areas)
-                found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
-                               set_aside=set_aside, threads=_cores_free(), wary=FIRST,
-                               soft=thinks if most > thinks else None, expected=expected, endings=endings)
+                # A long native search must leave the event loop available for
+                # chat delivery, health checks and cancellation.
+                most = min(most, search_deadline - monotonic_time())
+                if most <= 0:
+                    found = None
+                    break
+                found = await asyncio.to_thread(
+                    search, family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
+                    set_aside=set_aside, threads=_cores_free(), wary=FIRST,
+                    soft=thinks if most > thinks else None, expected=expected, endings=endings,
+                )
 
                 def search_only(aside: list[Move]) -> Found:
-                    return search(family, game.believed, seconds=max(0.2, thinks / 2), weights=weights,
+                    left = min(max(0.2, thinks / 2), search_deadline - monotonic_time())
+                    if left <= 0:
+                        return Found(None, 0, 0, 0, [])
+                    return search(family, game.believed, seconds=left, weights=weights,
                                   earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST,
                                   expected=expected, endings=endings)
 
                 if ready is not None:
-                    found = _checked(ready, found, legal, search_only)
+                    found = await asyncio.to_thread(_checked, ready, found, legal, search_only)
                 # What can still change after the move, proved without looking ahead.
-                found = _held_to_what_can_change(game, family, legal, set_aside, found, search_only)
-                found = _held_to_the_areas(
-                    game, areas, found, [m for m in legal if m not in set_aside], search_only,
+                found = await asyncio.to_thread(
+                    _held_to_what_can_change, game, family, legal, set_aside, found, search_only,
+                )
+                found = await asyncio.to_thread(
+                    _held_to_the_areas, game, areas, found,
+                    [m for m in legal if m not in set_aside], search_only,
                 )
                 searched_s += monotonic_time() - search_began
             if found.move is None:

@@ -143,7 +143,21 @@ def _played(hidden, seconds: float, she_goes_first: bool = True) -> tuple[dict, 
 
 
 def test_she_follows_and_plays_a_game_she_was_never_told(monkeypatch: pytest.MonkeyPatch) -> None:
+    import threading
+
+    from core.agency import searching_by_kind
+
+    event_loop_thread = threading.get_ident()
+    search = searching_by_kind.search
+    searched_on = []
+
+    def traced_search(*args, **kwargs):
+        searched_on.append(threading.get_ident())
+        return search(*args, **kwargs)
+
+    monkeypatch.setattr(searching_by_kind, "search", traced_search)
     came, app, said = _played(NOBODYS_GAME, seconds=25.0)
+    assert searched_on and event_loop_thread not in searched_on
     assert came["ended"] != "lost track of the board", said[-3:]
     assert came["moves"] >= 5
     # Every move she made is one the application made: she never moved what the game would not move.

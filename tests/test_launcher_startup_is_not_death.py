@@ -109,3 +109,14 @@ def test_explicit_build_mismatch_remains_a_separate_replacement_reason(launcher_
     result = launcher_decision(semver="2025.1.0")
     assert result["stale"] == ""
     assert "serving build 2025.1.0" in result["replacement"]
+
+
+@pytest.mark.parametrize("cache", ["stale_while_revalidate", "manifest", "manifest_stale", "miss"])
+def test_health_fallbacks_cannot_replace_a_runtime(launcher_decision, cache):
+    result = launcher_decision(
+        cache_status=cache,
+        semver="2025.1.0",
+        checks={"startup_latched": True},
+        blockers=["important:mind_tick"],
+    )
+    assert result["stale"] == result["replacement"] == ""

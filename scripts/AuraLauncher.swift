@@ -917,6 +917,8 @@ private func runNativeDesktopBridge(payload: [String: Any]) -> Never {
 }
 
 private let pollInterval: TimeInterval = 0.8
+// The server waits up to 2.5 seconds before returning a bounded boot snapshot.
+private let bootPollTimeout: TimeInterval = 3.5
 private let bootMarkerTTL: TimeInterval = 180.0
 private let unhealthyBootWindow: TimeInterval = 90.0
 private let stalledRecoveryWindow: TimeInterval = 300.0
@@ -924,6 +926,13 @@ private let stalledRecoveryWindow: TimeInterval = 300.0
 private struct BootSnapshot {
     let statusCode: Int
     let payload: [String: Any]
+
+    var canAuthorizeReplacement: Bool {
+        guard payload["boot_phase"] is String else { return false }
+        // A cache or manifest fallback describes an earlier observation.
+        let cache = payload["cache_status"] as? String
+        return cache == nil || cache == "fresh"
+    }
 
     var bootPhase: String {
         String(describing: payload["boot_phase"] ?? "kernel_bootstrap")
@@ -1081,7 +1090,7 @@ private struct BootSnapshot {
     }
 
     var staleRuntimeFailureReason: String? {
-        if startupInProgress || runtimeHasUserVisibleHandoff {
+        if !canAuthorizeReplacement || startupInProgress || runtimeHasUserVisibleHandoff {
             return nil
         }
         let normalized = bootPhase.lowercased()
@@ -1120,6 +1129,7 @@ private struct BootSnapshot {
     }
 
     func replacementReason(expectedSemver: String) -> String? {
+        guard canAuthorizeReplacement else { return nil }
         let trimmedExpected = expectedSemver.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedExpected = trimmedExpected.split(separator: "-", maxSplits: 1).first.map(String.init) ?? trimmedExpected
         let normalizedServed = semver.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "-", maxSplits: 1).first.map(String.init) ?? semver
@@ -2061,8 +2071,8 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     private let fileManager = FileManager.default
     private let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 1.0
-        config.timeoutIntervalForResource = 1.5
+        config.timeoutIntervalForRequest = bootPollTimeout
+        config.timeoutIntervalForResource = bootPollTimeout + 0.5
         return URLSession(configuration: config)
     }()
 
@@ -3544,7 +3554,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         let request = URLRequest(
             url: URL(string: "http://127.0.0.1:8000/api/health/boot")!,
             cachePolicy: .reloadIgnoringLocalCacheData,
-            timeoutInterval: 1.0
+            timeoutInterval: bootPollTimeout
         )
 
         session.dataTask(with: request) { [weak self] data, response, error in
@@ -3592,10 +3602,10 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             return nil
         }
 
-        var payload: [String: Any] = [:]
-        if let data, !data.isEmpty,
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            payload = json
+        guard let data,
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              payload["boot_phase"] is String else {
+            return nil
         }
 
         return BootSnapshot(statusCode: http.statusCode, payload: payload)
@@ -3603,6 +3613,13 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
 
     private func handlePollResult(snapshot: BootSnapshot?, error: Error?) {
         if let snapshot {
+            if !snapshot.canAuthorizeReplacement,
+               let previous = lastSnapshot, previous.runtimeHasUserVisibleHandoff,
+               runtimeLockIndicatesLiveProcess() {
+                renderSnapshot(previous)
+                footerLabel.stringValue = "Aura’s process is still running. Waiting for a current health reading."
+                return
+            }
             clearTerminalHandoffMarker()
             lastSnapshot = snapshot
             if let reason = snapshot.replacementReason(expectedSemver: bundledSemver),
@@ -3638,8 +3655,13 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             return
         }
 
-        if existingRuntimeIsObservable() {
-            renderPendingLaunch(waitingOnExisting: true)
+        if runtimeLockIndicatesLiveProcess() {
+            if let previous = lastSnapshot, previous.runtimeHasUserVisibleHandoff {
+                renderSnapshot(previous)
+                footerLabel.stringValue = "Aura’s process is still running. Waiting for a current health reading."
+            } else {
+                renderPendingLaunch(waitingOnExisting: true)
+            }
             return
         }
 
