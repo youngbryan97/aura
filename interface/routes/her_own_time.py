@@ -25,6 +25,8 @@ __all__ = ["begin_what_she_does_unasked", "router", "somebody_spoke"]
 
 #: What names what she says and does on her own time.
 ORIGIN = "her_own_time"
+#: What each goal of hers was read to ask for, this start.
+_READ: dict[str, str] = {}
 #: How long since somebody last spoke counts as half as near, in seconds: the length of a pause in a conversation.
 HALF_AS_NEAR_S = 600.0
 #: How long her request of her own work is waited for, before what it has come to so far is what it came to, in seconds.
@@ -49,6 +51,23 @@ async def _search(words: str) -> dict[str, Any]:
 
     result = await execute_tool("web_search", {"query": words}, context={"origin": "curiosity", "source": ORIGIN, "objective": f"find out about {words}", "autonomous": True})
     return result if isinstance(result, dict) else {"ok": False, "error": "no answer"}
+
+
+async def _asks(goal: str) -> str:
+    """What a goal of hers asks to be brought about, read as a person's words are; "" where her model is not there to read it."""
+    from core.understanding.what_is_asked import get_what_is_asked
+    from interface.routes.chat_what_is_asked import her_client
+
+    client, reads = her_client(), get_what_is_asked()
+    if client is None or not reads.ready(client):
+        return ""
+    if goal not in _READ:
+        asked = await reads.read(goal, (), client=client)
+        if asked is None:
+            return ""
+        _READ[goal] = asked.effect
+        logger.info("🧭 Her goal asks for %s (%.2f): %s", asked.effect, asked.sure, goal[:120])
+    return _READ[goal]
 
 
 def _here() -> float:
@@ -124,7 +143,7 @@ def begin_what_she_does_unasked() -> None:
 
     from core.container import ServiceContainer
 
-    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, search=_search, tell=_tell, here=_here)
+    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, search=_search, tell=_tell, here=_here, asks=_asks)
     hers.may = _her_will_says
     # Where the runtime's own loop, which is under her agency and may not reach up to it, finds it.
     ServiceContainer.register_instance("her_own_time", hers)
@@ -146,6 +165,6 @@ async def her_own_time(_: None = Depends(_require_internal)) -> JSONResponse:
     learned = await asyncio.to_thread(hers.chooser.how_she_chooses)
     choices = await asyncio.to_thread(hers.chooser.choices, 30)
     return JSONResponse({
-        "doing": hers.doing, "before": hers.before, "found": len(hers.found), "learned": learned,
+        "doing": hers.doing, "before": hers.before, "found": len(hers.found), "learned": learned, "goals": dict(_READ),
         "choices": [{"at": c.at, "what": c.what, "kind": c.kind, "why": c.says(), "over": c.over[:4], "came": c.came.get("what", ""),
                      "reward": None if c.reward is None or math.isnan(c.reward) else round(c.reward, 3)} for c in reversed(choices)]})

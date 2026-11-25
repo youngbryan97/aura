@@ -14,6 +14,7 @@ Every step is a step of her work (core/understanding/workbench.py): watched as i
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import re
@@ -43,6 +44,7 @@ from core.making.many_ways import SORTS
 from core.making.many_ways import made as made_with
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
 from core.making.searching import could_be_believed, is_believed, search
+from core.making.searching_python import made_python, search_python
 from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
 from core.making.trying import (
     AGAIN,
@@ -644,12 +646,17 @@ class _Maker:
         """A mend found by searching, thousands of ways tried against its tests without her model; whether one was kept."""
         assert self.design is not None
         code = self.parts.code()
-        if self.design.kind not in {"app", "game"} or code in self._searched:
+        python = self.design.kind == "tool" and self.language().name == "python"
+        if not (python or self.design.kind in {"app", "game"}) or code in self._searched:
             return False
         self._searched.add(code)
         self.work.step("Searching the ways it could be changed, each tried against its tests")
-        found = await search(self.design, code, self.parts.tests, failing, self.browser, self.folder / "searched.html",
-                             functions=list(self.parts.functions), pays={sort: get_kept().pays(sort) for sort in SORTS})
+        pays = {sort: get_kept().pays(sort) for sort in SORTS}
+        if python:
+            found = await self._searched_as_python(code, pays)
+        else:
+            found = await search(self.design, code, self.parts.tests, failing, self.browser, self.folder / "searched.html",
+                                 functions=list(self.parts.functions), pays=pays)
         likely = [m for m in found.mends if could_be_believed(m)]
         if found.tried:
             self.work.says(f"Tried {found.says()}, without her model: {len(found.mends)} make something hold that failed"
@@ -657,7 +664,7 @@ class _Maker:
         before, had = self._wrong(self.trial), {r.name for r in failing}
         best: tuple[tuple[int, float], Parts, Trial, Any] | None = None
         for mend in sorted(likely, key=lambda m: not is_believed(m, found))[:BELIEVED]:
-            parts = self._with_code(made_with(code, mend.way))
+            parts = self._with_code(made_python(code, mend.way) if python else made_with(code, mend.way))
             if parts is None:
                 continue
             trial = await self.tried(parts, quiet=True)
@@ -680,6 +687,21 @@ class _Maker:
         self.work.tried("Trying it with that", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*trial.generic, *trial.rules]])
         await self.kept()
         return True
+
+    async def _searched_as_python(self, code: str, pays: dict[str, float]) -> Any:
+        """A search of a tool in Python: of what was written of it, with the pieces it calls on above it and not changed."""
+        from core.making.searching import Found
+
+        cases = [Case.model_validate(c) for c in self.parts.cases]
+        whole = self.whole(self.parts)
+        if not whole.endswith(code):
+            return Found()  # its pieces stand in the middle of it, and what is above them cannot be told from what is below
+        lines = await lines_each_ran(whole, self.language(), cases)
+        above = whole[: len(whole) - len(code)]
+        found = await search_python(whole, cases, self.trial.rules, lines, above=above.count("\n"), pays=pays)
+        found.mends = [dataclasses.replace(m, way=dataclasses.replace(m.way, start=m.way.start - len(above), end=m.way.end - len(above)))
+                       for m in found.mends if m.way.start >= len(above)]
+        return found
 
     async def _her_own_mend(self, failing: list[Result]) -> bool:
         """A mend she writes without her model, where one leaves less that fails; whether one was kept. Once for each state

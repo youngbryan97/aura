@@ -507,6 +507,24 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     return record
 
 
+async def _done_otherwise(goal: str) -> Any:
+    """What came of a goal that something other than work on her own source does; None where that is what it asks."""
+    from core.container import ServiceContainer
+
+    own = ServiceContainer.get("her_own_time", default=None)
+    act_of = getattr(own, "act_of", None)
+    if act_of is None:
+        return None
+    try:
+        option = await act_of(goal)
+        if option is None or option.kind == "goal" or option.does is None:
+            return None
+        return await option.does()
+    except (ImportError, AttributeError, KeyError, LookupError, OSError, RuntimeError, TypeError, ValueError, TimeoutError) as why:
+        record_degradation("her_goal_at_work", why, severity="info", action="her goal was worked in her own source, for it could not be read for what it asks")
+        return None
+
+
 async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
     """A pass of hers at ``goal`` through her own tools, reported as what it did: never as the goal done unless a
     draft of hers was offered or taken. LIVE 8 November 2026: her goal "Implement persistent cold-store memory for
@@ -514,6 +532,10 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
     since dda8ab337."""
     from core.agency.autonomous_task_engine import TaskResult
 
+    looked = await _done_otherwise(goal)
+    if looked is not None:
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=looked.got > 0.0, summary=looked.what, trace_id=trace_id,
+                          steps_completed=int(looked.got > 0.0), steps_total=1)
     try:
         before = await asyncio.to_thread(load, slug_of(goal), require_readable=True)
         record = await work_a_while(goal)

@@ -1010,7 +1010,7 @@ def test_her_own_python_mends_a_tool_before_her_model_is_asked(tmp_path):
     assert made.trial.failing() == [] and model.asked == []
     assert "import json" in made.parts.text and "out + float(row)" in made.parts.text
     said = [row["words"] for row in made.work.seen()["happened"] if row["what"] == "says"]
-    assert any(words.startswith("Kept a mend of her own, written without her model: added `import json`") for words in said)
+    assert any(words.startswith(("Kept a mend of her own, written without her model: added `import json`", "Kept a mend she found by searching: added `import json`")) for words in said)
     assert json.loads((tmp_path / "program.json").read_text())["parts"]["text"] == made.parts.text
 
 

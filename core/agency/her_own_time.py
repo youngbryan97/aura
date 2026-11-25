@@ -60,6 +60,8 @@ class HerOwnTime:
         self._there: list[Option] = []
         #: Whether an act may be done: her Will's to say.
         self.may: Callable[[Option], Awaitable[bool]] | None = None
+        #: What would do a goal of hers, where something would.
+        self.act_of: Callable[[str], Awaitable[Option | None]] | None = None
         self._loaded = False
         self._going = asyncio.Lock()
 

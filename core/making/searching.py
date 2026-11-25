@@ -10,6 +10,7 @@ It gives what it found, the best first. Whether any of it is kept is for a whole
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import time
 from collections.abc import Mapping, Sequence
@@ -131,6 +132,9 @@ async def search(design: Design, code: str, tests: str, failing: Sequence[Result
         return Found(read=read)
     texts = dict(held)
     evidence = evidence_of([(rule_of(r.name), texts.get(r.name, ""), r.why) for r in wrong])
+    # The numbers of what fails first, and then of every rule: a branch that is missing is of a rule that still holds.
+    numbers = [*evidence.numbers, *evidence_of([(name, "", "") for name in [*names, *(rule.says for rule in design.rules)]]).numbers]
+    evidence = dataclasses.replace(evidence, numbers=tuple(dict.fromkeys(numbers))[:20])
     covers = await _in_page(design, with_all(read, ()), tests, len(read.blocks), browser, where,
                             [(_COVER, [*names, *(r.name for r in wrong if r.name not in names)])])
     if not covers:

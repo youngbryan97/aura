@@ -36,7 +36,7 @@ SORTS = {
     "guard": 1.0, "name_for_name": 0.8, "field_for_field": 0.85, "comparison": 0.9, "number_from_the_rule": 0.95, "shift_by_one": 0.75,
     "boolean": 0.6, "arithmetic": 0.55, "negate": 0.6, "literal": 0.6, "words_for_words": 0.8, "time": 0.7, "kept_within": 0.55,
     "ingredient": 0.5, "swap_arguments": 0.5, "whole_number": 0.45, "same_kind": 0.5, "returned": 0.8, "list": 0.45, "counted": 0.5,
-    "dropped": 0.25, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35,
+    "dropped": 0.25, "missing_import": 1.5, "template": 0.7, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35,
 }
 
 _COMPARE = {"<": ("<=", ">", ">="), "<=": ("<", ">=", ">"), ">": (">=", "<", "<="), ">=": (">", "<=", "<"),
@@ -223,8 +223,8 @@ def _can_be_put_in(node: Any) -> bool:
     if parent is None or node.type not in _VALUES:
         return False
     kind = parent.type
-    if kind == "catch_clause":
-        return False
+    if kind == "catch_clause" or (node.type == "parenthesized_expression" and kind in {"if_statement", "while_statement", "do_statement", "switch_statement"}):
+        return False  # its brackets are the statement's own; what is in them is what can be put another in place of
     if kind in {"formal_parameters", "object_pattern", "array_pattern", "rest_pattern", "import_statement", "class_body", "for_in_statement", "update_expression",
                 "labeled_statement", "pair_pattern", "assignment_pattern"}:
         return kind == "for_in_statement" and parent.child_by_field_name("right") == node or kind == "assignment_pattern" and parent.child_by_field_name("right") == node

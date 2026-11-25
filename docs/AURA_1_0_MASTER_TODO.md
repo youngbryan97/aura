@@ -8473,6 +8473,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     the state another shape leaves the old tests setting the old one, and nothing yet writes those again.
   - 24 November: her coding is watched as a session, with the program running beside it, and kept across restarts; her
     pictures are painted by her own image model.
+  - 24 November, night: the search is for Python tools too (`searching_python.py`): the candidates of every repair module
+    she has, thousands of them, tried in one process. 10 planted mistakes of 10 are put right with no model.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
@@ -8483,6 +8485,12 @@ needs her 27B free (her app down, or her app's own influence trials).
     chooses among acts that each have something that does them, by what came of the ones before
     (`core/agency/what_she_does_next.py`): a drive weighs and is never an option, doing nothing is an act, and each choice
     is kept with its grounds. Left: what came of a day of it, live, beside the 205 of 220.
+  - 24 November, 19:00, live: her first two choices were refused by a rule that holds whatever she begins while something
+    is unfinished. What she chose had been weighed against what is unfinished, so it is let. What was open named nothing to
+    do: a small model's answer to a request for a milestone, 95 days old, and 11 readings of how she felt. Neither can be a
+    goal now (`tests/test_a_state_is_no_goal.py`), and a goal is done by what it asks for: looked up, or worked in her
+    source. "Research the history of quantum error correction" had been worked for 12 days with the tools that edit her
+    source.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
 

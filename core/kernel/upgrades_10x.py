@@ -1639,48 +1639,29 @@ class EternalGrowthEngine(Phase):
     def _parse_growth_result(raw: object) -> dict[str, object]:
         text = str(raw or "").strip()
         if not text:
-            return {"milestone": "", "upgrade": False}
+            return {"upgrade": False}
         try:
             payload = json.loads(text)
         except (json.JSONDecodeError, TypeError, ValueError):
             match = re.search(r"\{.*\}", text, re.DOTALL)
             if match is None:
-                return {
-                    "milestone": "",
-                    "upgrade": text.upper() == "UPGRADE",
-                }
+                return {"upgrade": text.upper() == "UPGRADE"}
             try:
                 payload = json.loads(match.group(0))
             except (json.JSONDecodeError, TypeError, ValueError):
-                return {"milestone": "", "upgrade": False}
+                return {"upgrade": False}
         if not isinstance(payload, dict):
-            return {"milestone": "", "upgrade": False}
-        milestone = str(payload.get("milestone") or "").strip()
-        if milestone.lower() in {"null", "none"}:
-            milestone = ""
-        return {
-            "milestone": milestone[:1000],
-            "upgrade": bool(payload.get("upgrade", False)),
-        }
+            return {"upgrade": False}
+        return {"upgrade": bool(payload.get("upgrade", False))}
 
-    async def _compute_growth_proposal(
-        self,
-        *,
-        needs_milestone: bool,
-        evolution_score: float,
-    ) -> dict[str, object]:
+    async def _compute_growth_proposal(self, *, evolution_score: float) -> dict[str, object]:
         llm = self.kernel.organs["llm"].get_instance()
         raw = await llm.think(
             (
                 "Perform one bounded long-term trajectory audit. The result is a JSON object "
-                'with schema {"milestone": string|null, "upgrade": boolean}. '
+                'with schema {"upgrade": boolean}. '
                 f"Current evolution score: {evolution_score:.3f}. "
-                + (
-                    "Propose one specific internal milestone that can be verified."
-                    if needs_milestone
-                    else "An objective already exists, so milestone must be null."
-                )
-                + " Set upgrade true only when the current narrative supports a concrete "
+                "Set upgrade true only when the current narrative supports a concrete "
                 "evolutionary change, not merely reflection."
             ),
             origin="eternal_growth",
@@ -1697,22 +1678,10 @@ class EternalGrowthEngine(Phase):
         state: AuraState,
         result: dict[str, object],
     ) -> AuraState:
-        milestone = str(result.get("milestone") or "").strip()
-        if milestone and not state.cognition.current_objective:
-            from core.runtime.proposal_governance import (
-                propose_governed_initiative_to_state,
-            )
-
-            state, _ = await propose_governed_initiative_to_state(
-                state,
-                f"[AUTONOMOUS INITIATIVE] {milestone}",
-                orchestrator=None,
-                source="eternal_growth",
-                kind="growth",
-                urgency=0.72,
-                triggered_by="evolution_score",
-                metadata={"phase": "EternalGrowthEngine"},
-            )
+        # What she sets herself to is what she has learned her own acts are worth (core/agency/what_she_does_next.py). A
+        # milestone used to be asked of the smallest model here, as words: its answer of August 2026, "verified internal task
+        # completion", was an objective for 95 days, searched for on the web, and held every initiative of hers behind it.
+        #
         # Her language organ's reading of whether she has grown, on the
         # growth ledger's own scale: an ordinary step is its calibrated half
         # and an upgrade is a step at the top. It used to add 0.05 to the score
@@ -1746,10 +1715,7 @@ class EternalGrowthEngine(Phase):
         logger.info("🌳 Eternal Growth Engine: scheduling bounded trajectory audit.")
         try:
             self._growth_task = get_task_tracker().create_task(
-                self._compute_growth_proposal(
-                    needs_milestone=not bool(state.cognition.current_objective),
-                    evolution_score=float(state.identity.evolution_score),
-                ),
+                self._compute_growth_proposal(evolution_score=float(state.identity.evolution_score)),
                 name="EternalGrowthEngine.audit",
             )
             self.last_growth = time.time()

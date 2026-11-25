@@ -16,7 +16,7 @@ async def test_eternal_growth_returns_without_waiting_for_slow_model():
     class _SlowLLM:
         async def think(self, *_args, **_kwargs):
             await release.wait()
-            return '{"milestone": null, "upgrade": false}'
+            return '{"upgrade": false}'
 
     kernel = SimpleNamespace(
         organs={"llm": SimpleNamespace(get_instance=lambda: _SlowLLM())}
@@ -45,7 +45,7 @@ async def test_eternal_growth_applies_completed_result_on_canonical_tick():
     state = AuraState()
 
     completed = asyncio.get_running_loop().create_future()
-    completed.set_result({"milestone": "", "upgrade": True})
+    completed.set_result({"upgrade": True})
     engine._growth_task = completed
     engine.last_growth = 1e20
 
@@ -58,19 +58,23 @@ async def test_eternal_growth_applies_completed_result_on_canonical_tick():
     reset_for_test()
 
 
+@pytest.mark.asyncio
+async def test_a_small_models_words_are_never_an_objective_of_hers():
+    """LIVE: "verified internal task completion", answered to a request for a milestone, was her objective for 95 days."""
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: None)})
+    engine = EternalGrowthEngine(kernel)
+    state = AuraState()
+    applied = await engine._apply_growth_result(state, engine._parse_growth_result('{"milestone":"verified internal task completion","upgrade":false}'))
+    assert not applied.cognition.pending_initiatives and not applied.cognition.current_objective
+
+
 @pytest.mark.parametrize(
     ("raw", "expected"),
     [
-        (
-            '{"milestone":"Measure retained reasoning","upgrade":true}',
-            {"milestone": "Measure retained reasoning", "upgrade": True},
-        ),
-        (
-            'analysis\n{"milestone":null,"upgrade":false}\n',
-            {"milestone": "", "upgrade": False},
-        ),
-        ("UPGRADE", {"milestone": "", "upgrade": True}),
-        ("not valid", {"milestone": "", "upgrade": False}),
+        ('{"milestone":"Measure retained reasoning","upgrade":true}', {"upgrade": True}),
+        ('analysis\n{"upgrade":false}\n', {"upgrade": False}),
+        ("UPGRADE", {"upgrade": True}),
+        ("not valid", {"upgrade": False}),
     ],
 )
 def test_eternal_growth_result_parser_is_bounded(raw, expected):

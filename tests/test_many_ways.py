@@ -163,3 +163,15 @@ def test_nothing_that_is_given_to_called_or_named_is_put_something_else_in_place
     assert whole and not many_ways._parser().parse(whole.encode()).root_node.has_error
     for way in found:
         assert not many_ways._parser().parse(many_ways.made(code, way).encode()).root_node.has_error, way
+
+
+def test_every_way_is_read_as_it_is_written_into_the_program_by_itself():
+    """LIVE 24 November 2026: the brackets of an if were taken for part of what was in them, and the mend could not be read."""
+    code = assembled(patched({}, PANTRY)[0])
+    read = many_ways.Read.of(code, PANTRY_STATE, list(patched({}, PANTRY)[0]))
+    evidence = many_ways.evidence_of([(name, text, "") for name, text in each_test_in(PANTRY_TESTS)[1]])
+    found = many_ways.ways(read, evidence)
+    spots = [(w.start, w.end) for w in many_ways.forced(read, dict.fromkeys(read.blocks.values(), 1.0), 0)]
+    parser = many_ways._parser()
+    for way in [*found[::7], *many_ways.conditions(read, spots, evidence)[::9]]:
+        assert not parser.parse(many_ways.made(code, way).encode()).root_node.has_error, way

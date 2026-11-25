@@ -315,6 +315,10 @@ _SELF_DIRECTED_INTENT_SOURCES: frozenset[IntentSource] = frozenset(
 )
 
 
+#: What names an act she chose on her own time (interface/routes/her_own_time.py).
+HER_OWN_TIME = "her_own_time"
+
+
 class ActionType(str, Enum):
     RESPOND = "respond"
     TOOL_CALL = "tool_call"
@@ -619,6 +623,18 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                 return {"timeout_s": 45, "read_only": True}
         return None
 
+    @staticmethod
+    def _chosen_beside_what_is_unfinished(intent: Intent) -> bool:
+        """Whether what is begun was chosen with what is unfinished among the things it was chosen from.
+
+        What this rule asks of her is that unfinished work weighs on what she begins. On her own time it has been weighed:
+        the requests she left unmet and the goals she is working are options beside whatever else she could do
+        (core/agency/what_she_could_do.py). Holding the choice for them after it was made holds them too. LIVE 24 November
+        2026, the first thing she chose on her own time was to go on with a game somebody had asked for and not got, and it
+        was deferred for "[AUTONOMOUS INITIATIVE] verified internal task completion", an obligation that names nothing to do.
+        """
+        return intent.action_type == ActionType.SPAWN_TASK and str(intent.payload.get("source") or "") == HER_OWN_TIME
+
     @classmethod
     def _is_temporal_safe_autonomous_tool(cls, intent: Intent) -> bool:
         return cls._temporal_safe_autonomous_tool_constraints(intent) is not None
@@ -726,6 +742,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                 ActionType.REFLECT,
             }
             and intent.priority < 0.85
+            and not self._chosen_beside_what_is_unfinished(intent)
         ):
             temporal_constraints = self._temporal_safe_autonomous_tool_constraints(intent)
             if temporal_constraints is not None:
@@ -960,6 +977,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                 ActionType.REFLECT,
             }
             and intent.priority < 0.85
+            and not self._chosen_beside_what_is_unfinished(intent)
         ):
             temporal_constraints = self._temporal_safe_autonomous_tool_constraints(intent)
             if temporal_constraints is not None:

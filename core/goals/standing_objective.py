@@ -32,6 +32,7 @@ from core.autonomy.research_goal_filter import (
     is_stale_or_prompt_scaffold_goal,
     normalize_goal_text,
 )
+from core.state.readings_of_her import is_a_reading_of_her
 
 logger = logging.getLogger("Aura.StandingObjective")
 
@@ -101,6 +102,8 @@ def standing_objective_rejection_reason(value: Any) -> str:
         return "overlong_raw_text"
     if is_stale_or_prompt_scaffold_goal(text):
         return "prompt_scaffold"
+    if is_a_reading_of_her(text):
+        return "a_reading_of_her_state"
     try:
         from core.goals.objective_lifecycle import is_ephemeral_conversation_turn
 
@@ -124,7 +127,7 @@ def is_valid_standing_objective(value: Any) -> bool:
 # contrast, can legitimately label a dispatched task that tracks a user
 # request — explicit bindings keep those.
 _STRUCTURAL_REJECTIONS = frozenset(
-    {"empty", "nonlinguistic_render", "control_contract_scaffold", "overlong_raw_text"}
+    {"empty", "nonlinguistic_render", "control_contract_scaffold", "overlong_raw_text", "a_reading_of_her_state"}
 )
 
 

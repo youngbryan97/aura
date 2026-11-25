@@ -565,6 +565,9 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             record = self._row_to_record(row)
             payload = record.to_dict()
             transient = is_transient_foreground_projection(payload)
+            # Words a small model gave when asked for a milestone, which nobody wanted and nothing would make so
+            # (core/kernel/upgrades_10x.py, EternalGrowthEngine).
+            unset = str((record.metadata or {}).get("initiative_source") or "") == "eternal_growth"
             # The transient-projection diagnosis is more specific, so it
             # names the quarantine when both apply. Explicitly-bound rows
             # only fall to STRUCTURAL standing rejections (renders,
@@ -580,6 +583,8 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             )
             if transient:
                 standing_rejection = ""
+            elif unset and not standing_rejection:
+                standing_rejection = "set_by_nobody"
             if not transient and not standing_rejection:
                 continue
             quarantine_reason = (

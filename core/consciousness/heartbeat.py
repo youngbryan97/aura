@@ -20,6 +20,13 @@ from core.consciousness.workspace_feed import FLOOR as WORKSPACE_BID_FLOOR
 from core.container import ServiceContainer  # noqa: F401 - tests patch heartbeat.ServiceContainer
 from core.event_bus import get_event_bus
 from core.schemas import TelemetryPayload
+from core.state.readings_of_her import (
+    affect_reading,
+    body_reading,
+    drive_reading,
+    surge_reading,
+    surprise_reading,
+)
 
 from .global_workspace import CognitiveCandidate, ContentType
 
@@ -890,7 +897,7 @@ class CognitiveHeartbeat:
             self._last_alert_urgency[dominant_drive] = drive_urgency
             await self.workspace.submit(
                 CognitiveCandidate(
-                    content=f"Drive alert: {dominant_drive} is depleted ({drive_urgency:.0%} urgency)",
+                    content=drive_reading(dominant_drive, drive_urgency),
                     source=f"drive_{dominant_drive}",
                     # The motivation budget is one bidder whichever drive is
                     # currently lowest; fatigue applies to it, not to the name
@@ -916,7 +923,7 @@ class CognitiveHeartbeat:
         if felt > _BID_FLOOR:
             await self.workspace.submit(
                 CognitiveCandidate(
-                    content=f"Affective state: {emotion} (arousal={arousal:.2f})",
+                    content=affect_reading(emotion, arousal),
                     source="affect_engine",
                     bidder_id="affect",
                     priority=felt,
@@ -931,7 +938,7 @@ class CognitiveHeartbeat:
         if wear > _BID_FLOOR:
             await self.workspace.submit(
                 CognitiveCandidate(
-                    content=f"Body integrity alert: {integrity:.1f}% (heat={state.get('body_heat', 30):.1f}°)",
+                    content=body_reading(integrity, state.get("body_heat", 30)),
                     source="embodiment",
                     priority=wear,
                     affect_weight=0.3,
@@ -944,7 +951,7 @@ class CognitiveHeartbeat:
             unpredictable = self.predictor.get_most_unpredictable_dimension()
             await self.workspace.submit(
                 CognitiveCandidate(
-                    content=f"Prediction surprise in {unpredictable} (err={surprise:.2f})",
+                    content=surprise_reading(unpredictable, surprise),
                     source="self_prediction",
                     priority=surprise,
                     affect_weight=surprise * 0.4,
@@ -981,7 +988,7 @@ class CognitiveHeartbeat:
             if rise > _BID_FLOOR and now_norm > 0.0:
                 await self.workspace.submit(
                     CognitiveCandidate(
-                        content=f"Phenomenal surge: qualia intensity ||q||={now_norm:.2f}",
+                        content=surge_reading(now_norm),
                         source="qualia_synthesizer",
                         priority=rise,
                         affect_weight=affect_weight * 2.0,

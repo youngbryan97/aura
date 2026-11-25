@@ -372,3 +372,67 @@ def test_the_loop_of_her_acts_does_what_she_chooses_first(tmp_path, monkeypatch)
     assert result["verified"] and result["selection_provenance"] == "her_own_choice" and result["objective"] == "goal 0"
     held.clear()
     assert asyncio.run(loop._on_her_own_time()) is None
+
+
+def test_what_she_chose_with_what_is_unfinished_before_her_is_not_held_for_it(monkeypatch):
+    """LIVE 24 November 2026: her first choice, to go on with what somebody had asked, was deferred for an obligation that names nothing to do."""
+    from core.executive import executive_core as executive
+
+    core = executive.ExecutiveCore.__new__(executive.ExecutiveCore)
+    hers = executive.Intent(source=executive.IntentSource.AUTONOMOUS, goal="initiative:x", action_type=executive.ActionType.SPAWN_TASK, payload={"source": "her_own_time"}, priority=0.6)
+    other = executive.Intent(source=executive.IntentSource.AUTONOMOUS, goal="initiative:x", action_type=executive.ActionType.SPAWN_TASK, payload={"source": "curiosity"}, priority=0.6)
+    tool = executive.Intent(source=executive.IntentSource.AUTONOMOUS, goal="x", action_type=executive.ActionType.TOOL_CALL, payload={"source": "her_own_time"}, priority=0.6)
+    assert [core._chosen_beside_what_is_unfinished(i) for i in (hers, other, tool)] == [True, False, False]
+    import inspect
+
+    assert inspect.getsource(executive).count("and not self._chosen_beside_what_is_unfinished(intent)") == 2
+    from interface.routes import her_own_time as route
+
+    assert route.ORIGIN == executive.HER_OWN_TIME
+
+
+def test_a_goal_is_done_by_what_it_asks_for(tmp_path, monkeypatch):
+    """LIVE 24 November 2026: a goal to research something had been worked for twelve days with the tools that edit her source."""
+    from core.agency import her_goal_at_work as goals
+    from core.container import ServiceContainer
+
+    hers, searched, done, worked = _hers(tmp_path), [], [], []
+
+    async def search(words):
+        searched.append(words)
+        return {"ok": True, "answer": "Shor's code, 1995, was the first.", "citations": [{"title": "History", "url": "https://example.org/qec"}]}
+
+    async def asks(goal):
+        return {"Research how codes began": "known", "Make the recall faster": "program_changed", "A quiet moment": "talk"}.get(goal, "")
+
+    class Engine:
+        async def get_active_goals_async(self, **_how):
+            return [{"id": "g1", "objective": "Research how codes began", "source": "executive_authority"}, {"id": "g2", "objective": "Make the recall faster", "source": "executive_authority"},
+                    {"id": "g3", "objective": "A quiet moment", "source": "executive_authority"}, {"id": "g4", "objective": "Maintain her", "source": "boot_default"}]
+
+        async def update_goal_status(self, goal_id, **how):
+            done.append((goal_id, how["status"], list(how["evidence"])))
+
+    let_go = goals.GoalRecord(goal="Something let go", slug=goals.slug_of("Something let go"), steps=[{"result": "x"}])
+    monkeypatch.setattr(goals, "all_records", lambda: [let_go])
+
+    async def work(goal, **_how):
+        worked.append(goal)
+        return goals.GoalRecord(goal=goal, slug=goals.slug_of(goal), steps=[{"result": "read"}] * 3)
+
+    monkeypatch.setattr(goals, "work_a_while", work)
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Engine() if name == "goal_engine" else hers if name == "her_own_time" else default))
+    what_she_could_do.begin_her_own_time(hers, carry_on=_nothing, search=search, tell=_nothing, here=lambda: 0.0, asks=asks)
+
+    async def go():
+        options = {o.what: o for o in await what_she_could_do.goals_of_hers(hers, asks, search)}
+        assert sorted(o.kind for o in options.values()) == ["goal", "look_up"], "what asks for nothing is offered by nothing, and what was let go of is not under way"
+        looked = await next(o for o in options.values() if o.kind == "look_up").does()
+        further = await next(o for o in options.values() if o.kind == "goal").does()
+        as_task = await goals.work_as_task("Research how codes began", "p", "t")
+        return looked, further, as_task
+
+    looked, further, as_task = asyncio.run(go())
+    assert looked.got == 1.0 and done[0] == ("g1", "completed", ["https://example.org/qec"]) and searched[0] == "Research how codes began"
+    assert further.got == pytest.approx(3 / goals.CALLS_A_PASS) and worked == ["Make the recall faster"]
+    assert "about Research how codes began" in as_task.summary, "the other way her goals are taken up does them the same way"
