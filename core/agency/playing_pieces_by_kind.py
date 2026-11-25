@@ -1081,6 +1081,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             most = thinks
             if on_her_clock and game.count.value is not None:
                 most = max(thinks, min(SPENDS_AT_MOST * thinks, LEFT_AT_MOST * max(0.0, game.count.value)))
+            elif not on_her_clock:
+                # No clock to keep: where another depth is still likely to change her answer, she may look on, as far
+                # as she would with one.
+                most = SPENDS_AT_MOST * thinks
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
@@ -1596,6 +1600,18 @@ def _looks_first(game: _Game, *, pressed: bool = False, unseen: bool = False) ->
     return True
 
 
+def _their_pace(game: _Game | None, otherwise: float) -> float:
+    """With no clock to share, as long as the other side takes: the middle of the times it has taken to answer her this
+    game, ``otherwise`` until it has answered once. LIVE 24 November 2026, an untimed game against Stockfish 19: it took
+    about five seconds a move and she four, a number from her first board game, and the moves that lost were tactics
+    thirteen and fourteen moves deep that eight seconds of her looking finds."""
+    answered = sorted(game.answers_s) if game is not None else []
+    if not answered:
+        return otherwise
+    middle = len(answered) // 2
+    return answered[middle] if len(answered) % 2 else (answered[middle - 1] + answered[middle]) / 2
+
+
 async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
                            otherwise: float, game: _Game | None = None,
                            clock_began: float | None = None) -> tuple[float, bool]:
@@ -1608,10 +1624,10 @@ async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, 
     it on their time. LIVE 21 November 2026, game 16, reading it took half a second of every turn, and by her
     thirtieth move her turns had a second and a half to think in."""
     if clock is None:
-        return otherwise, False
+        return _their_pace(game, otherwise), False
     moves_left = rehearsing.moves_left(made)
     if moves_left <= 0:
-        return otherwise, False
+        return _their_pace(game, otherwise), False
     began = monotonic_time() if clock_began is None else clock_began
     if game is not None and game.count.value is not None and not game.count.must_read(game.count.value / moves_left):
         return max(0.2, (game.count.value - (monotonic_time() - began)) / moves_left), True
@@ -1619,9 +1635,9 @@ async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, 
         left = await clock()
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         logger.info("her clock was not read (%s)", exc)
-        return otherwise, False
+        return _their_pace(game, otherwise), False
     if left is None:
-        return otherwise, False
+        return _their_pace(game, otherwise), False
     if game is not None:
         # Her count begins from it, as the clock showed when it began to run this turn.
         game.count.read(left + (monotonic_time() - began))
