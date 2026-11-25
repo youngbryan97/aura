@@ -151,6 +151,47 @@ class LookedAtLonger:
         if extra > 0:
             del self.parts[:extra], self.glance[:extra], self.slow[:extra], self.game[:extra]
 
+    def with_what_was_kept(self, kept: LookedAtLonger) -> LookedAtLonger:
+        """This store with every position ``kept`` holds that it does not, those first, as they were kept before it:
+        what is saved over what was kept never holds less of it than the latest LOOKED_AT_LONGER_AT_MOST allow. A
+        position is the same where its pieces, its game and what her longer look found it worth are. LIVE 25 November
+        2026 a run that began its rehearsal afresh, its weights lost, saved its 5,531 positions over the 83,781 kept,
+        and how the pieces stand together was learned again from the few."""
+        if not kept.parts or (self.squares and kept.squares and kept.squares != self.squares):
+            return self
+        kinds = list(self.kinds) + [letter for letter in kept.kinds if letter not in self.kinds]
+        span = 2 * (self.squares or kept.squares)
+
+        def named(parts: np.ndarray, slots: np.ndarray, game: int, slow: float) -> tuple[bytes, int, float]:
+            slot, rest = np.divmod(parts.astype(np.int64), span)
+            return np.sort(slots[slot] * span + rest).tobytes(), int(game), round(float(slow), 3)
+
+        mine = np.arange(len(self.kinds), dtype=np.int64)
+        held = {named(p, mine, g, v) for p, g, v in zip(self.parts, self.game, self.slow, strict=True)}
+        theirs = np.array([kinds.index(letter) for letter in kept.kinds], dtype=np.int64)
+        parts: list[np.ndarray] = []
+        glance: list[float] = []
+        slow: list[float] = []
+        game: list[int] = []
+        for p, first, longer, g in zip(kept.parts, kept.glance, kept.slow, kept.game, strict=True):
+            if named(p, theirs, g, longer) in held:
+                continue
+            slot, rest = np.divmod(p.astype(np.int64), span)
+            parts.append((theirs[slot] * span + rest).astype(np.int16))
+            glance.append(float(first))
+            slow.append(float(longer))
+            game.append(int(g))
+        if not parts:
+            return self
+        merged = LookedAtLonger(kinds=kinds, squares=self.squares or kept.squares, columns=self.columns or kept.columns,
+                                parts=parts + list(self.parts), glance=glance + list(self.glance),
+                                slow=slow + list(self.slow), game=game + list(self.game),
+                                scales=list(kept.scales) + list(self.scales))
+        extra = len(merged.parts) - LOOKED_AT_LONGER_AT_MOST
+        if extra > 0:
+            del merged.parts[:extra], merged.glance[:extra], merged.slow[:extra], merged.game[:extra]
+        return merged
+
     def judgement(self, *, seed: int = 0) -> dict[str, Any] | None:
         """How the pieces stand together, learned from what her first look missed of what her longer look found, as
         weights her compiled search reads; None where nothing learned yet foretells positions it was not fitted on

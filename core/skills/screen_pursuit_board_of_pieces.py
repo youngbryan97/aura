@@ -456,7 +456,7 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
 
     from core.agency.what_a_kind_is_worth import RESULTS
     from core.cognition.when_more_thought_changes_the_answer import settled
-    from core.runtime.what_she_learned import recall, remember, remember_beside
+    from core.runtime.what_she_learned import recall, recall_beside, remember, remember_beside
 
     # How often another depth changed her answer in the searches of this game: the curve she spends a soft time by is
     # fitted again on them, and kept.
@@ -490,6 +490,18 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
             remember_beside(_her_record(target_app), _TOGETHER, json.dumps(together).encode())
         looked = getattr(rehearsal, "looked_at_longer", None)
         if looked is not None and looked.parts:
+            # What was kept and this store does not hold is kept with it, and she learns from it from now on
+            # (LookedAtLonger.with_what_was_kept).
+            from core.agency.what_a_kind_is_worth import LookedAtLonger
+
+            kept_positions = recall_beside(_her_record(target_app), _LOOKED_AT_LONGER)
+            if kept_positions:
+                try:
+                    looked = rehearsal.looked_at_longer = looked.with_what_was_kept(
+                        LookedAtLonger.from_bytes(kept_positions))
+                # not a failure: positions kept in a form that cannot be read back are not kept again.
+                except (KeyError, OSError, TypeError, ValueError) as why:
+                    logger.info("the positions kept beside her record could not be read back (%s)", why)
             remember_beside(_her_record(target_app), _LOOKED_AT_LONGER, looked.as_bytes())
         came_to = getattr(rehearsal, "came_to", None)
         if came_to is not None and came_to.result:
