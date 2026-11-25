@@ -363,3 +363,53 @@ test("What is nowhere is nowhere", t => { t.click("send it away"); });'''
     by = {r.name: r for r in _in_a_browser(run).rules}
     assert by["What is deleted is gone"].ok, by["What is deleted is gone"].why
     assert not by["What is nowhere is nowhere"].ok
+
+
+def test_what_is_there_only_once_something_is_kept_is_come_to_by_the_tests(tmp_path):
+    """LIVE 25 November 2026 a mend that put in the control that was missing was not kept, for a random walk had kept nothing that
+    time and two others were not come upon."""
+    code = DIARY.replace("if (!(s.form.least > 0))", 'if (s.form.what !== "Walk to the sea and back" || !(s.form.least > 0))')
+    assert code != DIARY
+    controls = [{"input": name, "does": "x"} for name in ("What", "Save", "Edit")]
+    keeps = 'test("It is kept", t => { t.type("What", "Walk to the sea and back"); t.type("Minutes", 4); t.click("Save"); t.expect(t.s.kept.length === 1, "it is not"); });'
+
+    def said(tests, state=None):
+        async def run(browser):
+            return await try_page(page_of(_design(name="Diary", state=state or {"kept": []}, controls=controls), code, tests=tests), tmp_path / "t.html", browser)
+
+        return next(r for r in _in_a_browser(run).generic if r.name == "the controls it was designed with are there")
+
+    assert said(keeps).ok, said(keeps).why
+    assert not said("").ok, "with nothing that keeps anything there is nothing to come to it by"
+
+
+def test_what_is_not_offered_is_put_in_by_nobody(tmp_path):
+    """LIVE 25 November 2026 a test put a name nobody had in a list of names, and the program was blamed for taking it."""
+    code = assembled(patched({}, SHARED)[0])
+    tests = '''test("Nobody by that name", t => { t.choose("Paid by", "Zed"); t.type("Amount", 3); t.click("Save"); t.expect(t.s.paid.length === 0, "it was kept"); });
+test("Somebody it knows of", t => { t.s = { ...t.s, former: "Dee" }; t.choose("Paid by", "Dee"); });
+test("Somebody it has", t => { t.choose("Paid by", "ana"); t.expect(t.s.form.by === "Ana", "it is " + t.s.form.by); });'''
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Shared", state={**SHARED_STATE, "former": ""}), code, tests=tests), tmp_path / "t.html", browser)
+
+    by = {r.name: r for r in _in_a_browser(run).rules}
+    assert by["Nobody by that name"].the_test and "nobody could put “Zed” in it" in by["Nobody by that name"].why
+    assert not by["Somebody it knows of"].ok and not by["Somebody it knows of"].the_test, "what it knows of and does not offer is the program's"
+    assert by["Somebody it has"].ok, by["Somebody it has"].why
+
+
+def test_what_puts_something_in_is_not_drawn_as_taking_something_away_and_is_drawn_right_with_no_model(tmp_path):
+    """LIVE 25 November 2026 the buttons that added a flatmate, a plant and an expense were drawn in red."""
+    marked = DIARY.replace('ui.button("Save", "save")', 'ui.button("Save", "save", null, { tone: "danger" })').replace(
+        'ui.button("Edit", "edit", i)', 'ui.button("Edit", "edit", i), ui.button("Forget", "drop", i, { tone: "danger" })').replace(
+        'if (e.name === "edit")', 'if (e.name === "drop") return { ...s, kept: s.kept.filter((x, i) => i !== e.value) }; if (e.name === "edit")')
+    assert marked.count("danger") == 2
+    code = assembled(patched({}, marked)[0])
+    state = {**DIARY_STATE, "kept": [{"what": "Walk", "least": 20}]}
+    trial, found, best = _searched(code, DIARY_TESTS.splitlines()[0], tmp_path, _design(name="Diary", state=state), seconds=40.0)
+    shown = next(r for r in trial.failing() if r.name == "what is marked as taking something away does")
+    assert "“Save”" in shown.why and "Forget" not in shown.why
+    assert best is not None and best.sort == "tone", f"{[(m.way.sort, m.mends) for m in found.mends[:4]]}"
+    mended = many_ways.made(code, best)
+    assert mended.count("danger") == 1 and 'ui.button("Forget", "drop", i, { tone: "danger" })' in mended

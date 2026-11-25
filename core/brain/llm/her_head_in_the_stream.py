@@ -27,7 +27,8 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Generator, Iterator, Sequence
+from contextlib import contextmanager
 from typing import Any
 
 import mlx.core as mx
@@ -100,6 +101,16 @@ class HowDeep:
 #: What has been fastest, kept from one generation to the next.
 _HOW_DEEP = HowDeep()
 
+#: The token of a generation whose pass is looked into, where that is asked for.
+LOOKED_INTO_AT = 60
+
+
+def _looks_into_it() -> bool:
+    from core.runtime.flags import env_str
+
+    return env_str("AURA_LOOK_INTO_DECODE", default="", owner=__name__, description="Log what building one pass of each generation calls").strip().lower() in {"1", "true", "yes", "on"}
+
+
 #: One position in this many is timed step by step, with the GPU waited for after each, and no other waits for it.
 TIMED_EVERY = 40
 
@@ -111,13 +122,41 @@ class WhereItGoes:
     def __init__(self) -> None:
         self.seconds: dict[str, float] = {}
         self.times: dict[str, int] = {}
+        #: How many drafts were looked at in each place of a pass, and how many of those were kept.
+        self.drafts: dict[int, list[int]] = {}
+        self._looked = False
 
     def spent(self, on: str, seconds: float) -> None:
         self.seconds[on] = self.seconds.get(on, 0.0) + seconds
         self.times[on] = self.times.get(on, 0) + 1
 
+    @contextmanager
+    def looked_into(self, made: int) -> Iterator[None]:
+        """What building a pass calls, and how long each takes, for one pass of a generation where AURA_LOOK_INTO_DECODE asks."""
+        if made < LOOKED_INTO_AT or self._looked or not _looks_into_it():
+            yield
+            return
+        self._looked = True
+        import cProfile
+        import io
+        import pstats
+
+        profile, said = cProfile.Profile(), io.StringIO()
+        profile.enable()
+        try:
+            yield
+        finally:
+            profile.disable()
+            pstats.Stats(profile, stream=said).sort_stats("tottime").print_stats(18)
+            logger.info("Building a pass: %s", " | ".join(line.strip() for line in said.getvalue().splitlines() if line.strip())[:4000])
+
+    def draft(self, place: int, kept: bool) -> None:
+        held = self.drafts.setdefault(place, [0, 0])
+        held[0], held[1] = held[0] + 1, held[1] + kept
+
     def says(self) -> str:
-        return ", ".join(f"{on} {1000 * self.seconds[on] / self.times[on]:.1f} ms x{self.times[on]}" for on in sorted(self.seconds, key=lambda on: -self.seconds[on]))
+        kept = "; drafts kept " + ", ".join(f"{100 * kept / of:.0f}% of {of}" for _place, (of, kept) in sorted(self.drafts.items())) if self.drafts else ""
+        return kept.removeprefix("; ") + ("; " if kept else "") + ", ".join(f"{on} {1000 * self.seconds[on] / self.times[on]:.1f} ms x{self.times[on]}" for on in sorted(self.seconds, key=lambda on: -self.seconds[on]))
 
 
 def _switched_on() -> bool:
@@ -149,6 +188,11 @@ def her_own_head(model: Any) -> Any:
         return None
     logger.info("Speculative decoding: her own head drafts (%s).", HER_HEAD.name)
     return head
+
+
+def of_what_was_said(processor: Any) -> bool:
+    """Whether what a logits processor gives is of what was said and the logits it is given, and of nothing it keeps."""
+    return str(getattr(processor, "__module__", "")).startswith("mlx_lm.") or bool(getattr(processor, "of_what_was_said", False))
 
 
 def her_head_may_check(draft_model: Any, generation_kwargs: dict) -> bool | None:
@@ -240,16 +284,28 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         nonlocal history
         history = mx.concatenate([history, mx.array([token], dtype=history.dtype)])
 
+    # What is done to her logits that is of what was said and of them and nothing else is done to her head's as well: where she
+    # is kept from saying a thing again and her head is not, the two overlap least on the words that come most. The rest keeps
+    # count of what it is given, and is given what she says.
+    to_both = [processor for processor in processors if of_what_was_said(processor)]
+
     def drafted_after(hidden: mx.array, following: list[int], many: int = 1) -> tuple[list[int], list[mx.array]]:
         """Her head's drafts after what was kept, and what each was drawn from where it was drawn: one from her hidden state, and
         each after it from her head's own."""
         drawn_from: list[mx.array] = []
+        said = mx.concatenate([history, mx.array([following[-1]], dtype=history.dtype)])
 
         def drafted(logits: mx.array) -> mx.array:
+            nonlocal said
             if of is None:
                 return mx.argmax(logits, axis=-1)
-            drawn_from.append(of(logits.astype(mx.float32)))
-            return mx.random.categorical(mx.log(drawn_from[-1]), axis=-1)
+            logits = logits.astype(mx.float32)
+            for processor in to_both:
+                logits = processor(said, logits)
+            drawn_from.append(of(logits))
+            draft = mx.random.categorical(mx.log(drawn_from[-1]), axis=-1)
+            said = mx.concatenate([said, draft.astype(said.dtype)])
+            return draft
 
         out = head(hidden, embed(mx.array([following])), head_cache)
         drafts = [drafted(_logits(text, out[:, -1, :]))]
@@ -290,7 +346,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         if max_tokens > 0:
             proposal = proposal[:max_tokens - made]
         building = time.perf_counter()
-        with speaking_several():  # all are tokens she speaks: steered, and sampled for Φ, as one at a time
+        with speaking_several(), goes.looked_into(made):  # all are tokens she speaks: steered, and sampled for Φ, as one at a time
             read, saved = _read(text, mx.array([[token, *proposal]]), cache)
         hiddens = read[0] if tap is not None else None
         logits = _logits(text, read)
@@ -302,6 +358,8 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         try:
             for at, guess in enumerate(proposal):
                 checked, checked_logprobs = choose(logits[:, at, :], at, guess, drawn[at] if by_her_head and at < len(drawn) else None)
+                if by_her_head:
+                    goes.draft(at, checked == guess)
                 if checked != guess:
                     token, logprobs = checked, checked_logprobs
                     break

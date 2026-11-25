@@ -42,7 +42,7 @@ __all__ = ["CHECKS_SEARCHED", "Found", "Mend", "could_be_believed", "is_believed
 #: long, and how long that may take before it is taken not to end either.
 ROUNDS, A_BATCH, A_BATCH_S, BATCH_S = 400_000, 150, 10.0, 60.0
 #: The checks of any program that take little enough to be run with each way.
-CHECKS_SEARCHED = ("what is put in a control is what it shows", "it begins", "it goes on from its state as it was designed", "it is shown", "its state is as it was designed", "what is in it is kept",
+CHECKS_SEARCHED = ("what is put in a control is what it shows", "what is marked as taking something away does", "it begins", "it goes on from its state as it was designed", "it is shown", "its state is as it was designed", "what is in it is kept",
           "it begins with nothing in it that nobody put there", "it runs without breaking, whatever is used", "it runs without breaking, whatever is pressed")
 
 _BEFORE = """

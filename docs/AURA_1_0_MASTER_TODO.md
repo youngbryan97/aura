@@ -8489,6 +8489,11 @@ needs her 27B free (her app down, or her app's own influence trials).
     do of each now (`tests/test_many_ways.py`), and the same program is 47 of 50. Its icon was a picture of its own screen in
     letters nobody can read: an icon is of one thing, and a picture of writing is painted again
     (`tests/test_the_pictures_she_paints.py`). What runs is not put out by a change that does not.
+  - 25 November, 08:05, live: 41 of 43. A mend that put in the control that was missing was not kept, for two others had not been
+    come upon by chance that time; they are looked for where the tests go as well. Looked at, it showed "Alice" where nothing was
+    chosen, its icon as large as it was painted, and the buttons that add things in red: the frame every app is made in shows
+    what is so, and what is marked as taking something away and only puts something in is a fault, which her search mends with
+    no model (`tests/test_many_ways.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
@@ -8549,6 +8554,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     three, 5.5 to choose each, 4 to 8 drafting, and 1.7 tokens came of it: her head drafts its likeliest, and she draws. Drafts
     are drawn from her head's own distribution now and kept as often as it and hers overlap, hers followed exactly either way
     (`core/brain/llm/her_sampler.py`, `tests/test_her_sampler.py`). Left: again, live.
+  - 25 November, 08:07, live: her head's drafts drawn, one a pass, 20.0 tokens a second from 16.6, and building a pass took 14 ms of
+    82. What keeps her from repeating was not on what her head drafts; it is now. Left: again, live, and the building.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).

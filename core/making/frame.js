@@ -29,6 +29,8 @@ const Frame = (() => {
   const played = [];
   function play(name) { if (live) { if (!muted) sound(name); } else played.push(String(name)); }
 
+  // Who is told of each state a test comes to, where somebody asks.
+  let watching = null;
   // While a rule is tried with nothing else about: what keeps the lists it does not name empty, whatever comes into them.
   let emptied = null;
   function apply(state, event) {
@@ -104,10 +106,13 @@ const Frame = (() => {
     area: (label, name, value, o) => field(label, node("textarea", { value: value == null ? "" : String(value), rows: (o && o.rows) || 5, placeholder: (o && o.placeholder) || "", in: name, "aria-label": label })),
     check: (label, name, on) => node("label", { class: "check" }, [node("input", { type: "checkbox", checked: !!on, in: name, "aria-label": label }), label]),
     toggle: (label, name, value, on) => node("label", { class: "check" }, [node("input", { type: "checkbox", checked: !!on, do: [name, value === undefined ? null : value], "aria-label": label }), label]),
-    select: (label, name, value, options) => field(label, node("select", { value: String(value), in: name, "aria-label": label }, (options || []).map((o) => { const [v, t] = Array.isArray(o) ? o : [o, o]; return node("option", { value: String(v), selected: String(v) === String(value) }, [t]); }))),
+    // What is chosen is what it shows: where nothing that is offered is, it shows that nothing is.
+    select: (label, name, value, options) => { const all = (options || []).map((o) => (Array.isArray(o) ? o : [o, o])), at = value == null ? "" : String(value); if (all.length && !all.some(([v]) => String(v) === at)) all.unshift([at, at || "Choose…"]); return field(label, node("select", { value: at, in: name, "aria-label": label }, all.map(([v, t]) => node("option", { value: String(v), selected: String(v) === at }, [t])))); },
     slider: (label, name, value, o) => field(label, node("input", { type: "range", value: String(value), min: (o && o.min) ?? 0, max: (o && o.max) ?? 100, step: (o && o.step) ?? 1, in: name, number: true, "aria-label": label })),
     list: (items, each) => node("ul", { class: "list" }, (items || []).map((item, i) => node("li", {}, [each ? each(item, i) : String(item)]))),
-    table: (heads, rows) => node("div", { class: "scroll" }, [node("table", {}, [node("thead", {}, [node("tr", {}, (heads || []).map((h) => node("th", {}, [h])))]), node("tbody", {}, (rows || []).map((r) => node("tr", {}, r.map((c) => node("td", {}, [c])))))])]),
+    // Figures stand under each other, and a table with nothing in it says so.
+    table: (heads, rows) => { const all = rows || [], figures = (i) => all.length > 0 && all.every((r) => /^[-−+]?\s*[$€£]?\s*[-−]?[\d,. ]*\d\s*%?$/.test(String(r[i] ?? ""))), num = (i) => (figures(i) ? { class: "num" } : {});
+      return node("div", { class: "scroll" }, [node("table", {}, [node("thead", {}, [node("tr", {}, (heads || []).map((h, i) => node("th", num(i), [h])))]), node("tbody", {}, all.length ? all.map((r) => node("tr", {}, r.map((c, i) => node("td", num(i), [c])))) : [node("tr", {}, [node("td", { class: "none", colspan: String((heads || []).length || 1) }, ["Nothing yet"])])])])]); },
     tabs: (names, chosen, name) => node("div", { class: "tabs", role: "tablist" }, (names || []).map((n) => node("button", { type: "button", role: "tab", class: n === chosen ? "on" : "", do: [name, n] }, [n]))),
     progress: (value, of) => node("div", { class: "progress", role: "progressbar" }, [node("div", { style: `width:${Math.max(0, Math.min(100, (100 * value) / (of || 1)))}%` })]),
     bars: (rows) => { const top = Math.max(1e-9, ...(rows || []).map((r) => Number(r.value) || 0)); return node("div", { class: "bars" }, (rows || []).map((r) => node("div", { class: "bar" }, [node("span", { class: "bar-label" }, [r.label]), node("div", { class: "bar-track" }, [node("div", { class: "bar-fill", style: `width:${(100 * (Number(r.value) || 0)) / top}%` })]), node("span", { class: "bar-value" }, [String(typeof r.show === "string" || typeof r.show === "number" ? r.show : r.value)])]))); },
@@ -346,14 +351,14 @@ const Frame = (() => {
     const put = new Map(), putBy = new Map(), done = new Set(), keyOf = (n) => JSON.stringify(n.props.in), valueOf = (n) => String(n.props.value ?? "").toLowerCase();
     const still = () => { if (!put.size) return; const now = new Map(every(shown(s)).filter((n) => n.props.in).map((n) => [keyOf(n), valueOf(n)])); for (const [k, v] of put) if (now.get(k) !== v) put.delete(k); };
     const wasPut = (label, v, value) => { const k = keyOf(v), said = String(value).toLowerCase(), l = String(label).toLowerCase().trim(); put.set(k, said); done.add(k); putBy.set(l, [...(putBy.get(l) || []), said]); };
-    let first = null, did = 0; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); prior = isGame() ? null : JSON.stringify(s); s = f(s); did++; still(); return t; };
+    let first = null, did = 0; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); prior = isGame() ? null : JSON.stringify(s); s = f(s); did++; still(); if (watching) watching(s); return t; };
     // What each control shown sets, seen by setting it: a label that no control has may be what one of them sets. A list kept
     // in a form is set by controls that are there once there is something in it to set, so what adds to it is tried first.
     // LIVE 24 November 2026 the design had a control called "Beneficiaries" and the program a row for each of them, and
     // sixteen of the twenty-one tests that failed said there was no "Beneficiaries" to use.
     const stem = (w) => w.toLowerCase().replace(/(ies|y)$/, "").replace(/(es|s|e)$/, ""), wordsIn = (x) => String(x).replace(/([a-z])([A-Z])/g, "$1 $2").split(/[^\p{L}]+/u).filter((w) => w.length > 1).map(stem);
     const optionsOf = (v) => v.kids.filter((k) => k.tag === "option").map((k) => ({ value: String(k.props.value), said: words(k) }));
-    const meant = (v, value) => { if (v.tag === "select") { const want = String(value).toLowerCase().trim(); return (optionsOf(v).find((o) => o.value.toLowerCase() === want || o.said.toLowerCase() === want) || {}).value; } if (v.props.number) return Number.isFinite(Number(value)) ? Number(value) : undefined; return v.props.type === "checkbox" ? !!value : String(value); };
+    const meant = (v, value) => { if (v.tag === "select") { const want = String(value).toLowerCase().trim(); const all = optionsOf(v), called = all.filter((o) => isWords(o.said.toLowerCase(), want)); return (all.find((o) => o.value.toLowerCase() === want || o.said.toLowerCase() === want) || (want.length > 1 && called.length === 1 && called[0]) || {}).value; } if (v.props.number) return Number.isFinite(Number(value)) ? Number(value) : undefined; return v.props.type === "checkbox" ? !!value : String(value); };
     const markFor = (v) => (v.tag === "select" ? (optionsOf(v).find((o) => o.value !== String(v.props.value)) || {}).value : v.props.number ? 7919 : v.props.type === "checkbox" ? !v.props.checked : v.props.type === "date" ? "2031-03-07" : "zqx");
     const parted = (a, b, path, out) => { if (out.length > 6 || JSON.stringify(a) === JSON.stringify(b)) return out; if (a && b && typeof a === "object" && typeof b === "object") { for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) parted(a[k], b[k], [...path, k], out); } else out.push(path); return out; };
     const setsOf = (from, v) => { const mark = markFor(v); if (mark === undefined) return []; try { return parted(from, apply(copy(from), { type: "input", name: v.props.in, value: mark }), [], []); } catch (e) { return []; } };
@@ -367,12 +372,16 @@ const Frame = (() => {
     // empty, then one not put in, then the last. LIVE 25 November 2026 a test put three people in the rows of a list, a row
     // at a time, and each was put over the one before, in the first row.
     const ofThem = (v) => { const same = every(shown(s)).filter((n) => n.props.in && !n.props.disabled && nameOf(n) === nameOf(v)); if (same.length < 2) return v; const empty = same.filter((n) => emptyFirst([n])), fresh = (n) => !done.has(keyOf(n)); return empty.find(fresh) || empty[0] || same.find(fresh) || same[same.length - 1]; };
+    // What is not offered is put in by nobody. Where the program knows of it, or the test put it in before, it should have been
+    // offered; where nothing does, the test asks for what nobody could do.
+    const refuse = (label, v, value) => { const e = new Error(`“${label}” takes one of ${optionsOf(v).map((o) => o.said || o.value).filter(Boolean).join(", ")}, so nobody could put “${String(value)}” in it`), known = String(value).toLowerCase(); e.theTest = !(JSON.stringify(s).toLowerCase().includes(`"${known}"`) || [...putBy.values()].some((all) => all.includes(known))); throw e; };
     const set = (label, value) => { const named = find(label, (n) => n.props.in, false, true), v = named && ofThem(named);
-      if (v && !Array.isArray(value)) { const ready = v.props.number ? Number(value) : v.props.type === "checkbox" ? !!value : String(value); act((x) => apply(x, { type: "input", name: v.props.in, value: ready })); wasPut(label, v, ready); return t; }
+      if (v && v.tag === "select" && !Array.isArray(value) && optionsOf(v).length && meant(v, value) === undefined && String(value) !== "") refuse(label, v, value);
+      if (v && !Array.isArray(value)) { const ready = v.props.number ? Number(value) : v.props.type === "checkbox" ? !!value : v.tag === "select" ? meant(v, value) ?? String(value) : String(value); act((x) => apply(x, { type: "input", name: v.props.in, value: ready })); wasPut(label, v, ready); return t; }
       if (!isGame() && (Array.isArray(value) ? value.length > 0 && value.every((one, i) => putWhere(label, one && typeof one === "object" ? Object.values(one)[0] : one, i > 0)) : putWhere(label, value, false))) return t;
       // What chooses among some things takes one of them: nobody could put another in it.
       const takes = !isGame() && !Array.isArray(value) ? every(shown(s)).filter((n) => n.tag === "select" && meant(n, value) === undefined && setsOf(s, n).some((path) => path.some((k) => { const has = wordsIn(k), want = wordsIn(label); return want.length && want.every((w) => has.includes(w)); })))[0] : null;
-      if (takes) { const e = new Error(`“${label}” takes one of ${optionsOf(takes).map((o) => o.said || o.value).filter(Boolean).join(", ")}, so nobody could put “${String(value)}” in it`); e.theTest = true; throw e; }
+      if (takes) refuse(label, takes, value);
       return find(label, (n) => n.props.in); };
     const t = { get s() { return s; }, set s(v) { s = only({ ...P.initial(), ...v }); }, W, H,
       send(e) { return act((s) => apply(s, e)); },
@@ -472,12 +481,22 @@ const Frame = (() => {
         const titles = (v) => { if (v.tag === "#" || !every(v).some(uses)) return; for (const k of v.kids) { if (k.tag !== "#" && !every(k).some(uses)) over.add(words(k).toLowerCase().trim()); titles(k); } };
         const look = (s) => { const tree = shown(s); titles(tree); for (const n of every(tree)) if (uses(n)) said.add(String(n.props["aria-label"] || words(n) || n.props.placeholder || "").toLowerCase()); };
         for (let sd = 1; sd <= 4; sd++) { seed = sd * 5; let s = sd === 4 && P.designed ? { ...P.initial(), ...copy(P.designed) } : P.initial(); for (let i = 0; i < 70; i++) { look(s); s = act(s); } look(s); }
-        const all = [...said], gone = designed.filter((d) => { const w = d.toLowerCase(); return !over.has(w) && !all.some((x) => x === w || x.includes(w) || (x && w.includes(x) && x.length > 2)); }); must(!gone.length, `the design has ${gone.map((g) => `“${g}”`).join(", ")}, and wherever it was used nothing was called that; there are: ${all.filter(Boolean).slice(0, 16).join(", ")}`); });
+        const gone = () => { const all = [...said]; return designed.filter((d) => { const w = d.toLowerCase(); return !over.has(w) && !all.some((x) => x === w || x.includes(w) || (x && w.includes(x) && x.length > 2)); }); };
+        // What is there only once something has been kept is come to by whoever keeps something: the tests do. LIVE 25 November 2026
+        // a mend that put in what was missing was not kept, for "Edit" and "Delete" had not been come upon by chance that time.
+        for (const [, body] of (gone().length && window.TESTS) || []) { watching = (then) => { try { look(then); } catch (e) { /* what breaks as it is shown is told by what else is tried */ } }; try { body(tester()); } catch (e) { /* what it finds is told where it is tried */ } finally { watching = null; waiting = []; emptied = null; } if (!gone().length) break; }
+        const left = gone(); must(!left.length, `the design has ${left.map((g) => `“${g}”`).join(", ")}, and wherever it was used nothing was called that; there are: ${[...said].filter(Boolean).slice(0, 16).join(", ")}`); });
       check("every control does something", () => { const dead = [...used].filter(([, did]) => !did).map(([label]) => label); must(dead.length === 0, `these change nothing: ${dead.slice(0, 8).join(", ")}`); must(used.size > 0, "there is nothing to use"); });
       // What is true of any program that keeps things, whatever it is for, and that no test of a rule of it says.
       const records = (s) => { const out = []; const of = (x, path, d) => { if (!x || typeof x !== "object" || d > 4) return; if (Array.isArray(x)) { if (x.length && x.every((y) => y && typeof y === "object" && !Array.isArray(y))) out.push([path, x]); x.slice(0, 60).forEach((y, i) => of(y, `${path}[${i}]`, d + 1)); } else for (const k of Object.keys(x)) of(x[k], path ? `${path}.${k}` : k, d + 1); }; of(s, "", 0); return out; };
       const fill = (s, sd) => { seed = sd; const names = ["Ana", "Ben", "rice", "a longer thing"]; for (const n of every(shown(s)).filter((n) => n.props.in)) { const all = n.tag === "select" ? n.kids : null; s = apply(s, { type: "input", name: n.props.in, value: n.props.type === "checkbox" ? true : all ? (all.length ? all[all.length > 1 ? 1 : 0].props.value : "") : n.props.number || n.props.type === "number" ? 12 : n.props.type === "date" ? "2026-11-20" : names[Math.floor(rnd() * names.length)] }); } return s; };
       const buttons = (s) => every(shown(s)).filter((n) => n.props.do && !n.props.disabled);
+      // What is drawn as taking something away takes it, or asks first. LIVE 25 November 2026 the buttons that added a flatmate, a
+      // plant and an expense were drawn so, and nothing that was tried said it.
+      check("what is marked as taking something away does", () => { const seen = new Map(), size = (x) => (x && typeof x === "object" ? Object.values(x).reduce((n, y) => n + (Array.isArray(y) ? y.length : 0) + size(y), 0) : 0);
+        const at = (s) => { for (const n of every(shown(s))) { if (!n.props.do || n.props.disabled || !/(^| )danger( |$)/.test(n.props.class || "")) continue; const label = words(n), had = seen.get(label) || { more: 0, less: 0 }; seen.set(label, had); if (had.less) continue; let then; try { then = apply(copy(s), { type: "do", name: n.props.do[0], value: n.props.do[1] }); } catch (e) { continue; } const by = size(then) - size(s); if (by > 0) had.more++; if (by < 0) had.less++; } };
+        for (let sd = 1; sd <= 3; sd++) { seed = sd * 29; let s = sd === 3 && P.designed ? { ...P.initial(), ...copy(P.designed) } : P.initial(); for (let i = 0; i < 24; i++) { at(s); if (i % 3 === 0) { const was = seed; at(fill(copy(s), sd + i)); seed = was; } s = act(s); } }
+        const wrong = [...seen].filter(([, had]) => had.more > 0 && !had.less).map(([label]) => `“${label}”`); must(!wrong.length, `${wrong.slice(0, 6).join(", ")}: marked as taking something away, and only ever puts something in`); });
       // A control shows what is put in it. Where what is put in changes the state, and the control goes on showing what it did,
       // it is kept where nothing shows it: the row of a list in a form that is stored by the row's own name.
       check("what is put in a control is what it shows", () => { const lost = new Map(), showsOf = (n) => (n.tag === "select" ? String(n.props.value) : n.props.type === "checkbox" ? !!n.props.checked : String(n.props.value ?? ""));

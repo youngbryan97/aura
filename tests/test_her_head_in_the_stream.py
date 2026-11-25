@@ -352,32 +352,32 @@ def test_drawing_her_sequences_follow_the_distribution_they_follow_one_token_at_
         assert abs(a - b) < 4.2 * (max((a + b) / 2, 0.004) * 2 / runs) ** 0.5, (said, a, b)
 
 
+def _knowing(model, said):
+    """Her head, where it knows: what it gives is the hidden state her model has after what was said and the draft."""
+    from mlx_lm.models.cache import make_prompt_cache
+
+    from core.brain.llm.several_tokens_a_pass import _text
+
+    text, so_far = _text(model), list(said)
+
+    def head(hidden, embedded, cache):
+        ids = [int(mx.argmin(mx.sum((text.model.embed_tokens.weight - row) ** 2, axis=-1)).item()) for row in embedded[0]]
+        so_far.extend(ids)
+        return text.model(mx.array([so_far]), make_prompt_cache(model))[:, -len(ids):]
+
+    return head
+
+
 def test_drawn_drafts_are_kept_more_often_than_the_likeliest_ones(on_cpu):
     """A head that predicts what she would say exactly has every draft of its kept, however much she draws."""
     from core.brain.llm.her_head_in_the_stream import head_generate_step
     from core.brain.llm.her_sampler import HerSampler
-    from core.brain.llm.several_tokens_a_pass import _text
-
     model = _tiny(vocab=7, seed=0)
-    text = _text(model)
-
-    class _Knows:
-        """Her head, where it knows: what it gives is the hidden state her model has after what was said and the draft."""
-
-        def __init__(self):
-            self.said = [1]
-
-        def __call__(self, hidden, embedded, cache):
-            from mlx_lm.models.cache import make_prompt_cache
-
-            ids = [int(mx.argmin(mx.sum((text.model.embed_tokens.weight - row) ** 2, axis=-1)).item()) for row in embedded[0]]
-            self.said += ids
-            return text.model(mx.array([self.said]), make_prompt_cache(model))[:, -len(ids):]
 
     def kept(sampler):
         mx.random.seed(3)
         deep = _Always(1)
-        list(head_generate_step(mx.array([1]), model, _Knows(), max_tokens=80, sampler=sampler, prefill_step_size=4, how_deep=deep))
+        list(head_generate_step(mx.array([1]), model, _knowing(model, [1]), max_tokens=80, sampler=sampler, prefill_step_size=4, how_deep=deep))
         return sum(n - 1 for _d, n, _s in deep.passes) / len(deep.passes)
 
     class _OnlyDraws:
@@ -391,3 +391,78 @@ def test_drawn_drafts_are_kept_more_often_than_the_likeliest_ones(on_cpu):
 
     sampler = HerSampler(temp=1.0)
     assert kept(sampler) > 0.95 > kept(_OnlyDraws(sampler)) + 0.1
+
+
+def test_what_keeps_her_from_saying_a_thing_again_keeps_her_head_from_drafting_it(on_cpu):
+    from mlx_lm.sample_utils import make_logits_processors
+
+    from core.brain.llm.her_head_in_the_stream import (
+        WhereItGoes,
+        head_generate_step,
+        of_what_was_said,
+    )
+    from core.brain.llm.her_sampler import HerSampler
+
+    (penalty,) = make_logits_processors(repetition_penalty=1.8, repetition_context_size=8)
+    assert of_what_was_said(penalty) and not of_what_was_said(_Recording()) and not of_what_was_said(lambda tokens, logits: logits)
+
+    class _Hers:
+        """The same, as one that keeps count would be: hers alone."""
+
+        def __init__(self, processor):
+            self.processor = processor
+
+        def __call__(self, tokens, logits):
+            return self.processor(tokens, logits)
+
+    model = _tiny(vocab=7, seed=0)
+
+    def kept(processor):
+        goes = WhereItGoes()
+        mx.random.seed(3)
+        list(head_generate_step(mx.array([1]), model, _knowing(model, [1]), max_tokens=260, sampler=HerSampler(temp=1.0), logits_processors=[processor],
+                                prefill_step_size=4, how_deep=_Always(1), goes=goes))
+        of, held = goes.drafts[0]
+        return held / of
+
+    assert kept(penalty) > 0.97 > kept(_Hers(penalty)) + 0.03
+
+
+def test_her_sequences_follow_the_distribution_they_follow_one_token_at_a_time_where_both_are_kept_from_repeating(on_cpu):
+    from collections import Counter
+
+    from mlx_lm.generate import generate_step
+    from mlx_lm.sample_utils import make_logits_processors
+
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+    from core.brain.llm.her_sampler import HerSampler
+
+    model, sampler, runs = _tiny(vocab=4, seed=1), HerSampler(temp=1.0), 500
+    head, made = _head(model), lambda: make_logits_processors(repetition_penalty=1.6, repetition_context_size=8)
+    mx.random.seed(5)
+    plain = Counter(tuple(int(t) for t, _ in generate_step(mx.array([1, 2, 3, 0]), model, max_tokens=3, sampler=sampler, logits_processors=made(), prefill_step_size=4)) for _ in range(runs))
+    mx.random.seed(9)
+    drawn = Counter(tuple(int(t) for t, _, _ in head_generate_step(mx.array([1, 2, 3, 0]), model, head, max_tokens=3, sampler=sampler, logits_processors=made(), prefill_step_size=4, how_deep=_Always(2)))
+                    for _ in range(runs))
+    for said in set(plain) | set(drawn):
+        a, b = plain[said] / runs, drawn[said] / runs
+        assert abs(a - b) < 4.2 * (max((a + b) / 2, 0.004) * 2 / runs) ** 0.5, (said, a, b)
+
+
+def test_what_building_a_pass_calls_is_told_once_where_it_is_asked_for(on_cpu, monkeypatch, caplog):
+    import logging
+
+    from core.brain.llm import her_head_in_the_stream as stream
+
+    model = _tiny(vocab=7, seed=0)
+
+    def told():
+        caplog.clear()
+        with caplog.at_level(logging.INFO, logger="LLM.HerHead"):
+            list(stream.head_generate_step(mx.array(PROMPT), model, _head(model), max_tokens=90, prefill_step_size=4, how_deep=_Always(1)))
+        return [r.message for r in caplog.records if r.message.startswith("Building a pass")]
+
+    assert told() == []
+    monkeypatch.setenv("AURA_LOOK_INTO_DECODE", "1")
+    (said,) = told()
+    assert "_linear_reading" in said

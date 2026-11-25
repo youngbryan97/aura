@@ -129,6 +129,8 @@ class EndogenousLogitBiasProcessor:
         self.calls = 0
         self.applied = 0
         self.width_mismatch_reported = False
+        #: What it adds is of the logits it is given alone (core/brain/llm/her_head_in_the_stream.py).
+        self.of_what_was_said = True
 
     @property
     def vocab_size(self) -> int:

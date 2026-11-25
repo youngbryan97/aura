@@ -36,8 +36,10 @@ SORTS = {
     "guard": 1.0, "name_for_name": 0.8, "field_for_field": 0.85, "comparison": 0.9, "number_from_the_rule": 0.95, "shift_by_one": 0.75,
     "boolean": 0.6, "arithmetic": 0.55, "negate": 0.6, "literal": 0.6, "words_for_words": 0.8, "time": 0.7, "kept_within": 0.55,
     "ingredient": 0.5, "swap_arguments": 0.5, "whole_number": 0.45, "same_kind": 0.5, "returned": 0.8, "list": 0.45, "counted": 0.5,
-    "dropped": 0.25, "missing_import": 1.5, "template": 0.7, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35, "row": 1.4,
+    "dropped": 0.25, "missing_import": 1.5, "template": 0.7, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35, "row": 1.4, "tone": 1.2,
 }
+#: How a control can be drawn: as the one used most, as any, or as one that takes something away.
+_TONES = ("primary", "", "danger")
 
 _COMPARE = {"<": ("<=", ">", ">="), "<=": ("<", ">=", ">"), ">": (">=", "<", "<="), ">=": (">", "<=", "<"),
             "===": ("!==",), "!==": ("===",), "==": ("!=",), "!=": ("==",)}
@@ -375,6 +377,7 @@ def ways(read: Read, evidence: Evidence, blocks: Mapping[int, float] | None = No
         _at(read, got, node, evidence, props, list(strings), truths, values)
     _statements(read, got, nodes, evidence)
     _rows(read, got)
+    _tones(read, got, nodes)
     return _that_can_be_read(got.out)
 
 
@@ -655,6 +658,17 @@ def _rows(read: Read, got: _Collected) -> None:
     spot = body.start_byte + 1
     for text in ([" ".join(made)] if len(made) > 1 else []) + made:
         got.span("row", spot, spot, f" {text} ", block, "put what is given to each row in the row it is of")
+
+
+def _tones(read: Read, got: _Collected, nodes: Sequence[Any]) -> None:
+    """A control drawn another way than it is: one that puts something in, and is drawn as one that takes something away."""
+    for node in nodes:
+        key, value = (node.child_by_field_name(field) for field in ("key", "value")) if node.type == "pair" else (None, None)
+        if key is None or value is None or value.type != "string" or read.text(key).strip("\"'") != "tone":
+            continue
+        for tone in _TONES:
+            if tone != read.text(value)[1:-1]:
+                got.add("tone", value, f'"{tone}"', f"draw it as {tone or 'any other'}")
 
 
 def _row_control(read: Read, call: Any) -> tuple[str, str, list[str], str] | None:
