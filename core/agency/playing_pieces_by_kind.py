@@ -272,17 +272,122 @@ def _how_it_stands(found: Any, weights: Any, start: dict | None = None) -> str:
     if getattr(found, "mate", False):
         return "I can force a win from here" if found.score > 0 else "They can force a win from here"
     worth = dict(weights.worth) if weights else {}
-    mine = [kind for side, kind in (start or {}).values() if side == FIRST]
-    commonest = max(set(mine), key=mine.count) if mine else ""
-    unit = worth.get(commonest, 0.0)
-    noun = "my commonest piece"
-    if unit <= 0:
-        positive = sorted(w for w in worth.values() if w > 0)
-        unit, noun = (positive[len(positive) // 2], "a middling piece of mine") if positive else (100.0, "a piece")
+    unit, noun = _her_unit(worth, start)
     ahead = found.score / unit
     if abs(ahead) < 0.3:
         return "It looks about even"
     return f"I judge myself {'ahead' if ahead > 0 else 'behind'} by about {abs(ahead):.1f} of {noun}"
+
+
+def _her_unit(worth: dict, start: dict | None) -> tuple[float, str]:
+    """What she counts worth in, and what she calls it: her commonest piece at the start, or a middling one."""
+    mine = [kind for side, kind in (start or {}).values() if side == FIRST]
+    commonest = max(set(mine), key=mine.count) if mine else ""
+    unit = worth.get(commonest, 0.0)
+    if unit > 0:
+        return unit, "my commonest piece"
+    positive = sorted(w for w in worth.values() if w > 0)
+    return (positive[len(positive) // 2], "a middling piece of mine") if positive else (100.0, "a piece")
+
+
+def _the_areas(game: _Game, family: Family, weights: Any) -> Any:
+    """The board read area by area (core/agency/what_each_area_of_a_board_comes_to.py): each fight alone, two moves
+    deep, put back together. None where it cannot be read."""
+    from core.agency.what_each_area_of_a_board_comes_to import read_board
+
+    try:
+        return read_board(family, game.believed, dict(weights.worth) if weights else {}, plies=2)
+    # not a failure: a board her rules cannot read area by area is played by her search alone.
+    except (KeyError, ValueError, TypeError) as why:
+        logger.info("the board was not read area by area: %s", why)
+        return None
+
+
+def _expected_with_the_areas(game: _Game, areas: Any) -> dict | None:
+    """What she expects of them at their turns, for her search to look at first: the moves they have made, as shares of
+    all they have made, beside the moves that would cost her most in the areas of the board, as shares of what all
+    those would cost. Each counts half where both are known."""
+    theirs = sum(game.they_went.values())
+    made = {went: n / theirs for went, n in game.they_went.items()} if theirs else {}
+    hurts = [threat for threat in (areas.threats if areas is not None else ()) if threat.costs_her > 0]
+    cost = sum(threat.costs_her for threat in hurts)
+    feared: dict = {}
+    for threat in hurts:
+        key = (threat.act.start, threat.act.end)
+        feared[key] = feared.get(key, 0.0) + threat.costs_her / cost
+    if not made and not feared:
+        return None
+    if not made or not feared:
+        return made or feared
+    return {key: (made.get(key, 0.0) + feared.get(key, 0.0)) / 2 for key in set(made) | set(feared)}
+
+
+def _the_areas_said(game: _Game, family: Family, areas: Any, weights: Any) -> str:
+    """What the areas say, in a sentence: the fight that most needs a move, and the worst they could do to her."""
+    if areas is None:
+        return ""
+    unit, noun = _her_unit(dict(weights.worth) if weights else {}, game.learned.start)
+    said = []
+    hottest = max(areas.readings, key=lambda reading: reading.urgency, default=None)
+    if hottest is not None and hottest.urgency * 2 / unit >= 0.5:
+        mine = [sq for sq in hottest.part if game.believed.cells.get(sq, (None,))[0] == FIRST]
+        if mine:
+            biggest = max(mine, key=lambda sq: weights.worth.get(game.believed.cells[sq][1], 0.0) if weights else 0.0)
+            what = family.kinds[game.believed.cells[biggest][1]].name or game.learned.what_it_does(
+                game.believed.cells[biggest][1])
+            said.append(f"The fight around {_owned(what, 'my')} on "
+                        f"{_square_named(biggest, game.first_is_hers, family.rows, family.columns)} is the one that most "
+                        f"needs a move: whoever moves there first gains about {hottest.urgency * 2 / unit:.1f} of {noun}")
+    worst = next(iter(areas.threats), None)
+    if worst is not None and worst.costs_her / unit >= 0.5:
+        said.append("left alone, the worst they could do is "
+                    + said_of_a_move(family, game.believed.__class__(cells=game.believed.cells, turn=1 - FIRST,
+                                                                     unmoved=game.believed.unmoved,
+                                                                     passable=game.believed.passable),
+                                     worst.act, game.learned, game.first_is_hers, whose="their")
+                    + f", costing me about {worst.costs_her / unit:.1f}")
+    if game.their_areas:
+        going = _where_they_are_going(game)
+        if going:
+            said.append(going)
+    if not said:
+        return ""
+    sentence = "; ".join(said)
+    return sentence[0].upper() + sentence[1:] + "."
+
+
+def _what_it_came_at(game: _Game, family: Family, move: Move) -> str:
+    """The piece of hers their move came at, in words: the one she holds worth most in the area of the board the moved
+    piece went to (core/agency/what_each_area_of_a_board_comes_to.py); "" where none of hers is there."""
+    from core.agency.what_each_area_of_a_board_comes_to import area_of, areas_of
+
+    try:
+        made = after(family, game.believed, move)
+        area = area_of(areas_of(family, made), move.end) or frozenset()
+    # not a failure: a move her rules cannot follow comes at nothing she can name.
+    except (KeyError, ValueError, TypeError):
+        return ""
+    worth = game.weights_seen or {}
+    mine = [sq for sq in area if made.cells.get(sq, (None,))[0] == FIRST]
+    if not mine:
+        return ""
+    biggest = max(mine, key=lambda sq: worth.get(made.cells[sq][1], 0.0))
+    letter = made.cells[biggest][1]
+    what = family.kinds[letter].name if letter in family.kinds and family.kinds[letter].name else \
+        game.learned.what_it_does(letter)
+    return f"{_owned(what, 'my')} on {_square_named(biggest, game.first_is_hers, family.rows, family.columns)}"
+
+
+def _where_they_are_going(game: _Game) -> str:
+    """Where their recent moves keep going, as the piece of hers they keep coming at: said once they have come at the
+    same one in most of their last moves."""
+    from core.cognition.what_each_area_comes_to import where_they_work
+
+    recent = game.their_areas[-3:]
+    going = where_they_work(recent, (), ())
+    if len(recent) >= 3 and going and going[0][1] > 0.5:
+        return f"they keep coming at {going[0][0]}"
+    return ""
 
 
 async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tuple[Any, PiecesSeen] | None:
@@ -465,6 +570,15 @@ class _Game:
     #: The moves the other side has made this game, by their squares, and how often: her search tries them early at
     #: their turns, where they could make them again.
     they_went: dict[tuple[tuple[int, int], tuple[int, int]], int] = field(default_factory=dict)
+    #: What each of their moves came at: the piece of hers in the area of the board it went to (in words), latest last.
+    their_areas: list[str] = field(default_factory=list)
+    #: What she holds each kind worth, as her last look used it, for saying which of her pieces a fight is about.
+    weights_seen: dict[str, float] = field(default_factory=dict)
+    #: What each side can do from the position she left them, worked out on their time: the position's key, and the
+    #: work under way or done (core/agency/what_each_area_of_a_board_comes_to.py ``possible_on_a_board``).
+    mapping: tuple[Any, Any] | None = None
+    #: How many moves deep the answer she is playing was worked out on their time.
+    counter_deep: int = 0
     #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
     did: WhatSheDid = field(default_factory=WhatSheDid)
     #: Moves she made by hand that the board did not show made, each with the position and rules it was tried under:
@@ -565,6 +679,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     # Her look on their time has a thread of its own: a round of rehearsal under way does not hold it up.
     ponder_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pondering")
+    # And what each side can do, worked out on their time, a thread of its own beside her look.
+    map_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="what_can_happen")
     the_moves: list[str] = []
     went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
     they_answered = they_answered if they_answered is not None else WhatTheyAnsweredWhere()
@@ -573,10 +689,12 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
             came = await _play(seat, look, click, seconds=seconds, say=say, thinks_s=thinks_s, learned=learned,
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
-                               they_answered=they_answered, prepared=prepared, held=held, endings=endings)
+                               they_answered=they_answered, prepared=prepared, held=held, endings=endings,
+                               map_pool=map_pool)
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
+        map_pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
@@ -700,7 +818,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 borrow: Callable[[dict, bool], Any] | None = None,
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
                 ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
-                prepared: Any = None, held: Any = None, endings: Any = None) -> dict[str, Any]:
+                prepared: Any = None, held: Any = None, endings: Any = None, map_pool: Any = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -824,6 +942,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.they_answered.they_answered(_a_place(game.believed, game.learned.start, family),
                                                      _named(move))
                     game.they_went[(move.start, move.end)] = game.they_went.get((move.start, move.end), 0) + 1
+                    came_at = _what_it_came_at(game, family, move)
+                    if came_at:
+                        game.their_areas.append(came_at)
                 game.follow(move)
                 game.waiting_since = monotonic_time()
             if seen_moves:
@@ -833,6 +954,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # While the other side thinks, she rehearses the game in her model, and looks at what she expects to face.
             rehearsing.start(pool, game.learned.family())
             _think_on_their_time(game, rehearsing, ponder_pool, thinks_s)
+            _work_out_what_they_can_do(game, rehearsing, map_pool, thinks_s)
             if clock is not None and not game.read_this_wait:
                 # Her clock is read, where her count of it may have drifted, while it stands still on their time.
                 game.read_this_wait = True
@@ -931,6 +1053,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         set_aside += [m for at, m, _rules in game.untaken
                       if at.key() == game.believed.key() and m in legal and m not in set_aside]
         found = None
+        areas = None
         learned_until, searched_s = monotonic_time(), 0.0
         for _ in range(CHECKS_A_TURN):
             # What is left of the turn, less what making the move and seeing it shown has taken her this game. After a
@@ -951,6 +1074,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
             # she worked out (core/agency/thinking_before_it_comes.py), and her clock keeps the time.
             ready = _worked_out_ahead(prepared, game, family, weights, legal) if not set_aside else None
+            if ready is None and not set_aside:
+                # Her answer to the move they made, where she worked it out on their time: checked by her look now.
+                ready = _answer_worked_out_on_their_time(game, family, legal)
             # An ending she has worked out to the end, won or lost, under the rules she plays by
             # (core/agency/what_a_small_ending_comes_to.py): its answer rests on every situation that can follow.
             ended = (worked_to_the_end(endings, family, game.believed, [m for m in legal if m not in set_aside])
@@ -963,11 +1089,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 found = ready
             else:
                 search_began = monotonic_time()
-                theirs = sum(game.they_went.values())
+                # The board read area by area: what they could do to her in each fight is what her search looks at
+                # first at their turns, beside what they have done.
+                areas = _the_areas(game, family, weights)
+                game.weights_seen = dict(weights.worth) if weights else {}
                 found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free(), wary=FIRST,
                                soft=thinks if most > thinks else None,
-                               expected={went: n / theirs for went, n in game.they_went.items()} if theirs else None,
+                               expected=_expected_with_the_areas(game, areas),
                                endings=endings)
                 if ready is not None:
                     # Worked out under rules that have changed since: a hint, checked by the look just made.
@@ -1056,6 +1185,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         elif found.by == "nothing can change after it":
             how = ("After it nothing either side can do changes the position, so it can only be drawn, and a sure "
                    "draw is worth more than how my other moves have turned out from positions like this")
+        elif found.by == "worked out on their time, checked":
+            _judged(game, here, move, found)
+            how = (f"I'd worked out my answer to that while they were thinking ({game.counter_deep} moves deep), and a "
+                   f"look now ({found.depth} moves deep) still finds it best")
         elif found.by == "worked out ahead, checked":
             _judged(game, here, move, found)
             how = (f"I worked this one out before the game, and a look now ({found.depth} moves deep), with what I "
@@ -1064,6 +1197,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
+            areas_said = _the_areas_said(game, family, areas, weights)
+            if areas_said:
+                how += f" {areas_said}"
             # What judgements like it have come to here, where she has seen enough to say: her judgement read as the
             # chance it has turned out to be.
             held_so = game.held.says(found.score)
@@ -1164,8 +1300,8 @@ def _held_to_what_can_change(game: _Game, family: Family, legal: list[Move], set
     a move after which nothing can change is taken in place of the search's; where it has turned out worth more, a
     move of the search's after which nothing can change is set aside for the best of the rest, kept where that is
     still worth more than a half (suggestions of 23 November 2026, item 18)."""
-    from core.agency.what_cannot_change_on_a_board import what_can_change
     from core.agency.searching_by_kind import Found
+    from core.agency.what_cannot_change_on_a_board import what_can_change
 
     if found.move is None:
         return found
@@ -1204,14 +1340,15 @@ def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list
     the move says nothing of numbers worked out under rules since changed (suggestions of 23 November 2026)."""
     from dataclasses import replace
 
+    origin = str(getattr(hint, "by", "") or "worked out ahead").removesuffix(", to check")
     if now.move is None:
-        return replace(hint, by="worked out ahead, not checked")
+        return replace(hint, by=f"{origin}, not checked")
     if now.move == hint.move:
-        return replace(now, by="worked out ahead, checked")
+        return replace(now, by=f"{origin}, checked")
     alone = search_only([m for m in legal if m != hint.move])
     if alone.move == hint.move and now.score - alone.score <= max(0, int(now.unsteady)):
-        return replace(alone, by="worked out ahead, checked")
-    return replace(now, by="worked out ahead, and a look now found better")
+        return replace(alone, by=f"{origin}, checked")
+    return replace(now, by=f"{origin}, and a look now found better")
 
 
 def _expect_back(game: _Game, family: Family, move: Move, found: Any) -> None:
@@ -1252,6 +1389,53 @@ def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks
     game.pondering.start(pool, family, facing, seconds=game.pondering.look_for(game.answers_s, game.last_share or thinks_s),
                          weights=rehearsing.weights_for(family), earlier=[*game.earlier, game.believed],
                          threads=max(1, _cores_free() - 1), also=also)
+
+
+def _work_out_what_they_can_do(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks_s: float) -> None:
+    """While they think: every move they can make in each area of the board she left them, and her answer to each,
+    worked out as deep as the time they are likely to take allows (core/cognition/what_each_area_comes_to.py
+    ``what_can_happen``). Not what they will do: what they can, so that whichever they choose, her answer is already
+    worked out."""
+    from core.agency.what_each_area_of_a_board_comes_to import possible_on_a_board
+
+    if pool is None or game.believed.turn == FIRST:
+        return
+    key = game.believed.key()
+    if game.mapping is not None and game.mapping[0] == key:
+        return
+    family = game.learned.family(unseen_go_every_way=True)
+    worth = dict(rehearsing.weights_for(family).worth)
+    seconds = game.pondering.look_for(game.answers_s, game.last_share or thinks_s)
+    position = game.believed
+    game.mapping = (key, pool.submit(possible_on_a_board, family, position, worth, plies_at_most=10,
+                                     seconds=seconds))
+
+
+def _answer_worked_out_on_their_time(game: _Game, family: Family, legal: list[Move]) -> Any:
+    """Her answer to the move they made, where she worked it out on their time from the position before it: a hint for
+    her look now to check, as an answer worked out before the game is."""
+    from core.agency.searching_by_kind import Found
+
+    if game.mapping is None or game.last_followed is None:
+        return None
+    key, work = game.mapping
+    # Worked out from the position their move was made in, and that move the last one followed: else it answers
+    # something else.
+    if not game.earlier or game.earlier[-1].key() != key or game.believed.turn != FIRST:
+        return None
+    if not work.done() or work.cancelled() or work.exception() is not None:
+        return None
+    theirs = game.last_followed
+    counters, _found = work.result()
+    held = counters.get((theirs.start, theirs.end, theirs.becomes))
+    if held is None or held[0] is None:
+        return None
+    answer, comes_to, deep = held
+    move = next((m for m in legal if (m.start, m.end, m.becomes) == (answer.start, answer.end, answer.becomes)), None)
+    if move is None:
+        return None
+    game.counter_deep = deep
+    return Found(move, int(comes_to), deep, 0, [move], by="worked out on their time, to check")
 
 
 def _was_expected(game: _Game, move: Move) -> bool:
