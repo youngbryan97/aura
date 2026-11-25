@@ -88,3 +88,30 @@ class TestTheDerivedRequirement:
     def test_other_tiers_are_untouched(self, monkeypatch):
         monkeypatch.delenv("AURA_MLX_LOAD_MIN_AVAILABLE_GB", raising=False)
         assert _model_load_min_available_gb("/models/Qwen2.5-1.5B") == 8.0
+
+    def test_auto_is_no_setting_and_the_requirement_is_derived(self, monkeypatch):
+        """Both launchers set "auto" since 24 November 2026; until then they set
+        24, a number, and the derived requirement never applied live."""
+        monkeypatch.setenv("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", "auto")
+        _fake_measure(monkeypatch, 17.2)
+        assert _model_load_min_available_gb("/models/Aura-32B-cortex") == pytest.approx(17.2 * 1.20 + 1.0)
+
+
+class TestTheModelsSheRuns:
+    """Her cortex and brainstem as they stood on 24 November 2026, measured on
+    disk: each is held to its own size, not to the 32B's."""
+
+    @pytest.mark.parametrize(
+        ("name", "on_disk_gb", "needs_gb"),
+        [
+            ("/models/Aura-Qwen3.8-27B-persona-crsm", 14.1, 17.92),
+            ("/models/Ternary-Bonsai-2.5-27B-mlx-2bit", 8.27, 10.92),
+        ],
+    )
+    def test_each_is_held_to_its_own_size(self, monkeypatch, name, on_disk_gb, needs_gb):
+        import core.brain.llm.mlx_client as mc
+
+        monkeypatch.setenv("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", "auto")
+        monkeypatch.setattr(mc, "_model_matches_class", lambda path, tokens: "32b" in tokens)
+        _fake_measure(monkeypatch, on_disk_gb)
+        assert _model_load_min_available_gb(name) == pytest.approx(needs_gb, abs=0.01)

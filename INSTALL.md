@@ -168,7 +168,7 @@ There is no `AURA_HOST` environment variable; use the `--host` command-line flag
 | `AURA_GOVERNANCE_MODE` | profile default | Safety policy level applied to consequential tool actions. |
 | `AURA_PROCESS_RSS_LIMIT_GB` | derived from total RAM | Maximum physical RAM (Resident Set Size) the main process is allowed to use. Capped by safe limits unless specifically overridden. |
 | `AURA_MLX_MEMORY_LIMIT_GB` | derived from total RAM | Maximum memory limit for the Apple MLX memory allocator. |
-| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `24.0` | Minimum free RAM (in GB) required before loading a large model. |
+| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `auto` | Minimum free RAM (in GB) required before loading a large model (27B parameters and up). `auto` derives it from the checkpoint on disk: weights × 1.2 + 1 GB, never above 24 GB, and 24 GB for a checkpoint that cannot be measured. The 14.1 GB cortex needs 17.9 GB and the 8.3 GB brainstem 10.9 GB. A number overrides this. The name is kept from when the large model was a 32B. |
 
 ### Debugging entry points
 

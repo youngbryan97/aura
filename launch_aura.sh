@@ -327,10 +327,12 @@ if [ "${AURA_DESKTOP_RESOURCE_GUARD:-0}" = "1" ] || [ "${AURA_SAFE_BOOT_DESKTOP:
     : "${AURA_LOCAL_RUNTIME_SINGLETON:=1}"
     : "${AURA_LOCAL_PARALLEL_SLOTS:=1}"
     : "${AURA_ENABLE_LOCAL_DEEP_SOLVER:=0}"
-    : "${AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB:=24}"
+    # The load floors come from the checkpoint on disk (weights x 1.2 + 1GB, core/brain/llm/how_big_is_the_checkpoint.py);
+    # a number here overrides that, and the 24 and 52 that stood here were for the 32B and 72B she no longer runs.
+    : "${AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB:=auto}"
     : "${AURA_MLX_32B_PROJECTED_FOOTPRINT_GB:=auto}"
     : "${AURA_MLX_32B_PROCESS_RESERVE_GB:=3}"
-    : "${AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB:=52}"
+    : "${AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB:=auto}"
     : "${AURA_MLX_72B_PROJECTED_FOOTPRINT_GB:=auto}"
     : "${AURA_MLX_72B_PROCESS_RESERVE_GB:=5}"
     : "${AURA_FOREGROUND_CHAT_MAX_TOKENS:=2048}"

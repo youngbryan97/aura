@@ -192,7 +192,7 @@ Setting these variables does not admit the model on its own. A second deep model
   - `AURA_PROCESS_RSS_LIMIT_GB` (main Python process)
   - `AURA_MLX_MEMORY_LIMIT_GB` (Apple MLX allocator)
   - `AURA_MLX_WORKER_RSS_LIMIT_GB` (background inference worker)
-  - `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` (refuses loading a heavy model when free memory falls below this threshold; environment variable name retained for compatibility)
+  - `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` (refuses loading a heavy model, 27B parameters and up, when free memory falls below this threshold; `auto`, the default, derives it from the checkpoint on disk, weights × 1.2 + 1 GB; a number overrides it; the name is kept from when the heavy model was a 32B)
   - Note: There is no `AURA_MEM_THRESHOLDS` variable.
 - Under sustained memory pressure, an automatic load shedding ladder drops non-essential data bottom-up, starting with the prompt key-value (KV) attention cache. The current shedding order is reported in `runtime_health_report()["integrity"]`.
 

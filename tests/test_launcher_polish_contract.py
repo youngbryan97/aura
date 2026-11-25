@@ -177,10 +177,10 @@ def test_native_bridge_targets_input_effects_and_verifies_activation():
     assert 'env["AURA_LOCAL_RUNTIME_SINGLETON"] = "1"' in swift
     assert 'env["AURA_LOCAL_PARALLEL_SLOTS"] = "1"' in swift
     assert 'env["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "0"' in swift
-    assert 'env["AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB"] = "24"' in swift
+    assert 'env["AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB"] = "auto"' in swift
     assert 'env["AURA_MLX_32B_PROJECTED_FOOTPRINT_GB"] = "auto"' in swift
     assert 'env["AURA_MLX_32B_PROCESS_RESERVE_GB"] = "3"' in swift
-    assert 'env["AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB"] = "52"' in swift
+    assert 'env["AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB"] = "auto"' in swift
     assert 'env["AURA_MLX_72B_PROJECTED_FOOTPRINT_GB"] = "auto"' in swift
     assert 'env["AURA_MLX_72B_PROCESS_RESERVE_GB"] = "5"' in swift
     assert "AURA_EXTERNAL_GUI_OWNER" in swift
@@ -248,10 +248,10 @@ def test_launch_script_supports_gui_window_mode():
     assert "AURA_LOCAL_RUNTIME_SINGLETON:=1" in shell
     assert "AURA_LOCAL_PARALLEL_SLOTS:=1" in shell
     assert "AURA_ENABLE_LOCAL_DEEP_SOLVER:=0" in shell
-    assert "AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB:=24" in shell
+    assert "AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB:=auto" in shell
     assert "AURA_MLX_32B_PROJECTED_FOOTPRINT_GB:=auto" in shell
     assert "AURA_MLX_32B_PROCESS_RESERVE_GB:=3" in shell
-    assert "AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB:=52" in shell
+    assert "AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB:=auto" in shell
     assert "AURA_MLX_72B_PROJECTED_FOOTPRINT_GB:=auto" in shell
     assert "AURA_MLX_72B_PROCESS_RESERVE_GB:=5" in shell
     assert "AURA_FOREGROUND_CHAT_MAX_TOKENS:=2048" in shell

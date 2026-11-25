@@ -3373,10 +3373,12 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         env["AURA_LOCAL_RUNTIME_SINGLETON"] = "1"
         env["AURA_LOCAL_PARALLEL_SLOTS"] = "1"
         env["AURA_ENABLE_LOCAL_DEEP_SOLVER"] = "0"
-        env["AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB"] = "24"
+        // The load floors come from the checkpoint on disk (weights x 1.2 + 1GB): the 24 and 52 here were the 32B
+        // and 72B of 2026, and held her 14GB cortex and 8GB brainstem to them.
+        env["AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB"] = "auto"
         env["AURA_MLX_32B_PROJECTED_FOOTPRINT_GB"] = "auto"
         env["AURA_MLX_32B_PROCESS_RESERVE_GB"] = "3"
-        env["AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB"] = "52"
+        env["AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB"] = "auto"
         env["AURA_MLX_72B_PROJECTED_FOOTPRINT_GB"] = "auto"
         env["AURA_MLX_72B_PROCESS_RESERVE_GB"] = "5"
         env["AURA_FOREGROUND_CHAT_MAX_TOKENS"] = "2048"
@@ -3468,10 +3470,10 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         export AURA_LOCAL_RUNTIME_SINGLETON=1
         export AURA_LOCAL_PARALLEL_SLOTS=1
         export AURA_ENABLE_LOCAL_DEEP_SOLVER=0
-        export AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB=24
+        export AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB=auto
         export AURA_MLX_32B_PROJECTED_FOOTPRINT_GB=auto
         export AURA_MLX_32B_PROCESS_RESERVE_GB=3
-        export AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB=52
+        export AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB=auto
         export AURA_MLX_72B_PROJECTED_FOOTPRINT_GB=auto
         export AURA_MLX_72B_PROCESS_RESERVE_GB=5
         export AURA_FOREGROUND_CHAT_MAX_TOKENS=2048

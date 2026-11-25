@@ -75,6 +75,10 @@ def _model_load_min_available_gb(model_path: str) -> float:
     )
 
     def _env_float(name: str, default: float) -> float:
+        # "auto" is the launchers' default and no setting: the requirement is
+        # the one derived here. Only a number is an operator's.
+        if str(os.environ.get(name, "")).strip().lower() in {"", "auto"}:
+            return default
         return _finite_env_float(name, default, minimum=0.0)
 
     try:
@@ -86,6 +90,15 @@ def _model_load_min_available_gb(model_path: str) -> float:
         default = 52.0 if 0.0 < total_gb < 96.0 else 34.0
         return _env_float("AURA_MLX_72B_LOAD_MIN_AVAILABLE_GB", default)
     if _model_matches_class(model_path, ("32b", "cortex", "zenith")):
+        # The large class: 27B parameters and up, at any precision. On 24
+        # November 2026 that is her cortex (Aura-Qwen3.8-27B at four bits,
+        # 14.1GB on disk, needing 17.9GB) and her brainstem (Ternary Bonsai 2.5
+        # 27B at two bits, 8.3GB, needing 10.9GB); the 32B the names below
+        # recall is gone. Both launchers set AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB
+        # to 24 until then, and a number set is an operator's, so what is
+        # derived here never applied live: the brainstem was refused at 21.9GB
+        # free for want of 24.
+        #
         # Derive the requirement from the model actually on disk rather than a
         # constant that happens to be wrong for it. Measured 2026-07-25: the
         # resident 32B is 17.2GB on disk and the flat 24.0 gate refused it on a
