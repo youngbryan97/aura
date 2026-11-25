@@ -233,3 +233,23 @@ def test_picking_is_an_instruction():
 
     assert assess_request_mood("Pick whichever episode you want.").mood is RequestMood.DIRECTIVE
     assert assess_request_mood("Choose the one that interests you most.").mood is RequestMood.DIRECTIVE
+
+
+def test_the_place_a_conversation_goes_on_at_is_that_conversations(monkeypatch):
+    """LIVE 25 November 2026: the third message of a new conversation went on at a page a message of another had named."""
+    from core.conversation import page_interaction as pages
+    from core.conversation import persistence
+    from core.conversation.session_scope import conversation_session_scope
+
+    class Kept:
+        def get_recent_history(self, limit=100, **_who):
+            return [{"role": "user", "session_id": "other", "content": "Look at en.wikipedia.org for me"},
+                    {"role": "user", "session_id": "this", "content": "What's a first telescope?"},
+                    {"role": "user", "session_id": "this", "content": "Would a dobsonian be too heavy for her?"}]
+
+    monkeypatch.setattr(persistence, "get_persistence", Kept)
+    with conversation_session_scope("this"):
+        assert pages._their_earlier_requests("Would a dobsonian be too heavy for her?") == ["What's a first telescope?"]
+    with conversation_session_scope("other"):
+        assert pages._their_earlier_requests("And then?") == ["Look at en.wikipedia.org for me"]
+    assert len(pages._their_earlier_requests("And then?")) == 3, "where it is not known which conversation it is, they are all read"

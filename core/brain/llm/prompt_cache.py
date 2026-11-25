@@ -374,7 +374,9 @@ class PromptCacheLRU:
         # 50/50 split they evicted each other on every tick. Measured live,
         # repeatedly: "trimmed hit — reused 3/792 tokens", the same two families
         # taking turns destroying each other's prefix.
-        reserved = max(1, min(3, self.max_size - 1))
+        # Only the newest of a turn's entries is reused, and a turn has three: the talk before its readings, what a retry
+        # of it shares, and the whole. With room for three, a turn asked again put out the one the next turn shares.
+        reserved = max(1, min(5, self.max_size // 2, self.max_size - 1))
         return reserved if lane == "user_surface" else self.max_size - reserved
 
     def _queue_for(self, lane: str) -> deque:

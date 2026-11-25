@@ -138,3 +138,40 @@ def test_a_voice_nobody_spoke_does_not_stand():
 
     heard = "The voices. The small ones. They're whispering in my ear. Telling me things."
     assert not _only_cue_words_stand_against_her(_HER_WORDS, "Hey Aura", heard)
+
+
+_TELESCOPES = (
+    'For a ten year old I\'d start with a tabletop Dobsonian. A 4.5" one shows Saturn\'s rings, and it sits on a chair.\n\n'
+    'People call the big ones “light buckets", and that is fair: aperture is what gathers light.\n\n'
+    "Skip anything sold by magnification. It wobbles, and she will give up on it.\n\n"
+    "Does she have dark skies? That changes whether I'd push for the bigger one or keep it smaller."
+)
+
+
+def test_a_quotation_left_open_a_page_before_is_not_a_tail_that_was_cut() -> None:
+    from core.conversation.response_surface_checks import _has_truncated_tail
+
+    assert not _has_truncated_tail(_TELESCOPES)
+    assert _has_truncated_tail(_TELESCOPES + '\n\nAs the shop puts it, "the rings are easy to see and')
+    assert _has_truncated_tail("She told me “the rings are the first thing anybody sees when they look and")
+
+
+def test_what_she_had_finished_is_served_before_a_smaller_models_answer(monkeypatch) -> None:
+    """LIVE 25 November 2026, 02:24: three thousand characters of hers were put aside for the smaller model's answer."""
+    from interface.routes import chat as chat_routes
+    from interface.routes.chat_lane_bookkeeping import _as_far_as_it_was_finished
+
+    cut = _TELESCOPES + " And one more thing to think"
+    assert _as_far_as_it_was_finished(cut) == _TELESCOPES
+    assert _as_far_as_it_was_finished("One sentence. And then a long stretch of words that never comes to any end at all and") == ""
+
+    class Assessment:
+        reasons = ("truncated_tail",)
+
+    monkeypatch.setattr("core.conversation.response_reliability.assess_user_facing_reply", lambda *_args, **_kwargs: Assessment())
+    assert chat_routes._servable_draft_or_none(cut, "What's a decent first telescope for a ten year old?") == _TELESCOPES
+    import inspect
+
+    from interface.routes import chat
+
+    assert "or _authored_answer_can_serve_unfinished(salvage_contract)" in inspect.getsource(chat)

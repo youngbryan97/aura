@@ -1140,6 +1140,7 @@ def _servable_draft_or_none(draft: Any, user_message: Any = "", turn_id: Any = "
     # canonical turn ledger intentionally does not appear here: it also holds
     # rejected challengers and diagnostic drafts, and quality evidence alone
     # cannot prove that text was authored by the admitted full-mind path.
+    unfinished = ""
     for candidate in (
         str(draft or "").strip(),
         preserved_draft(),
@@ -1160,7 +1161,10 @@ def _servable_draft_or_none(draft: Any, user_message: Any = "", turn_id: Any = "
             "incomplete_code_response",
             "unanswered_question_part",
         }
-        if set(assessment.reasons or ()) & completion_failures:
+        short = set(assessment.reasons or ()) & completion_failures
+        if short:
+            if short == {"truncated_tail"} and not unfinished and draft_is_servable(set(assessment.reasons or ()) - short):
+                unfinished = _as_far_as_it_was_finished(candidate)
             continue
         if set(assessment.reasons or ()) & LOOPED_TEXT_REASONS:
             # Served here it is served as it stands, so the repeats are cut first, by the repair that changes nothing
@@ -1177,7 +1181,24 @@ def _servable_draft_or_none(draft: Any, user_message: Any = "", turn_id: Any = "
             continue
         if draft_is_servable(assessment.reasons):
             return candidate
-    return ""
+    return unfinished
+
+
+#: How much of an unfinished answer has to be finished for it to be served as far as it is: most of it, and more than a couple
+#: of sentences.
+MOST_OF_IT, A_FEW_SENTENCES = 0.8, 3
+
+
+def _as_far_as_it_was_finished(draft: str) -> str:
+    """An unfinished answer up to the end of its last whole sentence, where that is most of it; "" where it is not.
+
+    LIVE 25 November 2026, 02:24: three thousand characters about telescopes, ending "That changes whether I'd push for the
+    bigger Dob or keep it smaller.", were told to be cut off, two continuations had nothing to add, and the smaller model was
+    loaded and its answer given in place of hers.
+    """
+    ends = [m.end() for m in re.finditer(r"[.!?][\"”’)*]*(?=\s|$)", draft)]
+    whole = draft[: ends[-1]].rstrip() if ends else ""
+    return whole if len(ends) >= A_FEW_SENTENCES and len(whole) >= MOST_OF_IT * len(draft.strip()) else ""
 
 
 def _only_says_what_she_would_do(draft: str) -> bool:

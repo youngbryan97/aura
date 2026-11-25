@@ -37,21 +37,28 @@ def decide(p: dict[str, float]) -> tuple[str, str, float]:
     """The kind, what to do about it, and how sure it is of being asked for anything: by what each mistake would cost.
 
     Acting costs what doing that unasked costs, as likely as nothing was asked; where something else was asked it costs
-    that and the request left unmet. Taking it as talk costs a request that went unmet. One question first costs a little, and settles only
-    whether that kind was asked for: a request for another is still unmet after it.
+    that and the request left unmet. Taking it as talk costs a request that went unmet, as far as an answer leaves it unmet: a
+    question about the world is answered from what she knows. One question first costs a little, and settles only whether that
+    kind was asked for: a request for another is still unmet after it.
     """
     asking = 1.0 - p.get(TALK, 0.0)
     kinds = [name for name in p if name != TALK]
     if not kinds:
         return TALK, "talk", 0.0
 
+    def unmet(name: str) -> float:
+        return BY_NAME[name].unmet if name in BY_NAME else 1.0
+
+    def others(name: str) -> float:
+        return sum(p[kind] * unmet(kind) for kind in kinds if kind != name)
+
     def acting(name: str) -> float:
         wrong = BY_NAME[name].unasked if name in BY_NAME else 1.0
         another = max(0.0, asking - p[name])
-        return p.get(TALK, 0.0) * wrong + another * (1.0 + wrong)
+        return p.get(TALK, 0.0) * wrong + another * wrong + others(name)
 
-    likeliest = max(kinds, key=lambda name: p[name])
-    ways = {"act": acting(likeliest), "ask_first": ASKING_FIRST + asking - p[likeliest], "talk": asking}
+    likeliest = max(kinds, key=lambda name: p[name] * unmet(name))
+    ways = {"act": acting(likeliest), "ask_first": ASKING_FIRST + others(likeliest), "talk": others("")}
     decision = min(ways, key=lambda way: ways[way])
     return (TALK if decision == "talk" else likeliest), decision, asking
 

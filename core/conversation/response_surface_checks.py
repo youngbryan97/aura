@@ -560,17 +560,21 @@ def _has_truncated_tail(
         return True
     if len(body) < 24:
         return False
+    # What was cut off is at the end of it: a quotation left open in the last paragraph. One whose two marks are of two kinds,
+    # or that was left open a page before, is in a reply that went on and ended.
+    last = body.rsplit("\n\n", 1)[-1]
     straight_quote_positions = [
-        match.start() for match in re.finditer(r'(?<!\\)"', body)
+        match.start() for match in re.finditer(r'(?<!\\)"', last)
     ]
-    if len(straight_quote_positions) % 2:
+    marks = last.count("“") + last.count("”")
+    if len(straight_quote_positions) % 2 and not marks:
         unmatched_position = straight_quote_positions[-1]
-        preceding = body[unmatched_position - 1] if unmatched_position else ""
+        preceding = last[unmatched_position - 1] if unmatched_position else ""
         # Preserve ordinary inch/second notation such as 6" while rejecting
         # prose that opens a quotation and never closes it.
         if not preceding.isdigit():
             return True
-    if body.count("“") != body.count("”"):
+    if last.count("“") != last.count("”") and not len(straight_quote_positions) % 2:
         return True
     if re.search(r'(?<!\d)[.!?]["”’)]?\s*\d+[.)]\s*$', body):
         return True

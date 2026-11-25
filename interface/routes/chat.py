@@ -8529,6 +8529,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 if not (
                     salvage_output_proven
                     and (_authored_answer_can_serve(salvage_contract)
+                         or _authored_answer_can_serve_unfinished(salvage_contract)
                          or _only_cue_words_stand_against_her(salvage_contract, _semantic_user_message, salvaged))
                 ):
                     logger.warning("Preserved draft remained ineligible for delivery; withholding it (missing=%s).",

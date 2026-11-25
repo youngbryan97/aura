@@ -269,6 +269,10 @@ def test_a_batch_waits_for_room_and_for_whoever_is_talking(monkeypatch):
     # What reaches somebody else wants more certainty than what does not.
     ({"talk": 0.15, "sent": 0.85}, "ask_first", "sent"),
     ({"talk": 0.15, "found": 0.85}, "act", "found"),
+    # A question about the world is answered from what she knows, and looked up where it is asked to be. LIVE 25 November
+    # 2026 "Would a dobsonian be too heavy for her?" was read as this and set her browser to work for four minutes.
+    ({"talk": 0.30, "known": 0.36, "found": 0.12, "computed": 0.08, "written": 0.05, "program": 0.05, "resume": 0.04}, "talk", "talk"),
+    ({"talk": 0.10, "known": 0.90}, "act", "known"),
     # A little of everything is nothing in particular.
     ({"talk": 0.64, "found": 0.08, "known": 0.08, "program": 0.07, "written": 0.07, "status": 0.06}, "talk", "talk"),
 ])

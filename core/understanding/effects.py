@@ -7,7 +7,8 @@ nothing to be brought about, which is most of what anybody says.
 
 ``unasked`` is how bad it is to do this for somebody who was only talking, set against failing to do it for somebody who
 asked, which is 1. Reading a file they gave her or looking something up costs them nothing but a little of her time.
-Building something nobody wanted leaves a thing on their disk that can be put in the bin. What reaches other people or
+Building something nobody wanted leaves a thing on their disk that can be put in the bin.
+Looking something up costs them the wait as well: a minute or more where an answer takes twenty seconds (25 November 2026). What reaches other people or
 their machine is worse, and cannot always be taken back, so it wants more certainty.
 """
 from __future__ import annotations
@@ -24,6 +25,8 @@ class Effect:
     met: str
     #: The cost of doing it for somebody who did not ask, where failing somebody who did is 1.
     unasked: float
+    #: The cost of only answering somebody who did ask: 1 where a reply is none of it, and less where a reply is some of it.
+    unmet: float = 1.0
 
 
 TALK = "talk"
@@ -34,9 +37,9 @@ EFFECTS: tuple[Effect, ...] = (
     Effect("program_changed", "a program she made does what was asked of it now, and still does the rest", 1.0),
     Effect("found", "things of the kind asked for were found, and each was checked against what was asked", 0.4),
     Effect("document_read", "a document was read, all that the request turns on, and the answer is from it", 0.3),
-    Effect("known", "something about the world was looked up and the answer is from what was found", 0.3),
-    Effect("written", "a text was written to what was asked", 0.3),
-    Effect("computed", "a figure, a plan or a proof was worked out and checked", 0.3),
+    Effect("known", "something about the world was looked up and the answer is from what was found", 0.5, 0.4),
+    Effect("written", "a text was written to what was asked", 0.3, 0.2),
+    Effect("computed", "a figure, a plan or a proof was worked out and checked", 0.3, 0.4),
     Effect("on_machine", "something happened on their machine: an app, a file, a setting, a page", 2.0),
     Effect("sent", "something reached somebody else", 8.0),
     Effect("kept", "something is remembered or will be said at a time", 0.5),

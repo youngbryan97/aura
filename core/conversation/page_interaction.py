@@ -114,6 +114,15 @@ def _their_earlier_requests(text: str) -> list[str]:
 
         record_degradation("page_interaction", exc, severity="info", action="read the request without the conversation")
         return []
+    # This conversation's, where it is known which it is. LIVE 25 November 2026 "Would a dobsonian be too heavy for her?", the
+    # third message of a new conversation, was taken to go on at en.wikipedia.org, which a message of another had named, and
+    # her browser was set to work there for four minutes.
+    from core.conversation.session_scope import current_conversation_session
+    from core.understanding.requests_of_her import line_of
+
+    here = current_conversation_session()
+    if here:
+        turns = [turn for turn in turns if line_of(str(turn.get("session_id") or "")) == line_of(here)]
     said = [str(turn.get("content") or "").strip() for turn in turns if str(turn.get("role") or "").lower() == "user"]
     if said and " ".join(said[-1].split()) == " ".join(text.split()):
         said.pop()

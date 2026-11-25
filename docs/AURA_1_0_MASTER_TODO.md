@@ -8509,6 +8509,10 @@ needs her 27B free (her app down, or her app's own influence trials).
     again, was refused twice), 43 s, 44 s (a line of the runtime's, for "which one"). Reading what was asked went from 10.7 s
     to 0.28, what nothing accounts for from 5-17 s to 1.4-2.6, prefill 202 to 340-400 tokens a second. Both replies are mended,
     recall is kept to what bears on a turn, and the talk before a turn's readings is kept read for the next. Left: again, live.
+  - 25 November, 02:20, live: 59 s (just after a start, 11 s of it the camera's first reading), 52 s, 23 s, each her own whole
+    answer, two thirds of the third one's prompt kept read. At a person's pace, 02:23: 128 s (a finished answer of hers put
+    aside as cut off), 57 s, and none in 240 s (a question answered by setting her browser to work at a page another
+    conversation had named). The first and third are mended. Left: again, live.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).
