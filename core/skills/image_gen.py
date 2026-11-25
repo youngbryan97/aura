@@ -254,8 +254,9 @@ class ImageGenSkill(BaseSkill):
                         extra={"device": self._device, "model": attempt_model},
                     )
 
-                # Memory optimization
-                if hasattr(pipe, "enable_attention_slicing"):
+                # Memory optimization, where it is held whole. LIVE 24 November 2026, in half precision here with its
+                # attention sliced, every picture was blank; unsliced at 512 by 512 the same model took 7.1 GB and none was.
+                if hasattr(pipe, "enable_attention_slicing") and not self._halves(attempt_model):
                     try:
                         pipe.enable_attention_slicing()
                     except _IMAGEGEN_RECOVERABLE_ERRORS as _exc:

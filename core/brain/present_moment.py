@@ -109,6 +109,18 @@ def _continuity_line() -> str:
         return ""
 
 
+def _doing_line() -> str:
+    """What she is in the middle of on her own, and was doing last, across her starts."""
+    try:
+        from core.agency.her_own_time import get_her_own_time
+
+        said = get_her_own_time().where_she_is()
+    except _RECOVERABLE as exc:
+        record_degradation("present_moment", exc, severity="info", action="left what she is doing out of this turn")
+        return ""
+    return f"- On your own: {said}." if said else ""
+
+
 def _herself_line() -> str:
     """What she is called and how she is spoken of, from her own record.
 
@@ -163,6 +175,10 @@ def present_moment_block(*, now: datetime | None = None) -> str:
     continuity = _continuity_line()
     if continuity:
         lines.append(continuity)
+
+    doing = _doing_line()
+    if doing:
+        lines.append(doing)
 
     machine = _machine_line()
     if machine:

@@ -97,6 +97,9 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
     clear()
     if skip or not str(said or "").strip():
         return None
+    from interface.routes.her_own_time import somebody_spoke
+
+    somebody_spoke()
     try:
         from core.understanding.examples import attached
         from core.understanding.what_is_asked import get_what_is_asked

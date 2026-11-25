@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import secrets
 import time
 from dataclasses import asdict, dataclass, field
@@ -26,7 +27,7 @@ from core.runtime.lockdep import checked_lock
 
 logger = logging.getLogger("Aura.Understanding")
 
-__all__ = ["ASKED", "Ask", "Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her"]
+__all__ = ["ASKED", "Ask", "Part", "Request", "RequestsOfHer", "Try", "get_requests_of_her", "line_of"]
 
 #: How a request stands. ``met`` and ``partly`` and ``unmet`` are what a check found; ``cut_short`` is work that stopped
 #: before a check; ``set_aside`` is the person's own word.
@@ -129,9 +130,25 @@ class Request:
         return lines
 
 
+#: How a try ended that was going when she was closed.
+LEFT_OFF = "it was under way when she stopped running"
+
+
 def _short(text: str, room: int = 240) -> str:
     text = " ".join(str(text or "").split())
     return text if len(text) <= room else f"{text[:room].rsplit(' ', 1)[0]} …"
+
+
+#: How her window names a conversation: who it is with, when she was started, and when the talk was. Who it is with is what
+#: stays the same.
+_OF_ONE_START = re.compile(r"^(?P<who>.+):[0-9a-f]{8}:[0-9a-f]{8}$")
+
+
+def line_of(conversation: str) -> str:
+    """Who a conversation is with, as it is the same from one start of hers to the next. LIVE 24 November 2026 a person who
+    asked after a restart how it was going was asking in a conversation that had been asked for nothing."""
+    found = _OF_ONE_START.match(str(conversation))
+    return found.group("who") if found else str(conversation)
 
 
 def _when(at: float) -> str:
@@ -166,17 +183,18 @@ class RequestsOfHer:
             return
         try:
             kept = json.loads(path.read_text(encoding="utf-8"))
-            self._gave = {str(c): list(g) for c, g in dict(kept.get("gave") or {}).items()}
+            for c, g in dict(kept.get("gave") or {}).items():
+                self._gave.setdefault(line_of(c), []).extend(g)
             for row in kept.get("requests") or []:
                 row = dict(row)
                 row["parts"] = [Part(**part) for part in row.get("parts") or ()]
                 row["tries"] = [Try(**attempt) for attempt in row.get("tries") or ()]
                 row["asks"] = [Ask(**ask) for ask in row.get("asks") or ()]
                 request = Request(**{name: value for name, value in row.items() if name in Request.__dataclass_fields__})
+                request.conversation = line_of(request.conversation)
                 if request.stands == WORKING:
                     request.stands = CUT_SHORT
-                    request.tries.append(Try(at=time.time(), how="it was under way when she stopped running",
-                                             came_to="cut short"))
+                    request.tries.append(Try(at=time.time(), how=LEFT_OFF, came_to="cut short"))
                 self._held[request.id] = request
         except (OSError, ValueError, TypeError, KeyError) as exc:
             record_degradation("requests_of_her", exc, severity="warning",
@@ -200,21 +218,21 @@ class RequestsOfHer:
             return
         with self._lock:
             self._load()
-            self._gave.setdefault(str(conversation), []).append(
+            self._gave.setdefault(line_of(conversation), []).append(
                 {"said": str(said), "files": list(files), "at": time.time()})
 
     def given(self, conversation: str, *, with_words: list[str] | None = None) -> list[str]:
         """The files last given in a conversation; with ``with_words``, only those given with one of those turns."""
         with self._lock:
             self._load()
-            held = list(self._gave.get(str(conversation)) or [])
+            held = list(self._gave.get(line_of(conversation)) or [])
         if with_words is not None:
             wanted = {" ".join(str(words).split()) for words in with_words}
             held = [row for row in held if " ".join(str(row.get("said") or "").split()) in wanted]
         return list(held[-1].get("files") or []) if held else []
 
     def asked(self, said: str, *, effect: str, conversation: str, materials: list[str] | None = None) -> Request:
-        request = Request(id=secrets.token_hex(4), conversation=str(conversation), said=str(said), effect=effect,
+        request = Request(id=secrets.token_hex(4), conversation=line_of(conversation), said=str(said), effect=effect,
                           materials=list(materials or ()), opened_at=time.time(), changed_at=time.time())
         with self._lock:
             self._load()
@@ -232,12 +250,17 @@ class RequestsOfHer:
         """The requests of a conversation, the latest last."""
         with self._lock:
             self._load()
-            return [r for r in self._held.values() if r.conversation == str(conversation)]
+            line = line_of(conversation)
+            return [r for r in self._held.values() if r.conversation == line]
 
     def all(self) -> list[Request]:
         with self._lock:
             self._load()
             return list(self._held.values())
+
+    def left_off(self) -> list[Request]:
+        """What she was in the middle of when she stopped running, the oldest first."""
+        return [r for r in self.all() if r.stands == CUT_SHORT and r.tries and r.tries[-1].how == LEFT_OFF]
 
     def unfinished(self, conversation: str) -> Request | None:
         """The latest request of a conversation that leaves something to do."""

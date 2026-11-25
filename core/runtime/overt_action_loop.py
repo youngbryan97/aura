@@ -183,6 +183,11 @@ class OvertActionLoop:
             # on each change, and from here that held the event loop 425 ms
             # (lockdep, day run of 1 November).
             await asyncio.to_thread(_she_is_free_again)
+            # What she chooses for herself, among acts that each have something that does them, comes first: what came of
+            # it is measured, and what is worth doing is learned from it (core/agency/what_she_does_next.py).
+            own = await self._on_her_own_time()
+            if own is not None:
+                return own
             state = self._state()
             # What she already decided is done first and is not argued again
             # against whatever else has come up since.
@@ -239,6 +244,39 @@ class OvertActionLoop:
             allow_no_user_anchor=allow_boot_anchor,
         )
         return str(reason or "")
+
+    async def _on_her_own_time(self) -> dict[str, Any] | None:
+        """What she chose to do and what came of it; None where she has nothing to choose from or would rather rest."""
+        hers = ServiceContainer.get("her_own_time", default=None)
+        if hers is None:
+            return None
+        began = time.time()
+        try:
+            done = await hers.once()
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("overt_action_loop", exc, severity="warning", action="went on without what she would choose for herself")
+            return None
+        if done is None:
+            return None
+        self._actions_started += 1
+        self._last_started_at, self._last_finished_at = began, time.time()
+        verified = float(done.get("got") or 0.0) > 0.0
+        self._actions_verified += int(verified)
+        result = OvertActionResult(
+            action_id="own_" + hashlib.sha256(f"{began}:{done['what']}".encode()).hexdigest()[:12],
+            status="completed" if verified else "attempted",
+            objective=_short_text(done["what"], 1000),
+            source="her_own_time",
+            skill=str(done["kind"]),
+            verified=verified,
+            started_at=began,
+            finished_at=time.time(),
+            selection_provenance="her_own_choice",
+            selection_reason=_short_text(done["why"], 400),
+            execution_mode="her_own_time",
+        )
+        self._history.append(result)
+        return result.to_dict()
 
     def _record_skip(self, reason: str) -> OvertActionResult:
         self._skips += 1

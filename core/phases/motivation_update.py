@@ -1131,9 +1131,15 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         if decision is None or not getattr(decision, "action", None):
             return state
         state.response_modifiers["drive_competition"] = decision.to_dict()
+        # What a drive asks for is an act that would feed it, and where there is none it has asked for nothing that can be
+        # done. LIVE 24 November 2026, "Acting on curiosity: explore_knowledge" was 205 of about 220 choices of hers in
+        # seven hours: it named nothing to do, so nothing came of it, and it won again.
+        wanted = self._what_would_feed(decision.drive)
+        if not wanted:
+            return state
         next_state, _ = await propose_governed_initiative_to_state(
             state,
-            f"Acting on {decision.drive}: {decision.action}",
+            wanted,
             orchestrator=None,
             source="motivation_update",
             kind="integrated_drive",
@@ -1145,6 +1151,17 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             metadata={"drive": decision.drive, "phase": "motivation_update"},
         )
         return next_state
+
+    @staticmethod
+    def _what_would_feed(drive: Any) -> str:
+        """The act she could do now that would feed a drive most, as she has learned what her acts are worth."""
+        try:
+            from core.agency.her_own_time import get_her_own_time
+
+            return get_her_own_time().that_feeds(str(drive or ""))
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("motivation_update", exc, severity="debug", action="a drive asked for nothing that can be done")
+            return ""
 
     @staticmethod
     def _footing(state: AuraState) -> dict[str, float]:

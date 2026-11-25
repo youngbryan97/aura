@@ -225,6 +225,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     from core.self.self_condition import build_self_condition_projection
     from interface.chat_dependencies import materialize_foreground_chat_dependencies
     from interface.routes.chat_what_is_asked import begin_reading_what_is_asked
+    from interface.routes.her_own_time import begin_what_she_does_unasked
 
     async def _complete_named_stage(
         stage: str,
@@ -323,6 +324,7 @@ async def _prewarm_chat_dependencies_after_cortex_ready(
     if callable(set_ready):
         set_ready(True)
     begin_reading_what_is_asked()
+    begin_what_she_does_unasked()
     logger.info(
         "Foreground chat dependencies prewarmed after Cortex readiness in %.2fs "
         "(embedding_dimensions=%s, leases=%s, skills=%s, expression_ms=%s, "
@@ -1208,6 +1210,7 @@ from interface.routes import chat as chat_routes
 from interface.routes import dashboard as dashboard_routes
 from interface.routes import devices as devices_routes
 from interface.routes import engineering as engineering_routes
+from interface.routes import her_own_time as her_own_time_routes
 from interface.routes import inner_state as inner_state_routes
 from interface.routes import interaction_signals as interaction_signal_routes
 from interface.routes import media as media_routes
@@ -1249,7 +1252,7 @@ app.include_router(dashboard_routes.router, prefix="/api", tags=["dashboard"])
 app.include_router(dashboard_routes.trace_router, prefix="/api", tags=["trace"])
 app.include_router(settings_routes.router, prefix="/api", tags=["settings"])
 for _routes, _tag in ((multimodal_routes, "multimodal"), (media_routes, "media"), (performance_routes, "performance"),
-                      (mission_control_routes, "mission_control"), (work_routes, "work")):
+                      (mission_control_routes, "mission_control"), (work_routes, "work"), (her_own_time_routes, "her own time")):
     app.include_router(_routes.router, prefix="/api", tags=[_tag])
 
 # Full-duplex voice (/ws/voice). Imported late and defensively: the voice

@@ -8460,6 +8460,32 @@ needs her 27B free (her app down, or her app's own influence trials).
     (`tests/test_a_draft_that_waits_is_asked_again.py`). Left for part 5: a mend undone in her running process
     and taken back out, seen end to end.
 
+- [ ] F17 She carries out what she is asked to make, in full. Added 24 November, Bryan: "a polished, correct, and
+    working product", for any game, app, site, tool or document, by systems that drive correctness past the 27B.
+  - 24 November: the making engine (`core/making`). A program is designed, tested before it is written, built a layer at
+    a time over engineered pieces, tried by playing or using it, mended and finished. Her own Python mends it first.
+    Every way to change it that her Python can write is compiled into one page and tried against its tests, 4,000 to
+    7,000 of them in 5 to 35 s (`many_ways.py`, `searching.py`); 15 planted mistakes of 15 are put right with no model
+    (`tests/test_many_ways.py`). A rule whose test fails is tested again, apart, before anything is mended to either.
+    Checks of any program that keeps things are run on all of them. What two workings part on is asked.
+  - 24 November, live: a kite game at 26 of 28, 18 minutes, installed; a flat-sharing app at 20 of 20 that opened with
+    somebody owed money, found by looking; its repair that evening went 28 of 56 and was not whole. A change that gives
+    the state another shape leaves the old tests setting the old one, and nothing yet writes those again.
+  - 24 November: her coding is watched as a session, with the program running beside it, and kept across restarts; her
+    pictures are painted by her own image model.
+- [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
+    of hers; what she was in the middle of when she was closed is gone on with unasked
+    (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
+    own is in front of her at the next start. Left: seen live across a restart, and her thinking between turns.
+- [ ] F19 She acts without being prompted, and F20 she decides for herself and gets better at deciding and wanting.
+    Added 24 November, Bryan. Measured 24 November, 11:15 to 18:05: 205 of about 220 choices she made by herself were one
+    string, "Acting on curiosity: explore_knowledge", which nothing carried out. Her own time (`core/agency/her_own_time.py`)
+    chooses among acts that each have something that does them, by what came of the ones before
+    (`core/agency/what_she_does_next.py`): a drive weighs and is never an option, doing nothing is an act, and each choice
+    is kept with its grounds. Left: what came of a day of it, live, beside the 205 of 220.
+- [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
+    in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
+
 ## Live session 2026-09-07: what the runtime showed
 
 Five root-cause defects found by running the desktop the way a person does and

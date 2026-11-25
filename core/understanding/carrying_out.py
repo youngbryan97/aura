@@ -142,6 +142,23 @@ def _asked_of_them(request: Request, words: str, goes_with: str, asks: Callable[
         get_task_tracker().create_task(asks(request, ask), name=f"request.asks.{request.id}")
 
 
+async def take_up_what_was_left(*, tell: Tell, told: Callable[[Request], Awaitable[None]], asks: Callable[[Request, Any], Awaitable[None]] | None = None,
+                                ready: Callable[[], bool] = lambda: True, ledger: RequestsOfHer | None = None, waits_s: float = 5.0) -> list[Request]:
+    """Go on with what she was in the middle of when she was closed, one after another, without being told to: it is what
+    somebody asked her for, and being closed is not having finished. What was taken up."""
+    ledger, taken = ledger or get_requests_of_her(), []
+    for request in ledger.left_off():
+        while not ready() or any(not task.done() for task in _UNDER_WAY.values()):
+            await asyncio.sleep(waits_s)
+        await nobody_waiting()
+        if request.stands != CUT_SHORT:
+            continue  # somebody has spoken of it since
+        if begin(request, tell=tell, told=told, asks=asks, ledger=ledger):
+            taken.append(request)
+            get_workbench().begin(request.id, _title(request), request.effect).says("I was closed in the middle of this, so I'm going on with it.")
+    return taken
+
+
 #: How often what happens in the works is written down while one is going, in seconds.
 BENCH_KEPT_S = 20.0
 
