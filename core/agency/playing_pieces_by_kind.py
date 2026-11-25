@@ -880,8 +880,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             probes += 1
             if squares is not None:
                 offered[square] = squares
-                game.learned.offered(game.believed, square, squares, family=game.learned.family())
+                if squares:
+                    _the_untaken_were_refused(game)
+                    game.learned.offered(game.believed, square, squares, family=game.learned.family())
+                else:
+                    # As a pick-up in her turn that offers nothing: held until the board is seen answering. LIVE 24
+                    # November 2026 her first looks were at a game's setup page, whose board takes nothing until a
+                    # game is begun, and every piece she picked up there was learned as going nowhere.
+                    game.unshown.append((game.believed, square, game.learned.family()))
         if not game.made and not game.theirs and probes and not any(offered.values()):
+            game.unshown.clear()
             # Nothing she picked up was offered anywhere: the board is not taking moves yet.
             tell("The board isn't letting me move anything yet.")
             return {"ended": "not taking moves", "moves": 0, "theirs": 0, "learned": game.learned}

@@ -143,6 +143,9 @@ def what_it_was_told(kept: Path, began_after: str, ended_at: str, defaults: dict
 
 def what_she_keeps_of(world: str) -> dict[str, str]:
     """A fingerprint of everything she keeps of ``world``: each file's name and the hash of what it holds."""
+    # Run as a script, the tool's own folder leads the path and the repository's packages are not on it.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     from core.runtime.what_she_learned import _kept_in, named
 
     try:

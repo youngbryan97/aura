@@ -55,3 +55,39 @@ def test_moves_a_board_did_not_take_before_it_took_nothing_are_not_learned_as_re
     assert came["moves"] >= 1
     # Nothing the board did not take, once it had stopped taking anything, was learned as a refusal.
     assert refused == [], [move for _at, move in refused]
+
+
+class _NotYetBegun(BoardApplication):
+    """A board shown before its game is begun: it draws the pieces and takes nothing."""
+
+    async def click(self, x_share: float, y_share: float) -> bool:
+        self.clicks += 1
+        return True
+
+
+def test_pieces_picked_up_on_a_board_not_yet_begun_are_not_learned_as_going_nowhere(monkeypatch) -> None:
+    """LIVE 24 November 2026 her first looks were at the setup page of a game, whose board takes nothing until the game
+    is begun; every piece she picked up there was learned as going nowhere."""
+    monkeypatch.setattr(playing, "STILL_S", 0.02)
+    monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
+    monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.5)
+    monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
+    learned_nothing: list = []
+    original = HowThePiecesMove.offered
+
+    def offered(self, position, square, squares, family=None):
+        if not squares:
+            learned_nothing.append(square)
+        return original(self, position, square, squares, family=family)
+
+    monkeypatch.setattr(HowThePiecesMove, "offered", offered)
+    app = _NotYetBegun(NOBODYS_GAME, seed=5)
+
+    async def run() -> dict:
+        seat = playing.a_board_of_two_sides_at_its_start(app.draw())
+        return await playing.play_pieces_by_kind(seat, app.look, app.click, seconds=3.0, say=lambda _line: None,
+                                                 thinks_s=0.05)
+
+    came = asyncio.run(run())
+    assert came["ended"] == "not taking moves"
+    assert learned_nothing == []
