@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import time
+import unicodedata
 from collections import Counter
 from typing import Any
 
@@ -44,8 +45,10 @@ SAYS_AT_MOST = 3
 def _regions(reading: dict[str, Any]) -> list[dict[str, Any]]:
     found = []
     for region in reading.get("layout") or []:
-        text = " ".join(str((region or {}).get("text") or "").split())
-        if not any(ch.isalpha() for ch in text):
+        if not isinstance(region, dict):
+            continue
+        text = " ".join(str(region.get("text") or "").split())
+        if not text or (not any(ch.isalpha() for ch in text) and not region.get("native_button")):
             continue
         try:
             x = float(region.get("center_x", region.get("x", 0.0)))
@@ -177,9 +180,54 @@ async def _its_own_pixels_read(target_app: str) -> dict[str, Any] | None:
         # Fractions of the picture, top-left, as every reading gives them.
         layout.append({"text": region.get("text", ""), "center_x": x / wide if x > 1.5 else x,
                        "center_y": y / tall if y > 1.5 else y})
+    await asyncio.to_thread(_name_symbol_buttons, window, layout)
     return {
         "ok": True, "layout": layout, "bounds": list(window.bounds), "window_number": window.number,
     } if layout else None
+
+
+def _native_button_at(window: Any, x: float, y: float) -> Any:
+    """The enabled button that owns a point in these window coordinates."""
+    if not (0 <= x < 1 and 0 <= y < 1):
+        return None
+    from ApplicationServices import AXUIElementCopyElementAtPosition, AXUIElementCreateApplication
+
+    from .their_player import _read
+
+    root = AXUIElementCreateApplication(window.pid)
+    left, top, width, height = window.bounds
+    error, element = AXUIElementCopyElementAtPosition(root, left + x * width, top + y * height, None)
+    if error or element is None:
+        return None
+    if _read(element, "AXRole") == "AXStaticText":
+        element = _read(element, "AXParent")
+    if element is not None and _read(element, "AXRole") == "AXButton" and _read(element, "AXEnabled"):
+        return element
+    return None
+
+
+def _name_symbol_buttons(window: Any, layout: list[dict[str, Any]]) -> None:
+    """Keep visible symbols when the window confirms that they are controls."""
+    from .their_player import _read
+
+    candidates = [
+        region for region in layout
+        if (symbol := str(region.get("text") or "").strip())
+        and len(symbol) <= 3
+        and all(unicodedata.category(char)[0] in {"P", "S"} for char in symbol)
+    ]
+    try:
+        for region in candidates[:16]:
+            button = _native_button_at(window, region["center_x"], region["center_y"])
+            if button is None:
+                continue
+            region["native_button"] = True
+            name = next((str(value) for key in ("AXTitle", "AXDescription", "AXHelp")
+                         if (value := _read(button, key))), "")
+            if name:
+                region["text"] = name
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("symbol controls could not be read: %s", type(exc).__name__)
 
 
 async def _her_understanding(target_app: str, act: str, texts: list[str]) -> int | None:
@@ -220,28 +268,21 @@ def _press_native_button(window_number: int, target_app: str, bounds: list[int],
     from core.capabilities import window_server
 
     try:
-        from ApplicationServices import AXUIElementCopyElementAtPosition, AXUIElementCreateApplication
-
         from .their_player import _read, press
 
         window = window_server.window_of(target_app, on_screen_only=True)
         if window is None or window.number != window_number or tuple(bounds) != window.bounds:
             return False
-        left, top, width, height = window.bounds
-        x, y = region["x"], region["y"]
-        if not (0 <= x < 1 and 0 <= y < 1):
-            return False
-        root = AXUIElementCreateApplication(window.pid)
-        error, element = AXUIElementCopyElementAtPosition(root, left + x * width, top + y * height, None)
-        if error or element is None or _read(element, "AXRole") != "AXButton":
+        element = _native_button_at(window, region["x"], region["y"])
+        if element is None:
             return False
         label = " ".join(region["text"].split()).casefold()
         if not any(
             " ".join(str(_read(element, name) or "").split()).casefold() == label
-            for name in ("AXTitle", "AXDescription")
+            for name in ("AXTitle", "AXDescription", "AXHelp")
         ):
             return False
-        if not _read(element, "AXEnabled") or window_server.front_owner() != window.owner:
+        if window_server.front_owner() != window.owner:
             return False
         return press(element)
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:

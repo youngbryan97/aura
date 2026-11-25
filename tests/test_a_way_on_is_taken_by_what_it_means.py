@@ -218,3 +218,19 @@ def test_a_missing_read_after_a_press_cannot_verify_a_change(monkeypatch):
     region = {"x": 0.5, "y": 0.5, "text": "Continue"}
 
     assert not asyncio.run(way_on._pressed(region, [region], "Example", {}, {}, None, True))
+
+
+def test_a_symbol_needs_a_native_button_before_it_is_offered_to_the_planner(monkeypatch):
+    from core.skills import their_player
+
+    start_tab = {"AXHelp": "Open a new tab"}
+    monkeypatch.setattr(way_on, "_native_button_at", lambda _window, x, y: start_tab if x == 0.2 else None)
+    monkeypatch.setattr(their_player, "_read", lambda node, name: node.get(name))
+    layout = [
+        {"text": "+", "center_x": 0.2, "center_y": 0.1},
+        {"text": "×", "center_x": 0.5, "center_y": 0.4},
+        {"text": "4", "center_x": 0.6, "center_y": 0.5},
+        {"text": "Starting Position", "center_x": 0.7, "center_y": 0.5},
+    ]
+    way_on._name_symbol_buttons(object(), layout)
+    assert [r["text"] for r in way_on._regions({"layout": layout})] == ["Open a new tab", "Starting Position"]
