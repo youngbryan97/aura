@@ -70,3 +70,68 @@ def test_in_her_game_her_answer_worked_out_on_their_time_is_her_hint_for_the_mov
     # Her look now agreeing on the move keeps where it came from.
     agreed = _checked(hint, Found(answer, -190, 12, 1000, [answer]), moves(CHESS, now), lambda aside: None)
     assert agreed.by == "worked out on their time, checked"
+
+
+def test_a_choice_to_wait_is_her_hint_kept_where_her_look_finds_it_no_worse_and_let_go_where_it_does() -> None:
+    from dataclasses import replace
+
+    from core.agency.how_the_pieces_move import HowThePiecesMove
+    from core.agency.pieces_by_their_kind import moves
+    from core.agency.playing_pieces_by_kind import _Game, _held_to_the_areas
+    from core.agency.searching_by_kind import Found
+    from core.agency.what_each_area_of_a_board_comes_to import BoardReading
+    from core.cognition.what_each_area_comes_to import Choice, Weighed, Whole
+
+    position = from_fen("4k3/8/8/8/8/8/8/R3K3 w - -")
+    legal = moves(CHESS, position)
+    searched, waiting = legal[0], legal[-1]
+    choice = Choice(Weighed(part=("a1",), act=waiting, whole=0.0, acting_nowhere=0.0, leaves_them=None), "wait", True)
+    areas = BoardReading(readings=(), whole=Whole(0.0, ()), choice=choice, threats=())
+    game = _Game(learned=HowThePiecesMove.from_the_start(8, 8, dict(CHESS.start)), believed=position)
+    found = Found(searched, 40, 12, 1000, [searched], unsteady=30)
+    held = _held_to_the_areas(game, areas, found, legal, lambda aside: Found(waiting, 20, 12, 1000, [waiting]))
+    assert held.move == waiting and held.by == "worked out area by area, checked" and game.area_kind == "wait"
+    # Her look finds the waiting move worse than its own unsteadiness: her look's move stands.
+    worse = _held_to_the_areas(game, areas, found, legal, lambda aside: Found(waiting, -100, 12, 1000, [waiting]))
+    assert worse.move == searched
+    # A choice of another kind leaves her look's move as it is.
+    acted = replace(areas, choice=replace(choice, kind="most good"))
+    assert _held_to_the_areas(game, acted, found, legal, lambda aside: None) is found
+
+
+def test_what_each_side_can_do_on_a_board_stops_when_their_time_is_over_and_leaves_areas_not_begun() -> None:
+    from core.agency.what_each_area_of_a_board_comes_to import possible_on_a_board
+
+    position = from_fen("r3k2r/ppp2ppp/2n5/3pp3/3PP3/2N5/PPP2PPP/R3K2R w KQkq -")
+    counters, found = possible_on_a_board(CHESS, position, {"P": 100, "N": 300, "B": 300, "R": 500, "Q": 900,
+                                                            "K": 0}, plies_at_most=10, seconds=60.0,
+                                          stop=lambda: True)
+    assert counters == {} and found == ()
+
+
+def test_a_reading_kept_under_one_set_of_rules_is_not_given_back_under_another() -> None:
+    """The same pieces standing the same way, read under the rules and then under rules where the knight may also step
+    one square forward onto an empty square: nothing it can take or guard changes, so the board looks the same to
+    everything the reading kept rests on, and the second reading is still worked out under its own rules."""
+    from dataclasses import replace
+
+    from core.agency.pieces_by_their_kind import Step
+
+    position = from_fen("4k3/8/8/3p4/8/2N5/8/4K3 w - -")
+    worth = {"P": 100.0, "N": 300.0, "B": 300.0, "R": 500.0, "Q": 900.0, "K": 0.0}
+    read_board(CHESS, position, worth, plies=2)
+    knight = CHESS.kinds["N"]
+    stepping = replace(knight, steps=(*knight.steps, Step(offsets=((1, 0),), may="moves")))
+    widened = replace(CHESS, kinds={**CHESS.kinds, "N": stepping})
+    read = read_board(widened, position, worth, plies=2)
+    assert any((move.start, move.end) == ((2, 2), (3, 2)) for reading in read.readings
+               for move, _comes_to in reading.acts), "under the widened rules the knight may step to c4"
+
+
+def test_at_the_start_of_a_game_nothing_counted_tells_her_moves_apart_and_nothing_is_chosen() -> None:
+    """At the start, no move of either side changes what is counted two moves on: the reading chooses nothing, and her
+    own look decides."""
+    position = CHESS.the_start()
+    worth = {"P": 100.0, "N": 300.0, "B": 300.0, "R": 500.0, "Q": 900.0, "K": 0.0}
+    read = read_board(CHESS, position, worth, plies=2)
+    assert read.choice.kind == "even" and read.choice.weighed is None

@@ -579,6 +579,10 @@ class _Game:
     mapping: tuple[Any, Any] | None = None
     #: How many moves deep the answer she is playing was worked out on their time.
     counter_deep: int = 0
+    #: The kind of choice the board read area by area made, where she is playing it ("wait" or "neutral"), and whether
+    #: she can wait longer than they can.
+    area_kind: str = ""
+    area_outlasts: bool | None = None
     #: Her moves as the game took them: proposed, attempted, and made or refused (core/agency/what_she_did.py).
     did: WhatSheDid = field(default_factory=WhatSheDid)
     #: Moves she made by hand that the board did not show made, each with the position and rules it was tried under:
@@ -679,8 +683,11 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rehearsal")
     # Her look on their time has a thread of its own: a round of rehearsal under way does not hold it up.
     ponder_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pondering")
-    # And what each side can do, worked out on their time, a thread of its own beside her look.
-    map_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="what_can_happen")
+    # And what each side can do, worked out on their time in a process of its own: in a thread it shared one lock with
+    # her eyes, and slowed her looks while they thought (core/agency/what_can_happen_worked_out_apart.py).
+    from core.agency.what_can_happen_worked_out_apart import worked_out_apart
+
+    map_pool = worked_out_apart()
     the_moves: list[str] = []
     went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
     they_answered = they_answered if they_answered is not None else WhatTheyAnsweredWhere()
@@ -692,9 +699,10 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                                they_answered=they_answered, prepared=prepared, held=held, endings=endings,
                                map_pool=map_pool)
     finally:
+        # Nothing worked out for this game goes on after it, however it ended.
+        map_pool.stop()
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
-        map_pool.shutdown(wait=False, cancel_futures=True)
     came["rehearsal"] = rehearsing.rehearsal
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
@@ -968,6 +976,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             continue
         rehearsing.collect()
         game.pondering.settle()
+        # Their time is over: what each side can do stops being worked out, and what it had finished is hers to use.
+        # The time it was given was a guess at how long they would take.
+        if map_pool is not None:
+            map_pool.stop()
         # Her turn, all of it on her clock where the game shows one: picking pieces up, thinking and moving share the
         # turn's part of the time she has left. LIVE 20 November 2026 only the thinking was held to it, and picking up
         # six pieces a turn and seeing each move shown took a third of a three-minute game.
@@ -1110,6 +1122,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                                                  search(family, game.believed, seconds=max(0.2, thinks / 2),
                                                         weights=weights, earlier=game.earlier, set_aside=aside,
                                                         threads=_cores_free(), wary=FIRST))
+                # Where the board read area by area says to wait, or that nothing beats standing still: a move that
+                # changes nothing, checked by her look as any hint is.
+                found = _held_to_the_areas(game, areas, found, [m for m in legal if m not in set_aside],
+                                           lambda aside, family=family, thinks=thinks, weights=weights:
+                                           search(family, game.believed, seconds=max(0.2, thinks / 2),
+                                                  weights=weights, earlier=game.earlier, set_aside=aside,
+                                                  threads=_cores_free(), wary=FIRST))
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -1185,6 +1204,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         elif found.by == "nothing can change after it":
             how = ("After it nothing either side can do changes the position, so it can only be drawn, and a sure "
                    "draw is worth more than how my other moves have turned out from positions like this")
+        elif found.by == "worked out area by area, checked":
+            _judged(game, here, move, found)
+            how = ("Nothing on the board is worth committing to yet, so I'll make a move that changes nothing and let "
+                   "them commit first" + (", and I can keep that up longer than they can" if game.area_outlasts
+                                          else "") if game.area_kind == "wait" else
+                   "Nothing I could do beats staying where I stand, so I'll make a move that changes nothing while I "
+                   "set up the rest")
+            how += f". (looked {found.depth} moves deep)"
         elif found.by == "worked out on their time, checked":
             _judged(game, here, move, found)
             how = (f"I'd worked out my answer to that while they were thinking ({game.counter_deep} moves deep), and a "
@@ -1391,13 +1418,43 @@ def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks
                          threads=max(1, _cores_free() - 1), also=also)
 
 
+def _held_to_the_areas(game: _Game, areas: Any, found: Any, legal: list[Move],
+                       search_only: Callable[[list[Move]], Any]) -> Any:
+    """Her search's move, held to what the board read area by area chooses (core/cognition/what_each_area_comes_to.py
+    ``what_to_do``) where that is to wait (they must commit first, and a move that changes nothing makes them) or that
+    nothing beats standing still: that move is her hint, kept where her look now finds it no worse than its own
+    judgement moves while it looks, as any hint is. Bryan, 24 November 2026: "sometimes the least bad, or neutral option
+    is the best ... sometimes it's just better to wait for an opponent to get into a position"."""
+    from core.agency.searching_by_kind import Found
+
+    if areas is None or found.move is None or areas.choice.weighed is None:
+        return found
+    from core.cognition.what_each_area_comes_to import changes_nothing, weigh_acts
+
+    choice = areas.choice
+    if choice.kind not in ("wait", "neutral"):
+        return found
+    move = next((m for m in legal if m == choice.weighed.act), None)
+    if move is None or move == found.move:
+        return found
+    # Her own look already chose a move that changes nothing: which of two such moves, the reading cannot say.
+    if any(weighed.act == found.move and changes_nothing(weighed, areas.readings)
+           for weighed in weigh_acts(areas.readings)):
+        return found
+    hint = Found(move, int(found.score), int(found.depth), 0, [move], by="worked out area by area, to check")
+    held = _checked(hint, found, legal, search_only)
+    if held.by == "worked out area by area, checked":
+        game.area_kind, game.area_outlasts = choice.kind, choice.outlasts
+        logger.info("the board read area by area chose to %s, and her look found it no worse: %s", choice.kind,
+                    _named(move))
+    return held
+
+
 def _work_out_what_they_can_do(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks_s: float) -> None:
     """While they think: every move they can make in each area of the board she left them, and her answer to each,
     worked out as deep as the time they are likely to take allows (core/cognition/what_each_area_comes_to.py
     ``what_can_happen``). Not what they will do: what they can, so that whichever they choose, her answer is already
     worked out."""
-    from core.agency.what_each_area_of_a_board_comes_to import possible_on_a_board
-
     if pool is None or game.believed.turn == FIRST:
         return
     key = game.believed.key()
@@ -1407,8 +1464,7 @@ def _work_out_what_they_can_do(game: _Game, rehearsing: _Rehearsing, pool: Any, 
     worth = dict(rehearsing.weights_for(family).worth)
     seconds = game.pondering.look_for(game.answers_s, game.last_share or thinks_s)
     position = game.believed
-    game.mapping = (key, pool.submit(possible_on_a_board, family, position, worth, plies_at_most=10,
-                                     seconds=seconds))
+    game.mapping = (key, pool.submit(family, position, worth, plies_at_most=10, seconds=seconds))
 
 
 def _answer_worked_out_on_their_time(game: _Game, family: Family, legal: list[Move]) -> Any:
@@ -1423,7 +1479,12 @@ def _answer_worked_out_on_their_time(game: _Game, family: Family, legal: list[Mo
     # something else.
     if not game.earlier or game.earlier[-1].key() != key or game.believed.turn != FIRST:
         return None
-    if not work.done() or work.cancelled() or work.exception() is not None:
+    if not work.done() or work.cancelled():
+        return None
+    if work.exception() is not None:
+        # Worked out in a process of its own: a failure there is said here, or nothing would say it.
+        logger.info("what each side could do was not worked out on their time (%s: %s)",
+                    type(work.exception()).__name__, work.exception())
         return None
     theirs = game.last_followed
     counters, _found = work.result()

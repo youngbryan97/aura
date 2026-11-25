@@ -161,12 +161,136 @@ def test_what_they_can_do_after_each_act_and_her_answer_to_each_of_theirs_are_wo
     found = what_can_happen("pile", (4, None), acts=acts_by_side, after=after_by_side, judge=judge_by_side,
                             plies_at_most=8, seconds=5.0, may_leave=False)
     assert found.deep == 8
-    forced = {act[1]: worst for act, worst, _best, _n, _hurt in found.hers}
+    forced = {path.act[1]: path.for_certain for path in found.hers}
     # From four, taking one leaves three, from which she wins however they answer; taking two leaves two, which they
     # take and win.
     assert forced[1] == 1.0 and forced[2] == -1.0
-    assert found.hers[0][0] == (HERS, 1)
+    assert found.hers[0].act == (HERS, 1) and found.complete and found.hers[0].settled and not found.hers[1].settled
     # Her answer to each of their takes, ready before they take: where they take two, leaving two, she takes both and
     # wins; where they take one, leaving three, nothing she does wins, and she knows it before they take.
     assert found.counter_to((THEIRS, 2)) == ((HERS, 2), 1.0)
     assert found.counter_to((THEIRS, 1))[1] == -1.0
+
+
+def _a_neutral_part(name: str = "quiet") -> Reading:
+    """A part where she has a move that changes nothing, and so does nobody else."""
+    return read_part(name, "here", acts=lambda state, side: ["shuffle"] if side == HERS else [],
+                     after=lambda state, act: state, judge=lambda state: 0.0, plies=1)
+
+
+def test_the_neutral_move_is_taken_where_nothing_she_could_do_beats_standing_still() -> None:
+    from core.cognition.what_each_area_comes_to import what_to_do
+
+    def acts(state, side):
+        return [side] if state == "open" else []
+
+    # A part where whoever moves first gives the other side the better of it: acting there costs her 2.
+    cold = read_part("cold", "open", acts=acts, after=lambda state, act: act,
+                     judge=lambda state: {"open": 0.0, HERS: -2.0, THEIRS: 2.0}[state], plies=1)
+    choice = what_to_do([cold, _a_neutral_part()])
+    assert choice.kind == "wait" and choice.weighed.part == "quiet"
+    assert not choice.most_good
+
+
+def test_who_outlasts_whom_in_a_waiting_game_turns_on_the_count_and_on_who_spends_first() -> None:
+    from core.cognition.what_each_area_comes_to import the_waiting_game
+
+    assert the_waiting_game(3, 2, hers_to_move=True) is True
+    assert the_waiting_game(2, 2, hers_to_move=True) is False, "moving first with as many, she runs out first"
+    assert the_waiting_game(2, 2, hers_to_move=False) is True, "the same count with them to move: they run out first"
+    assert the_waiting_game(float("inf"), 5, hers_to_move=True) is True
+    assert the_waiting_game(float("inf"), float("inf"), hers_to_move=True) is None
+
+
+def test_where_the_world_deals_by_odds_what_luck_decides_is_told_from_what_she_makes_sure_of() -> None:
+    """A gamble against a sure thing: the gamble deals +10 or -10 at even odds; the sure thing is +1 for certain."""
+    from core.cognition.what_each_area_comes_to import what_can_happen
+
+    def acts(state, side):
+        return ["gamble", "sure"] if state == "start" and side == HERS else []
+
+    def after(state, act):
+        return {"gamble": "dealing", "sure": "plus one"}[act]
+
+    def dealt(state):
+        return [("plus ten", 0.5), ("minus ten", 0.5)] if state == "dealing" else []
+
+    stands = {"start": 0.0, "dealing": 0.0, "plus one": 1.0, "plus ten": 10.0, "minus ten": -10.0}
+    found = what_can_happen("bet", "start", acts=acts, after=after, judge=stands.__getitem__, plies_at_most=3,
+                            seconds=2.0, may_leave=False, dealt=dealt)
+    paths = {path.act: path for path in found.hers}
+    assert paths["gamble"].for_certain == -10.0 and paths["gamble"].at_best == 10.0
+    assert paths["gamble"].expected == 0.0 and paths["gamble"].only_if_helped == 20.0
+    assert paths["sure"].settled and paths["sure"].for_certain == 1.0
+    assert found.hers[0].act == "sure", "what she can make sure of comes first"
+
+
+def test_played_as_one_game_the_turn_order_over_the_parts_decides_what_the_quick_sum_misses() -> None:
+    """Parts where whoever moves first gives the other side a point, and no turn may be let go: with three of them she
+    moves in two and they in one, so she ends a point down; with two, even. The quick sum takes no part no one gains by
+    acting in first, and calls both even (suggestions of 24 November 2026: the turn order over the parts interacts)."""
+    from core.cognition.what_each_area_comes_to import play_the_sum
+
+    def acts(state, side):
+        return [side] if state == "open" else []
+
+    def judge(state):
+        return {"open": 0.0, HERS: -1.0, THEIRS: 1.0}[state]
+
+    def cold(name):
+        return read_part(name, "open", acts=acts, after=lambda state, act: act, judge=judge, plies=1)
+
+    three = play_the_sum([(n, "open") for n in "abc"], acts=acts, after=lambda state, act: act, judge=judge,
+                         plies_at_most=6, seconds=5.0)
+    two = play_the_sum([(n, "open") for n in "ab"], acts=acts, after=lambda state, act: act, judge=judge,
+                       plies_at_most=6, seconds=5.0)
+    assert three.complete and three.comes_to == -1.0
+    assert two.complete and two.comes_to == 0.0
+    assert put_together([cold(n) for n in "abc"], first=HERS).comes_to == 0.0
+
+
+def test_working_out_what_can_happen_ends_when_the_world_says_the_time_is_over_and_keeps_what_it_finished() -> None:
+    """A count that never ends, given a minute: told the time is over a fifth of a second in, it stops at once and
+    keeps the deepest pass it finished, marked unfinished. The time it was given was a guess at how long the other side
+    would take; their move arriving ends it (24 November 2026: run on into her own turn, it slowed her own look)."""
+    import time
+
+    from core.cognition.what_each_area_comes_to import play_the_sum, what_can_happen
+
+    def acts(state, side):
+        return [1, 2]
+
+    # Every line its own state: nothing reached two ways, so nothing is worked out once for two.
+    def after(state, act):
+        return (*state, act)
+
+    def judge(state):
+        return float(sum(state) % 3)
+
+    for work in (
+        lambda over: what_can_happen("count", (), acts=acts, after=after, judge=judge, plies_at_most=60,
+                                     seconds=60.0, may_leave=False, stop=over),
+        lambda over: play_the_sum([("a", ()), ("b", ())], acts=acts, after=after, judge=judge, plies_at_most=60,
+                                  seconds=60.0, stop=over),
+    ):
+        began = time.monotonic()
+        found = work(lambda began=began: time.monotonic() > began + 0.2)
+        assert time.monotonic() - began < 5.0
+        assert not found.complete and found.deep >= 1
+        assert all(path.uncertain for path in getattr(found, "hers", ()))
+
+
+def test_where_every_act_comes_to_the_same_nothing_is_chosen_and_standing_still_is_no_better() -> None:
+    """A part where every act of hers leaves it as it stands, and one where her two acts change it but come to the
+    same: nothing counted tells her acts apart, so nothing is chosen. A tie with standing still is not a reason to
+    stand still."""
+    from core.cognition.what_each_area_comes_to import what_to_do
+
+    still = read_part("still", "here", acts=lambda state, side: ["a", "b"] if side == HERS else ["x"],
+                      after=lambda state, act: state, judge=lambda state: 0.0, plies=2)
+    choice = what_to_do([still])
+    assert choice.kind == "even" and choice.weighed is None
+    moving = read_part("moving", "here", acts=lambda state, side: ["left", "right"] if state == "here" else [],
+                       after=lambda state, act: act, judge=lambda state: 0.0, plies=2)
+    choice = what_to_do([moving, _a_neutral_part()])
+    assert choice.kind == "even" and choice.weighed is None
