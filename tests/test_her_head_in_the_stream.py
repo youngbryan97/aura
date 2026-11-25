@@ -328,3 +328,66 @@ def test_the_depth_is_the_one_that_has_been_fastest():
         depth = faster.next()
         faster.came(depth, *{1: (1.94, 0.080), 2: (1.9, 0.120), 3: (1.9, 0.140), 4: (1.9, 0.160)}[depth])
     assert faster.fastest == 1
+
+
+@pytest.mark.parametrize("deep", [1, 2, 3])
+def test_drawing_her_sequences_follow_the_distribution_they_follow_one_token_at_a_time(on_cpu, deep):
+    """The first tokens of many short generations, with her head's drafts drawn and kept by their overlap, and without."""
+    from collections import Counter
+
+    from mlx_lm.generate import generate_step
+
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+    from core.brain.llm.her_sampler import HerSampler
+
+    model, sampler, runs = _tiny(vocab=4, seed=1), HerSampler(temp=0.9, top_p=0.95), 500
+    head = _head(model)
+    mx.random.seed(5)
+    plain = Counter(tuple(int(t) for t, _ in generate_step(mx.array([1, 2, 3, 0]), model, max_tokens=3, sampler=sampler, prefill_step_size=4)) for _ in range(runs))
+    mx.random.seed(9)
+    drawn = Counter(tuple(int(t) for t, _, _ in head_generate_step(mx.array([1, 2, 3, 0]), model, head, max_tokens=3, sampler=sampler, prefill_step_size=4, how_deep=_Always(deep)))
+                    for _ in range(runs))
+    for said in set(plain) | set(drawn):
+        a, b = plain[said] / runs, drawn[said] / runs
+        assert abs(a - b) < 4.2 * (max((a + b) / 2, 0.004) * 2 / runs) ** 0.5, (said, a, b)
+
+
+def test_drawn_drafts_are_kept_more_often_than_the_likeliest_ones(on_cpu):
+    """A head that predicts what she would say exactly has every draft of its kept, however much she draws."""
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+    from core.brain.llm.her_sampler import HerSampler
+    from core.brain.llm.several_tokens_a_pass import _text
+
+    model = _tiny(vocab=7, seed=0)
+    text = _text(model)
+
+    class _Knows:
+        """Her head, where it knows: what it gives is the hidden state her model has after what was said and the draft."""
+
+        def __init__(self):
+            self.said = [1]
+
+        def __call__(self, hidden, embedded, cache):
+            from mlx_lm.models.cache import make_prompt_cache
+
+            ids = [int(mx.argmin(mx.sum((text.model.embed_tokens.weight - row) ** 2, axis=-1)).item()) for row in embedded[0]]
+            self.said += ids
+            return text.model(mx.array([self.said]), make_prompt_cache(model))[:, -len(ids):]
+
+    def kept(sampler):
+        mx.random.seed(3)
+        deep = _Always(1)
+        list(head_generate_step(mx.array([1]), model, _Knows(), max_tokens=80, sampler=sampler, prefill_step_size=4, how_deep=deep))
+        return sum(n - 1 for _d, n, _s in deep.passes) / len(deep.passes)
+
+    class _OnlyDraws:
+        """The same sampler, where only a token can be asked of it."""
+
+        def __init__(self, sampler):
+            self.sampler = sampler
+
+        def __call__(self, logprobs):
+            return self.sampler(logprobs)
+
+    sampler = HerSampler(temp=1.0)
+    assert kept(sampler) > 0.95 > kept(_OnlyDraws(sampler)) + 0.1

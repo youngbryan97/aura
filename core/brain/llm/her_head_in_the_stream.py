@@ -17,7 +17,8 @@ worker's stream takes (mlx_lm ``stream_generate`` and its ``GenerationResponse``
 * her hidden-state tap: before a position's processors run, the tap holds that position's hidden state, so her
   one-shot memory recalls from the token it is choosing after;
 * the worker's prompt cache, read on from where it stands;
-* her sampler: a draft is kept when the token sampled at its position is the draft, which keeps her distribution
+* her sampler: a draft is kept when the token sampled at its position is the draft, or, where her sampler says what it draws
+  from, as often as her distribution and her head's overlap (core/brain/llm/her_sampler.py). Either keeps her distribution
   exactly; greedy is the case of an argmax sampler.
 
 Two reads back from the GPU a pass (the tokens chosen, then the next draft), not one a token.
@@ -31,6 +32,7 @@ from typing import Any
 
 import mlx.core as mx
 
+from core.brain.llm.her_sampler import kept_or_instead
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("LLM.HerHead")
@@ -186,6 +188,8 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
     head_cache = KVCache()
     processors = list(logits_processors or [])
     sampler = sampler or (lambda logprobs: mx.argmax(logprobs, axis=-1))
+    # Where her sampler says what it draws from, her head's drafts are drawn as hers are and kept by how the two overlap.
+    of = sampler.probabilities if getattr(sampler, "draws", False) else None
     y = prompt.astype(mx.uint32)
     total, done = int(y.size), 0
     if prompt_progress_callback is not None:
@@ -205,8 +209,9 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
 
     goes, positions = goes if goes is not None else WhereItGoes(), 0
 
-    def choose(row: mx.array, at: int) -> tuple[int, mx.array]:
-        """Her token at a position: her processors on its logits (shape [1, vocab]), then her sampler."""
+    def choose(row: mx.array, at: int, draft: int | None = None, drawn_from: mx.array | None = None) -> tuple[int, mx.array]:
+        """Her token at a position: her processors on its logits (shape [1, vocab]), then her sampler; where the ``draft`` there
+        was drawn from a distribution, that draft or what is said instead of it."""
         nonlocal positions
         if tap is not None and hiddens is not None:
             tap.last_hidden = hiddens[at]
@@ -222,7 +227,10 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                 goes.spent(f"one {type(processor).__name__}", time.perf_counter() - began)
                 began = time.perf_counter()
         logprobs = row - mx.logsumexp(row, axis=-1, keepdims=True)
-        chosen = sampler(logprobs)
+        if of is not None and draft is not None and drawn_from is not None:
+            chosen, _kept = kept_or_instead(of(logprobs.astype(mx.float32)), drawn_from, mx.array([draft]))
+        else:
+            chosen = sampler(logprobs)
         mx.eval(chosen)
         token = int(chosen.reshape(-1)[0].item())
         goes.spent("one sampling" if timed_here else "choosing", time.perf_counter() - began)
@@ -232,25 +240,34 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         nonlocal history
         history = mx.concatenate([history, mx.array([token], dtype=history.dtype)])
 
-    def drafted_after(hidden: mx.array, following: list[int], many: int = 1) -> list[int]:
-        """Her head's drafts after what was kept: one from her hidden state, and each after it from her head's own."""
+    def drafted_after(hidden: mx.array, following: list[int], many: int = 1) -> tuple[list[int], list[mx.array]]:
+        """Her head's drafts after what was kept, and what each was drawn from where it was drawn: one from her hidden state, and
+        each after it from her head's own."""
+        drawn_from: list[mx.array] = []
+
+        def drafted(logits: mx.array) -> mx.array:
+            if of is None:
+                return mx.argmax(logits, axis=-1)
+            drawn_from.append(of(logits.astype(mx.float32)))
+            return mx.random.categorical(mx.log(drawn_from[-1]), axis=-1)
+
         out = head(hidden, embed(mx.array([following])), head_cache)
-        drafts = [mx.argmax(_logits(text, out[:, -1, :]), axis=-1)]
+        drafts = [drafted(_logits(text, out[:, -1, :]))]
         for _ in range(many - 1):
             out = head(out[:, -1:], embed(drafts[-1][:, None]), head_cache)
-            drafts.append(mx.argmax(_logits(text, out[:, -1, :]), axis=-1))
+            drafts.append(drafted(_logits(text, out[:, -1, :])))
         told = mx.concatenate(drafts).tolist()
         # What it drafted from its own output is not what she says: her head reads that from her hidden state when it is said.
         if many > 1:
             head_cache.trim(many - 1)
-        return [int(one) for one in told]
+        return [int(one) for one in told], drawn_from
 
     # First pass: the prompt's last token gives her first token, and her head its first draft.
     hidden = text.model(history[None], cache)
     hiddens = hidden[0] if tap is not None else None
     token, logprobs = choose(_logits(text, hidden[:, -1, :]), -1)
     deep, began = how_deep.next(), time.perf_counter()
-    drafts = drafted_after(hidden[:, -1:], [token], deep)
+    drafts, drawn = drafted_after(hidden[:, -1:], [token], deep)
     drafting, from_draft, made, depth = time.perf_counter() - began, False, 0, TEXT_DEPTH
     index = None
     if drafts_from is not None:
@@ -272,17 +289,19 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         by_her_head = proposal is drafts
         if max_tokens > 0:
             proposal = proposal[:max_tokens - made]
+        building = time.perf_counter()
         with speaking_several():  # all are tokens she speaks: steered, and sampled for Φ, as one at a time
             read, saved = _read(text, mx.array([[token, *proposal]]), cache)
         hiddens = read[0] if tap is not None else None
         logits = _logits(text, read)
         reading = time.perf_counter()
+        goes.spent("building", reading - building)
         mx.eval(logits)
         goes.spent(f"reading {1 + len(proposal)}", time.perf_counter() - reading)
         took, whole = 0, 1 + len(proposal)
         try:
             for at, guess in enumerate(proposal):
-                checked, checked_logprobs = choose(logits[:, at, :], at)
+                checked, checked_logprobs = choose(logits[:, at, :], at, guess, drawn[at] if by_her_head and at < len(drawn) else None)
                 if checked != guess:
                     token, logprobs = checked, checked_logprobs
                     break
@@ -301,14 +320,16 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
                 token, logprobs = choose(logits[:, took, :], took)
         finally:
             # What was read past the last token kept is as if it had never been, however this ends.
+            undoing = time.perf_counter()
             _unread(cache, saved, whole, 1 + took)
+            goes.spent("undoing", time.perf_counter() - undoing)
         from_draft = False
         if by_her_head:
             how_deep.came(deep, 1 + took, drafting + time.perf_counter() - began - elsewhere)
         elif len(proposal) > 1:
             depth = min(TEXT_DEEPEST, depth * 2) if took == len(proposal) else max(2, took + 1)
         deep, began = how_deep.next(), time.perf_counter()
-        drafts = drafted_after(read[:, :1 + took], [*proposal[:took], token], deep)
+        drafts, drawn = drafted_after(read[:, :1 + took], [*proposal[:took], token], deep)
         drafting = time.perf_counter() - began
         goes.spent(f"drafting {deep}", drafting)
 

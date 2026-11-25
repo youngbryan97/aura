@@ -8515,6 +8515,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     each sort of act (`tests/test_her_own_time_is_seen.py`). Left: a day of it, live.
   - 25 November: what came of an act that was done another way counts for less once the way has changed, told by the source that
     does it, so acts that could not work do not stand against the same acts mended.
+    Going on with a program somebody asked for is measured by how much of what it is tried by holds, and being closed as she
+    does is being put down: an app went from 22 to 38 of 42 and it came to -1.00.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.
@@ -8542,6 +8544,11 @@ needs her 27B free (her app down, or her app's own influence trials).
     conversation for the next turn between turns (`core/brain/llm/reading_ahead.py`); her head drafts as many tokens a pass as
     has been fastest, measured as she writes (`core/brain/llm/her_head_in_the_stream.py`); and whether a turn is about how she
     is, is read by her cortex's states, where every turn that says "you" was given her whole state. Left: again, live.
+  - 25 November, 07:40, live: 71 s (just after a start, an app being made beside it), 40 and 48 s; the conversation was read ahead
+    and the second turn's first word came at 9.2 s. Where a pass of her writing goes, measured: 61 ms to read two tokens, 67
+    three, 5.5 to choose each, 4 to 8 drafting, and 1.7 tokens came of it: her head drafts its likeliest, and she draws. Drafts
+    are drawn from her head's own distribution now and kept as often as it and hers overlap, hers followed exactly either way
+    (`core/brain/llm/her_sampler.py`, `tests/test_her_sampler.py`). Left: again, live.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).

@@ -507,3 +507,35 @@ def test_what_is_offered_says_how_it_is_done(tmp_path, monkeypatch):
     could.begin_her_own_time(hers, carry_on=_nothing, looks=_nothing, tell=_nothing, here=lambda: 0.0)
     (offered,) = asyncio.run(hers.options())
     assert offered.way == could.way_of("carry_on")
+
+
+def test_a_request_gone_on_with_is_measured_by_how_far_it_came_and_not_by_being_put_down(tmp_path, monkeypatch):
+    """LIVE 25 November 2026 an app came from 22 to 38 of the 42 it is tried by, and to -1.00, for she was closed as she went on."""
+    from core.understanding import carrying_out, requests_of_her
+    from core.understanding.requests_of_her import CUT_SHORT, PARTLY, Part, Request
+
+    folder = tmp_path / "flat"
+    folder.mkdir()
+
+    def holds(n):
+        (folder / "program.json").write_text(json.dumps({"tried": [{"name": str(i), "ok": i < n} for i in range(40)]}), encoding="utf-8")
+
+    request = Request(id="r1", said="Make me an app", effect="program", conversation="c", opened_at=time.time(), changed_at=time.time(), stands=PARTLY,
+                      parts=[Part("it runs", "met"), Part("it splits", "unmet")], made={"page": str(folder / "index.html")})
+    monkeypatch.setattr(requests_of_her, "get_requests_of_her", lambda: type("L", (), {"all": lambda self: [request]})())
+    monkeypatch.setattr(carrying_out, "carriers", lambda: {"program": None})
+    monkeypatch.setattr(carrying_out, "is_under_way", lambda r: False)
+    holds(20)
+
+    async def further(_request):
+        holds(35)
+
+    (option,) = what_she_could_do.left_unmet(further)
+    came = asyncio.run(option.does())
+    assert came.got == pytest.approx(0.75) and "88% of what it is tried by holds, and 50% did" in came.what
+
+    async def closed(r):
+        r.stands = CUT_SHORT
+
+    (option,) = what_she_could_do.left_unmet(closed)
+    assert asyncio.run(option.does()).put_down

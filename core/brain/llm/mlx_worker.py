@@ -20,6 +20,7 @@ from typing import Any
 from core.brain.live_mind_contract import (
     append_text_mutation,
 )
+from core.brain.llm.her_sampler import sampler_of
 from core.brain.llm.her_states_at_a_turn import as_a_job_of_the_worker as states_as_a_job
 from core.brain.llm.latent_cortex.action_state_capture import (
     UnknownActionStateApplicationError,
@@ -5858,7 +5859,7 @@ def _mlx_worker_loop_min_p(job, logger, make_sampler, max_tokens, temp, tokenize
                 sampler_kwargs["repetition_penalty"] = repetition_penalty
         except (TypeError, ValueError):
             logger.debug("stream make_sampler signature introspection unavailable")
-        kwargs["sampler"] = make_sampler(**sampler_kwargs)
+        kwargs["sampler"] = sampler_of(make_sampler, **sampler_kwargs)
 
     # Apply MLX penalties via logits processors
     logits_processors = []
@@ -6985,7 +6986,7 @@ def _mlx_worker_loop(
                             sampler_kwargs["repetition_penalty"] = repetition_penalty
                     except (TypeError, ValueError):
                         logger.debug("make_sampler signature introspection unavailable")
-                    kwargs["sampler"] = make_sampler(**sampler_kwargs)
+                    kwargs["sampler"] = sampler_of(make_sampler, **sampler_kwargs)
 
                 logits_processors = _mlx_worker_loop_v11_hardening_logits(job, logger, repetition_penalty, tokenizer)
 
@@ -7594,7 +7595,7 @@ def _mlx_worker_loop(
                                                 sampler_kwargs["repetition_context_size"] = (
                                                     kwargs.get("repetition_context_size", 20)
                                                 )
-                                            kwargs["sampler"] = make_sampler(**sampler_kwargs)
+                                            kwargs["sampler"] = sampler_of(make_sampler, **sampler_kwargs)
                                     except ImportError:
                                         logger.debug(
                                             "MLX make_sampler unavailable; using stream_generate defaults."

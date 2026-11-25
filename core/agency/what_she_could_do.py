@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import hashlib
+import json
 import math
 import time
 from collections.abc import Awaitable, Callable
@@ -74,7 +75,7 @@ def _asking(drive: str) -> float:
 def left_unmet(carry_on: Callable[[Any], Awaitable[None]]) -> list[Option]:
     """Requests of people's that came to less than they asked, gone on with."""
     from core.understanding import carrying_out
-    from core.understanding.requests_of_her import CUT_SHORT, PARTLY, UNMET, get_requests_of_her
+    from core.understanding.requests_of_her import CUT_SHORT, PARTLY, SET_ASIDE, UNMET, get_requests_of_her
 
     out = []
     for request in reversed(get_requests_of_her().all()):
@@ -86,9 +87,15 @@ def left_unmet(carry_on: Callable[[Any], Awaitable[None]]) -> list[Option]:
         missing, met = len(request.missing()), sum(1 for p in request.parts if p.stands == "met")
 
         async def does(request: Any = request, met: int = met, missing: int = missing) -> CameOf:
+            held = await asyncio.to_thread(_how_much_holds, request)
             await carry_on(request)
-            now = sum(1 for p in request.parts if p.stands == "met")
-            return CameOf(got=max(0.0, min(1.0, (now - met) / max(1, missing))), what=f"{now} of {len(request.parts)} things asked of it are so, and {met} were")
+            # Stopped by somebody, or by her being closed, it has come to nothing yet, which is not having come to nothing.
+            if request.stands in {CUT_SHORT, SET_ASIDE}:
+                return CameOf(put_down=True, what="it was put down before it came to anything")
+            now, holds = sum(1 for p in request.parts if p.stands == "met"), await asyncio.to_thread(_how_much_holds, request)
+            further = 0.0 if held is None or holds is None or held >= 1.0 else (holds - held) / (1.0 - held)
+            return CameOf(got=max(0.0, min(1.0, max((now - met) / max(1, missing), further))),
+                          what=f"{now} of {len(request.parts)} things asked of it are so, and {met} were" + (f"; {holds:.0%} of what it is tried by holds, and {held:.0%} did" if held is not None and holds is not None else ""))
 
         out.append(Option(f"carry_on:{request.id}", "carry_on", f"go on with what was asked: {_short(request.said)}", f"{missing} of what they asked is not so yet",
                           known={"waiting": 1.0 - math.exp(-age / 3600.0), "met": met / max(1, met + missing), "tried": len(request.tries) / (len(request.tries) + 2.0)},
@@ -96,6 +103,18 @@ def left_unmet(carry_on: Callable[[Any], Awaitable[None]]) -> list[Option]:
         if len(out) >= OF_A_SORT:
             break
     return out
+
+
+def _how_much_holds(request: Any) -> float | None:
+    """How much of what a program of somebody's is tried by holds as it was last kept; None where it is no program, or none is
+    kept. What is asked of it is said to be so or not once it is done; this is how far it has come meanwhile."""
+    page = str(request.made.get("page") or "")
+    try:
+        tried = json.loads((Path(page).parent / "program.json").read_text(encoding="utf-8")).get("tried") if page else None
+    # not a failure: with nothing kept beside it there is nothing to measure it by.
+    except (OSError, ValueError, AttributeError):
+        return None
+    return sum(1 for one in tried if one.get("ok")) / len(tried) if tried else None
 
 
 async def _look_into(hers: HerOwnTime, looks: LooksInto, of: str, about: str) -> tuple[CameOf, Inquiry]:
