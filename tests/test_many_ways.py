@@ -175,3 +175,99 @@ def test_every_way_is_read_as_it_is_written_into_the_program_by_itself():
     parser = many_ways._parser()
     for way in [*found[::7], *many_ways.conditions(read, spots, evidence)[::9]]:
         assert not parser.parse(many_ways.made(code, way).encode()).root_node.has_error, way
+
+
+# ── a list kept in a form ────────────────────────────────────────────
+
+SHARED = '''({
+  initial() { return { people: ["Ana", "Ben", "Cy"], paid: [], form: { by: "", amount: 0, shares: [] } }; },
+  update(s, e) {
+    if (e.type === "input") { return { ...s, form: { ...s.form, [e.name]: e.value } }; }
+    if (e.type === "do") {
+      if (e.name === "row") return { ...s, form: { ...s.form, shares: [...s.form.shares, { who: "", part: 0 }] } };
+      if (e.name === "save") {
+        const f = s.form, shares = f.shares.filter((x) => x.who);
+        if (!f.by || !(f.amount > 0) || !shares.length) return s;
+        return { ...s, paid: [...s.paid, { id: s.paid.length + 1, by: f.by, amount: f.amount, shares }], form: { by: "", amount: 0, shares: [] } };
+      }
+    }
+    return s;
+  },
+  view(s, ui) {
+    const f = s.form, people = [["", "Choose"], ...s.people.map((p) => [p, p])];
+    const rows = f.shares.map((x, i) => ui.row(ui.select("Sharer", `share_who_${i}`, x.who, people), ui.number("Part", `share_part_${i}`, x.part)));
+    return ui.column(ui.title("Shared"), ui.select("Paid by", "by", f.by, people), ui.number("Amount", "amount", f.amount), rows, ui.button("Add a sharer", "row"), ui.button("Save", "save"),
+      ui.list(s.paid, (p) => ui.text(p.by + " paid " + p.amount + " for " + p.shares.map((x) => x.who + " " + x.part).join(", "))));
+  },
+})'''
+SHARED_TESTS = '''test("What is paid is kept with who it is for", t => { t.choose("Paid by", "Ana"); t.type("Amount", 30); t.choose("Shares", "Ben"); t.click("Save"); t.expect(t.s.paid.length === 1, "it was not kept"); t.expect(t.s.paid[0].shares[0].who === "Ben", "for nobody"); });
+test("It can be for several", t => { t.choose("Paid by", "Ben"); t.type("Amount", 30); t.choose("Shares", ["Ana", "Cy"]); t.click("Save"); t.expect(t.sees("Ben paid 30 for Ana 0, Cy 0"), "it shows " + t.shown); });
+test("What each part is is kept", t => { t.choose("Paid by", "Ben"); t.type("Amount", 30); t.choose("Shares", "Ana"); t.type("Part", 12); t.click("Save"); t.expect(t.sees("Ana 12"), "it shows " + t.shown); });
+test("What is for nobody is not kept", t => { t.choose("Paid by", "Ana"); t.type("Amount", 30); t.click("Save"); t.expect(t.s.paid.length === 0, "it was"); });'''
+SHARED_STATE = {"people": ["Ana", "Ben", "Cy"], "paid": [{"id": 1, "by": "Ana", "amount": 30, "shares": [{"who": "Ben", "part": 30}]}],
+                "form": {"by": "", "amount": 0, "shares": [{"who": "Ben", "part": 30}]}}
+
+
+def test_what_is_put_in_the_row_of_a_list_goes_in_that_row(tmp_path):
+    """LIVE 25 November 2026: the beneficiaries of an expense were kept by the names of their rows, which nothing read, and an hour
+    of her model's mends took twenty two of the twenty three that failed for sixteen different faults."""
+    code = assembled(patched({}, SHARED)[0])
+    trial, found, best = _searched(code, SHARED_TESTS, tmp_path, _design(name="Shared", state=SHARED_STATE), seconds=60.0)
+    shown = next(r for r in trial.failing() if r.name == "what is put in a control is what it shows")
+    assert "“Sharer”" in shown.why and "share_who_0" in shown.why, shown.why
+    assert best is not None and best.sort == "row", f"{[(m.way.sort, m.mends) for m in found.mends[:4]]}"
+    mended = many_ways.made(code, best)
+    assert "s.form.shares.map(" in mended and "who: e.value" in mended and "part: e.value" in mended
+
+
+def test_a_label_that_no_control_has_is_what_one_of_them_sets(tmp_path):
+    """The design has a control called "Shares" and the program has a row for each of them: what a test puts in "Shares" is put there."""
+    code = assembled(patched({}, SHARED.replace('if (e.type === "input") {', 'if (e.type === "input") { const at = /^share_(who|part)_(\\d+)$/.exec(e.name); if (at) return { ...s, form: { ...s.form, shares: s.form.shares.map((x, i) => (i === Number(at[2]) ? { ...x, [at[1]]: e.value } : x)) } };'))[0])
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Shared", state=SHARED_STATE), code, tests=SHARED_TESTS + '\ntest("No such thing", t => { t.choose("Colour", "Ben"); });\ntest("Nobody by that name", t => { t.click("Add a sharer"); t.choose("Shares", "Zed"); });'), tmp_path / "t.html", browser)
+
+    trial = _in_a_browser(run)
+    by = {r.name: r for r in trial.rules if not r.ok}
+    assert set(by) == {"No such thing", "Nobody by that name"}, [(r.name, r.why[:120]) for r in trial.failing()]
+    assert "there is no “Colour” to use" in by["No such thing"].why
+    assert by["Nobody by that name"].the_test and "takes one of Choose, Ana, Ben, Cy" in by["Nobody by that name"].why
+
+
+def test_a_mend_is_believed_for_as_many_things_as_it_leaves_otherwise():
+    way = many_ways.Way(1, 1, "row", 0, 0, "x", 1)
+    mend = lambda rules, other: searching.Mend(way, tuple(rules), (), other, 8)  # noqa: E731
+    assert searching.could_be_believed(mend(list("abcdefgh"), 6)) and not searching.could_be_believed(mend(["a", "b"], 6))
+
+
+def test_a_test_that_gets_further_is_nearer(tmp_path):
+    from core.making.maker import _how_much_is_wrong
+    from core.making.trying import Result
+
+    near, far = Result("a", False, "not shown", got=6), Result("a", False, "there is no Save", got=1)
+    assert _how_much_is_wrong([near]) < _how_much_is_wrong([far]) < _how_much_is_wrong([Result("a", False, "x is not a function", broke=True)])
+    code = assembled(patched({}, SHARED)[0])
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Shared", state=SHARED_STATE), code, tests=SHARED_TESTS), tmp_path / "t.html", browser)
+
+    trial = _in_a_browser(run)
+    assert {r.name: r.got for r in trial.rules}["What is paid is kept with who it is for"] >= 3
+
+
+def test_what_a_test_made_for_itself_breaking_is_the_tests_own(tmp_path):
+    """LIVE 25 November 2026: "r.int is not a function", of a test's own r, was mended in the program."""
+    from core.making.maker import Another, another_way
+
+    code = assembled(patched({}, PANTRY)[0])
+    check = Another(claims="The total is the sum of the counts", function="total", inputs="r => [{ items: Array.from({ length: r.int(0, 4) }, () => ({ count: r.int(0, 9), least: r.pick([1, 2]) })) }]",
+                    surely="s => s.items.reduce((n, x) => n + x.count, 0)", holds="(got, sure) => got === sure")
+    broken = 'test("Its own", t => { const q = {}; q.none(); });'
+
+    async def run(browser):
+        return await try_page(page_of(_design(), code, tests=f"{PANTRY_TESTS}\n{another_way(check)}\n{broken}"), tmp_path / "t.html", browser)
+
+    trial = _in_a_browser(run)
+    by = {r.name: r for r in trial.rules}
+    assert next(r for name, r in by.items() if name.startswith("The total is the sum")).ok
+    assert not by["Its own"].ok and by["Its own"].the_test

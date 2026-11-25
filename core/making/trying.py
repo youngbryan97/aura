@@ -45,6 +45,8 @@ class Result:
     broke: bool = False
     #: Whether it was the test that asked for what there is not.
     the_test: bool = False
+    #: How many of the things it does it had done when it failed.
+    got: int = 0
 
 
 @dataclass
@@ -74,7 +76,7 @@ def by_rule(results: list[Result]) -> list[Result]:
     for result in results:
         rule = rule_of(result.name)
         if rule not in out or out[rule].ok and not result.ok:
-            out[rule] = Result(rule, result.ok, result.why, result.broke, result.the_test)
+            out[rule] = Result(rule, result.ok, result.why, result.broke, result.the_test, result.got)
     return list(out.values())
 
 
@@ -139,7 +141,7 @@ def _program(beside: str, facts: dict[str, Any], code: str, program: str = "") -
 
 
 def _result(row: dict[str, Any]) -> Result:
-    return Result(str(row["name"]), bool(row["ok"]), str(row.get("why") or ""), bool(row.get("broke")), bool(row.get("theTest")))
+    return Result(str(row["name"]), bool(row["ok"]), str(row.get("why") or ""), bool(row.get("broke")), bool(row.get("theTest")), int(row.get("got") or 0))
 
 
 async def _watched(context: Any, page: Any) -> Any:

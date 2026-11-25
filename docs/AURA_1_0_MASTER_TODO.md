@@ -8475,6 +8475,11 @@ needs her 27B free (her app down, or her app's own influence trials).
     pictures are painted by her own image model.
   - 25 November: the code of one work was shown in another's session; each is kept apart
     (`tests/test_the_workbench_keeps_works_apart.py`).
+  - 25 November, from her change to the flat-sharing app, an hour at 20 to 22 of 42: what was chosen for a row of a list was
+    kept under the row's own name and read by nothing, and sixteen tests said a control was not there. Any program is now
+    checked for showing what is put in it; a label no control has is what one of them sets; her search writes the mend, 27 to
+    41 of 50 in 43 s, and the engine alone takes 23 failures to 9. The change was designed again at every try, and is not
+    now. No picture had ever been kept: the write it was kept by was not there (`tests/test_her_build_writes.py`).
   - 24 November, night: the search is for Python tools too (`searching_python.py`): the candidates of every repair module
     she has, thousands of them, tried in one process. 10 planted mistakes of 10 are put right with no model.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start

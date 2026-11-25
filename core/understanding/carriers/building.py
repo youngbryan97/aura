@@ -149,7 +149,7 @@ async def build(request: Request, tell: Tell) -> CameTo:
         if folder is None:
             made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser,
                                     told=request.told, when_kept=_keeps(request), paints=by_her)
-        elif request.added and request.added[-1] not in str(request.made.get("heard") or ""):
+        elif request.added and not await asyncio.to_thread(_taken_in, folder, request.added[-1]):
             made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
         else:
             made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
@@ -174,12 +174,27 @@ async def change(request: Request, tell: Tell) -> CameTo:
                       parts=[Part("the program meant was found", "unmet", "she has built none that matches")])
     if not await asyncio.to_thread(_made_here, folder):
         return await _changed_as_rebuilt(request, folder, tell)
+    wanted = (request.added or [request.said])[-1]
+    taken_in = await asyncio.to_thread(_taken_in, folder, wanted)
     async with _a_browser() as browser:
-        made = await maker.change(folder, (request.added or [request.said])[-1], ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+        if taken_in:
+            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+        else:
+            made = await maker.change(folder, wanted, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
     if made is None:
         return CameTo(how="read the change into the design", came_to="it could not be read into the design",
                       parts=[Part("the change asked for", "unmet", "no design with it came")])
     return await _as_it_came_out(request, made)
+
+
+def _taken_in(folder: Path, words: str) -> bool:
+    """Whether a program's design has these words in it already: it is gone on with then, and not changed to them again. LIVE
+    25 November 2026 a program being changed was designed again, and its tests written again, at every try, for an hour."""
+    try:
+        asked = json.loads((folder / "program.json").read_text(encoding="utf-8")).get("asked")
+    except (OSError, ValueError):
+        return False
+    return " ".join(str(words).split()) in " ".join(str(asked or "").split())
 
 
 def _keeps(request: Request) -> Any:

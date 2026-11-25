@@ -1472,3 +1472,18 @@ test("c", t => { t.click("Drop"); });'''
     trial = _tried(page_of(design, SHELF, tests=""), tmp_path)
     (gone,) = [r for r in trial.failing() if r.name == "the controls it was designed with are there"]
     assert "“Lend to”" in gone.why
+
+
+def test_a_change_that_is_in_the_design_already_is_gone_on_with(tmp_path):
+    """LIVE 25 November 2026 a program being changed was designed again, and its tests written again, at every try."""
+    from core.understanding.carriers.building import _taken_in
+
+    (tmp_path / "program.json").write_text(json.dumps({"asked": "Make a ledger.\nLet an expense be for  several of us."}), encoding="utf-8")
+    assert _taken_in(tmp_path, "Let an expense be for several\nof us.") and not _taken_in(tmp_path, "And export it.") and not _taken_in(tmp_path / "none", "x")
+    import inspect
+
+    from core.understanding.carriers import building
+
+    for carrier in (building.build, building.change):
+        source = inspect.getsource(carrier)
+        assert "_taken_in" in source and "maker.mend(" in source

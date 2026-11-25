@@ -3305,6 +3305,7 @@ async def _run_cognitive_engine_chat_turn(
         )
     else:
         recent_exchanges = []
+    context_stages = [("exchanges", time.perf_counter())]
     transcript_user_messages = [
         str(exchange.get("user") or "").strip()
         for exchange in recent_exchanges
@@ -3360,7 +3361,9 @@ async def _run_cognitive_engine_chat_turn(
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
+    context_stages.append(("shared_past", time.perf_counter()))
     discourse_repair_contract, live_mind_context = await _run_cognitive_engine_chat_turn_discourse_repair_contract(conversation_only_surface, lane, recent_context_needed, recent_conversation_context, recent_exchanges, require_engine, state_native_output_owner, visible)
+    context_stages.append(("live_mind", time.perf_counter()))
     context = {
         "route": "desktop_chat",
         "source": source,
@@ -3445,8 +3448,15 @@ async def _run_cognitive_engine_chat_turn(
             session_id=session_id,
         )
     )
+    context_stages.append(("recall", time.perf_counter()))
     context_challenge_context, retained_memory_evidence_context = await _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, context, conversation_only_surface, conversation_recall_context, recent_exchanges, session_id, state_native_output_owner, visible)
     context_bound_at = time.perf_counter()
+    context_stages.append(("memory", context_bound_at))
+    since, context_stage_ms = engine_resolved_at, {}
+    for stage, at in context_stages:
+        context_stage_ms[stage], since = round((at - since) * 1000.0, 1), at
+    if context_bound_at - engine_resolved_at >= 0.25:
+        logger.info("Foreground context stages: %s", context_stage_ms)
     if turn_trace is not None:
         mind_snapshot_quality = dict(live_mind_context.get("mind_snapshot_quality") or {})
         turn_trace.update(

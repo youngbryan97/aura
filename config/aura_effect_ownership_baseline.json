@@ -5705,7 +5705,7 @@
       "scope": "<module>.governed"
     },
     {
-      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
       "canonical_owner": false,
       "category": "file_write_gateway",
       "count": 1,
@@ -17666,6 +17666,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "aa44d3f232d85c450c3abccf9f3d30e9b16877cce57aee9bf767ff600c6d836a",
+  "inventory_sha256": "a95b9b20fdd94a74ac3942b8da764099a894b5df31cb739a4081236509e6b1e1",
   "schema_version": 1
 }

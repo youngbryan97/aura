@@ -36,13 +36,13 @@ from core.runtime.page_gateway import get_page_gateway, page_script
 
 logger = logging.getLogger("Making.Searching")
 
-__all__ = ["Found", "Mend", "could_be_believed", "is_believed", "search"]
+__all__ = ["CHECKS_SEARCHED", "Found", "Mend", "could_be_believed", "is_believed", "search"]
 
 #: How many times round its loops a test may go before it is taken not to end; how many ways are tried at a time, for how
 #: long, and how long that may take before it is taken not to end either.
 ROUNDS, A_BATCH, A_BATCH_S, BATCH_S = 400_000, 150, 10.0, 60.0
 #: The checks of any program that take little enough to be run with each way.
-_QUICK = ("it begins", "it goes on from its state as it was designed", "it is shown", "its state is as it was designed", "what is in it is kept",
+CHECKS_SEARCHED = ("what is put in a control is what it shows", "it begins", "it goes on from its state as it was designed", "it is shown", "its state is as it was designed", "what is in it is kept",
           "it begins with nothing in it that nobody put there", "it runs without breaking, whatever is used", "it runs without breaking, whatever is pressed")
 
 _BEFORE = """
@@ -107,8 +107,9 @@ def _suspected(failing: Mapping[str, set[int]], passing: Mapping[str, set[int]])
 
 
 def could_be_believed(mend: Mend) -> bool:
-    """Whether a way that fits the tests that failed leaves most of what came of the tests that held as it was."""
-    return not mend.breaks and mend.way.sort != FORCED and not (mend.held >= 4 and mend.other * 2 > mend.held)
+    """Whether a way that fits the tests that failed leaves most of what came of the tests that held as it was, or puts right as
+    many things as it leaves otherwise: where what nothing could be put in can be, it comes out otherwise wherever it was used."""
+    return not mend.breaks and mend.way.sort != FORCED and not (mend.held >= 4 and mend.other > max(mend.held / 2, len(mend.mends)))
 
 
 def is_believed(mend: Mend, found: Found) -> bool:
@@ -127,7 +128,7 @@ async def search(design: Design, code: str, tests: str, failing: Sequence[Result
         return Found()
     held = [(name, text) for name, text in each_test_in(tests)[1]]
     names = [name for name, _text in held]
-    wrong = [r for r in failing if (r.name in names or r.name in _QUICK) and not r.the_test]
+    wrong = [r for r in failing if (r.name in names or r.name in CHECKS_SEARCHED) and not r.the_test]
     if not wrong:
         return Found(read=read)
     texts = dict(held)

@@ -12,15 +12,16 @@ from typing import Any
 
 
 def governed(how: str, path: str | Path, *payload: Any, source: str = "rebuilding_a_program") -> Any:
-    """One write of her build's: ``write_text`` (text), ``append_text`` (text), ``ensure_directory``,
+    """One write of her build's: ``write_text`` (text), ``write_bytes`` (bytes), ``append_text`` (text), ``ensure_directory``,
     ``delete_file`` or ``copy_path`` (destination)."""
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
     with local_internal_governed_scope(f"rebuilding.{how}", domain="file_write", receipt_prefix="rebuilding",
                                        constraints={"artifact": "aura.rebuilt_program.v1", "operation": how}):
-        if how == "write_text":
-            return get_file_write_gateway().write_text(path, *payload, source=source)
+        if how in {"write_text", "write_bytes"}:
+            held = str(payload[0]).encode("utf-8") if how == "write_text" else payload[0]
+            return get_file_write_gateway().write_bytes(path, held, source=source)
         if how == "append_text":
             return get_file_write_gateway().append_text(path, *payload, source=source)
         if how == "ensure_directory":

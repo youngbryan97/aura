@@ -36,7 +36,7 @@ SORTS = {
     "guard": 1.0, "name_for_name": 0.8, "field_for_field": 0.85, "comparison": 0.9, "number_from_the_rule": 0.95, "shift_by_one": 0.75,
     "boolean": 0.6, "arithmetic": 0.55, "negate": 0.6, "literal": 0.6, "words_for_words": 0.8, "time": 0.7, "kept_within": 0.55,
     "ingredient": 0.5, "swap_arguments": 0.5, "whole_number": 0.45, "same_kind": 0.5, "returned": 0.8, "list": 0.45, "counted": 0.5,
-    "dropped": 0.25, "missing_import": 1.5, "template": 0.7, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35,
+    "dropped": 0.25, "missing_import": 1.5, "template": 0.7, "condition": 0.65, "joined": 0.6, "unit": 0.4, "copied": 0.35, "row": 1.4,
 }
 
 _COMPARE = {"<": ("<=", ">", ">="), "<=": ("<", ">=", ">"), ">": (">=", "<", "<="), ">=": (">", "<=", "<"),
@@ -374,6 +374,7 @@ def ways(read: Read, evidence: Evidence, blocks: Mapping[int, float] | None = No
     for node in nodes:
         _at(read, got, node, evidence, props, list(strings), truths, values)
     _statements(read, got, nodes, evidence)
+    _rows(read, got)
     return _that_can_be_read(got.out)
 
 
@@ -625,6 +626,86 @@ def _given(read: Read, got: _Collected, node: Any, text: str) -> None:
         got.add("kept_within", node, f"{a} = Math.max(0, Math.min(W, {a} {sign} ({b})))")
         got.add("kept_within", node, f"{a} = Math.max(0, Math.min(H, {a} {sign} ({b})))")
     got.add("dropped", node, "0", f"left out `{_short(text)}`")
+
+
+def _rows(read: Read, got: _Collected) -> None:
+    """Controls for each thing in a list, named by its place in it, whose events put what is given nowhere the list is: each
+    event put in the thing it is of. What a control is of is read where it is shown: the list it is made for each of, and what
+    of it the control shows."""
+    update = next((n for n in _walk(read.root) if n.type == "method_definition" and read.text(n.child_by_field_name("name")) == "update"), None)
+    body = update.child_by_field_name("body") if update is not None else None
+    given = [read.text(c) for c in update.child_by_field_name("parameters").named_children] if update is not None else []
+    if body is None or len(given) < 2:
+        return
+    state, event = given[0], given[1]
+    made: list[str] = []
+    for call in _walk(read.root):
+        found = _row_control(read, call) if call.type == "call_expression" else None
+        if found is None:
+            continue
+        before, after, path, of_it = found
+        named = f"/^{re.escape(before)}(\\d+){re.escape(after)}$/"
+        put = f"{{ ...x, {of_it}: {event}.value }}" if of_it else f"{event}.value"
+        new = f"{state}.{'.'.join(path)}.map((x, i) => (i === Number(at[1]) ? {put} : x))"
+        for depth in range(len(path) - 1, -1, -1):
+            new = f"{{ ...{'.'.join([state, *path[:depth]])}, {path[depth]}: {new} }}"
+        made.append(f"if ({event}.type === \"input\") {{ const at = {named}.exec({event}.name); if (at) return {new}; }}")
+    made = list(dict.fromkeys(made))
+    block = read.blocks.get((body.start_byte, body.end_byte), -1)
+    spot = body.start_byte + 1
+    for text in ([" ".join(made)] if len(made) > 1 else []) + made:
+        got.span("row", spot, spot, f" {text} ", block, "put what is given to each row in the row it is of")
+
+
+def _row_control(read: Read, call: Any) -> tuple[str, str, list[str], str] | None:
+    """For a control shown for each thing in a list: its name before and after the place, where in the state the list is, and
+    what of the thing it shows ("" for the thing itself). None for any other call."""
+    function, args = call.child_by_field_name("function"), call.child_by_field_name("arguments")
+    if function is None or args is None or function.type != "member_expression" or read.text(function.child_by_field_name("property")) not in {"input", "number", "date", "area", "check", "select", "slider"}:
+        return None
+    parts = [c for c in args.named_children if c.type != "comment"]
+    if len(parts) < 3 or parts[1].type != "template_string":
+        return None
+    holes = [c for c in parts[1].named_children if c.type == "template_substitution"]
+    if len(holes) != 1 or holes[0].named_child_count != 1 or holes[0].named_children[0].type != "identifier":
+        return None
+    index = read.text(holes[0].named_children[0])
+    whole, start = read.text(parts[1]), parts[1].start_byte
+    at, end = holes[0].start_byte - start, holes[0].end_byte - start
+    before, after = whole.encode()[1:at].decode(), whole.encode()[end:-1].decode()
+    each = call.parent
+    while each is not None:
+        if each.type == "arrow_function" and (over := each.child_by_field_name("parameters")) is not None:
+            names = [read.text(c) for c in over.named_children]
+            if len(names) >= 2 and names[1] == index:
+                break
+        each = each.parent
+    over = each.parent.parent if each is not None and each.parent is not None else None
+    if over is None or over.type != "call_expression" or read.text(over.child_by_field_name("function").child_by_field_name("property") or over) not in {"map", "flatMap"}:
+        return None
+    thing = read.text(each.child_by_field_name("parameters").named_children[0])
+    shows = re.findall(rf"(?<![\w$.]){re.escape(thing)}((?:\.[A-Za-z_$][\w$]*)?)(?![\w$(])", read.text(parts[2]))
+    path = _in_the_state(read, over.child_by_field_name("function").child_by_field_name("object"))
+    return (before, after, path, shows[0].lstrip(".")) if shows and path else None
+
+
+def _in_the_state(read: Read, node: Any) -> list[str]:
+    """Where in the state an expression is, by what its names were given; [] where it is nowhere plain."""
+    function = _function_of(node)
+    state = _state_name(read, node)
+    text = read.text(node)
+    for _ in range(4):
+        if not re.fullmatch(r"[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*", text):
+            return []
+        head, *rest = text.split(".")
+        if head == state:
+            return rest
+        given = next((read.text(n.child_by_field_name("value")) for n in _walk(function) if n.type == "variable_declarator" and n.child_by_field_name("value") is not None
+                      and read.text(n.child_by_field_name("name")) == head), "") if function is not None else ""
+        if not given:
+            return []
+        text = ".".join([given, *rest])
+    return []
 
 
 def _statements(read: Read, got: _Collected, nodes: Sequence[Any], evidence: Evidence) -> None:

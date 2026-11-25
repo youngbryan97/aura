@@ -43,7 +43,7 @@ from core.making.design import (
 from core.making.many_ways import SORTS
 from core.making.many_ways import made as made_with
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
-from core.making.searching import could_be_believed, is_believed, search
+from core.making.searching import CHECKS_SEARCHED, could_be_believed, is_believed, search
 from core.making.searching_python import made_python, search_python
 from core.making.tools import Case, Cases, Language, languages, lines_each_ran, try_tool
 from core.making.trying import (
@@ -160,7 +160,10 @@ def another_way(check: Another) -> str:
     name = json.dumps(f"{check.claims.rstrip('.')}{ANOTHER_WAY}")
     return (f"test({name}, t => {{ const inputs = {check.inputs}, surely = {check.surely}, holds = {check.holds}; let z = 11, says_nothing = 0; "
             "const r = () => (z = (z * 48271) % 2147483647) / 2147483647, copy = (x) => JSON.parse(JSON.stringify(x)); "
-            "for (let i = 0; i < 150; i++) { const args = inputs(r), got = t.call(" + json.dumps(check.function) + ", ...copy(args)), sure = surely(...copy(args)); "
+            "Object.assign(r, { between: (a, b) => a + r() * (b - a), int: (a, b) => a + Math.floor(r() * (b - a + 1)), pick: (all) => all[Math.floor(r() * all.length)], shuffle: (all) => all.map((x) => [r(), x]).sort((a, b) => a[0] - b[0]).map((x) => x[1]) }); "
+            # What it is made of going wrong is its own fault, and no fault of the function's.
+            "const own = (f) => { try { return f(); } catch (e) { e.theTest = true; throw e; } }; "
+            "for (let i = 0; i < 150; i++) { const args = own(() => inputs(r)), got = t.call(" + json.dumps(check.function) + ", ...copy(args)), sure = own(() => surely(...copy(args))); "
             "let nothing = false; try { nothing = holds(null, sure, args) === true; } catch (e) { nothing = false; } if (nothing) says_nothing++; "
             "t.expect(holds(got, sure, args) === true, `for ${JSON.stringify(args).slice(0, 220)} it gives ${JSON.stringify(got).slice(0, 220)}, and ${JSON.stringify(sure).slice(0, 120)} is what is surely so`); } "
             "if (says_nothing > 100) { const e = new Error('this holds of no answer at all, so it says nothing of one'); e.theTest = true; throw e; } });")
@@ -572,6 +575,11 @@ class _Maker:
                 self._known = set()
                 self.trial = await self.tried(what="Trying it, with the tests read again")
                 continue
+            # What is so of any program is no test of hers that may be the one that is wrong: a mend that puts that right, and
+            # something else, is found by searching before a second test of anything is written.
+            if await self._a_searched_mend(failing, of_any_program=True):
+                nothing_gained = 0
+                continue
             if await self._tested_again(failing):
                 continue
             if await self._a_searched_mend(failing) or await self._her_own_mend(failing) or await self._small_edits(failing):
@@ -642,14 +650,19 @@ class _Maker:
                 self.trial = await self.tried(what="Trying it, with the tests put right")
         return True
 
-    async def _a_searched_mend(self, failing: list[Result]) -> bool:
-        """A mend found by searching, thousands of ways tried against its tests without her model; whether one was kept."""
+    async def _a_searched_mend(self, failing: list[Result], *, of_any_program: bool = False) -> bool:
+        """A mend found by searching, thousands of ways tried against its tests without her model; whether one was kept.
+        ``of_any_program`` is for one that puts right something that is so of any program."""
         assert self.design is not None
+        anywhere = {r.name for r in self.trial.generic if not r.ok and r.name in CHECKS_SEARCHED}
+        if of_any_program and not anywhere:
+            return False
         code = self.parts.code()
         python = self.design.kind == "tool" and self.language().name == "python"
-        if not (python or self.design.kind in {"app", "game"}) or code in self._searched:
+        with_tests = f"{of_any_program}\n{code}\n{self.parts.tests}\n{json.dumps(self.parts.cases)}"
+        if not (python or self.design.kind in {"app", "game"}) or with_tests in self._searched:
             return False
-        self._searched.add(code)
+        self._searched.add(with_tests)
         self.work.step("Searching the ways it could be changed, each tried against its tests")
         pays = {sort: get_kept().pays(sort) for sort in SORTS}
         if python:
@@ -662,6 +675,8 @@ class _Maker:
             self.work.says(f"Tried {found.says()}, without her model: {len(found.mends)} make something hold that failed"
                            + (f", and {len(likely)} of them leave the rest as it was." if found.mends else "."))
         before, had = self._wrong(self.trial), {r.name for r in failing}
+        # What fails of a check of any program, more of it than did: a mend of one thing is not to be another of the same.
+        amiss = {r.name: r.got for r in self.trial.generic if not r.ok}
         best: tuple[tuple[int, float], Parts, Trial, Any] | None = None
         for mend in sorted(likely, key=lambda m: not is_believed(m, found))[:BELIEVED]:
             parts = self._with_code(made_python(code, mend.way) if python else made_with(code, mend.way))
@@ -671,6 +686,10 @@ class _Maker:
             wrong, now = self._wrong(trial), {r.name for r in trial.failing()}
             # What two things bear out: two tests of the rule, or two things that failed and now hold.
             borne_out = is_believed(mend, found) or len({rule_of(name) for name in had - now}) > 1
+            if of_any_program and not anywhere & (had - now):
+                continue
+            if any(not r.ok and r.got < amiss.get(r.name, r.got) for r in trial.generic):
+                continue
             if wrong < (best[0] if best else before) and not now - had and borne_out:
                 best = (wrong, parts, trial, mend)
             else:
@@ -1113,8 +1132,9 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
             return 4.0
         if result.why.startswith("pressing it changes nothing"):
             return 1.0
-        # A test that got as far as what it expects is nearer than one the program broke in.
-        return 3.0 if result.broke else 2.0
+        # A test that got as far as what it expects is nearer than one the program broke in, and one that did more of what it
+        # does before it failed is nearer than one that did less.
+        return (3.0 if result.broke else 2.0) - 0.5 * result.got / (abs(result.got) + 4.0)
 
     # A rule that is tested twice is one rule, and is not had until both hold.
     most: dict[str, float] = {}

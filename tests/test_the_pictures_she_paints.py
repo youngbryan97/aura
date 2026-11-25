@@ -185,3 +185,4 @@ def test_half_of_her_painter_is_held_in_half_precision_and_its_decoder_whole():
     assert skill._as_latents(pipe) == {"output_type": "latent"}
     pipe.unet = Part("whole")
     assert skill._as_latents(pipe) == {} and skill._decoded(pipe, ["picture"]) == "picture"
+
