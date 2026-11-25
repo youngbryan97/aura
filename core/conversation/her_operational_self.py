@@ -65,14 +65,23 @@ def _forecast_evidence() -> list[str]:
 def _development_evidence() -> list[str]:
     from core.ontogeny.lifetime import last_reading
 
+    from core.runtime.service_access import optional_service
+
     reading = last_reading()
-    if reading is None:
-        return ["No developmental reading is available in this runtime yet."]
-    return [
+    lines = ["No developmental reading is available in this runtime yet."] if reading is None else [
         f"Developmental reservoir: {reading.steps:,} state updates carried in era {reading.era}.",
         f"Latest observation's novelty relative to the kept state: {reading.novelty:.3g}.",
-        "The update count measures accumulated state changes, with an era boundary when the reservoir was reset.",
+        "The update count measures accumulated state updates, with an era boundary when the reservoir was reset.",
     ]
+    executive = optional_service("executive_core")
+    if executive is not None:
+        deferred, observed = executive.reentry_decision_evidence()
+        if observed:
+            lines.append(
+                f"Executive decision receipts: {deferred} of {observed} recent decisions in this session "
+                "were deferrals that required obligations restored from an earlier session."
+            )
+    return lines
 
 
 async def inject_operational_self_context(objective: str = "") -> str:

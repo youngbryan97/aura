@@ -126,3 +126,14 @@ def test_forecast_outcomes_and_developmental_history_are_separate_evidence(monke
     forecasts = _render(monkeypatch, {"forecasts"})
     assert "9 paired ticks" in forecasts and "forecast error 0.17, no-change error 0.09" in forecasts
     assert "1,700 state updates" not in forecasts
+
+
+def test_development_context_reports_restored_influence_from_decision_receipts(monkeypatch):
+    import core.runtime.service_access as services
+
+    monkeypatch.setattr(services, "optional_service", lambda name: SimpleNamespace(
+        reentry_decision_evidence=lambda: (3, 9),
+    ))
+    block = _render(monkeypatch, {"development"})
+    assert "3 of 9 recent decisions in this session" in block
+    assert "obligations restored from an earlier session" in block

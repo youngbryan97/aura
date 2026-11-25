@@ -1306,3 +1306,32 @@ async def test_executive_defers_background_task_when_internal_energy_is_low(serv
 
     assert approved is False
     assert reason.startswith("internal_state_energy_low:")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("pending", "required"), [
+    ([], True),
+    ([{"goal": "Continue a restored review", "continuity_restored": True}], True),
+    ([{"goal": "Finish a current review"}], False),
+])
+async def test_executive_can_distinguish_a_deferral_that_required_restored_work(
+    service_container, monkeypatch, pending, required
+):
+    from core import continuity
+
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.pending_initiatives = pending
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    monkeypatch.setattr(continuity, "get_continuity", lambda: SimpleNamespace(
+        _record=object(),
+        get_obligations=lambda: {"active_commitments": ["Continue the earlier task"]},
+    ))
+    executive = executive_core_module.get_executive_core()
+    approved, reason = await executive.approve_background_task("novelty_probe", source="background")
+    assert not approved and reason.startswith("temporal_obligation_active:")
+    assert executive.reentry_decision_evidence() == (int(required), 1)

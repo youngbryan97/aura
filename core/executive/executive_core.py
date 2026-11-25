@@ -369,6 +369,7 @@ class DecisionRecord:
     identity_check: bool = True  # did this pass identity assertion?
     constraints: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=lambda: time.time())
+    reentry_obligation_required: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -377,6 +378,7 @@ class DecisionRecord:
             "reason": self.reason,
             "coherence": self.coherence_at_decision,
             "identity_check": self.identity_check,
+            "reentry_obligation_required": self.reentry_obligation_required,
             "constraints": self.constraints,
             "timestamp": self.timestamp,
         }
@@ -755,6 +757,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             return self._defer(
                 intent,
                 f"temporal_obligation_active:{temporal['anchor']}",
+                reentry_obligation_required=bool(temporal.get("reentry_obligation_required")),
             )
 
         # Rule 6: Internal states are causally binding for autonomous behavior.
@@ -1073,8 +1076,9 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                 coherence: float = 0.0) -> DecisionRecord:
         return self._commit(intent, DecisionOutcome.REJECTED, reason, coherence)
 
-    def _defer(self, intent: Intent, reason: str) -> DecisionRecord:
-        return self._commit(intent, DecisionOutcome.DEFERRED, reason, 1.0)
+    def _defer(self, intent: Intent, reason: str, *, reentry_obligation_required: bool = False) -> DecisionRecord:
+        return self._commit(intent, DecisionOutcome.DEFERRED, reason, 1.0,
+                            reentry_obligation_required=reentry_obligation_required)
 
     def _degrade(self, intent: Intent, reason: str,
                  coherence: float, constraints: Dict = None) -> DecisionRecord:
@@ -1089,6 +1093,8 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         reason: str,
         coherence: float,
         constraints: Dict | None = None,
+        *,
+        reentry_obligation_required: bool = False,
     ) -> DecisionRecord:
         """The single point where an admission verdict becomes real.
 
@@ -1135,6 +1141,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             coherence_at_decision=coherence,
             identity_check=final is not DecisionOutcome.REJECTED,
             constraints=dict(constraints or {}),
+            reentry_obligation_required=reentry_obligation_required and final is DecisionOutcome.DEFERRED,
         )
         if final in (DecisionOutcome.APPROVED, DecisionOutcome.DEGRADED):
             self._active_intents[intent.intent_id] = intent
@@ -1331,6 +1338,15 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             logger.debug("Suppressed Exception: %s", _exc)
         return not self._strict_runtime_active()
 
+    @staticmethod
+    def _is_restored_obligation(item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        metadata = item.get("metadata")
+        return item.get("continuity_restored") is True or (
+            isinstance(metadata, dict) and metadata.get("continuity_restored") is True
+        )
+
     def _get_temporal_identity_context(self) -> Dict[str, Any]:
         current_objective = ""
         current_origin = ""
@@ -1342,6 +1358,8 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         anchor = "none"
         pending_anchor = ""
         active_goal_anchor = ""
+        live_obligations_measured = False
+        live_obligations = False
         try:
             repo = resolve_state_repository(default=None)
             state = getattr(repo, "_current", None) if repo is not None else None
@@ -1357,6 +1375,10 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             contradiction_count = int(getattr(cognition, "contradiction_count", 0) or 0)
             pending_anchor = first_actionable_goal_text(pending_items)
             active_goal_anchor = first_actionable_goal_text(active_goal_items)
+            live_obligations = any(
+                not self._is_restored_obligation(item) for item in (*pending_items, *active_goal_items)
+            )
+            live_obligations_measured = cognition is not None
         except (RuntimeError, AttributeError, TypeError) as _exc:
             record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
@@ -1394,12 +1416,14 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                     goal_engine.get_active_goals(limit=6, include_external=True, actionable_only=True) or []
                 )
                 if active_goal_items:
+                    live_obligations |= any(not self._is_restored_obligation(item) for item in active_goal_items)
                     active_goal_count = max(active_goal_count, len(active_goal_items))
                     if not current_objective:
                         current_objective = first_actionable_goal_text(active_goal_items)
                     if not active_goal_anchor:
                         active_goal_anchor = first_actionable_goal_text(active_goal_items)
         except (ImportError, AttributeError, RuntimeError) as _exc:
+            live_obligations_measured = False
             record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -1471,6 +1495,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             "commitments": commitments[:5],
             "contradiction_count": contradiction_count,
             "obligation_pressure": round(obligation_pressure, 4),
+            "reentry_obligation_required": live_obligations_measured and obligation_pressure > 0.0 and not live_obligations,
             "anchor": str(anchor or "none")[:80],
         }
 
@@ -1670,6 +1695,11 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
             "recent_decisions": [d.to_dict() for d in list(self._decision_history)[-10:]],
         }
 
+    def reentry_decision_evidence(self) -> tuple[int, int]:
+        """Recent deferrals that required restored obligations, and decisions observed."""
+        records = self.get_decision_history(n=64)
+        return sum(record.reentry_obligation_required for record in records), len(records)
+
     def get_decision_history(self, n: int = 20) -> List[DecisionRecord]:
         return list(self._decision_history)[-n:]
 
@@ -1717,6 +1747,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
                     "reason": record.reason,
                     "coherence": record.coherence_at_decision,
                     "identity_check": record.identity_check,
+                    "reentry_obligation_required": record.reentry_obligation_required,
                     "self_model_available": self._identity_integrity_available(),
                     "temporal_anchor": temporal.get("anchor", ""),
                     "pending_initiatives": temporal.get("pending_count", 0),
