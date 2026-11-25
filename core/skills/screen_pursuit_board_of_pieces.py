@@ -31,6 +31,13 @@ LOOKED_FOR_EVERY_S = 4.0
 LEFT_UNTIL_S = 8.0
 
 
+def _fewer_than_it_begins_with(start: dict, learned: Any) -> bool:
+    """Whether a board read as two sides at their start holds fewer pieces than her record says this board's game
+    begins with."""
+    kept = getattr(learned, "start", None) or {}
+    return bool(kept) and len(start) < len(kept)
+
+
 async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[str, Any],
                                    seen: dict[str, Any] | None = None) -> dict[str, Any] | None:
     """Where ``target_app``'s window shows two sides of pieces at their start, play the game and say what came of it;
@@ -73,6 +80,13 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     if seat is None:
         return None
     learned = keep.get("pieces_learned") or kept.get("rules")
+    if _fewer_than_it_begins_with(seat.start, learned):
+        # A game begins with every piece it will have and loses them as it goes: a board of two sides with fewer is a
+        # game under way or over. LIVE 25 November 2026 a finished game's board, its sides still apart, was taken for
+        # one at its start; read as one, it taught her a look of a glow round a piece, and became her record's start.
+        logger.info("two sides in %r with fewer pieces than its game begins with: a game under way or over",
+                    target_app)
+        return None
     # The rehearsal she has in hand from a game this sitting, or the one kept with her record, whichever has run more
     # rounds: practice between games (core/agency/practising_between_games.py) keeps its rounds with the record.
     in_hand, recorded = keep.get("pieces_rehearsal"), kept.get("rehearsal")

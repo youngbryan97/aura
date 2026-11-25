@@ -931,8 +931,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         game.stood_still_at = monotonic_time()
         picture, seen = still
         others = _only_the_others(game.learned)
-        shown = _read_against(seat.as_rules(seen), game.believed.cells, others)
         landed = game.last_followed.end if game.last_followed is not None else None
+        shown = _read_against(seat.as_rules(seen), game.believed.cells, others, _held_by_each(game.learned), landed)
         shown = _what_arrived_changed(seat, picture, shown, game.believed.cells, others, landed)
         game.became_on_landing(shown)
         if not _agrees(shown, game.believed.cells):
@@ -1772,20 +1772,36 @@ def _only_the_others(learned: HowThePiecesMove) -> dict[int, set[str]]:
     return {FIRST: second - first, SECOND: first - second}
 
 
+def _held_by_each(learned: HowThePiecesMove) -> dict[int, set[str]]:
+    """For each side, the kinds it has held: those it began with, and what they are held to become."""
+    return {FIRST: learned.kinds_of(FIRST), SECOND: learned.kinds_of(SECOND)}
+
+
 def _without_marks_where_nothing_stood(shown: dict, believed: dict) -> dict:
     """The board read without the looks she could not read on squares she held empty."""
     return {square: held for square, held in shown.items() if held[1] is not None or square in believed}
 
 
-def _read_against(shown: dict, believed: dict, others: dict[int, set[str]] | None = None) -> dict:
+def _read_against(shown: dict, believed: dict, others: dict[int, set[str]] | None = None,
+                  held: dict[int, set[str]] | None = None, landed: tuple[int, int] | None = None) -> dict:
     """The board read, where a piece's look was unread taking its side from the board she holds: a mark that changes
     how a piece looks (a glow round a piece under attack) changes its colour as well, and a piece does not change side
     where it stands. A piece read as a kind only the other side has held (``others``) is read as unread: LIVE-like
     22 November 2026 a dark man crowned on its far row was read as a light man, and the backward moves it made after
-    taught her own men to step back."""
+    taught her own men to step back.
+
+    Nor does a piece become another kind where it stands: a piece of a side, on a square where she holds a piece of
+    that side that did not just land there (``landed``), read as a kind its side has never held (``held``: at the start
+    or by becoming), is a mark over it and read as unread. LIVE 25 November 2026 her royal piece, under attack, was
+    drawn with a glow her kept looks held as a look of its own; read as that, it was no longer the piece the game
+    keeps safe, and twice she moved as if it were not attacked."""
     out = dict(shown)
     for square, (side, kind) in shown.items():
         if others is not None and kind is not None and kind in others.get(side, set()):
+            out[square] = (side, None)
+            kind = None
+        elif (held is not None and kind is not None and square != landed and square in believed
+              and believed[square][0] == side and believed[square][1] != kind and kind not in held.get(side, set())):
             out[square] = (side, None)
             kind = None
         if kind is None and square in believed:
@@ -1864,12 +1880,14 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
         picture = await look()
         seen = None if picture is None else seat.looks.read(picture, seat.lattice, settled=True)
         if seen is not None and _shows_her_move(_read_against(seat.as_rules(seen), game.believed.cells,
-                                                              _only_the_others(game.learned)), move):
+                                                              _only_the_others(game.learned),
+                                                              _held_by_each(game.learned), move.end), move):
             return True
         still = await _seen_still(seat, look, within_s=MOVE_SHOWS_S)
         if still is None:
             return False
-        shown = _read_against(seat.as_rules(still[1]), game.believed.cells, _only_the_others(game.learned))
+        shown = _read_against(seat.as_rules(still[1]), game.believed.cells, _only_the_others(game.learned),
+                              _held_by_each(game.learned), move.end)
         if not _agrees(shown, game.believed.cells):
             game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
             seen_moves = moves_seen(game.believed, shown, FIRST, game.learned.family())
