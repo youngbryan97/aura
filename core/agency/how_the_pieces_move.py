@@ -83,7 +83,7 @@ SEEN_TO_BELIEVE = 3
 #: game did not offer counts against taking that way only where nothing else explains it (e9745c00a). What an earlier
 #: reading gathered weighs as kept knowledge does when it comes back (core/runtime/what_she_learned.py,
 #: TRUST_CARRIED_OVER), once, the first time the record is read after.
-READING = 4
+READING = 5
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -130,6 +130,9 @@ class _Seen:
     over_refused: int = 0
     #: Distances it was offered, or seen to go, onto a square held by a piece of its own side, the two changing places.
     swapped: set[int] = field(default_factory=set)
+    #: Distances at which a piece of its own side stood, nothing between, and the game did not offer the two changing
+    #: places: what a change of places seen too seldom to be believed is weighed against.
+    not_swapped: set[int] = field(default_factory=set)
     #: For each distance, how many times it was offered or seen gone to an empty square and onto a piece of the other
     #: side, and how many times the game refused her a move that far of each sort (a refusal that what the move left
     #: open does not explain). The game's word against the game's word: a distance stands while going or taking that
@@ -285,6 +288,17 @@ class HowThePiecesMove:
     #: Takes counted as not offered by a reading before READING 4, to be read again against the answers kept once they
     #: are attached (``withheld_takes_read_again``).
     withheld_takes_unchecked: bool = field(default=False, repr=False, compare=False)
+    #: Empty squares counted as not offered by a reading before READING 5, to be read again against the answers kept
+    #: (``withheld_moves_read_again``).
+    withheld_moves_unchecked: bool = field(default=False, repr=False, compare=False)
+    #: How many times each kind was seen to become each other kind where its move ended.
+    became: dict[str, dict[str, int]] = field(default_factory=dict)
+    #: The rows, counted from its own side's back row, on which a kind was seen to become another.
+    became_on_rows: dict[str, set[int]] = field(default_factory=dict)
+    #: How many times a kind ended a move on such a row and stayed what it was: what a becoming is weighed against.
+    stayed: dict[str, int] = field(default_factory=dict)
+    #: The last landing counted as staying (kind, row), undone if a second look shows the piece became another kind.
+    _last_stay: tuple[str, int] | None = field(default=None, repr=False, compare=False)
 
     def _saw_special(self, kind: str, sort: str) -> None:
         key = f"{kind}|{sort}"
@@ -355,9 +369,13 @@ class HowThePiecesMove:
                         elif squares and kind in self.seen and direction in self.seen[kind]:
                             # An offer of nothing may be a piece not picked up, or a board not yet taking moves
                             # (LIVE 23 November 2026, a game's setup board, picked up piece by piece): it withholds
-                            # nothing.
-                            way = self.seen[kind][direction]
-                            (way.withheld_unmoved if unmoved else way.withheld).add(times)
+                            # nothing. Nor does a square the move to which would leave the kind the game keeps safe
+                            # where it can be taken, as a take not offered does not: LIVE 25 November 2026 her
+                            # straight-runner was held never to go six or seven squares along its row, from squares
+                            # withheld while a piece of hers was kept safe.
+                            if not self._kept_safe_explains(position, Move(square, there), family):
+                                way = self.seen[kind][direction]
+                                (way.withheld_unmoved if unmoved else way.withheld).add(times)
                     else:
                         if held[0] != side:
                             if is_offered:
@@ -376,6 +394,8 @@ class HowThePiecesMove:
                             # A square of its own side offered: the two change places.
                             self._of(kind, direction).swapped.add(times)
                             self._saw_special(kind, "swaps")
+                        elif squares and there not in crossing_to and kind in self.seen and direction in self.seen[kind]:
+                            self.seen[kind][direction].not_swapped.add(times)
                         break
                     times += 1
         if family is not None:
@@ -553,7 +573,7 @@ class HowThePiecesMove:
         kinds = {kind for owner, kind in self.start.values() if owner == side}
         more = kinds
         while more:
-            more = {b for kind in more for b in self.becomes.get(kind, [])} - kinds
+            more = {b for kind in more for b in self.becomings(kind)} - kinds
             kinds |= more
         return kinds
 
@@ -639,7 +659,7 @@ class HowThePiecesMove:
                 hopped.over_took += 1
             if move.via:
                 self.takes_again.add(kind)
-            self._becomes(kind, move)
+            self._becomes(kind, move, self._row_from_its_back(side, move.end))
             return
         between = [_square_along(side, move.start, direction, t) for t in range(1, times)]
         if any(b in position.cells for b in between):
@@ -657,18 +677,52 @@ class HowThePiecesMove:
                 self.passes.add(victim)
         else:
             way.moved_to_empty += 1
-        self._becomes(kind, move)
+        self._becomes(kind, move, self._row_from_its_back(side, move.end))
 
-    def watched_becoming(self, kind: str, became: str) -> None:
-        """A piece of ``kind`` seen to have become ``became`` where its move ended."""
-        self._becomes(kind, Move((0, 0), (0, 0), becomes=became))
+    def watched_becoming(self, kind: str, became: str, row: int | None = None) -> None:
+        """A piece of ``kind`` seen to have become ``became`` where its move ended, on ``row`` counted from its own
+        side's back row. The landing, read first as staying what it was, is not counted as staying."""
+        if self._last_stay == (kind, row) and self.stayed.get(kind, 0) > 0:
+            self.stayed[kind] -= 1
+        self._last_stay = None
+        self._becomes(kind, Move((0, 0), (0, 0), becomes=became), row)
 
-    def _becomes(self, kind: str, move: Move) -> None:
+    def _row_from_its_back(self, side: int, square: Square) -> int:
+        return square[0] if side == FIRST else self.rows - 1 - square[0]
+
+    def _becomes(self, kind: str, move: Move, row: int | None = None) -> None:
+        """A move's end: where it made the piece another kind, that becoming is counted, with the row it happened on;
+        where it did not, and the piece ended on a row where its kind has been seen to become another, it stayed."""
+        self._last_stay = None
         if move.becomes and move.becomes != kind:
             options = self.becomes.setdefault(kind, [])
             if move.becomes not in options:
                 options.append(move.becomes)
             self.seen.setdefault(move.becomes, {})
+            counts = self.became.setdefault(kind, {})
+            counts[move.becomes] = counts.get(move.becomes, 0) + 1
+            if row is not None:
+                self.became_on_rows.setdefault(kind, set()).add(row)
+        elif row is not None and row in self.became_on_rows.get(kind, ()):
+            self.stayed[kind] = self.stayed.get(kind, 0) + 1
+            self._last_stay = (kind, row)
+
+    def becomings(self, kind: str) -> list[str]:
+        """What a piece of ``kind`` is held to become where its move ends. A becoming seen fewer times than a way is
+        believed on, and contradicted more often than seen (the kind ending a move on a row where it was seen to become
+        another, and staying what it was), is a misreading, as a way of taking is (``family``). LIVE 25 November 2026,
+        her record held that three kinds become others on the far row, from looks read once, and that her forward
+        steppers become nothing there."""
+        counts, against = self.became.get(kind, {}), self.stayed.get(kind, 0)
+        held = []
+        for other in self.becomes.get(kind, []):
+            seen = counts.get(other, 0)
+            if seen < SEEN_TO_BELIEVE and against > seen:
+                continue
+            if against and seen <= AGAINST_AT_MOST * against:
+                continue
+            held.append(other)
+        return held
 
     def refused(self, position: Position, move: Move, family: Family | None = None) -> None:
         """A move the game would not take. Where the rules she held allowed it, either the kind does not go there, or
@@ -881,7 +935,7 @@ class HowThePiecesMove:
                         out[kind], out[str(other)] = (str(other), flips), (kind, flips)
                 # What the images become are images of each other, where each becomes one kind.
                 for kind, (other, _flips) in list(out.items()):
-                    one, two = self.becomes.get(kind, []), self.becomes.get(other, [])
+                    one, two = self.becomings(kind), self.becomings(other)
                     if len(one) == 1 and len(two) == 1 and one[0] != two[0] and one[0] not in out:
                         out[one[0]], out[two[0]] = (two[0], flips), (one[0], flips)
                 return out
@@ -908,6 +962,11 @@ class HowThePiecesMove:
             # November 2026 her royal kind held three ways of changing places with its own pieces, each read once.
             swaps_sure = self.special_seen.get(f"{kind}|swaps", 0) >= SEEN_TO_BELIEVE
             for times in sorted(way.swapped):
+                # A change of places seen too seldom to be believed, and not offered at that distance with a piece of
+                # its own side standing there, is a misreading. LIVE 25 November 2026 her royal kind was held to change
+                # places four rows up and two across, from one look.
+                if not swaps_sure and times in way.not_swapped:
+                    continue
                 steps.append(Step(((direction[0] * times, direction[1] * times),), rides=1, may="swaps",
                                   sure=swaps_sure))
             over = sorted(way.over - way.offered - way.offered_unmoved) if not way.over_took else sorted(way.over)
@@ -999,7 +1058,7 @@ class HowThePiecesMove:
                     "took": seen.took, "would_not_take": seen.would_not_take,
                     "moved_to_empty": seen.moved_to_empty, "jumped": seen.jumped,
                     "over": sorted(seen.over), "over_took": seen.over_took, "over_refused": seen.over_refused,
-                    "swapped": sorted(seen.swapped),
+                    "swapped": sorted(seen.swapped), "not_swapped": sorted(seen.not_swapped),
                     **{name: {str(t): n for t, n in sorted(getattr(seen, name).items())} for name in _COUNTED}}
 
         return {
@@ -1008,6 +1067,9 @@ class HowThePiecesMove:
             "seen": {kind: {f"{d[0]},{d[1]}": way(w) for d, w in ways.items()} for kind, ways in self.seen.items()},
             "kept_off_attacked": dict(self.kept_off_attacked), "went_onto_attacked": dict(self.went_onto_attacked),
             "crosses": dict(self.crosses), "becomes": {k: list(v) for k, v in self.becomes.items()},
+            "became": {k: dict(v) for k, v in self.became.items()},
+            "became_on_rows": {k: sorted(v) for k, v in self.became_on_rows.items()},
+            "stayed": dict(self.stayed),
             "passes": sorted(self.passes), "takes_passing": sorted(self.takes_passing),
             "refusals": self.refusals, "refused_leaving_open": dict(self.refused_leaving_open),
             "taken_and_played_on": dict(self.taken_and_played_on), "first_was_hers": self.first_was_hers,
@@ -1036,6 +1098,7 @@ class HowThePiecesMove:
                     seen.over = {int(t) for t in w.get("over", [])}
                     seen.over_took, seen.over_refused = int(w.get("over_took", 0)), int(w.get("over_refused", 0))
                     seen.swapped = {int(t) for t in w.get("swapped", [])}
+                    seen.not_swapped = {int(t) for t in w.get("not_swapped", [])}
                     for name in _COUNTED:
                         setattr(seen, name, {int(t): int(n) for t, n in (w.get(name) or {}).items()})
                 learned.seen.setdefault(kind, {})
@@ -1043,6 +1106,9 @@ class HowThePiecesMove:
             learned.went_onto_attacked = {k: int(v) for k, v in kept.get("went_onto_attacked", {}).items()}
             learned.crosses = dict(kept.get("crosses", {}))
             learned.becomes = {k: list(v) for k, v in kept.get("becomes", {}).items()}
+            learned.became = {str(k): {str(b): int(n) for b, n in v.items()} for k, v in kept.get("became", {}).items()}
+            learned.became_on_rows = {str(k): {int(r) for r in v} for k, v in kept.get("became_on_rows", {}).items()}
+            learned.stayed = {str(k): int(v) for k, v in kept.get("stayed", {}).items()}
             learned.passes, learned.takes_passing = set(kept.get("passes", [])), set(kept.get("takes_passing", []))
             learned.refusals = int(kept.get("refusals", 0))
             learned.refused_leaving_open = {k: int(v) for k, v in kept.get("refused_leaving_open", {}).items()}
@@ -1059,10 +1125,12 @@ class HowThePiecesMove:
             read_by = int(kept.get("read_by", 1))
             if read_by < 2:
                 learned._weighed_as_read_before_mending()
-            if read_by < 3:
+            if read_by < 5:
                 learned._unlisted_as_read_before_mending()
             if read_by < 4:
                 learned.withheld_takes_unchecked = True
+            if read_by < 5:
+                learned.withheld_moves_unchecked = True
             learned.read_by = READING
             return learned
         except (KeyError, TypeError, ValueError) as why:
@@ -1160,15 +1228,63 @@ class HowThePiecesMove:
         logger.info("takes an earlier reading counted as not offered, read again against %d answers kept: %d let go",
                     len(self.shown.offers) + len(self.shown.refusals), let_go)
 
+    def withheld_moves_read_again(self) -> None:
+        """Empty squares an earlier reading counted as not offered, read again against the answers kept (``shown``):
+        before READING 5 a square was counted withheld whatever explained it, the squares a piece was kept off because
+        going there would leave the kind the game keeps safe where it could be taken among them, and a withheld
+        distance is a set, so one such square stood against that distance for good. What was kept stands as far as the
+        answers kept, read as now, bear it out, as READING 4 did for takes, and the rest is let go, to be learned again
+        the next time a square that way is withheld with nothing to explain it. Where the answers show a piece of its
+        own side not offered to change places with it, that is counted too. LIVE 25 November 2026 her straight-runner
+        was held never to go six or seven squares along its row, from squares no answer kept showed withheld."""
+        if not self.withheld_moves_unchecked or self.shown is None:
+            return
+        import copy
+
+        from core.agency.what_the_game_showed import _read
+
+        family = self.family()
+        again = copy.deepcopy(self)
+        again.shown = None
+        for ways in again.seen.values():
+            for way in ways.values():
+                way.withheld, way.withheld_unmoved, way.not_swapped = set(), set(), set()
+        for answer in self.shown.offers:
+            try:
+                position = _read(answer["at"])
+            # not a failure: an answer kept by an older reader that cannot be read back bears out nothing.
+            except (KeyError, TypeError, ValueError):
+                continue
+            start = tuple(answer["from"])
+            if start not in position.cells or position.cells[start][0] != position.turn or not answer["to"]:
+                continue
+            again.offered(position, start, {tuple(sq) for sq in answer["to"]}, family=family)
+        let_go = 0
+        for kind, ways in self.seen.items():
+            for direction, way in ways.items():
+                borne_out = again.seen.get(kind, {}).get(direction)
+                for unmoved, held in ((False, way.withheld), (True, way.withheld_unmoved)):
+                    shown = (borne_out.withheld_unmoved if unmoved else borne_out.withheld) if borne_out else set()
+                    kept = held & shown
+                    let_go += len(held - kept)
+                    held.clear()
+                    held.update(kept)
+                if borne_out is not None:
+                    way.not_swapped |= borne_out.not_swapped
+        self.withheld_moves_unchecked = False
+        logger.info("squares an earlier reading counted as not offered, read again against %d answers kept: %d let go",
+                    len(self.shown.offers), let_go)
+
     def _unlisted_as_read_before_mending(self) -> None:
-        """What an earlier reading kept as a bare list with no count, of kinds a piece was read as having become: each
+        """What a reading before READING 5 kept as a bare list with no count, of kinds a piece was read as having become
+        (READING 3 let go of the lists before it, and they were filled again the same way): each
         stands for at least one reading of no known number, and weighed as every count of that reading is
         (TRUST_CARRIED_OVER of one) it comes to less than one, and is let go. A kind's becoming is learned again the
         next time two looks show it (core/agency/playing_pieces_by_kind.py, became_on_landing). LIVE 24 November 2026,
         measured on her record: two kinds held to become a third cost every game of 42 against a stronger program, and
         taking what each kind becomes from the true game alone lifted that to 0.119."""
         let_go = sum(len(v) for v in self.becomes.values())
-        self.becomes = {}
+        self.becomes, self.became, self.became_on_rows, self.stayed = {}, {}, {}, {}
         logger.info("what an earlier reading kept of kinds becoming others is let go: %d entries", let_go)
 
     def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> HowThePiecesMove:
@@ -1187,12 +1303,17 @@ class HowThePiecesMove:
             seen={names[kind]: {d: replace(w, offered=set(w.offered), offered_unmoved=set(w.offered_unmoved),
                                            withheld=set(w.withheld), withheld_unmoved=set(w.withheld_unmoved),
                                            over=set(w.over), swapped=set(w.swapped),
+                                           not_swapped=set(w.not_swapped),
                                            **{name: dict(getattr(w, name)) for name in _COUNTED})
                                 for d, w in ways.items()}
                   for kind, ways in self.seen.items() if kind in names},
             kept_off_attacked=counts(self.kept_off_attacked), went_onto_attacked=counts(self.went_onto_attacked),
             crosses={names[k]: names[v] for k, v in self.crosses.items() if k in names and v in names},
             becomes={names[k]: [names[v] for v in vs if v in names] for k, vs in self.becomes.items() if k in names},
+            became={names[k]: {names[b]: n for b, n in v.items() if b in names} for k, v in self.became.items()
+                    if k in names},
+            became_on_rows={names[k]: set(v) for k, v in self.became_on_rows.items() if k in names},
+            stayed=counts(self.stayed),
             passes={names[k] for k in self.passes if k in names},
             takes_passing={names[k] for k in self.takes_passing if k in names},
             names={names[k]: said for k, said in self.names.items() if k in names},
@@ -1233,7 +1354,7 @@ class HowThePiecesMove:
         there = {k for _s, k in self.start.values()} | {k for k, ways in self.seen.items() if ways}
         kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind) or (
                                 _EVERY_LINE if unseen_go_every_way else ())), royal=self.royal(kind),
-                            becomes=tuple(b for b in self.becomes.get(kind, ()) if b in there),
+                            becomes=tuple(b for b in self.becomings(kind) if b in there),
                             # A move that changes two things at once belongs to the kind the game offered it to, or
                             # was seen making it, often enough; not to whichever of the two a reading named as the
                             # mover. LIVE 24 November 2026 her record held the crossing both ways, from a reading

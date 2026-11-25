@@ -13,7 +13,7 @@ import asyncio
 
 import core.agency.playing_pieces_by_kind as playing
 import core.agency.searching_by_kind as searching
-from core.agency.how_the_pieces_move import ROYAL_AFTER, HowThePiecesMove
+from core.agency.how_the_pieces_move import READING, ROYAL_AFTER, HowThePiecesMove
 from core.agency.pieces_by_their_kind import FIRST, Position, in_check, moves
 from tests.fixtures.a_board_application import BoardApplication
 from tests.fixtures.a_game_of_pieces_to_learn import CHESS, NOBODYS_GAME, from_fen
@@ -235,7 +235,7 @@ def test_takes_an_earlier_reading_counted_as_not_offered_stand_as_far_as_the_ans
     assert learned.seen["K"][(0, 1)].would_not_take == 0
     assert not any(step.offsets == ((0, 1),) and step.may == "moves" for step in learned.family().kinds["K"].steps)
     learned.withheld_takes_read_again()  # once: the count is not read again
-    assert learned.read_by == 4 and not learned.withheld_takes_unchecked
+    assert learned.read_by == READING and not learned.withheld_takes_unchecked
 
     undefended = from_fen("7k/8/8/8/8/8/8/4Kp2 w - -")
     learned = HowThePiecesMove.from_memory(held)

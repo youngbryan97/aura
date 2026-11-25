@@ -107,7 +107,11 @@ class Family:
     takes_first: bool = False
 
     def kind(self, letter: str) -> Kind:
-        return self.kinds[letter]
+        """The kind of ``letter``. A look these rules hold no kind of is a kind of which nothing is known, as a kind
+        never seen to go is: no way of it is relied on. LIVE 25 November 2026 a piece the other side's step became was
+        read as such a look, and asking for its kind ended her account of the game, and what the game taught her."""
+        held = self.kinds.get(letter)
+        return held if held is not None else Kind(letter, steps=())
 
     def the_start(self) -> Position:
         return Position(cells=dict(self.start), turn=FIRST, unmoved=frozenset(self.start))

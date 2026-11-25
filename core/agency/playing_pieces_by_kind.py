@@ -667,7 +667,8 @@ class _Game:
             square, was, became = self.becoming
             now = shown.get(square)
             if now is not None and now[1] == became:
-                self.learned.watched_becoming(was, became)
+                self.learned.watched_becoming(was, became,
+                                              self.learned._row_from_its_back(now[0], square))
             if now is None or now[1] is not None:
                 self.becoming = None
         move = self.last_followed
