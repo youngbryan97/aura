@@ -395,12 +395,18 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
 
     from core.agency.what_a_kind_is_worth import RESULTS
     from core.cognition.when_more_thought_changes_the_answer import settled
-    from core.runtime.what_she_learned import remember, remember_beside
+    from core.runtime.what_she_learned import recall, remember, remember_beside
 
     # How often another depth changed her answer in the searches of this game: the curve she spends a soft time by is
     # fitted again on them, and kept.
     settled()
-    record: dict[str, Any] = {"app": target_app, "looks": looks.as_memory()}
+    # What this run has nothing new of stays as it was kept: a record is written whole, and a run with no rehearsal in
+    # hand (a board not yet taking moves) wrote hers without what she had measured each kind to be worth. LIVE 25
+    # November 2026 her record had lost the worth 136 rounds had earned her, and she played on the first guess, which
+    # holds a leaper worth less than a forward stepper: she gave a leaper for a forward stepper on her third move.
+    record: dict[str, Any] = {key: value for key, value in (recall(_her_record(target_app)) or {}).items()
+                              if key in ("rules", "went_wrong", "worth")}
+    record.update({"app": target_app, "looks": looks.as_memory()})
     if learned is not None:
         record["rules"] = learned.as_memory()
         shown = getattr(learned, "shown", None)
