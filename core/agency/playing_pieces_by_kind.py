@@ -89,6 +89,7 @@ MISREAD_AT_MOST = 20
 
 Look = Callable[[], Awaitable[Any]]
 Click = Callable[[float, float], Awaitable[bool]]
+EndReading = Callable[[], Awaitable[tuple[str, str]]]
 
 
 @dataclass
@@ -502,7 +503,8 @@ async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square
         showing = _marked(seat, picture, now, None) if now is not None and now.shape == picture.shape else set()
         if not showing or not await _put_down(seat, look, click, picture, square, showing, picked=False):
             return None
-    await click(*seat.centre_share(square, picture))
+    if await click(*seat.centre_share(square, picture)) is False:
+        return None
     await asyncio.sleep(OFFERS_SHOW_S)
     marked_picture = await look()
     if marked_picture is None or marked_picture.shape != picture.shape:
@@ -514,7 +516,7 @@ async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square
         await asyncio.sleep(OFFERS_SHOW_S / 2)
         again = await look()
         if again is None or again.shape != picture.shape:
-            break
+            continue
         settled = _marked(seat, picture, again, square)
         if settled == marked:
             break
@@ -523,8 +525,7 @@ async def _offers_for(seat: Seat, look: Look, click: Click, picture: Any, square
         await _put_down(seat, look, click, picture, square, marked)
         logger.info("the answer for the piece on %s did not hold still; read as nothing", square)
         return None
-    await _put_down(seat, look, click, picture, square, marked)
-    return marked
+    return marked if await _put_down(seat, look, click, picture, square, marked) else None
 
 
 async def _put_down(seat: Seat, look: Look, click: Click, picture: Any, square: tuple[int, int],
@@ -706,12 +707,14 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               borrow: Callable[[dict, bool], Any] | None = None,
                               went_wrong: WhatFailedWhere | None = None,
                               they_answered: WhatTheyAnsweredWhere | None = None,
-                              prepared: Any = None, held: Any = None, endings: Any = None) -> dict[str, Any]:
+                              prepared: Any = None, held: Any = None, endings: Any = None,
+                              read_end: EndReading | None = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
     for what she learned at a board that begins as this one does: its rules, its rehearsal and where she learned them,
-    or None. What came of it, with what she learned and the rehearsal, for her to keep."""
+    or None. Where supplied, ``read_end`` confirms the result from the playing surface before it is reported or
+    learned from. What came of it, with what she learned and the rehearsal, for her to keep."""
     from concurrent.futures import ThreadPoolExecutor
 
     from core.agency.practising_between_games import at_a_board
@@ -739,7 +742,7 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
                                they_answered=they_answered, prepared=prepared, held=held, endings=endings,
-                               map_pool=map_pool)
+                               map_pool=map_pool, read_end=read_end)
     finally:
         # Nothing worked out for this game goes on after it, however it ended.
         map_pool.stop()
@@ -868,7 +871,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 borrow: Callable[[dict, bool], Any] | None = None,
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
                 ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
-                prepared: Any = None, held: Any = None, endings: Any = None, map_pool: Any = None) -> dict[str, Any]:
+                prepared: Any = None, held: Any = None, endings: Any = None, map_pool: Any = None,
+                read_end: EndReading | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
@@ -1096,7 +1100,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 for start, ends in offers_left.items():
                     game.learned.offered(game.believed, start, ends, family=family)
             if not offers_left:
-                return _the_end(ended or "no move", game, tell)
+                return await _finish_game(ended or "no move", game, tell, read_end)
             logger.info("her model says the game is over (%s) and the game still offers %d move(s)",
                         ended or "no move", sum(len(v) for v in offers_left.values()))
             family = game.learned.family(unseen_go_every_way=True)
@@ -1233,15 +1237,15 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             family = game.learned.family(unseen_go_every_way=True)
             weights = rehearsing.weights_for(family)
         else:
-            # Every move she looked at was refused: she picks up every piece of hers. Where the game offers none of
-            # them anything, it has stopped her: the game is over.
+            # Every move she looked at was refused: she picks up every piece of hers to check if play can continue.
             for square in mine:
                 if square not in offered:
                     squares = await _offers_for(seat, look, click, picture, square)
                     if squares is not None:
                         offered[square] = squares
-            if offered and not any(offered.values()):
-                return _the_end("no move", game, tell)
+            if set(mine) <= offered.keys() and not any(offered.values()):
+                return await _finish_game("no move", game, tell, read_end)
+            found = None
         move = found.move if found is not None else None
         if move is None:
             # Her rules leave her nothing the game has not refused, and what the game offers decides, not her rules.
@@ -1253,7 +1257,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 for start, ends in offers_left.items():
                     game.learned.offered(game.believed, start, ends, family=family)
             if not offers_left:
-                return _the_end("no move", game, tell)
+                return await _finish_game("no move", game, tell, read_end)
             logger.info("her rules leave her no move and the game offers %d", sum(len(v) for v in offers_left.values()))
             await _made_as_offered(seat, look, click, picture, game, game.learned.family(unseen_go_every_way=True),
                                    offers_left, tell)
@@ -2064,7 +2068,14 @@ def _the_untaken_were_refused(game: _Game) -> None:
     game.untaken.clear()
 
 
-def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, Any]:
+async def _finish_game(ended: str, game: _Game, tell: Callable[[str], None],
+                       read_end: EndReading | None) -> dict[str, Any]:
+    observed = await read_end() if read_end is not None else None
+    return _the_end(ended, game, tell, observed=observed)
+
+
+def _the_end(ended: str, game: _Game, tell: Callable[[str], None], *,
+             observed: tuple[str, str] | None = None) -> dict[str, Any]:
     if game.untaken or game.unshown:
         # The board answered nothing after these: it had stopped answering, and they say nothing of the rules.
         logger.info("%d move(s) the board did not take and %d pick-up(s) it offered nothing, before it answered nothing "
@@ -2072,24 +2083,26 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
                     ", ".join(_named(move) for _at, move, _rules in game.untaken))
         game.untaken.clear()
         game.unshown.clear()
-    if ended.startswith("won:"):
+    if observed is not None:
+        result, evidence = observed
+        if result in ("won", "lost", "drawn") and evidence:
+            tell({"won": "The window says I won.", "lost": "The window says I lost.",
+                  "drawn": "The window says it was drawn."}[result])
+            if result == "lost":
+                _where_it_went_wrong(game)
+            if ended == "no move":
+                game.learned.the_window_said(result, game.believed, game.last_followed, game.earlier)
+        else:
+            result = "result unconfirmed"
+            tell("I couldn't get another move to register or verify a result. I'll leave the board open.")
+    elif ended.startswith("won:"):
         result = "won" if int(ended.split(":", 1)[1]) == FIRST else "lost"
         tell("I won." if result == "won" else "I lost. They found the better line.")
         if result == "lost":
             _where_it_went_wrong(game)
     elif ended == "no move":
-        family = game.learned.family()
-        if not any(k.royal for k in family.kinds.values()):
-            # The game stopped her: what of hers stood attacked is what it would not let her leave so. Kept as she
-            # keeps a refusal, so the next game is played knowing it.
-            game.learned.stopped_with_open(game.believed, family)
-            family = game.learned.family()
-        royal_attacked = any(k.royal for k in family.kinds.values()) and in_check(family, game.believed, FIRST)
-        result = "lost" if royal_attacked else "over"
-        if royal_attacked:
-            _where_it_went_wrong(game)
-        tell("I have no move left, with my piece that must be kept safe attacked: I lost." if royal_attacked
-             else "The game won't let me move any more, so it's over.")
+        result = "result unconfirmed"
+        tell("I couldn't get another move to register or verify a result.")
     else:
         result = "drawn"
         tell(f"It's a draw ({ended.split(':', 1)[-1].strip()}).")
@@ -2100,6 +2113,8 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
                   "acts": game.did.as_record(), "held": game.held,
                   # Every position she held before the last, for what the window says of how the game ended.
                   "positions": list(game.earlier)}
+    if observed is not None and result != "result unconfirmed":
+        ended_with["read_from_the_window"] = observed[1]
     outcome = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(result)
     if outcome is not None:
         game.held.came_to([score for _place, _move, score in game.judged], outcome)

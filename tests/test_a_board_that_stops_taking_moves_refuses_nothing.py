@@ -39,6 +39,11 @@ def test_moves_a_board_did_not_take_before_it_took_nothing_are_not_learned_as_re
     monkeypatch.setattr(HowThePiecesMove, "refused",
                         lambda self, position, move, family=None: refused.append((position, move)))
     said: list[str] = []
+    ending_reads: list[bool] = []
+
+    async def read_end() -> tuple[str, str]:
+        ending_reads.append(True)
+        return "", ""
 
     async def run() -> dict:
         seat = playing.a_board_of_two_sides_at_its_start(app.draw())
@@ -46,13 +51,16 @@ def test_moves_a_board_did_not_take_before_it_took_nothing_are_not_learned_as_re
         answering = asyncio.create_task(app.answers(stop))
         try:
             return await playing.play_pieces_by_kind(seat, app.look, app.click, seconds=6.0, say=said.append,
-                                                     thinks_s=0.05)
+                                                     thinks_s=0.05, read_end=read_end)
         finally:
             stop.set()
             await answering
 
     came = asyncio.run(run())
     assert came["moves"] >= 1
+    assert ending_reads == [True]
+    assert came["ended"] == "result unconfirmed"
+    assert came["ended"] not in ("won", "lost", "drawn")
     # Nothing the board did not take, once it had stopped taking anything, was learned as a refusal.
     assert refused == [], [move for _at, move in refused]
 

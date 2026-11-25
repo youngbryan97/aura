@@ -101,7 +101,9 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         return await _the_pixels_of(current)
 
     async def click(x: float, y: float) -> bool:
-        current = await asyncio.to_thread(window_server.window_of, target_app) or window
+        current = await asyncio.to_thread(window_server.window_of, target_app)
+        if current is None:
+            return False
         return await click_normalized(x, y, expect_app=target_app, bounds=list(current.bounds))
 
     async def clock() -> float | None:
@@ -116,18 +118,25 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
 
     # What the window says of the game as it begins (who plays, how strong, on what clock), kept with her record of
     # it: what she played against is part of what the game was. Read beside her first moves, not before them.
-    began = asyncio.create_task(the_words_in(target_app))
+    async def read_beginning() -> str:
+        try:
+            return await the_words_in(target_app)
+        except (OSError, RuntimeError, ValueError, TypeError) as why:
+            logger.info("the window was not read as the game began (%s)", why)
+            return ""
+
+    began = asyncio.create_task(read_beginning())
+
+    async def read_end() -> tuple[str, str]:
+        return await what_the_window_says_of_the_end(target_app, before=await began)
+
     came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
                                      learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
                                      went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
                                      they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
                                      prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"),
-                                     endings=kept.get("endings"))
-    try:
-        came["the_window_when_it_began"] = (await began)[:WORDS_KEPT]
-    # not a failure: a window whose words were not read leaves her record without them.
-    except (OSError, RuntimeError, ValueError, TypeError, asyncio.CancelledError) as why:
-        logger.info("the window was not read as the game began (%s)", why)
+                                     endings=kept.get("endings"), read_end=read_end)
+    came["the_window_when_it_began"] = (await began)[:WORDS_KEPT]
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -138,8 +147,9 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     held_now = came.pop("held", None)
     if held_now is not None:
         keep["pieces_held"] = held_now
-    # Where the game stood when it stopped, kept for reading how it ended; too long for the log.
-    final, last_move = came.pop("final", None), came.pop("last_move", None)
+    # The final position and move are too long for the log.
+    came.pop("final", None)
+    came.pop("last_move", None)
     earlier = came.pop("positions", None)
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
@@ -157,20 +167,6 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["board_would_not_take"] = True
         return None
     keep.pop("board_would_not_take", None)
-    if came.get("ended") == "over":
-        # The game stopped letting her move and her own model could not say why: the window says how it ended, as a
-        # person looks at the screen to see. LIVE 21 November 2026 she said "it's over" four times against Stockfish,
-        # with En Croissant reading "0-1 Black wins" beside the board.
-        ended, words = await what_the_window_says_of_the_end(target_app)
-        if ended:
-            came["ended"], came["read_from_the_window"] = ended, words[:300]
-            # How it ended is something she learns of the game: a side with no move lost, or a kind's arrival won.
-            if learned_now is not None and final is not None:
-                learned_now.the_window_said(ended, final, last_move, earlier)
-                await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
-                                        went_wrong_now, they_answered_now)
-            _tell({"won": "The window says I won.", "lost": "The window says I lost.",
-                   "drawn": "The window says it was drawn."}[ended], news=True)
     if came.get("ended") in GAME_OVER:
         # Finished, she closes what she opened for it, as a person puts a game away.
         from core.capabilities.host_automation import get_host_automation
@@ -196,9 +192,9 @@ async def the_words_in(target_app: str) -> str:
                       for region in (reading or {}).get("layout") or [] if str(region.get("text") or "").strip())
 
 
-async def what_the_window_says_of_the_end(target_app: str) -> tuple[str, str]:
+async def what_the_window_says_of_the_end(target_app: str, *, before: str = "") -> tuple[str, str]:
     """How a game ended, as the words in its window say it and her own model reads them: "won", "lost", "drawn", or ""
-    where they do not say; with the words read. The answers her model may give are those, and no others."""
+    where they do not say; with the exact newly visible text that states the result."""
     from typing import Literal
 
     from pydantic import create_model
@@ -209,25 +205,32 @@ async def what_the_window_says_of_the_end(target_app: str) -> tuple[str, str]:
 
     try:
         words = await the_words_in(target_app)
-    except (OSError, RuntimeError, ValueError) as why:
+    except (OSError, RuntimeError, ValueError, TypeError) as why:
         logger.info("the window was not read for how the game ended (%s)", why)
         return "", ""
-    if not words:
+    initial = {span.casefold() for span in before.split(" / ")}
+    new = list(dict.fromkeys(span for span in words.split(" / ") if span and span.casefold() not in initial))
+    visible = " / ".join(new)[:1500].split(" / ")
+    if not new:
         return "", ""
-    schema = create_model("_TheEnd", ended=(Literal[tuple(THE_ENDS)], ...))  # type: ignore[valid-type]
-    prompt = (f"She has just played a game of pieces in the application “{target_app}”, as the side nearest the "
-              f"bottom of its board, and the game has stopped letting her move. The words in its window now: "
-              f"{words[:1500]}\nWhich of these do the words say happened?")
+    schema = create_model("_TheEnd", ended=(Literal[tuple(THE_ENDS)], ...), source=(str, ""))  # type: ignore[valid-type]
+    prompt = (f"Her side is nearest the bottom in {target_app!r}. Does the window explicitly state a final result "
+              "for the current game? Player names, controls, clocks and scores during play are insufficient. "
+              "If there is a result, copy the entire text span that states it into source. If the result or "
+              "who it applies to is uncertain, answer 'the window does not say'.\n"
+              f"Full window context: {words[:1500]}\nNew text spans: {' / '.join(visible)}")
     try:
         got = await asked_patiently(ask_her_model, prompt, schema, 60, matters=THE_PLACE)
     except (RuntimeError, OSError, ValueError, TypeError, TimeoutError) as why:
         logger.info("how the game ended was not asked of her model (%s)", why)
-        return "", words
-    return THE_ENDS.get(str(getattr(got, "ended", "") or ""), ""), words
+        return "", ""
+    ended = THE_ENDS.get(str(getattr(got, "ended", "") or ""), "")
+    source = " ".join(str(getattr(got, "source", "") or "").split())
+    return (ended, source) if ended and source in new and source in visible else ("", "")
 
 
 #: How a game handed over can end, as opposed to running out of time or losing sight of the board.
-GAME_OVER = ("won", "lost", "drawn", "over")
+GAME_OVER = ("won", "lost", "drawn")
 
 
 #: A clock as a game shows one: minutes and seconds, with tenths or hours where it shows them.

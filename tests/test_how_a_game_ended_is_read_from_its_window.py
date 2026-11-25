@@ -27,10 +27,10 @@ def window(monkeypatch):
     monkeypatch.setattr(way_on, "_its_own_pixels_read", read)
     asked: list[str] = []
 
-    def answering(answer):
+    def answering(answer, source=""):
         async def her_model(ask, prompt, schema, most, *, matters):
             asked.append(prompt)
-            return schema(ended=answer)
+            return schema(ended=answer, source=source)
 
         monkeypatch.setattr("core.cognition.what_things_are.asked_patiently", her_model)
 
@@ -39,9 +39,9 @@ def window(monkeypatch):
 
 def test_the_window_says_she_lost(window) -> None:
     asked, answering = window
-    answering("I lost")
+    answering("I lost", "Black wins")
     ended, words = asyncio.run(board_of_pieces.what_the_window_says_of_the_end("en-croissant"))
-    assert ended == "lost" and "Black wins" in words
+    assert ended == "lost" and words == "Black wins"
     assert "Black wins" in asked[0]
 
 
@@ -50,3 +50,10 @@ def test_a_window_that_does_not_say_leaves_the_ending_unknown(window) -> None:
     answering("the window does not say")
     ended, _words = asyncio.run(board_of_pieces.what_the_window_says_of_the_end("en-croissant"))
     assert ended == ""
+
+
+@pytest.mark.parametrize("source,before", [("White lost", ""), ("Black wins", "Aura vs. Stockfish / Black wins")])
+def test_invented_or_old_result_text_cannot_confirm_a_result(window, source, before) -> None:
+    _asked, answering = window
+    answering("I lost", source)
+    assert asyncio.run(board_of_pieces.what_the_window_says_of_the_end("en-croissant", before=before)) == ("", "")
