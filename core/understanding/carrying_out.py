@@ -142,6 +142,26 @@ def _asked_of_them(request: Request, words: str, goes_with: str, asks: Callable[
         get_task_tracker().create_task(asks(request, ask), name=f"request.asks.{request.id}")
 
 
+#: How often what happens in the works is written down while one is going, in seconds.
+BENCH_KEPT_S = 20.0
+
+
+async def _keeps_the_bench() -> None:
+    """Write down what happens in the works as it goes, so that it is there after she has been closed."""
+    while True:
+        await asyncio.sleep(BENCH_KEPT_S)
+        await _bench_kept()
+
+
+async def _bench_kept() -> None:
+    try:
+        await asyncio.to_thread(get_workbench().keep)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        from core.runtime.errors import record_degradation
+
+        record_degradation("carrying_out", exc, severity="info", action="what happened in a work was not written down")
+
+
 def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[None]],
           carrier: Carrier | None = None, ledger: RequestsOfHer | None = None,
           asks: Callable[[Request, Any], Awaitable[None]] | None = None) -> bool:
@@ -157,6 +177,7 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
 
     async def work() -> None:
         work_somebody_asked_for.begun(request.id)
+        keeper = get_task_tracker().create_task(_keeps_the_bench(), name=f"request.bench.{request.id}")
         try:
             # The turn that asked is answered first.
             bench.waits("the conversation, which comes first")
@@ -167,6 +188,8 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
             _UNDER_WAY.pop(request.id, None)
             work_somebody_asked_for.ended(request.id)
             bench.finished("stopped" if bench.stopped or request.stands in {CUT_SHORT, SET_ASIDE} else "done")
+            keeper.cancel()
+            await _bench_kept()
         if request.stands not in {OPEN, SET_ASIDE}:
             await told(request)
 

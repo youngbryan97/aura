@@ -82,6 +82,9 @@ const Frame = (() => {
       poly(points, color, o) { opt({ color, ...o }); ctx.fillStyle = color; ctx.beginPath(); points.forEach((p, i) => { const x = Array.isArray(p) ? p[0] : p.x, y = Array.isArray(p) ? p[1] : p.y; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }); ctx.closePath(); if (color) ctx.fill(); fin(color, o); },
       wedge(x, y, r, from, to, color, o) { opt({ color, ...o }); const f = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r)); f.addColorStop(0, color); f.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = o && o.solid ? color : f; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, Math.max(0, r), from, to); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0; ctx.globalAlpha = 1; },
       text(words, x, y, o) { if (typeof words === "number" && typeof y === "string") [words, x, y] = [y, words, x]; o = o || {}; opt({ ...o }); ctx.fillStyle = o.color || "#fff"; ctx.font = `${o.weight || 600} ${o.size || 20}px ${o.font || "ui-rounded, -apple-system, 'SF Pro Rounded', system-ui, sans-serif"}`; ctx.textAlign = o.align || "left"; ctx.textBaseline = o.base || "middle"; ctx.fillText(String(words), x, y); ctx.shadowBlur = 0; ctx.globalAlpha = 1; },
+      // What she painted for it, by its name; where there is no such picture, the figure of that name, or a plain shape.
+      picture(name, x, y, o) { o = o || {}; const img = painted(name), size = o.size || 40; if (img) { const k = size / Math.max(img.naturalWidth, img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k; ctx.save(); ctx.translate(x, y); if (o.turn) ctx.rotate(o.turn); if (o.flip) ctx.scale(-1, 1); if (o.alpha != null) ctx.globalAlpha = Math.max(0, Math.min(1, o.alpha)); ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.restore(); return; } if (typeof figures !== "undefined" && figures.all[name]) return figures.draw(g, name, x, y, { ...o, t: g.t }); g.rect(x - size / 2, y - size / 2, size, size, (P.look && P.look.accent) || "#888", { r: size / 4, alpha: o.alpha }); },
+      backdrop(name, o) { o = o || {}; const img = painted(name); g.screen(() => { if (!img) return g.sky("#26304a", "#8593b5"); const k = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k, off = (((o.scroll || 0) % (2 * w)) + 2 * w) % (2 * w); ctx.globalAlpha = o.alpha != null ? o.alpha : 1; for (let i = 0; i * w - off < W; i++) { const left = i * w - off; if (left + w < 0) continue; if (i % 2) { ctx.save(); ctx.translate(left + w, (H - h) / 2); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); ctx.restore(); } else ctx.drawImage(img, left, (H - h) / 2, w, h); } ctx.globalAlpha = 1; }); },
       at(x, y, turn, draw) { ctx.save(); ctx.translate(x, y); if (turn) ctx.rotate(turn); draw(g); ctx.restore(); } };
     return g;
   }
@@ -110,7 +113,12 @@ const Frame = (() => {
     bars: (rows) => { const top = Math.max(1e-9, ...(rows || []).map((r) => Number(r.value) || 0)); return node("div", { class: "bars" }, (rows || []).map((r) => node("div", { class: "bar" }, [node("span", { class: "bar-label" }, [r.label]), node("div", { class: "bar-track" }, [node("div", { class: "bar-fill", style: `width:${(100 * (Number(r.value) || 0)) / top}%` })]), node("span", { class: "bar-value" }, [String(typeof r.show === "string" || typeof r.show === "number" ? r.show : r.value)])]))); },
     lines: (points) => { const v = (points || []).map(Number), top = Math.max(1e-9, ...v), low = Math.min(0, ...v), n = Math.max(1, v.length - 1); return node("svg", { viewBox: "0 0 600 180", class: "lines" }, [node("polyline", { points: v.map((y, i) => `${(600 * i) / n},${175 - (170 * (y - low)) / (top - low || 1)}`).join(" "), fill: "none" })]); },
     canvas: (name, w, h, draw) => node("canvas", { width: w, height: h, paint: draw, point: name }),
+    picture: (name, o) => node("img", { class: "picture", src: (P && P.pictures && P.pictures[name]) || BLANK, alt: (o && o.says) || name, style: `height:${(o && o.height) || 120}px` }),
   };
+  const BLANK = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+  // The pictures she painted, as they are drawn: there once they have been read.
+  const pics = {};
+  function painted(name) { const src = P && P.pictures && P.pictures[name]; if (!src) return null; const img = pics[name] || (pics[name] = Object.assign(new Image(), { src })); return img.complete && img.naturalWidth ? img : null; }
   const field = (label, control) => node("label", { class: "field" }, [node("span", {}, [label]), control]);
   const words = (v) => (v.tag === "#" ? v.text : v.kids.map(words).join(" ")).replace(/\s+/g, " ").trim();
   function every(v, found) { found = found || []; if (v.tag !== "#") { found.push(v); v.kids.forEach((k) => every(k, found)); } return found; }
@@ -165,7 +173,7 @@ const Frame = (() => {
   function openApp() {
     document.body.className = "app";
     state = P.initial(); const was = kept(); if (was && typeof was === "object") state = { ...state, ...was };
-    const bar = el("header"); bar.appendChild(el("strong", "", P.name));
+    const bar = el("header"); if (P.pictures && P.pictures.icon) { const mark = el("img", "mark"); mark.src = P.pictures.icon; mark.alt = ""; bar.appendChild(mark); } bar.appendChild(el("strong", "", P.name));
     const tools = el("div", "tools"); bar.appendChild(tools);
     const tool = (label, hint, act) => { const b = el("button", "tool", label); b.title = hint; b.onclick = act; tools.appendChild(b); };
     const past = [];

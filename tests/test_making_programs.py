@@ -878,7 +878,7 @@ def test_what_is_so_of_a_program_is_told_rule_by_rule_and_where_it_is(tmp_path, 
     monkeypatch.setattr(building, "runs_here", lambda app, **kw: True)
     from core.rebuilding import as_a_mac_app as apps
 
-    def installed(page, name, *, accent=""):
+    def installed(page, name, *, accent="", picture=None):
         app = tmp_path / f"{name}.app"
         app.mkdir(exist_ok=True)
         return app
@@ -1320,3 +1320,108 @@ def test_a_game_that_changes_as_it_is_drawn_or_fills_up_is_told_so(tmp_path, was
     design = _design(pieces=["vec"], state={"x": 480, "y": 300, "t": 0, "next": 1, "lamp": 3, "saved": 0, "moths": [{"x": 10, "y": 10}], "trail": []})
     trial = _tried(page_of(design, GOOD.replace(was, instead), tests=""), tmp_path)
     assert named in {r.name for r in trial.failing()}, [f"{r.name}: {r.why}" for r in trial.failing()]
+
+
+# ── the session as it is watched ─────────────────────────────────────
+
+def _bench_client():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from interface.auth import _require_internal
+    from interface.routes import work as routes
+
+    app = FastAPI()
+    app.include_router(routes.router, prefix="/api")
+    app.dependency_overrides[_require_internal] = lambda: None
+    return TestClient(app), routes
+
+
+def test_what_she_writes_is_streamed_a_little_at_a_time():
+    _client, routes = _bench_client()
+    work = Work("streamed", "a clock")
+    work.step("Writing it")
+
+    async def run():
+        out, going = [], routes._as_it_goes(work, 0)
+        out.append(await anext(going))
+        for text in ("const", "const x = 1;", "const y"):
+            work.writing(text, 3)
+            out.append(await asyncio.wait_for(anext(going), timeout=5))
+        work.wrote_it()
+        work.reading(40, 100)
+        out.append(await asyncio.wait_for(anext(going), timeout=5))
+        return [json.loads(event.split("data: ", 1)[1]) for event in out]
+
+    first, one, two, three, last = asyncio.run(run())
+    assert first["happened"][0]["title"] == "Writing it" and "happened" in one and one["happened"] == []
+    assert (one["now"]["more"], two["now"]["more"], three["now"]["more"]) == ([0, "const"], [5, " x = 1;"], [6, "y"])
+    assert last["now"]["is_writing"] is False and last["now"]["reading"] == [40, 100]
+
+
+def test_how_far_two_texts_are_the_same():
+    _client, routes = _bench_client()
+    assert [routes._alike(a, b) for a, b in (("", "a"), ("abc", "abd"), ("abc", "abc"), ("abc", "xbc"), ("abcdefg", "abc"))] == [0, 2, 3, 0, 3]
+
+
+def test_the_program_is_shown_running_apart_from_everything_of_hers(tmp_path, monkeypatch):
+    client, routes = _bench_client()
+    _ledger, request = _request(tmp_path)
+    folder = tmp_path / "moth"
+    (folder / "pictures").mkdir(parents=True)
+    (folder / "index.html").write_text("<p>moths</p>")
+    (folder / "icon.png").write_bytes(b"\x89PNG")
+    (folder / "program.json").write_text(json.dumps({"design": {"kind": "game"}, "parts": {"functions": {"update": "update(s) {}"}, "tests": "test();"}}))
+    request.made["page"] = str(folder / "index.html")
+    monkeypatch.setattr(routes, "get_requests_of_her", lambda: type("L", (), {"get": staticmethod(lambda i: request if i == request.id else None)}))
+    get_workbench().begin(request.id, "moths").finished("done")
+    shown = client.get(f"/api/work/{request.id}/preview")
+    assert shown.text == "<p>moths</p>" and shown.headers["content-security-policy"] == "sandbox allow-scripts"
+    assert client.get(f"/api/work/{request.id}/program").json() == {"parts": {"update": "update(s) {}", "tests": "test();"}, "language": "javascript"}
+    assert client.get(f"/api/work/{request.id}/picture/icon").status_code == 200
+    assert client.get(f"/api/work/{request.id}/picture/..%2f..%2fprogram").status_code == 404
+    assert next(w for w in client.get("/api/work").json()["works"] if w["id"] == request.id)["icon"] is True
+    assert client.get("/api/work/nobody/preview").status_code == 404
+
+
+def test_the_works_are_there_after_she_has_been_closed(tmp_path, monkeypatch):
+    from core.rebuilding import her_build_writes
+    from core.understanding.workbench import Workbench
+
+    monkeypatch.setattr(her_build_writes, "governed", lambda what, path, *a, **_k: Path(path).mkdir(parents=True, exist_ok=True) if what == "ensure_directory" else Path(path).write_text(a[0]))
+    bench = Workbench(tmp_path / "b" / "workbench.json")
+    one, two = bench.begin("one", "a clock"), bench.begin("two", "a map")
+    one.step("Writing it")
+    one.wrote("rules", "first")
+    one.wrote("rules", "second")
+    two.step("Looking")
+    two.finished("done")
+    assert bench.keep() and not bench.keep(), "written once for what has happened"
+    again = Workbench(tmp_path / "b" / "workbench.json")
+    again.load()
+    assert [(w.id, w.state) for w in again.all()] == [("one", "stopped"), ("two", "done")]
+    rows = again.get("one").seen()["happened"]
+    assert [r.get("code") for r in rows if r["what"] == "code"] == ["", "second"] and rows[-1]["what"] == "left off"
+    assert again.begin("one", "a clock").state == "going", "taken up again, in the same place"
+    assert again.get("one").seen()["happened"][0]["title"] == "Writing it"
+
+
+def test_only_what_is_new_of_what_she_writes_is_sent():
+    from core.brain.llm.what_is_being_written import forget, more_of, pass_on, watch_for, watched
+
+    job: dict = {}
+    sent = [more_of(text, job) for text in ("const", "const x", "const x = 1", "again")]
+    assert sent == [{"written": "const", "written_at": 0}, {"written": " x", "written_at": 5}, {"written": " = 1", "written_at": 7}, {"written": "again", "written_at": 0}]
+    got, read = [], []
+
+    def seen(text, tokens):
+        got.append(text)
+
+    seen.reading = lambda done, of: read.append((done, of))
+    with watched(seen):
+        watch_for("r1")
+    pass_on({"id": "r1", "phase": "prefill", "prompt_tokens_processed": 5, "prompt_tokens_total": 9})
+    for message in sent:
+        pass_on({"id": "r1", **message})
+    forget("r1")
+    assert got == ["const", "const x", "const x = 1", "again"] and read == [(5, 9)]

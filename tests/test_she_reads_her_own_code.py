@@ -847,37 +847,85 @@ class TestAskingToBeShownIsACueNotAPhraseList:
         assert not self._asks(message), message
 
 
-def test_a_question_that_merely_touches_her_internals_keeps_its_answer():
-    """The wide gate decided to CHECK; it must not decide to REPLACE.
+@pytest.fixture
+def her_reading_of_it():
+    """Her reading of whether her code is asked for, as a warm runtime has it."""
+    from core.cognition.evidence_relevance import semantic_routing_available, warm_semantic_routing
 
-    Live regression 2026-08-04: "Can you still reason through the desktop
-    path?" scored as a source question, and a correct answer about the
-    reasoning lane was swapped for a code excerpt nobody had asked for.
-    """
-    from core.utils.own_source_intent import (
-        asks_for_own_source,
-        reply_denies_showing_source,
-    )
+    if not semantic_routing_available() or not warm_semantic_routing():
+        pytest.skip("her encoder is not here")
+    from core.language.asks_to_see_her_code import asks_to_see_her_code
 
-    question = "Can you still reason through the desktop path?"
-    answer = (
-        "Yes. I am still reasoning through the desktop CognitiveEngine path, "
-        "and I am keeping the answer on this live turn instead of switching lanes."
-    )
-    assert not asks_for_own_source(question)
-    assert not reply_denies_showing_source(answer)
+    return asks_to_see_her_code
 
 
-def test_a_false_capability_denial_still_earns_a_real_excerpt():
-    from core.utils.own_source_intent import reply_denies_showing_source
+@pytest.mark.parametrize(
+    "question",
+    [
+        # LIVE 24 November 2026: answered with a page of core/memory.
+        "Test of that memory… Do you remember your gender?",
+        "What are your pronouns?",
+        # LIVE 4 August 2026: a correct answer about the reasoning lane was swapped for an excerpt nobody had asked for.
+        "Can you still reason through the desktop path?",
+        "What did I say earlier about my brother?",
+        "What did you do while I was gone?",
+        "Can you open the file I sent?",
+    ],
+)
+def test_a_turn_that_does_not_ask_for_her_code_is_never_answered_with_it(question, her_reading_of_it):
+    assert not her_reading_of_it(question)
 
-    assert reply_denies_showing_source("I can't show you code files directly.")
-    assert reply_denies_showing_source("I'm not able to share my source with you.")
-    assert reply_denies_showing_source("I cannot open my own implementation files.")
+
+@pytest.mark.parametrize("question", ["show me how you're actually built", "show me the code you run on", "read me some of your own program", "Could I see some of your source?"])
+def test_a_turn_that_asks_for_her_code_is(question, her_reading_of_it):
+    assert her_reading_of_it(question)
 
 
-def test_an_ordinary_refusal_about_something_else_is_not_a_source_denial():
-    from core.utils.own_source_intent import reply_denies_showing_source
+def _checked(question: str, reply: str, monkeypatch, asks: bool) -> str:
+    import asyncio
 
-    assert not reply_denies_showing_source("I can't show you Bryan's private files.")
-    assert not reply_denies_showing_source("I won't show you how to bypass that.")
+    from core.language import asks_to_see_her_code as reading
+    from core.self import source_excerpt
+    from interface.routes import chat_own_source
+
+    monkeypatch.setattr(chat_own_source, "_turn_may_concern_own_source", lambda _said: True)
+    monkeypatch.setattr(reading, "asks_to_see_her_code", lambda _said: asks)
+    monkeypatch.setattr(source_excerpt, "grounded_excerpt_reply", lambda _said="": "core/x.py:1 a real piece")
+    monkeypatch.setattr(source_excerpt, "reply_fabricates_own_code", lambda _text: False)
+    monkeypatch.setattr(source_excerpt, "reply_is_grounded_in_source", lambda _text: False)
+    monkeypatch.setattr(source_excerpt, "source_tree_is_readable", lambda: True)
+    monkeypatch.setattr(source_excerpt, "last_shown_excerpt", dict)
+    return str(asyncio.run(chat_own_source._check_a_reply_against_her_own_source(text=reply, turn_trace=None, visible=question)))
+
+
+def test_what_she_says_she_cannot_show_is_no_reason_to_show_her_code(monkeypatch):
+    """The wide reading decides to CHECK a reply; what was asked decides whether it is REPLACED."""
+    said = "I can't reach my own source for that, but I'm she/her."
+    assert _checked("Do you remember your gender?", said, monkeypatch, asks=False) == said
+    assert _checked("show me how you're actually built", "I can't show you code files directly.", monkeypatch, asks=True) == "core/x.py:1 a real piece"
+
+
+def test_a_reply_that_was_put_aside_is_not_rescued_with_her_code_unless_it_was_asked_for(monkeypatch):
+    import asyncio
+
+    from core.language import asks_to_see_her_code as reading
+    from core.self import source_excerpt
+    from interface.routes import chat_own_source
+
+    monkeypatch.setattr(source_excerpt, "grounded_excerpt_reply", lambda _said="": "core/x.py:1 a real piece")
+    monkeypatch.setattr(source_excerpt, "last_shown_excerpt", dict)
+    for asks, came in ((False, ""), (True, "core/x.py:1 a real piece")):
+        monkeypatch.setattr(reading, "asks_to_see_her_code", lambda _said, asks=asks: asks)
+        assert asyncio.run(chat_own_source._own_source_rescue_reply("Do you remember your gender?")) == came
+
+
+def test_she_is_told_how_she_is_spoken_of(monkeypatch):
+    from core.brain import present_moment
+    from core.self import canonical_self
+
+    def none():
+        raise RuntimeError("not up yet")
+
+    monkeypatch.setattr(canonical_self, "get_self", none)
+    assert present_moment._herself_line() == "- Yourself: Aura Luna, she/her."
+    assert "she/her" in present_moment.present_moment_block()

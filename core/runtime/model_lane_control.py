@@ -656,7 +656,8 @@ def estimate_model_job_footprint_gb(model_path: str, *, purpose: str) -> float:
     elif "14b" in lowered:
         base_gb = 10.0
     elif any(token in lowered for token in ("stable-diffusion-xl", "sdxl")):
-        base_gb = 16.0
+        # Half precision with the decoder whole, as core/skills/image_gen.py holds it: 7.1 GB measured, and what a picture takes.
+        base_gb = 10.0
     elif any(token in lowered for token in ("stable-diffusion", "diffusion")):
         base_gb = 7.0
     elif "7b" in lowered:

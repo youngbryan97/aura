@@ -280,18 +280,16 @@ async def _check_a_reply_against_her_own_source(
             #
             # So: substitute when she was asked to show source, or when the
             # reply says she cannot — never merely because the subject came up.
-            from core.utils.own_source_intent import (
-                asks_for_own_source as _asks_for_own_source,
-            )
-            from core.utils.own_source_intent import (
-                reply_denies_showing_source as _reply_denies_showing_source,
-            )
+            # And a reply that says she cannot is no reason by itself: what
+            # she could not show was something else. LIVE 24 November 2026,
+            # "Do you remember your gender?" became a page of core/memory.
+            # What was asked decides, by its meaning.
+            from core.language.asks_to_see_her_code import asks_to_see_her_code
 
-            _asked_to_be_shown = bool(_asks_for_own_source(visible))
-            _denied_capability = bool(_reply_denies_showing_source(text))
+            _asked_to_be_shown = await asyncio.to_thread(asks_to_see_her_code, str(visible))
             if (
                 not _fabricated
-                and (_asked_to_be_shown or _denied_capability)
+                and _asked_to_be_shown
                 and source_tree_is_readable()
                 and not await asyncio.to_thread(reply_is_grounded_in_source, text)
             ):
@@ -877,9 +875,12 @@ async def _own_source_rescue_reply(user_message: str) -> str:
             spoken = str(provenance_sentence() or "").strip()
             if spoken:
                 return spoken
-        if not _turn_may_concern_own_source(text):
+        from core.language.asks_to_see_her_code import asks_to_see_her_code
+
+        # Off the loop: this reads the turn, and walks and reads files. Only a turn that asked to be shown her code is
+        # answered with it.
+        if not await asyncio.to_thread(asks_to_see_her_code, text):
             return ""
-        # Off the loop: this walks and reads files.
         return str(await asyncio.to_thread(grounded_excerpt_reply, text)).strip()
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(

@@ -123,6 +123,9 @@ async def _on_the_lane(asked: str, max_tokens: int, *, so_far: str = "", held: l
         if work is not None:
             work.writing(so_far + text, tokens)
 
+    if work is not None:
+        seen.reading = work.reading  # type: ignore[attr-defined]
+
     def how_it_ended() -> str:
         return str((ended.get("surface_control_receipt") or {}).get("generation_stop_reason") or "")
 

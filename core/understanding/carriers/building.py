@@ -86,7 +86,10 @@ async def _put_where_it_belongs(made: Any, request: Request) -> tuple[list[Part]
         from core.rebuilding.as_a_mac_app import as_a_mac_app
 
         try:
-            thing = await asyncio.to_thread(as_a_mac_app, made.path, made.design.name, accent=made.design.look.accent)
+            from core.making.pictures import icon_at
+
+            thing = await asyncio.to_thread(as_a_mac_app, made.path, made.design.name, accent=made.design.look.accent,
+                                            picture=await asyncio.to_thread(icon_at, made.folder))
         except (OSError, subprocess.SubprocessError, RuntimeError, ValueError) as why:
             return [Part("it is installed as an application", "unmet", f"{type(why).__name__}: {why}"[:300])], places
         places["app"] = str(thing)
@@ -138,17 +141,18 @@ def _its_command(made: Any) -> Path:
 async def build(request: Request, tell: Tell) -> CameTo:
     """Make what the request describes, or go on with what is missing of it."""
     from core.making import maker
+    from core.making.pictures import by_her
 
     page = Path(str(request.made.get("page") or ""))
     folder = page.parent if request.made.get("page") and await asyncio.to_thread(page.is_file) else None
     async with _a_browser() as browser:
         if folder is None:
             made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser,
-                                    told=request.told, when_kept=_keeps(request))
+                                    told=request.told, when_kept=_keeps(request), paints=by_her)
         elif request.added and request.added[-1] not in str(request.made.get("heard") or ""):
-            made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser)
+            made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
         else:
-            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser)
+            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
     if made is None:
         return CameTo(how="read what was asked as a design", came_to="no design of it could be had",
                       parts=[Part("the program exists", "unmet", "no design of it came that held everything asked")])
@@ -158,6 +162,7 @@ async def build(request: Request, tell: Tell) -> CameTo:
 async def change(request: Request, tell: Tell) -> CameTo:
     """Change a program she made to what was asked, everything that held still held to."""
     from core.making import maker
+    from core.making.pictures import by_her
     from core.rebuilding.rebuilding_a_program import the_build_meant
     from core.skills.changing_a_program import where_builds_are
 
@@ -170,7 +175,7 @@ async def change(request: Request, tell: Tell) -> CameTo:
     if not await asyncio.to_thread(_made_here, folder):
         return await _changed_as_rebuilt(request, folder, tell)
     async with _a_browser() as browser:
-        made = await maker.change(folder, (request.added or [request.said])[-1], ask=_ask, write=_write, work=_this(request), browser=browser)
+        made = await maker.change(folder, (request.added or [request.said])[-1], ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
     if made is None:
         return CameTo(how="read the change into the design", came_to="it could not be read into the design",
                       parts=[Part("the change asked for", "unmet", "no design with it came")])

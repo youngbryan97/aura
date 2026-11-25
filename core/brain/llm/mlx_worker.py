@@ -28,7 +28,7 @@ from core.brain.llm.token_budget_evidence import CALIBRATION_SCHEMA
 from core.brain.llm.user_surface_recurrence import (
     user_surface_recurrent_ceiling,
 )
-from core.brain.llm.what_is_being_written import MOST_SENT
+from core.brain.llm.what_is_being_written import more_of
 from core.brain.llm.what_she_expects_next import as_a_job_of_the_worker
 from core.brain.llm.where_calls_share import where_calls_stop_sharing, where_the_last_turn_starts
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
@@ -8038,7 +8038,7 @@ def _mlx_worker_loop(
                                                 "timestamp": progress_now,
                                             }
                                             if job.get("show_what_is_written"):
-                                                progress_msg["written"] = current_response[-MOST_SENT:]
+                                                progress_msg.update(more_of(current_response, job))
                                             if intero_tap is not None:
                                                 live_intero = intero_tap.live_snapshot()
                                                 if live_intero:

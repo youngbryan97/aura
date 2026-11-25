@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import asyncio
 import contextvars
+import json
 import logging
 import time
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from core.runtime.lockdep import checked_lock
@@ -23,6 +25,8 @@ __all__ = ["PutDown", "Work", "Workbench", "get_workbench", "this_work", "workin
 
 #: How many happenings a work keeps, how many works, and the most of one piece of writing that is kept.
 KEPT, WORKS, MOST_WRITTEN = 1200, 40, 60000
+#: How many works, and how many happenings of each, are kept for when she is next opened.
+KEPT_WORKS, KEPT_ROWS = 20, 500
 #: How long with nothing written before a work that is writing is said to have stalled.
 STALLED_S = 45.0
 
@@ -96,6 +100,14 @@ class Work:
     def made(self, what: str, where: str) -> None:
         self.happened("made", title=what, where=where)
 
+    def kept(self, holds: int, of: int) -> None:
+        """What it makes is on disk, as it stands."""
+        self.happened("kept", holds=holds, of=of)
+
+    def painted(self, name: str, shows: str) -> None:
+        """A picture she made for it."""
+        self.happened("painted", name=name, shows=str(shows)[:300])
+
     def waits(self, on: str) -> None:
         """What she is waiting on; "" for nothing."""
         if on != self.now.get("waits"):
@@ -110,10 +122,16 @@ class Work:
             self.now["writing_since"] = now
         if text != self.now.get("writing"):
             self.now["last_wrote"] = now
+        self.now.pop("reading", None)
         self.now.update({"writing": text[-MOST_WRITTEN:], "tokens": int(tokens), "waits": ""})
 
+    def reading(self, read: int, of: int) -> None:
+        """How much of what her model was given it has read, before it writes anything."""
+        self.now["reading"] = [int(read), int(of)]
+        self.now["last_wrote"] = time.time()
+
     def wrote_it(self) -> None:
-        for key in ("writing", "writing_since", "last_wrote", "tokens"):
+        for key in ("writing", "writing_since", "last_wrote", "tokens", "reading"):
             self.now.pop(key, None)
 
     def finished(self, state: str) -> None:
@@ -188,11 +206,45 @@ class Work:
 
 
 class Workbench:
-    """The works, the newest last."""
+    """The works, the newest last; and kept, so that they are there after she has been closed."""
 
-    def __init__(self) -> None:
-        self._lock = checked_lock("understanding.workbench")
+    def __init__(self, path: Path | None = None) -> None:
+        self._lock, self._path = checked_lock("understanding.workbench"), path
         self._works: OrderedDict[str, Work] = OrderedDict()
+        self._kept_at: dict[str, int] = {}
+
+    def keep(self) -> bool:
+        """Write the works, where anything has happened in any of them since; whether it was written. Not on the event loop."""
+        from core.rebuilding.her_build_writes import governed
+
+        works = self.all()
+        stands = {work.id: work._n for work in works}
+        if self._path is None or stands == self._kept_at:
+            return False
+        rows = [{"id": w.id, "title": w.title, "kind": w.kind, "state": w.state, "began": w.began, "ended": w.ended, "n": w._n,
+                 "happened": _for_keeping(list(w._happened))} for w in works[-KEPT_WORKS:]]
+        governed("ensure_directory", self._path.parent, source="understanding.workbench")
+        governed("write_text", self._path, json.dumps({"works": rows}, ensure_ascii=False), source="understanding.workbench")
+        self._kept_at = stands
+        return True
+
+    def load(self) -> None:
+        """The works as they were kept. What was going when she was closed was left off."""
+        if self._path is None or not self._path.is_file():
+            return
+        try:
+            rows = json.loads(self._path.read_text(encoding="utf-8")).get("works") or []
+            for row in rows:
+                work = Work(str(row["id"]), str(row["title"]), str(row.get("kind") or ""), state=str(row["state"]),
+                            began=float(row["began"]), ended=float(row.get("ended") or 0.0))
+                work._happened.extend(row.get("happened") or [])
+                work._n = int(row.get("n") or len(work._happened))
+                if work.state in {"going", "held"}:
+                    work.state, work.ended = "stopped", self._path.stat().st_mtime
+                    work.happened("left off", why="she was closed")
+                self._works.setdefault(work.id, work)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            logger.warning("The works that were kept are not read (%s); it begins again.", exc)
 
     def begin(self, work_id: str, title: str, kind: str = "") -> Work:
         with self._lock:
@@ -241,6 +293,12 @@ class working_on:  # noqa: N801 - read as "with working_on(work):"
             _THIS.reset(self._token)
 
 
+def _for_keeping(happened: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """What happened, as it is kept: the last of it, and of the code only how each piece stood at the end."""
+    last_of = {row["name"]: row["n"] for row in happened if row["what"] == "code"}
+    return [row if row["what"] != "code" or last_of.get(row["name"]) == row["n"] else {**row, "code": ""} for row in happened[-KEPT_ROWS:]]
+
+
 _BENCH: Workbench | None = None
 _BENCH_LOCK = checked_lock("understanding.workbench.singleton")
 
@@ -249,5 +307,8 @@ def get_workbench() -> Workbench:
     global _BENCH
     with _BENCH_LOCK:
         if _BENCH is None:
-            _BENCH = Workbench()
+            from core.runtime.state_ownership import state_root
+
+            _BENCH = Workbench(state_root() / "data" / "understanding" / "workbench.json")
+            _BENCH.load()
         return _BENCH

@@ -595,6 +595,8 @@ class SomaState:
 class IdentityKernel:
     """The invariant core of who Aura is. Should change only through deliberate evolution."""
     name: str = "Aura Luna"
+    #: What she is called by when she is spoken of.
+    pronouns: str = "she/her"
     core_values: list[str] = field(default_factory=list)
     current_narrative: str = ""         # First-person living narrative
     narrative_version: int = 0

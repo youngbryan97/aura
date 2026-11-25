@@ -922,12 +922,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         # own cost is a skill grading its own homework, and when the two
         # descriptions disagreed the answer was
         # `standing_authority_effect_scope_mismatch`.
-        authority_view: dict[str, Any] = {
-            "tool": "sovereign_browser",
-            "authority_origin": str(
-                context.get("authority_origin") or context.get("origin") or source
-            )[:240],
-        }
+        from core.executive.standing_authority import authority_origin_of
+
+        # Asked for as the turn it is of, as her mail and Reddit ask. LIVE 24
+        # November 2026 a search a person asked for was refused three times:
+        # the tool loop it was made from names itself the source
+        # ("think_and_act"), which no grant is for, and the lease was asked
+        # for in that name while the turn's origin stood beside it.
+        asks_as = (authority_origin_of(context) or source)[:240]
+        authority_view: dict[str, Any] = {"tool": "sovereign_browser", "authority_origin": asks_as}
         try:
             from core.executive.authority_gateway import get_authority_gateway
 
@@ -935,7 +938,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             granted = await gateway.authorize_tool_execution(
                 "sovereign_browser",
                 params.model_dump(mode="json"),
-                source=source,
+                source=asks_as,
                 priority=0.7,
                 is_critical=False,
                 context=dict(context or {}),
@@ -951,7 +954,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             if granted.approved:
                 # The gateway binds this lease to its decision source. The
                 # caller's transport origin can name a different boundary.
-                authority_view["authority_origin"] = str(granted.source or source)[:240]
+                authority_view["authority_origin"] = str(granted.source or asks_as)[:240]
                 # The token is a field; the grant id and receipt live in
                 # `constraints`. Reading only attributes found the token and
                 # not its grant, and the will answered

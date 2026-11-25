@@ -15,12 +15,14 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import plistlib
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("Rebuilding.MacApp")
 
@@ -72,8 +74,8 @@ def where_applications_go() -> Path:
         return own
 
 
-def _an_icon(name: str, accent: str, out: Path) -> Path | None:
-    """An icon: the program's first letter on its own colour, rounded as Mac icons are."""
+def _an_icon(name: str, accent: str, out: Path, picture: Path | None = None) -> Path | None:
+    """An icon, rounded as Mac icons are: the picture there is of the program, or its first letter on its own colour."""
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError as exc:
@@ -81,10 +83,12 @@ def _an_icon(name: str, accent: str, out: Path) -> Path | None:
         return None
     colour = accent if re.fullmatch(r"#[0-9a-fA-F]{6}", accent or "") else "#2b579a"
     size = 1024
-    picture = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(picture)
-    inset = 100
+    drawn = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(drawn)
+    inset, side = 100, 824
     draw.rounded_rectangle((inset, inset, size - inset, size - inset), radius=185, fill=colour)
+    if picture is not None and _laid_over(drawn, picture, inset, side):
+        return _as_icns(drawn, out)
     letter = (re.sub(r"[^A-Za-z0-9]", "", name) or "A")[0].upper()
     font = None
     for candidate in ("/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf"):
@@ -97,13 +101,43 @@ def _an_icon(name: str, accent: str, out: Path) -> Path | None:
     box = draw.textbbox((0, 0), letter, font=font)
     width, height = box[2] - box[0], box[3] - box[1]
     draw.text(((size - width) / 2 - box[0], (size - height) / 2 - box[1] - 20), letter, font=font, fill="white")
+    return _as_icns(drawn, out)
+
+
+def _laid_over(drawn: Any, picture: Path, inset: int, side: int) -> bool:
+    """Lay a picture over an icon's ground, cut to its rounding, with the light along its top that Mac icons have."""
+    from PIL import Image, ImageDraw
+
+    try:
+        with Image.open(picture) as opened:
+            image = opened.convert("RGB")
+    except OSError as why:
+        logger.info("the picture could not be read: %s", why)
+        return False
+    short = min(image.size)
+    left, top = (image.width - short) // 2, (image.height - short) // 2
+    image = image.crop((left, top, left + short, top + short)).resize((side, side), Image.Resampling.LANCZOS)
+    mask = Image.new("L", (side * 2, side * 2), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, side * 2 - 1, side * 2 - 1), radius=370, fill=255)
+    mask = mask.resize((side, side), Image.Resampling.LANCZOS)
+    light = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    ImageDraw.Draw(light).rounded_rectangle((1, 1, side - 2, side - 2), radius=184, outline=(255, 255, 255, 60), width=4)
+    image = Image.alpha_composite(image.convert("RGBA"), light)
+    drawn.paste(image, (inset, inset), mask)
+    return True
+
+
+def _as_icns(drawn: Any, out: Path) -> Path | None:
+    """A picture of 1024 by 1024, as the file a Mac keeps an application's icon in."""
+    from PIL import Image
+
     iconset = out.with_suffix(".iconset")
     iconset.mkdir(parents=True, exist_ok=True)
     for points in (16, 32, 128, 256, 512):
         for scale in (1, 2):
             pixels = points * scale
             suffix = "" if scale == 1 else "@2x"
-            picture.resize((pixels, pixels), Image.Resampling.LANCZOS).save(iconset / f"icon_{points}x{points}{suffix}.png")
+            drawn.resize((pixels, pixels), Image.Resampling.LANCZOS).save(iconset / f"icon_{points}x{points}{suffix}.png")
     try:
         _a_build_step(["iconutil", "-c", "icns", str(iconset), "-o", str(out)], timeout=60, what="iconutil")
     except (OSError, subprocess.SubprocessError) as why:
@@ -129,8 +163,8 @@ def _its_place(folder: Path, name: str, identifier: str) -> Path:
     return folder / f"{name} (Aura).app"
 
 
-def as_a_mac_app(page: Path, name: str, *, accent: str = "", version: str = "1.0", where: Path | None = None) -> Path:
-    """``page`` (a program she built) as ``name``.app, installed and signed; its path."""
+def as_a_mac_app(page: Path, name: str, *, accent: str = "", version: str = "1.0", where: Path | None = None, picture: Path | None = None) -> Path:
+    """``page`` (a program she built) as ``name``.app, installed and signed, with ``picture`` for its icon where there is one; its path."""
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "program"
     identifier = _HERS + slug
     folder = where or where_applications_go()
@@ -142,7 +176,7 @@ def as_a_mac_app(page: Path, name: str, *, accent: str = "", version: str = "1.0
         executable = re.sub(r"[^A-Za-z0-9]", "", name) or "Program"
         shutil.copy2(_the_shell(), app / "Contents" / "MacOS" / executable)
         shutil.copy2(page, app / "Contents" / "Resources" / "index.html")
-        icon = _an_icon(name, accent, app / "Contents" / "Resources" / "AppIcon.icns")
+        icon = _an_icon(name, accent, app / "Contents" / "Resources" / "AppIcon.icns", picture)
         info = {
             "CFBundleName": name,
             "CFBundleDisplayName": name,
@@ -162,5 +196,6 @@ def as_a_mac_app(page: Path, name: str, *, accent: str = "", version: str = "1.0
         if target.exists():
             shutil.rmtree(target)
         shutil.copytree(app, target, symlinks=True)
+        os.utime(target)  # so that its icon is read again
     logger.info("made %s", target)
     return target

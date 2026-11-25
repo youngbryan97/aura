@@ -63,7 +63,7 @@ async def test_diffusion_pipeline_has_one_durable_lane_owner(
     snapshot = controller.snapshot()
     assert loads == 1
     assert len(snapshot["owners"]) == 1
-    assert snapshot["owners"][0]["declared_gb"] == pytest.approx(16.0)
+    assert snapshot["owners"][0]["declared_gb"] == pytest.approx(10.0)
     assert snapshot["owners"][0]["metadata"]["single_pipeline_residency"] is True
     assert snapshot["owners"][0]["preemptible"] is True
 

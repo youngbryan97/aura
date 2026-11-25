@@ -161,6 +161,7 @@ class ImageGenSkill(BaseSkill):
         self._pipeline_lock = asyncio.Lock()
         self._generation_lock = asyncio.Lock()
         self._resident_mode = "txt2img"
+        self._decoder_in_full = False
         self._closing = False
 
     @staticmethod
@@ -217,8 +218,11 @@ class ImageGenSkill(BaseSkill):
         # Measured on this host (torch 2.11 / diffusers 0.37 / M-series):
         #   sdxl-turbo mps fp16 -> std 0.00  (BLACK)
         #   sdxl-turbo mps fp32 -> std 53.5  (real image, 4.6s @ 4 steps)
-        # float16 stays on CUDA, where it is well behaved.
-        torch_dtype = torch.float16 if self._device == "cuda" else torch.float32
+        # What overflows is the decoder, and only it. LIVE 24 November 2026, the
+        # rest in float16 and the decoder in float32: 7.1 GB where it was 14,
+        # 1.2 s a picture at 4 steps, every channel 0 to 255.
+        self._decoder_in_full = self._device == "mps"
+        torch_dtype = torch.float16 if self._device == "cuda" or self._halves(self._model_id) else torch.float32
 
         model_id = self._model_id
         pipeline_cls = (
@@ -235,11 +239,14 @@ class ImageGenSkill(BaseSkill):
                 )
                 pipe = pipeline_cls.from_pretrained(
                     attempt_model,
-                    torch_dtype=torch_dtype,
+                    torch_dtype=torch_dtype if attempt_model == model_id else torch.float16 if self._device == "cuda" else torch.float32,
                     use_safetensors=True,
                 )
                 try:
                     pipe.to(self._device)
+                    if self._decoder_in_full and getattr(pipe, "vae", None) is not None:
+                        pipe.vae.to(dtype=torch.float32)
+                        pipe.vae.config.force_upcast = False
                 except _IMAGEGEN_RECOVERABLE_ERRORS as exc:
                     _record_imagegen_degradation(
                         exc,
@@ -448,7 +455,7 @@ class ImageGenSkill(BaseSkill):
             steps, guidance = self._sampler_settings(params.steps, params.guidance_scale)
 
             def _generate() -> Any:
-                return pipeline(
+                return self._decoded(pipeline, pipeline(
                     prompt=enhanced_prompt,
                     negative_prompt=negative,
                     num_inference_steps=steps,
@@ -456,7 +463,8 @@ class ImageGenSkill(BaseSkill):
                     width=params.width,
                     height=params.height,
                     generator=generator,
-                ).images[0]
+                    **self._as_latents(pipeline),
+                ).images[0:1])
 
             from core.runtime.model_lane_control import run_owned_model_thread_call
 
@@ -518,15 +526,19 @@ class ImageGenSkill(BaseSkill):
             if pipeline is None:
                 return {"ok": False, "error": "Image editing pipeline is unavailable."}
 
+            steps, guidance = self._sampler_settings(params.steps, params.guidance_scale)
+
             def _edit() -> Any:
-                return pipeline(
+                # A picture is changed by as much of its steps as its strength: a distilled model has four, and has to take one.
+                return self._decoded(pipeline, pipeline(
                     prompt=enhanced_prompt,
                     image=source_image,
                     negative_prompt=negative,
-                    num_inference_steps=params.steps,
-                    guidance_scale=params.guidance_scale,
+                    num_inference_steps=max(steps, round(1.0 / max(0.05, params.strength) + 0.5)),
+                    guidance_scale=guidance,
                     strength=params.strength,
-                ).images[0]
+                    **self._as_latents(pipeline),
+                ).images[0:1])
 
             from core.runtime.model_lane_control import run_owned_model_thread_call
 
@@ -605,6 +617,29 @@ class ImageGenSkill(BaseSkill):
             "summary": f"Generated {mode} image from prompt: {prompt[:80]}",
             "message": f"Image created ({mode}): {relative_url}",
         }
+
+    def _halves(self, model_id: str) -> bool:
+        """Whether this model is held in half precision here, its decoder whole."""
+        return self._device == "mps" and "xl" in str(model_id).lower()
+
+    def _as_latents(self, pipeline: Any) -> dict[str, Any]:
+        """What asks a pipeline for what it would decode, where its decoder is another precision than the rest of it."""
+        return {"output_type": "latent"} if self._in_two(pipeline) else {}
+
+    def _in_two(self, pipeline: Any) -> bool:
+        vae, unet = getattr(pipeline, "vae", None), getattr(pipeline, "unet", None)
+        return vae is not None and unet is not None and getattr(vae, "dtype", None) != getattr(unet, "dtype", None)
+
+    def _decoded(self, pipeline: Any, images: Any) -> Any:
+        """The picture: what came, or what came of it decoded in the decoder's own precision."""
+        if not self._in_two(pipeline):
+            return images[0]
+        import torch
+
+        vae = pipeline.vae
+        with torch.no_grad():
+            pixels = vae.decode(images.to(dtype=vae.dtype) / vae.config.scaling_factor).sample
+        return pipeline.image_processor.postprocess(pixels, output_type="pil")[0]
 
     def _sampler_settings(self, steps: int, guidance: float) -> tuple[int, float]:
         """Reconcile requested sampler settings with what the model expects.

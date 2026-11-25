@@ -109,6 +109,26 @@ def _continuity_line() -> str:
         return ""
 
 
+def _herself_line() -> str:
+    """What she is called and how she is spoken of, from her own record.
+
+    LIVE 24 November 2026, asked whether she remembered her gender, she had nothing to read it from: nothing in her
+    record held it, and nothing in front of her on a turn said who she is.
+    """
+    try:
+        from core.self.canonical_self import get_self
+
+        identity = getattr(get_self(), "identity", None)
+    except _RECOVERABLE:
+        identity = None
+    from core.state.aura_state import IdentityKernel
+
+    held = identity if identity is not None else IdentityKernel()
+    name = str(getattr(held, "name", "") or "").strip()
+    pronouns = str(getattr(held, "pronouns", "") or IdentityKernel.pronouns).strip()
+    return f"- Yourself: {name}, {pronouns}." if name and pronouns else ""
+
+
 def present_moment_block(*, now: datetime | None = None) -> str:
     """A small block of things that are true at this instant.
 
@@ -131,6 +151,10 @@ def present_moment_block(*, now: datetime | None = None) -> str:
         f"- Clock: {stamp.strftime('%A %d %B %Y, %H:%M')} local"
         f" — {_part_of_day(stamp.hour)} by the clock.",
     ]
+
+    herself = _herself_line()
+    if herself:
+        lines.append(herself)
 
     uptime = _uptime_seconds()
     if uptime > 0:

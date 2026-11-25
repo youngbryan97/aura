@@ -100,9 +100,10 @@ def _script(body: str) -> str:
     return "<script>" + body.replace("</script", "<\\/script") + "</script>"
 
 
-def page_of(design: Design, code: str, *, tests: str | None = None, program: str = "", before: str = "", after: str = "") -> str:
-    """The program as one page; with ``tests``, the page that tries it. ``program`` is the program where it is an expression
-    already; ``before`` and ``after`` are scripts that stand before it and at the end."""
+def page_of(design: Design, code: str, *, tests: str | None = None, program: str = "", before: str = "", after: str = "",
+            pictures: dict[str, str] | None = None) -> str:
+    """The program as one page, with its pictures in it; with ``tests``, the page that tries it. ``program`` is the program
+    where it is an expression already; ``before`` and ``after`` are scripts that stand before it and at the end."""
     head = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, "
             "initial-scale=1\"><meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'; "
             f"style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:\"><title>{design.name}</title>")
@@ -110,7 +111,9 @@ def page_of(design: Design, code: str, *, tests: str | None = None, program: str
     frame = (_HERE / "frame.js").read_text(encoding="utf-8")
     facts = {"name": design.name, "kind": design.kind, "about": design.about, "look": {"accent": that_can_be_read_on(design.look.accent)},
              "controls": [c.model_dump() for c in design.controls], "ticks": bool(design.moves_by_itself),
-             **({"designed": design.state} if tests is not None else {})}
+             **({"pictures": pictures} if pictures else {}), **({"designed": design.state} if tests is not None else {})}
+    if pictures and "icon" in pictures:
+        head += f'<link rel="icon" href="{pictures["icon"]}">'
     parts = [_script(frame), _script(bundle(design.pieces))]
     # What stands beside the program can be called as its own, too: this.between(...) is between(...).
     beside = ", ".join(["rnd", "between", "int", "pick", "shuffle", "play", "ui", "W", "H", *with_needs(design.pieces)])

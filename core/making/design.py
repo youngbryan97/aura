@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["APP", "Asked", "Control", "Design", "GAME", "Rule", "SITE", "TOOL", "how_it_is_written", "in_proportion", "left_out", "with_every_ask"]
+__all__ = ["APP", "Asked", "Control", "Design", "GAME", "Picture", "Rule", "SITE", "TOOL", "how_it_is_written", "in_proportion", "left_out", "with_an_icon", "with_every_ask"]
 
 
 class Asked(BaseModel):
@@ -35,6 +35,14 @@ class Look(BaseModel):
     scene: str = Field("", description="what is seen, and how it is drawn or laid out")
 
 
+class Picture(BaseModel):
+    """A picture she paints for it."""
+
+    name: str = Field(max_length=40, description="what it is called where it is drawn")
+    kind: Literal["icon", "backdrop", "thing"] = Field(description='"icon": what it is known by, seen small. "backdrop": what fills the view behind everything. "thing": something seen in it, by itself')
+    shows: str = Field(max_length=200, description="what is seen in it, as a painter would be told")
+
+
 class Design(BaseModel):
     name: str = Field(max_length=60, description="what they call it, or a name of its own where they gave none")
     kind: Literal["game", "app", "site", "tool"] = Field(description=(
@@ -52,6 +60,7 @@ class Design(BaseModel):
     moves_by_itself: bool = Field(False, description="for an app, whether time passing changes it (a timer, a simulation)")
     pieces: list[str] = Field(default_factory=list, max_length=14, description="the pieces it is made from, by name")
     look: Look = Field(default_factory=Look)
+    pictures: list[Picture] = Field(default_factory=list, max_length=6, description="the pictures to be painted for it: its icon, and for a game what is behind it and what is seen most")
 
     def said(self) -> str:
         """The design as whoever writes it reads it."""
@@ -70,7 +79,23 @@ class Design(BaseModel):
                 lines.append(f"{label}: {text}")
         if self.look.palette:
             lines.append("Colours: " + " ".join(self.look.palette))
+        painted = [p for p in self.pictures if p.kind != "icon"]
+        if painted and self.kind in {"game", "app"}:
+            lines += ["Pictures there are of it, by their names:", *(f"  {p.name} ({p.kind}): {p.shows}" for p in painted)]
         return "\n".join(lines)
+
+
+def with_an_icon(design: Design) -> Design:
+    """The design with something to be known by, where it has nothing: what it is about, seen."""
+    icons = [p for p in design.pictures if p.kind == "icon"]
+    if design.kind in {"game", "app"} and not icons:
+        icons = [Picture(name="icon", kind="icon", shows=(design.look.scene or design.about)[:200])]
+    names: dict[str, Picture] = {}
+    for picture in design.pictures:
+        if picture.kind != "icon" and picture.name.strip() and design.kind in {"game", "app"}:
+            names.setdefault(picture.name.strip(), picture)
+    design.pictures = [*icons[:1], *list(names.values())[:5]]
+    return design
 
 
 def left_out(design: Design) -> list[str]:
@@ -137,6 +162,10 @@ ui.button(label, name, value, {{tone:"primary|danger", disabled, hint}}) ui.togg
 ui.input(label, name, value, {{placeholder, enter:"name sent on Enter", type}}) ui.number(label,name,value,{{min,max,step}}) ui.date(label,name,"2026-11-23") ui.area(label,name,value,{{rows}}) ui.check(label,name,on) ui.select(label,name,value,[value or [value,label]]) ui.slider(label,name,value,{{min,max,step}}) send "input"
 ui.list(items, (item, i) => part) ui.table(heads, rows of cells) ui.tabs(names, chosen, name) ui.progress(value, of) ui.bars([{{label,value,show}}]) ui.lines([numbers]) ui.canvas(name, w, h, (g, w, h) => ...) sends "do" with {{x, y}} when pressed
 Labels of buttons that stand together differ, so each can be told from the rest. {_CHANCE}"""
+
+#: How the pictures she painted are drawn.
+PICTURES = {"game": 'Its pictures, each by its name: g.picture("name", x, y, {size, turn, flip, alpha}) draws one centred on x, y, its longer side as long as size; g.backdrop("name", {scroll, alpha}) fills the view with one, however the world is moved.',
+            "app": 'Its pictures, each by its name: ui.picture("name", {height, says}).'}
 
 SITE = """A site is one HTML document body, with a <style> of its own and, where needed, one <script>. No address outside the page is used: pictures are drawn as inline SVG, fonts are the system's. Every link goes to a part of the page that is there. It reads well at 400 and at 1200 pixels wide, in light and in dark."""
 

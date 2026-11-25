@@ -30,7 +30,15 @@ from pydantic import BaseModel, Field
 from core.making import design as how
 from core.making import her_own_mends as own
 from core.making.code_parts import BEFORE, assembled, each_test_in, patched, python_patched
-from core.making.design import Asked, Design, Rule, in_proportion, left_out, with_every_ask
+from core.making.design import (
+    Asked,
+    Design,
+    Rule,
+    in_proportion,
+    left_out,
+    with_an_icon,
+    with_every_ask,
+)
 from core.making.many_ways import SORTS
 from core.making.many_ways import made as made_with
 from core.making.pieces import bundle, calls, catalogue, near, pieces, used_in, with_needs
@@ -176,6 +184,9 @@ class _Maker:
         self._failed_by: dict[str, set[str]] = {}
         self.corrected: set[str] = set()
         self.when_kept: Callable[[Path], None] | None = None
+        #: What paints its pictures, and the painting of them, beside everything else.
+        self.paints: Any = None
+        self.painting: asyncio.Task[list[str]] | None = None
         self.began = time.monotonic()
 
     # ── 1. the design ────────────────────────────────────────────────
@@ -206,6 +217,7 @@ class _Maker:
             was = wrong
             wrong = left_out(got)
             got = with_every_ask(got, asks)
+            got = with_an_icon(got)
             got.rules = in_proportion(got, asks)
             got.rules = await asyncio.to_thread(self._not_the_windows, got)
             held = pieces("python") if got.kind == "tool" else pieces()
@@ -285,6 +297,8 @@ class _Maker:
         if design.kind == "game":
             told += f"\nThe pen: {how.PEN}"
             drawn_with = list(how.DRAWN_WITH)
+        if any(p.kind != "icon" for p in design.pictures):
+            told += f"\n{how.PICTURES[design.kind]}" if design.kind in how.PICTURES else ""
         if design.pieces or drawn_with:
             told += f"\nPieces that are there to be called, by these names:\n{calls(with_needs([*drawn_with, *design.pieces]))}"
         return told
@@ -302,8 +316,30 @@ class _Maker:
             return [rules]
         return [rules[at:at + A_LAYER] for at in range(0, len(rules), A_LAYER)]
 
+    def begin_painting(self) -> None:
+        """Paint its pictures beside the writing of it: each takes a second or two, and the first some more."""
+        from core.making.pictures import paint
+
+        if self.paints is None or self.design is None or not self.design.pictures or (self.painting is not None and not self.painting.done()):
+            return
+        others = [p for p in self.folder.parent.glob("*/icon.png") if p.parent != self.folder]
+        self.painting = asyncio.create_task(paint(self.design, self.folder, self.work, paints=self.paints, others=others))
+
+    async def painted(self) -> None:
+        """Until its pictures are painted, or cannot be."""
+        if self.painting is None:
+            return
+        if not self.painting.done():
+            self.work.step("Finishing its pictures")
+        try:
+            await self.painting
+        except (OSError, RuntimeError, ValueError, ImportError, TypeError) as why:
+            logger.info("Its pictures were not all painted: %s", why)
+            self.work.trouble(f"Its pictures could not all be painted ({type(why).__name__}).")
+
     async def built(self) -> None:
         """The program, a layer of its rules at a time: tests of the layer, its code, and what fails mended before the next."""
+        self.begin_painting()
         layers = self.layers()
         for n, rules in enumerate(layers):
             rules = [rule for rule in rules if rule not in self.has]
@@ -845,7 +881,10 @@ class _Maker:
 
         assert self.design is not None
         path = self.folder / "looked_at.html"
-        html = site_of(self.design, parts.text) if self.design.kind == "site" else page_of(self.design, parts.code())
+        from core.making.pictures import as_data
+
+        html = site_of(self.design, parts.text) if self.design.kind == "site" else page_of(
+            self.design, parts.code(), pictures=await asyncio.to_thread(as_data, self.folder, self.design))
         await asyncio.to_thread(governed, "write_text", path, html)
         try:
             seen = await what_is_unfinished(path, browser=self.browser)
@@ -959,7 +998,9 @@ class _Maker:
         assert self.design is not None
         if self.design.kind == "site":
             return site_of(self.design, self.parts.text)
-        return page_of(self.design, self.parts.code())
+        from core.making.pictures import as_data
+
+        return page_of(self.design, self.parts.code(), pictures=as_data(self.folder, self.design))
 
     async def kept(self) -> Path:
         """The program, whole, in its folder, with what it was made from beside it."""
@@ -972,12 +1013,14 @@ class _Maker:
             await asyncio.to_thread(governed, "write_text", path, self.whole(self.parts))
         else:
             path = self.folder / "index.html"
-            await asyncio.to_thread(governed, "write_text", path, self.page())
+            await asyncio.to_thread(lambda: governed("write_text", path, self.page()))
         record = {"title": design.name, "accent": design.look.accent, "asked": self.asked, "design": design.model_dump(),
                   "parts": {"functions": self.parts.functions, "text": self.parts.text, "tests": self.parts.tests,
                             "cases": self.parts.cases}, "built": self.has,
                   "tried": [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*self.trial.generic, *self.trial.rules]]}
         await asyncio.to_thread(governed, "write_text", self.folder / "program.json", json.dumps(record, indent=1, ensure_ascii=False))
+        tried = [*self.trial.generic, *self.trial.rules]
+        self.work.kept(sum(1 for r in tried if r.ok), len(tried))
         if self.when_kept is not None:
             self.when_kept(path)
         return path
@@ -1091,6 +1134,7 @@ async def _run(maker: _Maker, first: Callable[[], Awaitable[None]]) -> Made | No
             break
     if maker.design is None:
         return None
+    await maker.painted()
     return maker.made(await maker.kept())
 
 
@@ -1120,12 +1164,12 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
 
 
 async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any, told: str = "",
-               when_kept: Callable[[Path], None] | None = None) -> Made | None:
+               when_kept: Callable[[Path], None] | None = None, paints: Any = None) -> Made | None:
     """Make what was asked for, in a folder of its own under ``where``; None where no design of it could be had. ``told`` is
     what she said to whoever asked as she began, which the design holds to; ``when_kept`` is told where it stands each time
     it is kept, so that what cuts it short leaves something to go on with."""
     maker = _Maker(asked, ask=ask, write=write, work=work, folder=where, browser=browser)
-    maker.told, maker.when_kept = told, when_kept
+    maker.told, maker.when_kept, maker.paints = told, when_kept, paints
 
     async def first() -> None:
         if await maker.designed() is None:
@@ -1136,20 +1180,20 @@ async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path,
     return await _run(maker, first)
 
 
-async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Work, browser: Any) -> Made | None:
+async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None) -> Made | None:
     """Change a program made before to what is asked of it now, its tests kept and held to."""
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(f"{was_asked}\n{asked}", ask=ask, write=write, work=work, folder=folder, browser=browser)
-    maker.design, maker.parts = design, parts
+    maker.design, maker.parts, maker.paints = design, parts, paints
     maker.has = await asyncio.to_thread(_built_of, folder, design)
     return await _run(maker, maker_again(maker))
 
 
-async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: Any) -> Made | None:
+async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None) -> Made | None:
     """Go on with a program made before where something of it still fails."""
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(was_asked, ask=ask, write=write, work=work, folder=folder, browser=browser)
-    maker.design, maker.parts = design, parts
+    maker.design, maker.parts, maker.paints = with_an_icon(design), parts, paints
     maker.has = await asyncio.to_thread(_built_of, folder, design)
     return await _run(maker, maker.gone_on_with)
 

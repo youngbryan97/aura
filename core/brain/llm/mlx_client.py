@@ -9038,7 +9038,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     continue
                 if status in {"progress", "token"}:
                     self._record_worker_stream_progress(res, status=status, action=action)
-                    if owned_response and res.get("written") is not None:
+                    if owned_response and (res.get("written") is not None or res.get("phase") == "prefill"):
                         from core.brain.llm.what_is_being_written import pass_on
 
                         pass_on(res)

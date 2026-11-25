@@ -12838,7 +12838,7 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/rebuilding/as_a_mac_app.py",
-      "scope": "<module>._an_icon"
+      "scope": "<module>._as_icns"
     },
     {
       "callee": "shutil.rmtree",
@@ -12846,7 +12846,7 @@
       "category": "raw_file_mutation",
       "count": 1,
       "path": "core/rebuilding/as_a_mac_app.py",
-      "scope": "<module>._an_icon"
+      "scope": "<module>._as_icns"
     },
     {
       "callee": "built.parent.mkdir",
@@ -17666,6 +17666,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "846e45a64773838590446075ce2169e79683647673c589d3c1057343d24b5245",
+  "inventory_sha256": "aa44d3f232d85c450c3abccf9f3d30e9b16877cce57aee9bf767ff600c6d836a",
   "schema_version": 1
 }

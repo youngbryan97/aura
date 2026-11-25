@@ -97,7 +97,10 @@ class MessagesSkill(BaseSkill):
                 "status": transport.status(),
                 "summary": "Private Messages channel status inspected.",
             }
-        source = str(context.get("source") or context.get("origin") or "skills.messages")
+        from core.executive.standing_authority import authority_origin_of
+
+        # As the turn it is of, and not the loop that called it.
+        source = authority_origin_of(context) or "skills.messages"
         if action in {"pause", "resume"}:
             return await transport.set_paused_authorized(
                 paused=action == "pause",
