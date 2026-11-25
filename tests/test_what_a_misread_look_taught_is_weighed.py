@@ -47,7 +47,7 @@ def test_a_landing_read_as_staying_and_then_seen_to_have_become_counts_once_as_b
     rules._becomes("P", Move((6, 0), (FAR, 0), becomes="Q"), FAR)
     rules._becomes("P", Move((6, 1), (FAR, 1)), FAR)  # first read as staying a pawn
     rules.watched_becoming("P", "Q", FAR)  # the second look shows the queen
-    assert rules.stayed.get("P", 0) == 0 and rules.became["P"]["Q"] == 2
+    assert rules.stayed_at.get("P", {}).get(FAR, 0) == 0 and rules.became_at["P"][FAR]["Q"] == 2
 
 
 def test_a_change_of_places_seen_once_and_not_offered_there_with_its_own_piece_standing_is_not_held() -> None:
@@ -106,3 +106,25 @@ def test_a_look_her_rules_hold_no_kind_of_is_a_kind_of_which_nothing_is_known() 
     board = from_fen("4k3/8/8/8/8/8/8/4K3 w - -")
     board = type(board)(cells={**board.cells, (3, 3): (1, "6")}, turn=0, unmoved=board.unmoved)
     assert not attacked(CHESS, board, (0, 4), 1)
+
+
+def test_a_becoming_seen_once_and_contradicted_once_is_not_held() -> None:
+    """One look against one landing that stayed: below what a way is believed on, a tie is not held."""
+    rules = _rules()
+    rules._becomes("B", Move((5, 1), (FAR, 2), becomes="Q"), FAR)
+    rules._becomes("B", Move((5, 3), (FAR, 2)), FAR)
+    assert rules.becomings("B") == []
+    rules._becomes("B", Move((5, 1), (FAR, 2), becomes="Q"), FAR)
+    assert rules.becomings("B") == ["Q"], "seen again, more often than contradicted: held"
+
+
+def test_a_becoming_seen_away_from_the_far_row_is_not_held_and_landings_there_say_nothing_of_the_far_row() -> None:
+    """Her rules make a kind become another on its far row. A becoming read six rows up is not one they can hold, and a
+    piece of that kind landing six rows up and staying says nothing against a becoming on the far row."""
+    rules = _rules()
+    rules._becomes("B", Move((3, 1), (5, 3), becomes="Q"), 5)
+    assert rules.becomings("B") == []
+    rules._becomes("P", Move((4, 0), (5, 0), becomes="Q"), 5)  # a misread, six rows up
+    rules._becomes("P", Move((6, 1), (FAR, 1), becomes="Q"), FAR)
+    rules._becomes("P", Move((4, 2), (5, 2)), 5)  # landed six rows up, stayed: nothing against the far row
+    assert rules.becomings("P") == ["Q"]

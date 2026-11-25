@@ -83,7 +83,7 @@ SEEN_TO_BELIEVE = 3
 #: game did not offer counts against taking that way only where nothing else explains it (e9745c00a). What an earlier
 #: reading gathered weighs as kept knowledge does when it comes back (core/runtime/what_she_learned.py,
 #: TRUST_CARRIED_OVER), once, the first time the record is read after.
-READING = 5
+READING = 6
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -291,12 +291,12 @@ class HowThePiecesMove:
     #: Empty squares counted as not offered by a reading before READING 5, to be read again against the answers kept
     #: (``withheld_moves_read_again``).
     withheld_moves_unchecked: bool = field(default=False, repr=False, compare=False)
-    #: How many times each kind was seen to become each other kind where its move ended.
-    became: dict[str, dict[str, int]] = field(default_factory=dict)
-    #: The rows, counted from its own side's back row, on which a kind was seen to become another.
-    became_on_rows: dict[str, set[int]] = field(default_factory=dict)
-    #: How many times a kind ended a move on such a row and stayed what it was: what a becoming is weighed against.
-    stayed: dict[str, int] = field(default_factory=dict)
+    #: For each kind, each row (counted from its own side's back row) and each kind it was seen to become there, how
+    #: many times.
+    became_at: dict[str, dict[int, dict[str, int]]] = field(default_factory=dict)
+    #: For each kind and each row on which it was seen to become another, how many times it ended a move there and
+    #: stayed what it was: what a becoming there is weighed against.
+    stayed_at: dict[str, dict[int, int]] = field(default_factory=dict)
     #: The last landing counted as staying (kind, row), undone if a second look shows the piece became another kind.
     _last_stay: tuple[str, int] | None = field(default=None, repr=False, compare=False)
 
@@ -682,8 +682,8 @@ class HowThePiecesMove:
     def watched_becoming(self, kind: str, became: str, row: int | None = None) -> None:
         """A piece of ``kind`` seen to have become ``became`` where its move ended, on ``row`` counted from its own
         side's back row. The landing, read first as staying what it was, is not counted as staying."""
-        if self._last_stay == (kind, row) and self.stayed.get(kind, 0) > 0:
-            self.stayed[kind] -= 1
+        if self._last_stay == (kind, row) and self.stayed_at.get(kind, {}).get(row, 0) > 0:
+            self.stayed_at[kind][row] -= 1
         self._last_stay = None
         self._becomes(kind, Move((0, 0), (0, 0), becomes=became), row)
 
@@ -699,12 +699,12 @@ class HowThePiecesMove:
             if move.becomes not in options:
                 options.append(move.becomes)
             self.seen.setdefault(move.becomes, {})
-            counts = self.became.setdefault(kind, {})
-            counts[move.becomes] = counts.get(move.becomes, 0) + 1
             if row is not None:
-                self.became_on_rows.setdefault(kind, set()).add(row)
-        elif row is not None and row in self.became_on_rows.get(kind, ()):
-            self.stayed[kind] = self.stayed.get(kind, 0) + 1
+                counts = self.became_at.setdefault(kind, {}).setdefault(row, {})
+                counts[move.becomes] = counts.get(move.becomes, 0) + 1
+        elif row is not None and row in self.became_at.get(kind, {}):
+            stays = self.stayed_at.setdefault(kind, {})
+            stays[row] = stays.get(row, 0) + 1
             self._last_stay = (kind, row)
 
     def becomings(self, kind: str) -> list[str]:
@@ -713,11 +713,20 @@ class HowThePiecesMove:
         another, and staying what it was), is a misreading, as a way of taking is (``family``). LIVE 25 November 2026,
         her record held that three kinds become others on the far row, from looks read once, and that her forward
         steppers become nothing there."""
-        counts, against = self.became.get(kind, {}), self.stayed.get(kind, 0)
+        far = self.rows - 1
+        counts, against = self.became_at.get(kind, {}).get(far, {}), self.stayed_at.get(kind, {}).get(far, 0)
         held = []
         for other in self.becomes.get(kind, []):
             seen = counts.get(other, 0)
-            if seen < SEEN_TO_BELIEVE and against > seen:
+            # Where her rules hold a kind to become another is its far row: a becoming seen anywhere else is one they
+            # cannot hold, and weighed only by what was seen there. LIVE 25 November 2026 her slanting runner was read
+            # once as her many-way runner six rows up, and her rules made it one on the far row.
+            if not seen:
+                continue
+            # Contradicted as often as seen, below what a way is believed on, is not held: LIVE 25 November 2026 her
+            # slanting runner, held from one look to become her many-way runner on the far row, went there, stayed what
+            # it was, and was still held to have become it, one against one; she played on as if it had.
+            if seen < SEEN_TO_BELIEVE and against and against >= seen:
                 continue
             if against and seen <= AGAINST_AT_MOST * against:
                 continue
@@ -1067,9 +1076,8 @@ class HowThePiecesMove:
             "seen": {kind: {f"{d[0]},{d[1]}": way(w) for d, w in ways.items()} for kind, ways in self.seen.items()},
             "kept_off_attacked": dict(self.kept_off_attacked), "went_onto_attacked": dict(self.went_onto_attacked),
             "crosses": dict(self.crosses), "becomes": {k: list(v) for k, v in self.becomes.items()},
-            "became": {k: dict(v) for k, v in self.became.items()},
-            "became_on_rows": {k: sorted(v) for k, v in self.became_on_rows.items()},
-            "stayed": dict(self.stayed),
+            "became_at": {k: {str(r): dict(c) for r, c in rows.items()} for k, rows in self.became_at.items()},
+            "stayed_at": {k: {str(r): n for r, n in rows.items()} for k, rows in self.stayed_at.items()},
             "passes": sorted(self.passes), "takes_passing": sorted(self.takes_passing),
             "refusals": self.refusals, "refused_leaving_open": dict(self.refused_leaving_open),
             "taken_and_played_on": dict(self.taken_and_played_on), "first_was_hers": self.first_was_hers,
@@ -1106,9 +1114,10 @@ class HowThePiecesMove:
             learned.went_onto_attacked = {k: int(v) for k, v in kept.get("went_onto_attacked", {}).items()}
             learned.crosses = dict(kept.get("crosses", {}))
             learned.becomes = {k: list(v) for k, v in kept.get("becomes", {}).items()}
-            learned.became = {str(k): {str(b): int(n) for b, n in v.items()} for k, v in kept.get("became", {}).items()}
-            learned.became_on_rows = {str(k): {int(r) for r in v} for k, v in kept.get("became_on_rows", {}).items()}
-            learned.stayed = {str(k): int(v) for k, v in kept.get("stayed", {}).items()}
+            learned.became_at = {str(k): {int(r): {str(b): int(n) for b, n in c.items()} for r, c in rows.items()}
+                                 for k, rows in kept.get("became_at", {}).items()}
+            learned.stayed_at = {str(k): {int(r): int(n) for r, n in rows.items()}
+                                 for k, rows in kept.get("stayed_at", {}).items()}
             learned.passes, learned.takes_passing = set(kept.get("passes", [])), set(kept.get("takes_passing", []))
             learned.refusals = int(kept.get("refusals", 0))
             learned.refused_leaving_open = {k: int(v) for k, v in kept.get("refused_leaving_open", {}).items()}
@@ -1125,7 +1134,7 @@ class HowThePiecesMove:
             read_by = int(kept.get("read_by", 1))
             if read_by < 2:
                 learned._weighed_as_read_before_mending()
-            if read_by < 5:
+            if read_by < 6:
                 learned._unlisted_as_read_before_mending()
             if read_by < 4:
                 learned.withheld_takes_unchecked = True
@@ -1276,15 +1285,16 @@ class HowThePiecesMove:
                     len(self.shown.offers), let_go)
 
     def _unlisted_as_read_before_mending(self) -> None:
-        """What a reading before READING 5 kept as a bare list with no count, of kinds a piece was read as having become
-        (READING 3 let go of the lists before it, and they were filled again the same way): each
+        """What a reading before READING 6 kept of kinds a piece was read as having become, as a bare list with no count
+        or with counts not told apart by the row they were seen on (READING 3 and 5 let go of those before them, and
+        they were filled again): each
         stands for at least one reading of no known number, and weighed as every count of that reading is
         (TRUST_CARRIED_OVER of one) it comes to less than one, and is let go. A kind's becoming is learned again the
         next time two looks show it (core/agency/playing_pieces_by_kind.py, became_on_landing). LIVE 24 November 2026,
         measured on her record: two kinds held to become a third cost every game of 42 against a stronger program, and
         taking what each kind becomes from the true game alone lifted that to 0.119."""
         let_go = sum(len(v) for v in self.becomes.values())
-        self.becomes, self.became, self.became_on_rows, self.stayed = {}, {}, {}, {}
+        self.becomes, self.became_at, self.stayed_at = {}, {}, {}
         logger.info("what an earlier reading kept of kinds becoming others is let go: %d entries", let_go)
 
     def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> HowThePiecesMove:
@@ -1310,10 +1320,9 @@ class HowThePiecesMove:
             kept_off_attacked=counts(self.kept_off_attacked), went_onto_attacked=counts(self.went_onto_attacked),
             crosses={names[k]: names[v] for k, v in self.crosses.items() if k in names and v in names},
             becomes={names[k]: [names[v] for v in vs if v in names] for k, vs in self.becomes.items() if k in names},
-            became={names[k]: {names[b]: n for b, n in v.items() if b in names} for k, v in self.became.items()
-                    if k in names},
-            became_on_rows={names[k]: set(v) for k, v in self.became_on_rows.items() if k in names},
-            stayed=counts(self.stayed),
+            became_at={names[k]: {r: {names[b]: n for b, n in c.items() if b in names} for r, c in rows.items()}
+                       for k, rows in self.became_at.items() if k in names},
+            stayed_at={names[k]: dict(rows) for k, rows in self.stayed_at.items() if k in names},
             passes={names[k] for k in self.passes if k in names},
             takes_passing={names[k] for k in self.takes_passing if k in names},
             names={names[k]: said for k, said in self.names.items() if k in names},

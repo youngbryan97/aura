@@ -1784,7 +1784,8 @@ def _held_by_each(learned: HowThePiecesMove) -> dict[int, set[str]]:
         kinds = {kind for owner, kind in learned.start.values() if owner == side}
         more = set(kinds)
         while more:
-            more = {other for kind in more for other, seen in learned.became.get(kind, {}).items()
+            far = learned.rows - 1
+            more = {other for kind in more for other, seen in learned.became_at.get(kind, {}).get(far, {}).items()
                     if seen >= SEEN_TO_BELIEVE} - kinds
             kinds |= more
         held[side] = kinds

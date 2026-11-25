@@ -41,5 +41,6 @@ def test_what_falsified_it_is_kept_for_the_next_game() -> None:
 def test_a_kind_she_no_longer_reads_is_nothing_a_piece_becomes() -> None:
     learned = HowThePiecesMove.from_the_start(8, 8, START)
     learned.becomes = {"P": ["14", "K"]}
+    learned.became_at = {"P": {7: {"14": 1, "K": 1}}}  # each seen on the far row
     learned.seen.setdefault("14", {})
     assert learned.family().kinds["P"].becomes == ("K",)
