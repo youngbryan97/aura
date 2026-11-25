@@ -306,6 +306,7 @@ def _kept_under(record: str) -> dict[str, Any]:
             kept["rules"].shown = WhatTheGameShowed.from_bytes(recall_beside(record, _SHOWN))
             kept["rules"].withheld_takes_read_again()
             kept["rules"].withheld_moves_read_again()
+            kept["rules"].refusals_read_again()
     if held.get("went_wrong"):
         from core.cognition.the_furthest_she_has_got import WhatFailedWhere
 

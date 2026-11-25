@@ -82,8 +82,9 @@ SEEN_TO_BELIEVE = 3
 #: it holds still (f60209bb0); 3 since a change of kind is learned only once a second look shows it; 4 since a take the
 #: game did not offer counts against taking that way only where nothing else explains it (e9745c00a). What an earlier
 #: reading gathered weighs as kept knowledge does when it comes back (core/runtime/what_she_learned.py,
-#: TRUST_CARRIED_OVER), once, the first time the record is read after.
-READING = 6
+#: TRUST_CARRIED_OVER), once, the first time the record is read after. 7 since what the game withheld or refused in a
+#: position she held without the kind it keeps safe teaches nothing of the ways (``refusals_read_again``).
+READING = 7
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -306,6 +307,9 @@ class HowThePiecesMove:
     #: Empty squares counted as not offered by a reading before READING 5, to be read again against the answers kept
     #: (``withheld_moves_read_again``).
     withheld_moves_unchecked: bool = field(default=False, repr=False, compare=False)
+    #: Refusals counted by a reading before READING 7, to be read again against the answers kept
+    #: (``refusals_read_again``).
+    refusals_unchecked: bool = field(default=False, repr=False, compare=False)
     #: For each kind, each row (counted from its own side's back row) and each kind it was seen to become there, how
     #: many times.
     became_at: dict[str, dict[int, dict[str, int]]] = field(default_factory=dict)
@@ -337,6 +341,13 @@ class HowThePiecesMove:
             self.shown.offered(position, square, squares)
         side, kind = position.cells[square]
         unmoved = square in position.unmoved
+        # What the game did not offer is evidence only of a position she held rightly. Without the kind the game keeps
+        # safe, it was not: a game withholds moves for the whole position, keeping that kind safe above all, and with it
+        # missing nothing withheld can be put down to its keeping. What was offered is evidence still, of where the piece
+        # can go. LIVE 25 November 2026 52 of 800 answers kept offered fewer squares than the game's rules give in the
+        # position she held, most where she read her king in check, glowing, as another kind: the game offered only
+        # the moves that answer the check, and her straight-runner was held never to go back more than one square.
+        misread = self._misses_what_it_keeps_safe(position, side)
         # A partner's square offered to a piece her rules have crossing with it there is the crossing offered: a game
         # may make a crossing by the mover taken onto its partner. LIVE 23 November 2026 En Croissant's offer of the
         # rook's square to her king was kept as the two changing places, a move she then found open to her king in
@@ -381,7 +392,7 @@ class HowThePiecesMove:
                             way.an_offer(times, unmoved, taking=False)
                             shown[direction] = max(shown.get(direction, 0), times)
                             way.moved_to_empty += 1
-                        elif squares and kind in self.seen and direction in self.seen[kind]:
+                        elif squares and not misread and kind in self.seen and direction in self.seen[kind]:
                             # An offer of nothing may be a piece not picked up, or a board not yet taking moves
                             # (LIVE 23 November 2026, a game's setup board, picked up piece by piece): it withholds
                             # nothing. Nor does a square the move to which would leave the kind the game keeps safe
@@ -398,8 +409,9 @@ class HowThePiecesMove:
                                 way.took += 1
                                 way.an_offer(times, unmoved, taking=True)
                                 shown[direction] = max(shown.get(direction, 0), times)
-                            elif self._goes(kind, direction, times, unmoved) and squares and not self._kept_safe_explains(
-                                    position, Move(square, there, taken_at=there), family):
+                            elif self._goes(kind, direction, times, unmoved) and squares and not misread \
+                                    and not self._kept_safe_explains(position, Move(square, there, taken_at=there),
+                                                                     family):
                                 # A take the game did not offer counts against taking that way only where nothing
                                 # else explains it: leaving the kind it keeps safe where it can be taken is reason
                                 # enough. LIVE 24 November 2026 her royal kind was held never to take on its right,
@@ -409,11 +421,12 @@ class HowThePiecesMove:
                             # A square of its own side offered: the two change places.
                             self._of(kind, direction).swapped.add(times)
                             self._saw_special(kind, "swaps")
-                        elif squares and there not in crossing_to and kind in self.seen and direction in self.seen[kind]:
+                        elif (squares and not misread and there not in crossing_to and kind in self.seen
+                              and direction in self.seen[kind]):
                             self.seen[kind][direction].not_swapped.add(times)
                         break
                     times += 1
-        if family is not None:
+        if family is not None and not misread:
             self._what_the_offer_keeps_safe(position, square, squares, family)
             self._what_the_offer_says_of_taking_first(position, square, squares, family)
             self._what_the_offer_withholds(position, square, squares, family)
@@ -792,6 +805,10 @@ class HowThePiecesMove:
         if self.shown is not None:
             self.shown.refused(position, move)
         side, kind = position.cells[move.start]
+        if self._misses_what_it_keeps_safe(position, side):
+            # Held without the kind the game keeps safe, the position was misread: the refusal may be its keeping, and
+            # says nothing of the way (``offered``).
+            return
         direction, times = in_its_frame(side, move.start, move.end)
         unmoved = move.start in position.unmoved
         way = self._of(kind, direction)
@@ -881,6 +898,13 @@ class HowThePiecesMove:
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest
+
+    def _misses_what_it_keeps_safe(self, position: Position, side: int) -> bool:
+        """Whether ``side`` holds no piece of a kind the game keeps safe in ``position``, where she knows such a kind: a
+        position no game asks a side to move in, so one she misread."""
+        kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
+        return bool(kept_safe) and not any(owner == side and held in kept_safe
+                                           for owner, held in position.cells.values())
 
     def _kept_safe_explains(self, position: Position, move: Move, family: Family | None) -> bool:
         """Whether, by her rules, ``move`` would leave the kind the game keeps safe where the other side could take it:
@@ -1198,6 +1222,9 @@ class HowThePiecesMove:
                 learned.withheld_takes_unchecked = True
             if read_by < 5:
                 learned.withheld_moves_unchecked = True
+            if read_by < 7:
+                learned.withheld_takes_unchecked = learned.withheld_moves_unchecked = True
+                learned.refusals_unchecked = True
             learned.read_by = READING
             return learned
         except (KeyError, TypeError, ValueError) as why:
@@ -1341,6 +1368,65 @@ class HowThePiecesMove:
         self.withheld_moves_unchecked = False
         logger.info("squares an earlier reading counted as not offered, read again against %d answers kept: %d let go",
                     len(self.shown.offers), let_go)
+
+    def refusals_read_again(self) -> None:
+        """Refusals an earlier reading counted against a way, read again against the refusals kept (``shown``): each
+        distance's count stands as far as those refusals, read as now, bear it out, and the rest is let go. Before
+        READING 7 a refusal counted whatever position she held, one without the kind the game keeps safe among them. A
+        distance a refusal took out of what the way is offered, and that the answers kept offer, is put back where it
+        stands again. LIVE 25 November 2026 two refused takes four squares down her slant-runner's backward diagonal,
+        both made where her king read as another kind, held it no further than three in every look she took."""
+        if not self.refusals_unchecked or self.shown is None:
+            return
+        import copy
+
+        from core.agency.what_the_game_showed import _read
+
+        family = self.family()
+        again = copy.deepcopy(self)
+        again.shown = None
+        for ways in again.seen.values():
+            for way in ways.values():
+                way.refused_going_at, way.refused_taking_at = {}, {}
+        for answer in self.shown.offers:
+            try:
+                position = _read(answer["at"])
+            # not a failure: an answer kept by an older reader that cannot be read back bears out nothing.
+            except (KeyError, TypeError, ValueError):
+                continue
+            start = tuple(answer["from"])
+            if start in position.cells and position.cells[start][0] == position.turn and answer["to"]:
+                again.offered(position, start, {tuple(sq) for sq in answer["to"]}, family=family)
+        for answer in self.shown.refusals:
+            try:
+                position = _read(answer["at"])
+            # not a failure: as above.
+            except (KeyError, TypeError, ValueError):
+                continue
+            start, end = tuple(answer["from"]), tuple(answer["to"])
+            if start not in position.cells:
+                continue
+            taken = end if end in position.cells and position.cells[end][0] != position.cells[start][0] else None
+            again.refused(position, Move(start, end, taken_at=taken), family=family)
+        let_go = 0
+        for kind, ways in self.seen.items():
+            for direction, way in ways.items():
+                borne_out = again.seen.get(kind, {}).get(direction)
+                for held, shown in ((way.refused_going_at, borne_out.refused_going_at if borne_out else {}),
+                                    (way.refused_taking_at, borne_out.refused_taking_at if borne_out else {})):
+                    for times in list(held):
+                        kept = min(held[times], shown.get(times, 0))
+                        let_go += held[times] - kept
+                        if kept:
+                            held[times] = kept
+                        else:
+                            del held[times]
+                if borne_out is not None:
+                    way.offered |= {t for t in borne_out.offered if way._stands(t)}
+                    way.offered_unmoved |= {t for t in borne_out.offered_unmoved if way._stands(t)}
+        self.refusals_unchecked = False
+        logger.info("refusals an earlier reading counted, read again against %d kept: %d let go",
+                    len(self.shown.refusals), let_go)
 
     def _unlisted_as_read_before_mending(self) -> None:
         """What a reading before READING 6 kept of kinds a piece was read as having become, as a bare list with no count
