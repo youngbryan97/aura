@@ -45,3 +45,10 @@ def test_a_side_that_answers_fast_does_not_hurry_her() -> None:
     assert playing._their_pace(_game([1.2, 1.6, 1.4]), 4.0) == 4.0
     share, on_clock = asyncio.run(playing._time_for_a_move(None, playing._Rehearsing(None), 3, 4.0, _game([1.5])))
     assert (share, on_clock) == (4.0, False)
+
+
+def test_with_no_clock_a_look_whose_answer_will_not_settle_may_go_on_as_long_as_she_would_wait() -> None:
+    assert playing._the_most_a_look_may_take(4.0, False, None) == max(3 * 4.0, playing.NO_ANSWER_AFTER_S)
+    # On her clock, held to what the clock allows.
+    assert playing._the_most_a_look_may_take(4.0, True, 100.0) == min(playing.SPENDS_AT_MOST * 4.0,
+                                                                       playing.LEFT_AT_MOST * 100.0)

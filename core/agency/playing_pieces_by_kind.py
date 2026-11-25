@@ -1124,15 +1124,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                       else share)
             if set_aside and on_her_clock:
                 thinks = max(thinks, share)
-            # The most it may take, where the answer will not settle: SPENDS_AT_MOST of what it means to take, and
-            # never more than LEFT_AT_MOST of what is left on her clock.
-            most = thinks
-            if on_her_clock and game.count.value is not None:
-                most = max(thinks, min(SPENDS_AT_MOST * thinks, LEFT_AT_MOST * max(0.0, game.count.value)))
-            elif not on_her_clock:
-                # No clock to keep: where another depth is still likely to change her answer, she may look on, as far
-                # as she would with one.
-                most = SPENDS_AT_MOST * thinks
+            # The most it may take, where the answer will not settle (``_the_most_a_look_may_take``).
+            most = _the_most_a_look_may_take(thinks, on_her_clock, game.count.value)
             # A move that is the only one is made without weighing (core/cognition/when_the_situation_decides.py).
             only = nothing_to_decide([m for m in legal if m not in set_aside]) if not set_aside else None
             # A situation she worked out ahead, among the choices it offers her now, is answered from what
@@ -1646,6 +1639,18 @@ def _looks_first(game: _Game, *, pressed: bool = False, unseen: bool = False) ->
         return False
     game.unlooked = 0
     return True
+
+
+def _the_most_a_look_may_take(thinks: float, on_her_clock: bool, left: float | None) -> float:
+    """The most a turn's look may take where another depth is still likely to change her answer. On her clock,
+    SPENDS_AT_MOST of what the turn means to take, and never more than LEFT_AT_MOST of what is left on it. With no
+    clock to keep, as long as she would wait on theirs: held to what a clock would allow, LIVE 25 November 2026 46 of
+    her 173 turns against Stockfish thought for that bound or longer, in games no clock was kept in."""
+    if on_her_clock and left is not None:
+        return max(thinks, min(SPENDS_AT_MOST * thinks, LEFT_AT_MOST * max(0.0, left)))
+    if not on_her_clock:
+        return max(SPENDS_AT_MOST * thinks, NO_ANSWER_AFTER_S)
+    return thinks
 
 
 def _their_pace(game: _Game | None, otherwise: float) -> float:
