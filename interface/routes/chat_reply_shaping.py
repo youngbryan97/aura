@@ -98,13 +98,10 @@ async def _build_context_challenge_repair_reply(
     *,
     session_id: str = "",
 ) -> str | None:
-    """Repair short "what are you talking about?" turns from canonical context.
+    """What the conversation holds for a turn that asks what she is talking about, as a reading beside her turn.
 
-    This is deliberately not a generic fallback. It is only used after the live
-    CognitiveEngine path has been invoked and its draft failed a context-drift
-    gate. The repair is grounded in the completed conversation log so a confused
-    user receives a direct course correction instead of a 503 or an invented
-    continuation.
+    It was written as a reply of hers ("I may have drifted from the thread ... I should reset to that context"), given to her as
+    evidence, and served in her place. It is what was said, and nothing of what to make of it.
     """
 
     if not _chat_desktop_repair._is_contextual_relevance_challenge(user_message):
@@ -128,56 +125,11 @@ async def _build_context_challenge_repair_reply(
             prev_user = _chat_memory_state._clip_conversation_text(prev.get("user"), limit=220)
             prev_aura = _chat_memory_state._clip_conversation_text(prev.get("aura"), limit=220)
 
-    lowered = _chat_memory_state._normalize_user_message(user_message)
-    if "pitch" in lowered:
-        base = "I do not see a pitch in the recent thread."
-    else:
-        base = "I may have drifted from the thread."
-
-    asks_missing_referent = bool(
-        re.search(
-            r"\b(?:who\s+(?:are\s+you\s+talking\s+about|do\s+you\s+mean|needs?\b)|"
-            r"what\s+(?:are|were)\s+you\s+talking\s+about)\b",
-            lowered,
-        )
-    )
-    last_reply_has_vague_referent = bool(
-        re.search(
-            r"\b(?:they|them|those\s+people|people\s+i\s+work\s+with|"
-            r"my\s+(?:team|coworkers?|colleagues?))\b",
-            _chat_memory_state._normalize_user_message(last_aura),
-        )
-    )
-    if asks_missing_referent and last_aura and last_reply_has_vague_referent:
-        grounding = ""
-        if prev_user or prev_aura:
-            grounding = (
-                f' The grounded lead-in before that was you: "{prev_user}"'
-                if prev_user
-                else " The grounded lead-in before that is only partially available"
-            )
-            if prev_aura:
-                grounding += f' and me: "{prev_aura}"'
-            grounding += "."
-        return (
-            "I introduced or amplified a vague referent there. "
-            f'The last reply I need to account for was: "{last_aura}".'
-            f"{grounding} I should keep the referent attached to the actual thread "
-            "or ask you to clarify it, not invent a separate group."
-        )
-
-    if last_user and last_aura:
-        return (
-            f"{base} The last completed exchange I have is you asking: "
-            f'"{last_user}" and me replying: "{last_aura}". '
-            "I should reset to that context instead of inventing a new one."
-        )
-    if last_user:
-        return (
-            f"{base} The last completed thing I have from you is: "
-            f'"{last_user}". I should answer from that context, not invent a new one.'
-        )
-    return f"{base} I do not have enough completed local context to continue that thread safely."
+    if not last_user and not last_aura:
+        return None
+    said = [("The exchange before it", prev_user, prev_aura)] if prev_user or prev_aura else []
+    said.append(("The last completed exchange", last_user, last_aura))
+    return "\n".join(f'{name}: they said "{user}"' + (f', and the reply was "{aura}"' if aura else "") + "." for name, user, aura in said)
 
 
 def _build_evidence_bound_self_claim_reply(

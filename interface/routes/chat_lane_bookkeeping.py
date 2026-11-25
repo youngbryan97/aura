@@ -493,38 +493,14 @@ async def _fetch_deep_memory_context(user_message: str) -> str:
 
 
 def _context_challenge_reply_is_inadequate(user_message: str, reply_text: str) -> bool:
-    if not _chat_desktop_repair._is_contextual_relevance_challenge(user_message):
-        return False
-    reply = _chat_memory_state._normalize_user_message(reply_text)
-    if not reply:
-        return True
-    user = _chat_memory_state._normalize_user_message(user_message)
-    grounding_markers = (
-        "i do not see",
-        "i don't see",
-        "no pitch",
-        "not a pitch",
-        "not enough",
-        "because you",
-        "you had just",
-        "you just",
-        "you mentioned",
-        "you asked",
-        "you were",
-        "earlier you",
-        "recent thread",
-        "recent context",
-        "last completed",
-        "reset",
-        "drift",
-        "invent",
-        "unsupported",
-    )
-    if any(marker in reply for marker in grounding_markers):
-        return False
-    if "pitch" in user and "pitch" in reply:
-        return True
-    return not names_any(reply, ("context", "thread", "recent", "last"))
+    """Whether a turn that asks what she is talking about was given no reply.
+
+    What a reply to one had to say was told by a list of words ("you mentioned", "the recent thread"), and a reply with none of
+    them was put aside for a line of the runtime's. LIVE 25 November 2026, 02:01: "Which one of those would you do first?" was
+    taken for such a turn, for its "which one", and her answer was replaced by "I may have drifted from the thread. The last
+    completed exchange I have is you asking ...". What she says is hers to say; what the conversation holds is given to her.
+    """
+    return _chat_desktop_repair._is_contextual_relevance_challenge(user_message) and not _chat_memory_state._normalize_user_message(reply_text)
 
 
 async def _resolve_action_episode_grounding(

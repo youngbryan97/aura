@@ -582,3 +582,27 @@ def test_a_request_a_reply_can_meet_in_words_is_never_read_as_left_undone(monkey
     with bind_turn_evidence_custody(session_id="s", turn_id="t-machine"):
         record_turn_tools_offered(["notify_user"])
         assert refutes.sentences_her_record_refutes(answer, told)
+
+
+def test_room_for_the_reader_is_asked_for_with_nothing_held(monkeypatch):
+    """LIVE 25 November 2026: the lane wrote its ledger down under the reader's lock, and her runtime was tainted for it."""
+    from core.runtime import model_lane_control as lanes
+
+    held: list[bool] = []
+
+    class Lease:
+        def release(self, reason=""):
+            held.append(refutes._LOCK.locked() if hasattr(refutes._LOCK, "locked") else False)
+
+    def admit(**_how):
+        free = refutes._LOCK.acquire(False)
+        held.append(not free)
+        if free:
+            refutes._LOCK.release()
+        return Lease()
+
+    monkeypatch.setattr(refutes, "_LOADED", {})
+    monkeypatch.setattr(lanes, "acquire_synchronous_in_process_model_lane", admit)
+    assert refutes._admitted() and refutes._admitted() and held == [False], "asked once, with nothing held"
+    refutes._evict(None, "test")
+    assert "lease" not in refutes._LOADED and held == [False, False]

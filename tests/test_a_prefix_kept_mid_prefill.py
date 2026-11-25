@@ -420,3 +420,38 @@ def test_where_the_last_search_ran_out_is_kept_too_where_it_lies_past_them():
     at, _keep = _prefixes_worth_keeping(lru, _KEY, list(range(900)), 0, ["KV"], 64, shared=[300, 500])
     assert at == (256, 448, 640)
     assert _prefixes_worth_keeping(lru, _KEY, list(range(40)), 0, ["KV"], 64, shared=[0]) == ((), None)
+
+
+class _Letters:
+    """A tokenizer of letters, so that a place in the text is a place in the tokens."""
+
+    def encode(self, text, add_special_tokens=False):
+        return [ord(c) for c in text]
+
+
+def _rendered(messages):
+    return "".join(f"<|im_start|>{'user' if m['role'] == 'tool' else m['role']}\n{m['content']}<|im_end|>\n" for m in messages) + "<|im_start|>assistant\n"
+
+
+def test_the_conversation_before_a_turns_readings_is_what_the_next_turn_shares():
+    """LIVE 24 November 2026: with no system message the first message was all that was taken to be shared."""
+    from core.brain.llm.where_calls_share import where_the_turns_readings_start
+
+    talk = [{"role": "user", "content": "How do I keep basil alive?"}, {"role": "assistant", "content": "Light, and not much water."}]
+    readings = [{"role": "tool", "content": "[LIVE TONE] steady"}, {"role": "runtime_evidence", "content": "[PRESENT MOMENT] late"}]
+    now = [*talk, *readings, {"role": "user", "content": "And if my window faces north?"}]
+    prompt, letters = _rendered(now), _Letters()
+    at = where_the_turns_readings_start(letters, prompt, now, letters.encode(prompt))
+    then = _rendered([*talk, now[-1], {"role": "assistant", "content": "Then a lamp."}, readings[0], {"role": "user", "content": "Which first?"}])
+    assert at == len(_rendered(talk)) - len("<|im_start|>assistant\n") and prompt[:at] == then[:at]
+    assert where_the_turns_readings_start(letters, _rendered(talk[:1]), talk[:1], letters.encode(_rendered(talk[:1]))) == 0, "nothing comes before it"
+    plain = [*talk, now[-1]]
+    assert where_the_turns_readings_start(letters, _rendered(plain), plain, letters.encode(_rendered(plain))) == 0, "a turn with no readings is shared up to what is said in it"
+
+
+def test_the_worker_keeps_the_conversation_as_it_stood():
+    import inspect
+
+    from core.brain.llm import mlx_worker
+
+    assert "where_the_turns_readings_start(tokenizer, prompt, messages, tokens)" in inspect.getsource(mlx_worker)

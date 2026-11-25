@@ -16,7 +16,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["where_calls_stop_sharing", "where_the_first_message_ends", "where_the_last_turn_starts"]
+__all__ = ["where_calls_stop_sharing", "where_the_first_message_ends", "where_the_last_turn_starts", "where_the_turns_readings_start"]
 
 
 def where_the_first_message_ends(tokenizer: Any, tokens: Any) -> int:
@@ -74,6 +74,40 @@ def where_calls_stop_sharing(tokenizer: Any, prompt: Any, messages: Any, tokens:
         before = tokenizer.encode(prompt[:at])
     except (AttributeError, RuntimeError, ValueError) as exc:
         logger.info("No shared prefix is claimed: the tokenizer could not encode the part before it (%s).", exc)
+        return 0
+    return min(len(before), len(tokens))
+
+
+#: The roles a turn's readings are given in, as the runtime names them and as a template is given them.
+_READINGS = frozenset({"runtime_evidence", "tool", "system", "developer"})
+
+
+def where_the_turns_readings_start(tokenizer: Any, prompt: Any, messages: Any, tokens: Any) -> int:
+    """How many of the prompt's tokens come before the readings made for this turn: the conversation as it stood.
+
+    A turn's readings come just before what was said in it, and the next turn has its own in place of them. So the next
+    turn shares the conversation before them and nothing after. LIVE 24 November 2026 no system message was sent, so the
+    part every call shares was taken to be the first message; a turn kept its whole prompt but its last words, and the
+    next one, which shared 3,542 of its 6,785 tokens, read them all. Zero where a turn has no readings before it."""
+    said = [m for m in (messages or []) if isinstance(m, dict)]
+    role = [str(m.get("role") or "").strip().lower() for m in said]
+    last = max((i for i, r in enumerate(role) if r == "user"), default=-1)
+    first = last
+    while first > 0 and role[first - 1] in _READINGS:
+        first -= 1
+    if tokenizer is None or not tokens or not isinstance(prompt, str) or first in (last, 0):
+        return 0
+    begins = str(said[first].get("content") or "").strip()[:80]
+    at = prompt.rfind(begins) if begins else -1
+    start = prompt.rfind("<|im_start|>", 0, at) if at > 0 else -1
+    if start <= 0:
+        return 0
+    try:
+        before = tokenizer.encode(prompt[:start], add_special_tokens=False)
+    except TypeError:
+        before = tokenizer.encode(prompt[:start])
+    except (AttributeError, RuntimeError, ValueError) as exc:
+        logger.info("No shared prefix is claimed: the tokenizer could not encode the conversation before it (%s).", exc)
         return 0
     return min(len(before), len(tokens))
 

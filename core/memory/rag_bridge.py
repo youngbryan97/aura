@@ -121,6 +121,14 @@ async def fetch_deep_context(
             # What the caller knows a memory to be that this bridge does not: her own earlier answer to these words,
             # stored without them (LIVE 8 November 2026, the sitting before's answer said again word for word).
             raw_results = [memory for memory in raw_results if not (isinstance(memory, dict) and leave_out(memory))]
+        if raw_results:
+            from core.memory.bears_on_it import bear_on
+
+            held = [memory if isinstance(memory, dict) else {"text": str(memory)} for memory in raw_results]
+            kept = await asyncio.to_thread(bear_on, user_query, [str(m.get("text") or m.get("content") or "") for m in held])
+            if not all(kept):
+                logger.info("Of %d memories recalled, %d bear on what is said.", len(held), sum(kept))
+            raw_results = [memory for memory, bears in zip(raw_results, kept, strict=True) if bears]
         if not raw_results:
             _record(0, 0)
             return ""

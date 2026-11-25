@@ -8505,6 +8505,10 @@ needs her 27B free (her app down, or her app's own influence trials).
     144 of its 40,358 passes a second done (1,231 now); her worker loaded the encoder five times in a reply; a typed turn
     waited behind her own goal's words; and the next turn read all of its prompt again, 6,785 tokens in 33.6 s, of which
     3,542 had been read. What each turn is given is logged by part. Left: those numbers again, live.
+  - 25 November, 02:00, the same three turns live on that: 70 s (nothing served: an answer she gave the evening before, given
+    again, was refused twice), 43 s, 44 s (a line of the runtime's, for "which one"). Reading what was asked went from 10.7 s
+    to 0.28, what nothing accounts for from 5-17 s to 1.4-2.6, prefill 202 to 340-400 tokens a second. Both replies are mended,
+    recall is kept to what bears on a turn, and the talk before a turn's readings is kept read for the next. Left: again, live.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).

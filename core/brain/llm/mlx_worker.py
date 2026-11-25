@@ -30,7 +30,11 @@ from core.brain.llm.user_surface_recurrence import (
 )
 from core.brain.llm.what_is_being_written import more_of
 from core.brain.llm.what_she_expects_next import as_a_job_of_the_worker
-from core.brain.llm.where_calls_share import where_calls_stop_sharing, where_the_last_turn_starts
+from core.brain.llm.where_calls_share import (
+    where_calls_stop_sharing,
+    where_the_last_turn_starts,
+    where_the_turns_readings_start,
+)
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_mlx_memory_limit
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
@@ -7608,7 +7612,7 @@ def _mlx_worker_loop(
                                     # that may be asked again shares everything before the turn it answers. Both are
                                     # kept. LIVE 24 November 2026 only the deeper was, the readings were in it, and the
                                     # next turn of a three-turn talk read all 6,785 tokens again, 33.6 s.
-                                    _shared = [where_calls_stop_sharing(tokenizer, prompt, messages, tokens)]
+                                    _shared = [max(where_calls_stop_sharing(tokenizer, prompt, messages, tokens), where_the_turns_readings_start(tokenizer, prompt, messages, tokens))]
                                     if internal_attempt < max_internal_retries:
                                         _shared.append(where_the_last_turn_starts(tokenizer, tokens))
                                     _snapshot_at, _keep_prefix = _prefixes_worth_keeping(
@@ -8839,8 +8843,19 @@ def _mlx_worker_loop(
                                                         set(rejection_reasons)
                                                         & _SEMANTIC_COUNT_CONTRACT_RETRY_REASONS
                                                     ),
+                                                    said_before="repeated_earlier_reply" in rejection_reasons,
                                                 )
                                                 continue
+                                            if set(rejection_reasons) == {"repeated_earlier_reply"}:
+                                                # Asked again, she gives the answer she gave before, so it is her answer, and
+                                                # a turn with none is worse. LIVE 25 November 2026, 02:00: asked how to keep
+                                                # basil alive, as she had been the evening before, she answered it twice in 70 s
+                                                # and the person was given nothing.
+                                                logger.info("🛡️ [WORKER] The same answer again, asked twice: it is hers, and it is served.")
+                                                surface_control_state["surface_quality_gate_passed"] = True
+                                                surface_control_state["surface_quality_gate_reasons"] = []
+                                                surface_control_state["surface_quality_gate_exemption"] = "the_same_answer_asked_twice"
+                                                break
                                             salvaged = _mlx_worker_loop_part_19(job, logger, original_messages, original_prompt, rejection_reasons, response_text)
                                             if salvaged:
                                                 logger.info(

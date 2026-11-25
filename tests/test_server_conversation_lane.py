@@ -1794,16 +1794,16 @@ async def test_context_challenge_repair_resolves_vague_referent_from_transcript(
         "Who needs to get their act together?"
     )
 
-    assert repair
-    lowered = repair.lower()
-    assert "vague referent" in lowered
-    assert "actual thread" in lowered
-    assert "invent a separate group" in lowered
-    assert "people i work with" not in lowered
+    # What was said, and nothing of what to make of it: it is a reading beside her turn, and never her reply.
+    assert repair == (
+        'The exchange before it: they said "Your breadth is impressive. Hopefully soon people will see it.", and the reply was "Thanks. I appreciate the feedback.".\n'
+        'The last completed exchange: they said "Hopefully soon they will", and the reply was "Yeah, hopefully soon. They need to get their act together.".'
+    )
+    assert "drifted" not in repair and "I should" not in repair
 
 
 @pytest.mark.asyncio
-async def test_required_desktop_turn_returns_context_evidence_repair_after_bad_referent(
+async def test_what_the_conversation_holds_is_beside_her_turn_and_her_reply_is_hers(
     monkeypatch,
 ):
     from core.providers import engine_connection_pool as pool_module
@@ -1811,8 +1811,11 @@ async def test_required_desktop_turn_returns_context_evidence_repair_after_bad_r
 
     _force_full_mind_runtime(monkeypatch, chat_routes)
 
+    given: dict[str, object] = {}
+
     class _FakeCognitiveEngine:
         async def think(self, objective, context=None, **kwargs):
+            given.update(context or {})
             return SimpleNamespace(
                 content=(
                     "The people I work with. They're great, but they need to see the bigger picture."
@@ -1870,12 +1873,10 @@ async def test_required_desktop_turn_returns_context_evidence_repair_after_bad_r
         turn_trace=trace,
     )
 
-    assert reply
-    lowered = reply.lower()
-    assert "vague referent" in lowered
-    assert "invent a separate group" in lowered
-    assert "people i work with" not in lowered
-    assert trace["response_path"] == "cognitive_engine_context_evidence_repair"
+    # LIVE 25 November 2026: her answer to "Which one of those would you do first?" was replaced by a line of the runtime's.
+    assert reply and "They're great" in reply and "drifted" not in reply
+    assert trace["response_path"] != "cognitive_engine_context_evidence_repair"
+    assert 'they said "Hopefully soon they will"' in given["contextual_relevance_evidence"]
 
 
 def test_desktop_recent_context_needed_for_short_followups_and_status_checks():
@@ -8878,7 +8879,7 @@ async def test_api_chat_desktop_surface_blocks_thin_cognitive_engine_recovery_re
 
 
 @pytest.mark.asyncio
-async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkeypatch):
+async def test_api_chat_desktop_required_tells_an_unfounded_voice_intrusion(monkeypatch):
     from interface import server as server_module
     from interface.routes import chat as chat_routes
 
@@ -8968,16 +8969,12 @@ async def test_api_chat_desktop_required_blocks_unfounded_voice_intrusion(monkey
         None,
     )
 
-    # In-band fail-closed delivery (see sibling test above).
+    # Her draft is served and said to be unverified, as every draft a detector doubts is (surface_disposition). It was put
+    # aside here by a list of words a reply to "What are you talking about?" had to have.
     assert response.status_code == 200
     assert b"desktop_response_quality_failed" in response.body
-    assert b"voices" not in response.body
-    assert b"whispering" not in response.body
-    assert completed_exchanges
-    assert completed_exchanges[0][1]["record_experience"] is False
-    assert output_receipts
-    assert output_receipts[0][1]["metadata"]["path"] == "desktop_required_final_quality_failed"
-    assert output_receipts[0][1]["metadata"]["response_confidence"] == "failed"
+    assert b"served_repairable_draft" in response.body and b'"response_confidence":"degraded"' in response.body
+    assert all(kept["record_experience"] is False for _exchange, kept in completed_exchanges)
 
 
 

@@ -927,11 +927,14 @@ def _build_user_surface_quality_retry_prompt(
     return str(fallback_prompt or "")
 
 
-def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = False) -> None:
-    """Reset sampling after a corrupt/looping draft instead of amplifying it."""
+def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = False, said_before: bool = False) -> None:
+    """Reset sampling after a corrupt/looping draft instead of amplifying it. One that said again what she had said is asked
+    for as it was asked for: cooled, it is the same words once more."""
     kwargs.pop("sampler", None)
     kwargs.pop("prompt_cache", None)
-    if structured:
+    if said_before and not structured:
+        kwargs["temperature"] = max(_safe_float(kwargs.get("temperature"), 0.7), 0.7)
+    elif structured:
         kwargs["temperature"] = 0.0
         kwargs["top_p"] = 1.0
     else:

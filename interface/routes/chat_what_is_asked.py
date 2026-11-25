@@ -51,9 +51,11 @@ def begin_reading_what_is_asked() -> None:
             await get_what_she_says_she_does().learn(client, waiting=a_person_is_waiting_for_her_model)
             await get_what_she_undertakes().learn(client, waiting=a_person_is_waiting_for_her_model)
             await get_what_of_hers().learn(client, waiting=a_person_is_waiting_for_her_model)
-        from core.conversation.left_unanswered import warm
+        from core.conversation import left_unanswered
+        from core.memory import bears_on_it
 
-        await asyncio.to_thread(warm)
+        for reading in (left_unanswered, bears_on_it):
+            await asyncio.to_thread(reading.warm)
 
     get_task_tracker().create_task(learn(), name="what_is_asked.learn")
 

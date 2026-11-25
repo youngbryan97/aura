@@ -53,3 +53,16 @@ def test_a_question_about_her_grounds_is_not_a_challenge(asked: str) -> None:
 
 def test_a_challenge_with_no_question_about_grounds_still_is() -> None:
     assert _is_contextual_relevance_challenge("what are you talking about?") is True
+
+
+def test_her_reply_to_one_is_never_put_aside_for_a_line_of_the_runtimes() -> None:
+    """LIVE 25 November 2026: "Which one of those would you do first?" was answered "I may have drifted from the thread"."""
+    import inspect
+
+    from interface.routes import chat, chat_reply_shaping
+    from interface.routes.chat_lane_bookkeeping import _context_challenge_reply_is_inadequate
+
+    assert not _context_challenge_reply_is_inadequate("Which one should I choose?", "The lamp, since light is what it lacks.")
+    assert _context_challenge_reply_is_inadequate("Which one should I choose?", "")
+    assert '"cognitive_engine_context_evidence_repair"' not in inspect.getsource(chat)
+    assert "I may have drifted" not in inspect.getsource(chat_reply_shaping._build_context_challenge_repair_reply).split('"""')[-1]

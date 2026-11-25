@@ -2193,39 +2193,29 @@ def _run_cognitive_engine_chat_turn_bind_user_surface_prompt(bounded_planning_co
 async def _run_cognitive_engine_chat_turn_part_5(capability_inventory_contract, context, conversation_only_surface, conversation_recall_context, recent_exchanges, session_id, state_native_output_owner, visible):
     if conversation_recall_context:
         context["conversation_recall_evidence"] = conversation_recall_context[:3000]
-    retained_memory_evidence_context = (
-        ""
-        if capability_inventory_contract or conversation_only_surface or state_native_output_owner
-        else await _build_retained_memory_evidence_context(
+    recalls = not (capability_inventory_contract or state_native_output_owner)
+
+    async def of_nothing() -> str:
+        return ""
+
+    # What she remembers of it is looked for in three places, none of which waits on another. One after the other they were
+    # 1.5 to 2.7 s of every typed turn (25 November 2026).
+    retained_memory_evidence_context, context_challenge_context, deep_memory_context = await asyncio.gather(
+        _build_retained_memory_evidence_context(
             visible,
             session_id=session_id,
             recent_exchanges=recent_exchanges,
             conversation_recall_context=conversation_recall_context,
         )
+        if recalls and not conversation_only_surface
+        else of_nothing(),
+        _build_context_challenge_repair_reply(visible, session_id=session_id) if recalls else of_nothing(),
+        _fetch_deep_memory_context(visible) if recalls else of_nothing(),
     )
     if retained_memory_evidence_context:
         context["retained_memory_evidence_context"] = retained_memory_evidence_context
-    context_challenge_context = (
-        ""
-        if capability_inventory_contract or state_native_output_owner
-        else await _build_context_challenge_repair_reply(
-            visible,
-            session_id=session_id,
-        )
-    )
-    if context_challenge_context and "pitch" in _chat_memory_state._normalize_user_message(visible):
-        context_challenge_context = (
-            "No pitch is supported by the recent completed conversation context. "
-            "The correct answer is to say that no pitch is visible in the recent thread, "
-            "then reset to the actual conversation instead of inventing one."
-        )
     if context_challenge_context:
         context["contextual_relevance_evidence"] = context_challenge_context[:2500]
-    deep_memory_context = (
-        ""
-        if capability_inventory_contract or state_native_output_owner
-        else await _fetch_deep_memory_context(visible)
-    )
     if deep_memory_context:
         context["deep_memory_context"] = deep_memory_context[:3000]
     return context_challenge_context, retained_memory_evidence_context
@@ -4843,45 +4833,6 @@ async def _run_cognitive_engine_chat_turn(
                                 self_condition_contract=True,
                             )
                             return refreshed_condition_reply
-                if context_challenge_context and _context_challenge_repair_has_evidence(
-                    context_challenge_context
-                ):
-                    context_repair_assessment = (await asyncio.to_thread(
-                        assess_user_facing_reply,
-                        visible,
-                        context_challenge_context,
-                        recent_user_messages=recent_user_messages,
-                        grounding=route_assessment_grounding,
-                        antecedent=route_assessment_antecedent,
-                    ))
-                    if not _reply_assessment_requires_repair_with_memory_evidence(
-                        context_repair_assessment,
-                        visible,
-                        context_challenge_context,
-                        canonical_memory_state_evidence=canonical_memory_state_evidence,
-                    ):
-                        logger.warning(
-                            "CognitiveEngine desktop chat missed the required "
-                            "context-relevance contract; binding visible reply to "
-                            "canonical conversation evidence after engine invocation."
-                        )
-                        _mark_turn_trace(
-                            cognitive_engine_reply_accepted=True,
-                            bounded_contract_used=False,
-                            response_path="cognitive_engine_context_evidence_repair",
-                        )
-                        return context_challenge_context
-                    logger.warning(
-                        "CognitiveEngine desktop chat context evidence repair failed "
-                        "reliability gate (%s).",
-                        ",".join(getattr(context_repair_assessment, "reasons", ()) or ()),
-                    )
-                    _mark_turn_trace(response_path="cognitive_engine_context_contract_failed")
-                    _record_exhausted_cognitive_failure(
-                        "context_relevance_contract_failed",
-                        retry_attempted=True,
-                    )
-                    return None
                 if not _reply_gate_proved_a_violation(assessment):
                     # The gate said no and could not say why. An unnamed
                     # violation is not a proven one, and discarding a complete
@@ -5066,49 +5017,9 @@ async def _run_cognitive_engine_chat_turn(
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         logger.debug("CognitiveEngine reply reliability gate unavailable: %s", exc)
-    if require_engine:
-        if _context_challenge_reply_is_inadequate(visible, text):
-            if context_challenge_context and _context_challenge_repair_has_evidence(
-                context_challenge_context
-            ):
-                from core.conversation.response_reliability import assess_user_facing_reply
-
-                context_repair_assessment = (await asyncio.to_thread(
-                    assess_user_facing_reply,
-                    visible,
-                    context_challenge_context,
-                    recent_user_messages=route_recent_user_messages,
-                    grounding=route_assessment_grounding,
-                    antecedent=route_assessment_antecedent,
-                ))
-                if not _reply_assessment_requires_repair_with_memory_evidence(
-                    context_repair_assessment,
-                    visible,
-                    context_challenge_context,
-                    canonical_memory_state_evidence=canonical_memory_state_evidence,
-                ):
-                    logger.warning(
-                        "CognitiveEngine desktop chat missed the required context-relevance contract; "
-                        "binding visible reply to canonical conversation evidence after engine invocation."
-                    )
-                    _mark_turn_trace(
-                        cognitive_engine_reply_accepted=True,
-                        bounded_contract_used=False,
-                        response_path="cognitive_engine_context_evidence_repair",
-                    )
-                    return context_challenge_context
-                logger.warning(
-                    "CognitiveEngine desktop chat context evidence repair failed reliability gate (%s).",
-                    ",".join(getattr(context_repair_assessment, "reasons", ()) or ()),
-                )
-                _mark_turn_trace(response_path="cognitive_engine_context_contract_failed")
-                return None
-            logger.warning(
-                "CognitiveEngine desktop chat missed the required context-relevance contract; "
-                "refusing degraded visible reply."
-            )
-            _mark_turn_trace(response_path="cognitive_engine_context_contract_failed")
-            return None
+    if require_engine and _context_challenge_reply_is_inadequate(visible, text):
+        _mark_turn_trace(response_path="cognitive_engine_context_contract_failed")
+        return None
     _left = await _run_cognitive_engine_chat_turn_my_code_claim(text, turn_trace, visible)
     if _left is not _FALL_THROUGH:
         return _left

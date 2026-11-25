@@ -171,8 +171,11 @@ def _reader() -> Callable[[str, str], str] | None:
     with _LOCK:
         if "read" in _LOADED:
             return _LOADED["read"]
-        if not _admitted():
-            return None
+    if not _admitted():
+        return None
+    with _LOCK:
+        if "read" in _LOADED:
+            return _LOADED["read"]
         read = None
         try:
             import torch
@@ -195,44 +198,58 @@ def _reader() -> Callable[[str, str], str] | None:
         except Exception as exc:  # noqa: BLE001 - an absent reader is a reading of nothing
             record_degradation("what_her_record_refutes", exc, severity="info",
                                action="her reply is not held against her record; every sentence stays")
-        if read is None:
-            _give_back("no_reader")
         _LOADED["read"] = read
-        return read
+    if read is None:
+        _give_back("no_reader")
+    return read
 
 
 def _admitted() -> bool:
     """Whether there is room for the reader in the lane every model this host loads is counted in. A refusal is asked again
-    the next time a reply is held against her record."""
+    the next time a reply is held against her record, and whoever asks while it is being asked has no reader this time.
+
+    The lane writes its ledger down as it admits, so it is asked with nothing held: LIVE 25 November 2026 it was asked under
+    the reader's lock, and her runtime was tainted for a write that waits on the disk under a lock."""
     try:
         from core.runtime import model_lane_control as lanes
     except ImportError as exc:
         logger.warning("the reader is loaded without a lane lease: the lane controller could not be imported (%s)", exc)
         return True
-    if "lease" in _LOADED:
-        return True
+    with _LOCK:
+        if "lease" in _LOADED:
+            return True
+        if _LOADED.get("admitting"):
+            return False
+        _LOADED["admitting"] = True
+    lease = None
     try:
-        _LOADED["lease"] = lanes.acquire_synchronous_in_process_model_lane(
+        lease = lanes.acquire_synchronous_in_process_model_lane(
             owner_id="what-her-record-refutes", model_path=READER, purpose="serve", request_gb=LANE_GB, priority=20, preemptible=True,
             evict=_evict, metadata={"engine": "what_her_record_refutes", "model_role": "natural_language_inference"},
         )
     except lanes.ModelLaneControlError as exc:
         logger.info("the record is not read this time: the reader waits for room in the model lane (%s)", exc)
-        return False
-    return True
+    finally:
+        with _LOCK:
+            _LOADED.pop("admitting", None)
+            if lease is not None:
+                _LOADED["lease"] = lease
+    return lease is not None
 
 
 def _evict(_owner: Any, reason: str) -> bool:
     """Give the reader back to the lane; it is loaded again the next time a reply is held against her record."""
-    with _LOCK:
-        _LOADED.pop("read", None)
-        _give_back(f"eviction:{reason}")
+    _give_back(f"eviction:{reason}")
     logger.info("the model that reads her record was given back to the lane (%s)", reason)
     return True
 
 
 def _give_back(reason: str) -> None:
-    release = getattr(_LOADED.pop("lease", None), "release", None)
+    with _LOCK:
+        if reason != "no_reader":
+            _LOADED.pop("read", None)
+        lease = _LOADED.pop("lease", None)
+    release = getattr(lease, "release", None)
     if callable(release):
         release(reason=f"what_her_record_refutes_{reason}")
 
