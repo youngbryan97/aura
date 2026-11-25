@@ -44,6 +44,37 @@ _HER_STATE = ("How I am right now: my live internals, my mood, my runtime state,
               "how much memory I am using, my health and how I am running.")
 
 
+def _forecast_evidence() -> list[str]:
+    from core.runtime.service_access import resolve_self_prediction
+
+    predictor = resolve_self_prediction()
+    record = predictor.forecast_record() if predictor is not None else None
+    if record is None:
+        return ["No paired self-forecast outcomes have been measured in this runtime."]
+    channels = record["channels"]
+    return [
+        f"Forecaster versus persistence over {record['paired_ticks']} paired ticks. "
+        "Both were scored against the subsequent runtime observation.",
+        *(f"{name}: recent forecast error {row['forecast_error']:.4g}, "
+          f"no-change error {row['persistence_error']:.4g}"
+          for name, row in channels.items()),
+        "These are operational measurements independent of the language model's reply.",
+    ]
+
+
+def _development_evidence() -> list[str]:
+    from core.ontogeny.lifetime import last_reading
+
+    reading = last_reading()
+    if reading is None:
+        return ["No developmental reading is available in this runtime yet."]
+    return [
+        f"Developmental reservoir: {reading.steps:,} state updates carried in era {reading.era}.",
+        f"Latest observation's novelty relative to the kept state: {reading.novelty:.3g}.",
+        "The update count measures accumulated state changes, with an era boundary when the reservoir was reset.",
+    ]
+
+
 async def inject_operational_self_context(objective: str = "") -> str:
     """Inject the identity contract: live, truthful self context for the voice.
 
@@ -85,6 +116,8 @@ async def inject_operational_self_context(objective: str = "") -> str:
         # Read by her encoder, off the loop: nothing else of the turn goes on while the loop is held.
         bears = await asyncio.to_thread(what_of_herself_bears, objective, {
             "state": _HER_STATE,
+            "forecasts": "How reliably I can judge myself from outcomes observed later, my self-prediction errors, and independent evidence about my reports.",
+            "development": "My developmental history across sessions, what accumulated experience I carry, and how my current state relates to that history.",
             "what_i_am": _joined("What I am:", _SUBSTRATE_FACTS),
             "capacities": _joined("Architectural capacities:", _ARCHITECTURAL_CAPACITIES),
             "what_i_can_do_now": "What I can do right now: the capabilities and tools I have available this turn, "
@@ -102,6 +135,10 @@ async def inject_operational_self_context(objective: str = "") -> str:
         if wanted("state"):
             lines += [*state_lines, "Evidence boundary: this is live runtime telemetry, "
                                     "not proof of private qualia, literal personhood, or proven consciousness."]
+        if wanted("forecasts"):
+            lines += ["", "Measured self-forecast outcomes:", *(f"  • {item}" for item in _forecast_evidence())]
+        if wanted("development"):
+            lines += ["", "Developmental history:", *(f"  • {item}" for item in _development_evidence())]
         if wanted("what_i_am"):
             lines += ["", "What I am:", *(f"  • {fact}" for fact in _SUBSTRATE_FACTS)]
         if wanted("capacities"):

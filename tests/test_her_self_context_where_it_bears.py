@@ -105,3 +105,24 @@ def test_whether_a_turn_is_about_how_she_is_is_read_off_the_loop_and_by_what_it_
 
     asyncio.run(twice())
     assert len(set(seen)) == 1 and not any(character.isdigit() for character in seen[0]) and on == [False, False]
+
+
+def test_forecast_outcomes_and_developmental_history_are_separate_evidence(monkeypatch):
+    import core.ontogeny.lifetime as lifetime
+    import core.runtime.service_access as services
+
+    monkeypatch.setattr(lifetime, "last_reading", lambda: SimpleNamespace(steps=1700, era=2, novelty=0.25))
+    monkeypatch.setattr(services, "resolve_self_prediction", lambda: SimpleNamespace(
+        forecast_record=lambda: {
+            "paired_ticks": 9,
+            "channels": {"valence": {"forecast_error": 0.17, "persistence_error": 0.09}},
+        },
+    ))
+
+    history = _render(monkeypatch, {"development"})
+    assert "1,700 state updates carried in era 2" in history
+    assert "9 paired ticks" not in history
+
+    forecasts = _render(monkeypatch, {"forecasts"})
+    assert "9 paired ticks" in forecasts and "forecast error 0.17, no-change error 0.09" in forecasts
+    assert "1,700 state updates" not in forecasts

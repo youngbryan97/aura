@@ -58,3 +58,22 @@ def test_a_self_that_drifts_is_not_predicted_with_certainty() -> None:
     new = loop.get_current_prediction().confidence
     assert old > 0.99
     assert new < 0.6, "a model no better than no change is not confident"
+
+
+def test_forecast_record_requires_a_later_observation() -> None:
+    loop = _loop()
+
+    async def run() -> None:
+        await loop.tick(0.2, "curiosity", "memory")
+        assert loop.forecast_record() is None
+        prediction = loop.get_current_prediction()
+
+        await loop.tick(-0.4, "rest", "world")
+        record = loop.forecast_record()
+        assert record["paired_ticks"] == 1
+        assert record["channels"]["valence"] == {
+            "forecast_error": pytest.approx(0.3 * abs(prediction.predicted_affect_valence + 0.4)),
+            "persistence_error": pytest.approx(0.18),
+        }
+
+    asyncio.run(run())

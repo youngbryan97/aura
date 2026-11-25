@@ -109,6 +109,7 @@ class SelfPredictionLoop:
         #: What "nothing changes" would have missed by on each channel, on
         #: the same smoothing: the reference her own errors are scored
         #: against (`_skill_confidence`).
+        self._paired_forecasts = 0
         self._persistence_error_ema: dict[str, float] = {"valence": 0.0, "drive": 0.0, "focus": 0.0}
 
         logger.info("SelfPredictionLoop initialized.")
@@ -445,10 +446,27 @@ class SelfPredictionLoop:
     # Internal: error computation
     # ------------------------------------------------------------------
 
+    def forecast_record(self) -> dict[str, Any] | None:
+        """Compare advance predictions and persistence against the same later readings."""
+        if not self._paired_forecasts:
+            return None
+        return {
+            "paired_ticks": self._paired_forecasts,
+            "channels": {
+                name: {"forecast_error": error, "persistence_error": self._persistence_error_ema[name]}
+                for name, error in (
+                    ("valence", self._valence_error_ema),
+                    ("drive", self._drive_error_ema),
+                    ("focus", self._focus_error_ema),
+                )
+            },
+        }
+
     def _record_persistence_error(self, valence: float, drive: str, focus: str) -> None:
         """What predicting "as I was" would have missed by this turn."""
         if not self._valence_history:
             return
+        self._paired_forecasts += 1
         missed = {
             "valence": abs(float(valence) - float(self._valence_history[-1])),
             "drive": 0.0 if drive == self._drive_history[-1] else 1.0,
