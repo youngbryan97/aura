@@ -19,7 +19,7 @@ from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["REMEMBERED", "begin_reading_what_is_asked", "begin_what_talk_needs", "files_meant", "her_client", "names_of",
+__all__ = ["OF_HERSELF", "REMEMBERED", "begin_reading_what_is_asked", "begin_what_talk_needs", "files_meant", "her_client", "names_of",
            "read_what_this_turn_asks", "what_is_remembered_of"]
 
 #: The longest a turn waits to be read. One pass over the exchange takes well under a second on a warm lane; past this
@@ -145,8 +145,9 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
     return asked
 
 
-#: What she remembers that bears on the turn, as it is begun with the turn and waited for where it is used.
-REMEMBERED = "what she remembers of it"
+#: What she remembers that bears on the turn, and what of herself does, as they are begun with the turn and waited for where
+#: they are used.
+REMEMBERED, OF_HERSELF = "what she remembers of it", "what of herself bears on it"
 
 
 def what_is_remembered_of(said: str) -> tuple[str, str, str]:
@@ -164,9 +165,11 @@ def begin_what_talk_needs(said: str, asked: Asked | None) -> None:
     """
     if not str(said or "").strip() or (asked is not None and asked.acts):
         return
+    from core.conversation.chat_preflight import inject_operational_self_context
     from core.runtime.begun_early import begin
     from core.together.taking_it_up import begin_hearing
     from interface.routes.chat_lane_bookkeeping import _fetch_deep_memory_context
 
+    begin(OF_HERSELF, said, lambda: inject_operational_self_context(said))
     begin(REMEMBERED, what_is_remembered_of(said), lambda: _fetch_deep_memory_context(said))
     begin_hearing(said, her_client())

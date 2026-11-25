@@ -286,3 +286,79 @@ class TestTheInjectionLegAgainstARealSubstrate:
             )
         assert idle == 0.0, "an idle worker still produced an injection"
         assert client._latent_injections == 1
+
+
+class TestWhatIsReadBack:
+    """The readouts of a pass are computed in one, beside the building of the next, and are what each alone would be."""
+
+    @staticmethod
+    def _bridge(layers=3, width=16, directions=5):
+        mx = pytest.importorskip("mlx.core")
+        import numpy as np
+
+        from core.consciousness.latent_bridge import LatentReadoutHook
+
+        rng = np.random.default_rng(4)
+
+        class _Vector:
+            def __init__(self, at):
+                self.v, self.substrate_idx, self.asked = rng.normal(size=width).astype(np.float32), at, 0
+
+            def get_mx_array(self, dtype=None):
+                self.asked += 1
+                return mx.array(self.v, dtype=dtype)
+
+        class Block:
+            def __call__(self, x):
+                return x * 1.5 + 0.25
+
+        vectors = {f"d{i}": _Vector(i) for i in range(directions)}
+        blocks = [Block() for _ in range(layers)]
+        hooks = [LatentReadoutHook(block, at, vectors) for at, block in enumerate(blocks)]
+        for hook in hooks:
+            hook.install()
+        hooks[0].first_of = tuple(hooks)
+        return mx, np, vectors, blocks, hooks
+
+    def test_each_is_the_last_tokens_product_with_each_direction(self):
+        mx, np, vectors, blocks, hooks = self._bridge()
+        rng = np.random.default_rng(1)
+        h, seen = None, []
+        for _ in range(6):
+            h = mx.array(rng.normal(size=(1, 2, 16)).astype(np.float32))
+            for block in blocks:
+                h = block(h)
+            mx.eval(h)
+            seen.append(np.asarray(h)[0, -1])
+        # Two passes back are settled: the smoothed readouts of the last layer are those of its first four passes.
+        from core.consciousness.latent_bridge import READOUT_EMA_ALPHA
+
+        for key, vector in vectors.items():
+            smooth = 0.0
+            for last in seen[:4]:
+                smooth = READOUT_EMA_ALPHA * float(last @ vector.v) + (1.0 - READOUT_EMA_ALPHA) * smooth
+            assert hooks[-1].get_current_readouts()[key] == pytest.approx(smooth, rel=1e-4)
+
+    def test_the_directions_are_put_on_the_gpu_once(self):
+        mx, np, vectors, blocks, hooks = self._bridge()
+        for _ in range(5):
+            h = mx.ones((1, 1, 16))
+            for block in blocks:
+                h = block(h)
+            mx.eval(h)
+        assert {vector.asked for vector in vectors.values()} == {len(hooks)}
+        next(iter(vectors.values())).v = np.zeros(16, dtype=np.float32)
+        blocks[0](mx.ones((1, 1, 16)))
+        assert next(iter(vectors.values())).asked == len(hooks) + 1, "and again where they have changed"
+
+    def test_what_the_last_pass_took_is_started_once_for_every_layer(self, monkeypatch):
+        mx, _np, _vectors, blocks, _hooks = self._bridge()
+        started = []
+        real = mx.async_eval
+        monkeypatch.setattr(mx, "async_eval", lambda waiting: started.append(len(waiting)) or real(waiting))
+        for _ in range(4):
+            h = mx.ones((1, 1, 16))
+            for block in blocks:
+                h = block(h)
+            mx.eval(h)
+        assert started == [3, 6, 6], "nothing to start at the first, and one start a pass after"

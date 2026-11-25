@@ -83,3 +83,25 @@ def test_the_chat_preflight_still_offers_the_block_by_its_old_name():
     from core.conversation import chat_preflight
 
     assert chat_preflight.inject_operational_self_context is her.inject_operational_self_context
+
+
+def test_whether_a_turn_is_about_how_she_is_is_read_off_the_loop_and_by_what_it_is_of(monkeypatch):
+    """LIVE 25 November 2026 her state, in other figures each turn, was read anew by her encoder on the loop, a second of each turn."""
+    import asyncio
+    import threading
+
+    seen, on = [], []
+
+    def bears(objective, parts):
+        on.append(threading.current_thread() is threading.main_thread())
+        seen.append(parts["state"])
+        return set()
+
+    monkeypatch.setattr(her, "what_of_herself_bears", bears)
+
+    async def twice():
+        for said in ("How is the basil?", "How is the basil?"):
+            await her.inject_operational_self_context(said)
+
+    asyncio.run(twice())
+    assert len(set(seen)) == 1 and not any(character.isdigit() for character in seen[0]) and on == [False, False]

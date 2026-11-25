@@ -2527,11 +2527,13 @@ async def _run_chat_preflight(
             # Inject evidence-bounded operational self context
             try:
                 from core.conversation.chat_preflight import inject_operational_self_context
+                from core.runtime.begun_early import begun
+                from interface.routes.chat_what_is_asked import OF_HERSELF
 
                 _self_context = (
                     ""
                     if conversation_only_surface
-                    else await inject_operational_self_context(_original_user_message)
+                    else await begun(OF_HERSELF, _original_user_message, lambda: inject_operational_self_context(_original_user_message))
                 )
                 if _self_context:
                     body.message = f"{_self_context}{body.message}"

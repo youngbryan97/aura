@@ -15,6 +15,7 @@ call time.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from typing import Any
 
@@ -35,6 +36,12 @@ def what_of_herself_bears(objective: str, parts: dict[str, str]) -> set[str] | N
 
 def _joined(heading: str, items: Iterable[str]) -> str:
     return " ".join([heading, *items])
+
+
+#: What her state is of, which a turn bears on or not. It was judged by the state itself, whose figures are others each turn: read
+#: anew each time, 0.8 to 1.1 s of every typed turn (LIVE 25 November 2026), to say whether a turn is about how she is.
+_HER_STATE = ("How I am right now: my live internals, my mood, my runtime state, my sense of agency and of presence, my continuity, "
+              "how much memory I am using, my health and how I am running.")
 
 
 async def inject_operational_self_context(objective: str = "") -> str:
@@ -75,8 +82,9 @@ async def inject_operational_self_context(objective: str = "") -> str:
             f"Functional presence signal: {self_state.sense_of_presence:.0%}",
             f"Continuity: {self_state.continuity:.0%}",
         ]
-        bears = what_of_herself_bears(objective, {
-            "state": _joined("How I am right now, my live internals:", [*state_lines, *internals]),
+        # Read by her encoder, off the loop: nothing else of the turn goes on while the loop is held.
+        bears = await asyncio.to_thread(what_of_herself_bears, objective, {
+            "state": _HER_STATE,
             "what_i_am": _joined("What I am:", _SUBSTRATE_FACTS),
             "capacities": _joined("Architectural capacities:", _ARCHITECTURAL_CAPACITIES),
             "what_i_can_do_now": "What I can do right now: the capabilities and tools I have available this turn, "

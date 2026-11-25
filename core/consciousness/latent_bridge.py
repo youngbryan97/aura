@@ -43,6 +43,7 @@ substrate and a running event loop both exist.
 import logging
 import threading
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -112,6 +113,11 @@ class LatentReadoutHook:
         # decoded at 7.7 tokens a second and read prompts at 122 a second; without these hooks, 21.5 and 390).
         self._taken: list[tuple[int, Any]] = []
         self._passes = 0
+        #: The hooks of every layer, held by the first of them: it starts the last pass's projections being computed, all in
+        #: one, as the next pass is built. They are no part of what a pass is computed for, and read back hook by hook two
+        #: passes later each was computed there and then: 4 ms of the 15 a pass took to build (LIVE 25 November 2026).
+        self.first_of: Sequence["LatentReadoutHook"] = ()
+        self._directions: tuple[Any, Any] | None = None
 
     def install(self):
         """
@@ -126,7 +132,6 @@ class LatentReadoutHook:
         if self._installed:
             return
 
-        import mlx.core as mx
         block = self._block
         hook = self
 
@@ -138,13 +143,14 @@ class LatentReadoutHook:
         current_method = getattr(current_class, target_name)
 
         def readout_wrapper(self_block, *args, **kwargs):
+            if hook.first_of and hook._active and not in_observation_pass():
+                hook._start_computing()
             result = current_method(self_block, *args, **kwargs)
 
             if not hook._active or in_observation_pass():
                 return result
 
             try:
-                import mlx.core as mx
                 h = result[0] if isinstance(result, tuple) else result
 
                 # Extract last token hidden state: h has shape [batch, seq_len, d_model]
@@ -154,10 +160,7 @@ class LatentReadoutHook:
                 # two back have been computed, so reading theirs costs nothing.
                 hook._passes += 1
                 hook._readout_count += 1
-                hook._taken.append((hook._passes, mx.stack([
-                    mx.sum(last_token_h * sv.get_mx_array(dtype=last_token_h.dtype))
-                    for sv in hook._steering_vectors.values()
-                ])))
+                hook._taken.append((hook._passes, hook._along(last_token_h)))
                 hook._settle(through=hook._passes - 2)
 
             except (ImportError, AttributeError, RuntimeError) as e:
@@ -178,6 +181,27 @@ class LatentReadoutHook:
             "🔄 LatentReadoutHook installed at layer %d (%d dimensions) via %s",
             self._layer_idx, len(self._steering_vectors), target_name
         )
+
+    def _along(self, h: Any) -> Any:
+        """How far a hidden state lies along each direction, as one product."""
+        import mlx.core as mx
+
+        held = tuple(id(getattr(sv, "v", sv)) for sv in self._steering_vectors.values())
+        if self._directions is None or self._directions[0] != (held, h.dtype):
+            self._directions = ((held, h.dtype), mx.stack([sv.get_mx_array(dtype=h.dtype) for sv in self._steering_vectors.values()]))
+        return self._directions[1] @ h
+
+    def _start_computing(self) -> None:
+        """Start what every hook took in the passes before this one being computed, beside the building of it."""
+        try:
+            import mlx.core as mx
+
+            waiting = [values for hook in self.first_of for _taken, values in hook._taken]
+            if waiting:
+                mx.async_eval(waiting)
+        # not a failure: a readout that is not started early is computed where it is read.
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return
 
     def _settle(self, *, through: int) -> None:
         """The readouts of every pass up to ``through``, smoothed and added to what is pending, in the order taken."""
@@ -394,6 +418,9 @@ class LatentBridge:
             hook.install()
             self._readout_hooks.append(hook)
 
+        if self._readout_hooks:
+            # The lowest layer's runs first in a pass.
+            min(self._readout_hooks, key=lambda hook: hook._layer_idx).first_of = tuple(self._readout_hooks)
         self._attached = bool(self._readout_hooks)
         if not self._attached:
             self._attachment_error = "no_compatible_target_layers"

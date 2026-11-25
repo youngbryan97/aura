@@ -45,6 +45,11 @@ def _what_was_begun(monkeypatch, said, asked, *, together=True):
         return "Notes"
 
     client = _a_client(log)
+    async def of_herself(text):
+        log.append(("herself", text))
+        return "how she is"
+
+    monkeypatch.setattr("core.conversation.chat_preflight.inject_operational_self_context", of_herself)
     monkeypatch.setattr(bookkeeping, "_fetch_deep_memory_context", deep)
     monkeypatch.setattr(asks, "her_client", lambda: client)
     monkeypatch.setattr(taking_it_up, "_her_senses_now", senses)
@@ -63,6 +68,7 @@ def _what_was_begun(monkeypatch, said, asked, *, together=True):
                 await begun(SCORES, (id(client), words), not_begun),
                 await begun(SENSES, "", not_begun),
                 await begun(SCREEN, "", not_begun),
+                await begun(asks.OF_HERSELF, said, not_begun),
             )
 
     return asyncio.run(turn()), log
@@ -70,18 +76,18 @@ def _what_was_begun(monkeypatch, said, asked, *, together=True):
 
 def test_a_turn_that_is_talked_through_begins_them_all(monkeypatch):
     got, log = _what_was_begun(monkeypatch, "how is  the basil doing", None)
-    assert got == ("what she holds of it", [-1.0, -1.0], {}, "Notes")
-    assert {name for name, _ in log} == {"recall", "scores", "senses", "screen"}
+    assert got == ("what she holds of it", [-1.0, -1.0], {}, "Notes", "how she is")
+    assert {name for name, _ in log} == {"recall", "scores", "senses", "screen", "herself"}
     assert ("scores", "how is the basil doing") in log
 
 
 def test_her_senses_are_begun_only_where_she_keeps_somebody_company(monkeypatch):
     got, log = _what_was_begun(monkeypatch, "how is the basil doing", None, together=False)
-    assert got[2:] == (None, None)
-    assert {name for name, _ in log} == {"recall", "scores"}
+    assert got[2:4] == (None, None)
+    assert {name for name, _ in log} == {"recall", "scores", "herself"}
 
 
 def test_a_turn_that_asks_for_something_done_leaves_her_worker_to_it(monkeypatch):
     asked = Asked(said="make me a timer", effect="make_program", decision="act", sure=0.99)
     got, log = _what_was_begun(monkeypatch, "make me a timer", asked)
-    assert got == (None, None, None, None) and log == []
+    assert got == (None, None, None, None, None) and log == []

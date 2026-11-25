@@ -8556,6 +8556,9 @@ needs her 27B free (her app down, or her app's own influence trials).
     (`core/brain/llm/her_sampler.py`, `tests/test_her_sampler.py`). Left: again, live.
   - 25 November, 08:07, live: her head's drafts drawn, one a pass, 20.0 tokens a second from 16.6, and building a pass took 14 ms of
     82. What keeps her from repeating was not on what her head drafts; it is now. Left: again, live, and the building.
+  - 25 November, 08:20, live: 67, 54 and 58 in a hundred of the first, second and third drafts kept, three a pass the fastest, 21.8
+    tokens a second by the pass. Building one took 15 ms: sixteen layers' readouts, each read back by itself; they are read back
+    in one (`core/consciousness/latent_bridge.py`). Left: again, live.
   - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).
