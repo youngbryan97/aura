@@ -148,6 +148,19 @@ def _sided_by_where_they_began(looks: Looks, picture: Any, lattice: Lattice, see
     the other side's is that side's, and its look is held to be that side's from then on. LIVE 11 October 2026 a figure
     standing on a piece of the top side was drawn in colours nearer the bottom side's."""
     half = lattice.rows // 2
+    # A look held to be one side's that stands at both ends of a board at its start is a kind both sides have: what
+    # held it to one side was a misreading, and its colour is believed again. LIVE 25 November 2026 her kept looks held
+    # the shapes of two kinds to the lighter side, the darker side's pieces of those kinds read as the lighter side's,
+    # and a new game's board was not seen as a game at its start, six runs running.
+    top_kinds = {cell[1] for line in seen.cells[:half] for cell in line if cell is not None and cell[1] is not None}
+    bottom_kinds = {cell[1] for line in seen.cells[half:] for cell in line if cell is not None and cell[1] is not None}
+    mistaken = [kind for kind in looks.side_of_kind if kind in top_kinds and kind in bottom_kinds]
+    if mistaken:
+        for kind in mistaken:
+            del looks.side_of_kind[kind]
+        logger.info("looks held to one side but standing at both ends of a board at its start are both sides': %s",
+                    sorted(mistaken))
+        seen = looks.read(picture, lattice)
     ends = {"top": [cell[0] for line in seen.cells[:half] for cell in line if cell is not None],
             "bottom": [cell[0] for line in seen.cells[half:] for cell in line if cell is not None]}
     if not ends["top"] or not ends["bottom"]:
