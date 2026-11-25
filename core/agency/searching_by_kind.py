@@ -222,6 +222,28 @@ def _matching(family: Family, position: Position, found: tuple) -> Move | None:
     return None
 
 
+def _the_one_left(family: Family, position: Position, move: Move, **how: Any) -> Found:
+    """The one move the moves set aside leave, searched as deep as the time allows: the position it leaves, searched
+    for the other side, and what that comes to turned round. A search left one move answers at once with where the move
+    stands, which is right for a game that offers one move and wrong for a caller who set the rest aside to learn what
+    that one is worth: a take stood a piece up before the answer that takes back. LIVE 24 November 2026, two moves
+    worked out two moves deep on their time were held against her look by that standing and kept, a bishop for a man
+    and a queen for a bishop, and the game was lost by the twentieth move."""
+    made = after(family, position, move)
+    hers = position.turn
+    ended = outcome(family, made)
+    if ended:
+        won = ended == f"won:{hers}"
+        lost = ended.startswith("won:") and not won
+        score = (_MATE - 1) if won else (-(_MATE - 1) if lost else 0)
+        return Found(move, score, 1, 1, [move], mate=won or lost, by="the one left, ended")
+    earlier = [*(how.pop("earlier", None) or []), position]
+    reply = search(family, made, earlier=earlier, **how)
+    return Found(move, -reply.score, reply.depth + 1, reply.nodes, [move, *reply.line], mate=reply.mate,
+                 ms=reply.ms, by=f"the one left, {reply.by}" if reply.by else "the one left", unsteady=reply.unsteady,
+                 accounting=reply.accounting)
+
+
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,
            earlier: list[Position] | None = None, nodes: int = 0, set_aside: list[Move] | None = None,
            threads: int = 1, wary: int | None = None, soft: float | None = None,
@@ -239,6 +261,13 @@ def search(family: Family, position: Position, *, seconds: float, weights: Weigh
     scored by what it comes to, as far into the look as it is met."""
     weights = weights or first_weights(family)
     aside = list(set_aside or [])
+    if aside:
+        set_apart = {(m.start, m.end, m.becomes) for m in aside}
+        left = [m for m in moves(family, position) if (m.start, m.end, m.becomes) not in set_apart]
+        if len(left) == 1:
+            return _the_one_left(family, position, left[0], seconds=seconds, weights=weights, earlier=earlier,
+                                 nodes=nodes, threads=threads, wary=wary, soft=soft, expected=expected,
+                                 endings=endings)
     engine = _compiled()
     if engine is not None:
         from core.cognition import when_more_thought_changes_the_answer as thought
