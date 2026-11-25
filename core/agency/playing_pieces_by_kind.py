@@ -82,6 +82,8 @@ SPENDS_AT_MOST = 3.0
 LEFT_AT_MOST = 0.25
 #: The least she waits on an answer before taking it that none is coming, whatever answers have taken so far.
 NO_ANSWER_AFTER_S = 90.0
+#: How long one wait for the board to stand still runs before it says the board did not.
+SETTLES_WITHIN_S = 10.0
 #: Pictures in a row that no move explains before she says she has lost track.
 MISREAD_AT_MOST = 20
 
@@ -391,20 +393,30 @@ def _where_they_are_going(game: _Game) -> str:
     return ""
 
 
-async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tuple[Any, PiecesSeen] | None:
+async def _seen_still(seat: Seat, look: Look, *, within_s: float | None = None) -> tuple[Any, PiecesSeen] | None:
     """The board once it has stood still: two pictures that read the same, the second as long after the first as
     changes on this board have kept going. A change watched to its end is learned from. LIVE 21 November 2026, game
-    16, seeing each of their moves stand still took 0.6 s of her clock, every turn."""
+    16, seeing each of their moves stand still took 0.6 s of her clock, every turn. None where no picture can be
+    taken, or the board did not stand still within ``within_s`` (SETTLES_WITHIN_S): what kept it from standing still
+    is said, so that a board that would not settle can be told from one that went."""
+    within_s = SETTLES_WITHIN_S if within_s is None else within_s
+    # Standing still is two readings alike: a wait that cannot hold two looks can never see it.
+    within_s = max(within_s, 2 * seat.settles.wait() + 0.3)
     last = ""
     began = monotonic_time()
     first_change: float | None = None
     last_change = 0.0
+    unread, looks = 0, 0
+    before_cells: list | None = None
+    changing: dict[tuple[int, int], int] = {}
     while monotonic_time() - began < within_s:
         picture = await look()
         if picture is None:
             return None
+        looks += 1
         seen = seat.looks.read(picture, seat.lattice, settled=True)
         if seen is None:
+            unread += 1
             lattice = squares_of_one_ground(picture)
             if lattice is not None:
                 seat.lattice = lattice
@@ -416,6 +428,12 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
                 seat.settles.watched(last_change - first_change)
             seat.last_still = said
             return picture, seen
+        if before_cells is not None:
+            for r, row in enumerate(seen.cells):
+                for c, cell in enumerate(row):
+                    if r < len(before_cells) and c < len(before_cells[r]) and before_cells[r][c] != cell:
+                        changing[(r, c)] = changing.get((r, c), 0) + 1
+        before_cells = seen.cells
         # A reading that differs from the one before it, or from the board as it last stood still, is a change seen.
         # LIVE 22 November 2026 her wait never learned: each of their moves came between her looks, and only a
         # change seen within one wait was counted.
@@ -426,6 +444,9 @@ async def _seen_still(seat: Seat, look: Look, *, within_s: float = 10.0) -> tupl
             last_change = now
         last = said
         await asyncio.sleep(seat.settles.wait())
+    most = sorted(changing.items(), key=lambda item: -item[1])[:8]
+    logger.info("the board did not stand still in %.0f s: %d look(s), %d not read as a board, squares that kept "
+                "changing (row, column: times) %s", within_s, looks, unread, most)
     return None
 
 
@@ -541,6 +562,8 @@ class _Game:
     #: Since when she has waited on the other side, and the longest it has taken to answer.
     waiting_since: float = field(default_factory=monotonic_time)
     longest_answer_s: float = 0.0
+    #: When the board last stood still for her to read.
+    stood_still_at: float = field(default_factory=monotonic_time)
     #: What her hands cost on her clock this game, measured: picking a piece up to see its offers, and making a move
     #: and seeing it shown. Each is the mean of the times taken, with how many there were.
     probe_s: float = 0.0
@@ -880,8 +903,18 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     while monotonic_time() - began < seconds:
         still = await _seen_still(seat, look)
         if still is None:
+            # A board that will not stand still for a while is not a board gone: while its window can still be seen,
+            # she watches on, as long as she would wait on an answer. LIVE 25 November 2026, twice in one sitting
+            # against Stockfish, the board did not stand still for ten seconds after her move, the game was given up
+            # at its fourteenth move, and the keys pressed to find it again took the board back to its start.
+            unsettled_s = monotonic_time() - game.stood_still_at
+            if (unsettled_s < max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s)
+                    and await look() is not None):
+                logger.info("the board has not stood still for %.0f s; she watches on", unsettled_s)
+                continue
             return {"ended": "the board went out of sight", "moves": game.made, "theirs": game.theirs,
                     "learned": game.learned}
+        game.stood_still_at = monotonic_time()
         picture, seen = still
         others = _only_the_others(game.learned)
         shown = _read_against(seat.as_rules(seen), game.believed.cells, others)
