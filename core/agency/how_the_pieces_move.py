@@ -361,7 +361,12 @@ class HowThePiecesMove:
                                 way.took += 1
                                 way.an_offer(times, unmoved, taking=True)
                                 shown[direction] = max(shown.get(direction, 0), times)
-                            elif self._goes(kind, direction, times, unmoved):
+                            elif self._goes(kind, direction, times, unmoved) and squares and not self._kept_safe_explains(
+                                    position, Move(square, there, taken_at=there), family):
+                                # A take the game did not offer counts against taking that way only where nothing
+                                # else explains it: leaving the kind it keeps safe where it can be taken is reason
+                                # enough. LIVE 24 November 2026 her royal kind was held never to take on its right,
+                                # from takes withheld because the square was defended.
                                 self.seen[kind][direction].would_not_take += 1
                         elif is_offered and there not in crossing_to:
                             # A square of its own side offered: the two change places.
@@ -757,6 +762,21 @@ class HowThePiecesMove:
         if furthest >= 2 and not way.jumped:
             return 0
         return furthest
+
+    def _kept_safe_explains(self, position: Position, move: Move, family: Family | None) -> bool:
+        """Whether, by her rules, ``move`` would leave the kind the game keeps safe where the other side could take it:
+        reason enough for the game not to offer it, whatever the way it goes by."""
+        if family is None:
+            return False
+        from core.agency.pieces_by_their_kind import after
+
+        side = position.cells[move.start][0]
+        kept_safe = {k for k in {k for _s, k in self.start.values()} | set(self.seen) if self.royal(k)}
+        if not kept_safe:
+            return False
+        made = after(family, position, move)
+        return any(owner == side and held in kept_safe and attacked(family, made, there, 1 - side)
+                   for there, (owner, held) in made.cells.items())
 
     def _crosses_surely(self, kind: str) -> bool:
         """Whether this kind crosses with a partner, seen often enough to be relied on. Two kinds each held to cross with

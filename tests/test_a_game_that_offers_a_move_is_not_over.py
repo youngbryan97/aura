@@ -200,3 +200,14 @@ def test_a_move_that_changes_two_things_belongs_to_the_kind_seen_making_it() -> 
     rules.special_seen["K|crosses"] = 12
     family = rules.family()
     assert family.kinds["K"].crosses_with == "R" and family.kinds["R"].crosses_with == ""
+
+
+def test_a_take_not_offered_where_it_would_leave_what_is_kept_safe_attacked_says_nothing_of_taking() -> None:
+    """LIVE 24 November 2026 her royal kind was held never to take on its right, from takes the game withheld because
+    the square was defended: leaving what it keeps safe where it can be taken is reason enough."""
+    rules = _with_a_misread_way_up_the_file()
+    # Their piece beside her royal kind, defended by their straight-runner on its file: the take is not offered.
+    defended = from_fen("5r1k/8/8/8/8/8/8/4Kp2 w - -")
+    before = rules.seen["K"][(0, 1)].would_not_take
+    rules.offered(defended, E1, {(1, 3), (1, 4), (0, 3)}, family=rules.family())
+    assert rules.seen["K"][(0, 1)].would_not_take == before
