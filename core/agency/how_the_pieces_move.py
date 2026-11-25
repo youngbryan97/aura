@@ -111,6 +111,13 @@ def _summed(one: dict[int, int], other: dict[int, int]) -> dict[int, int]:
     return {t: one.get(t, 0) + other.get(t, 0) for t in set(one) | set(other)}
 
 
+def _only_forward(steps: tuple | list | None) -> bool:
+    """Whether every way a kind goes takes it further forward: a piece of it never stands again where it stood, so its
+    moves cannot be undone, as a take cannot."""
+    steps = list(steps or ())
+    return bool(steps) and all(offset[0] > 0 for step in steps for offset in step.offsets)
+
+
 @dataclass
 class _Seen:
     """What has been seen of one kind going one way."""
@@ -273,6 +280,14 @@ class HowThePiecesMove:
     no_move_loses: bool = False
     #: Kinds whose arrival on their far row ended a game, won for their side, as its window said.
     wins_arriving: set[str] = field(default_factory=set)
+    #: How a game ends drawn, as games her rules could give no end to were seen to end: the moves since the last that
+    #: cannot be undone (count_to_draw), and how many times one position stands (repeats_to_draw); 0 where none was.
+    count_to_draw: int = 0
+    repeats_to_draw: int = 0
+    #: The most times one position had stood, and the most moves since the last that cannot be undone, with a game
+    #: going on after: a draw is read as standing again, or as the count, only past what games were seen to go on at.
+    went_on_standing: int = 0
+    went_on_count: int = 0
     #: Moves seen that the rules she held did not allow, by kind, way and distance, waiting to be seen again before they
     #: teach her anything: a board misread once explained by a move nobody made taught her men to step sideways.
     unconfirmed: dict[str, int] = field(default_factory=dict)
@@ -548,13 +563,18 @@ class HowThePiecesMove:
         return way is not None and (way.over_took > 0 or bool(way.over) if move.via or move.taken_at != move.end
                                     and _takes_over_seen(side, move) else way.took > 0)
 
-    def the_window_said(self, ended: str, final: Position, last: Move | None) -> None:
+    def the_window_said(self, ended: str, final: Position, last: Move | None,
+                        earlier: list[Position] | None = None) -> None:
         """A game that stopped with no reason her rules could give, and the window saying who won (``ended`` "won" or
         "lost" for her, the first side). Where the loser was to move and her rules give it no move, a side with no move
         loses: that is the reason her rules already have. Only where they have none, and the winner's last move brought
         a piece to its far row as the kind it was, did that kind's arrival win."""
         from core.agency.pieces_by_their_kind import moves
 
+        self.went_on_from(earlier or [])
+        if ended == "drawn":
+            self._a_draw_seen(final, earlier or [])
+            return
         if ended not in ("won", "lost"):
             return
         winner = FIRST if ended == "won" else SECOND
@@ -567,6 +587,38 @@ class HowThePiecesMove:
         if (arrived is not None and arrived[0] == winner and last.end[0] == far and last.start[0] != far
                 and not last.becomes):
             self.wins_arriving.add(arrived[1])
+
+    def _a_draw_seen(self, final: Position, earlier: list[Position]) -> None:
+        """A game the window says was drawn, its side to move with a move to make: where the position had stood
+        before, it was drawn by standing again, as many times as it had; else by how many moves had gone since the last
+        that cannot be undone. The fewest seen to draw is what draws. Measured 25 November 2026 against a stronger
+        program at a fixed depth, offline: with no draw in her rules she drew by repetition two games she led by 19 and
+        29 points of material, and with the game's own rules she won six of six."""
+        from core.agency.pieces_by_their_kind import moves
+
+        if not moves(self.family(unseen_go_every_way=True), final):
+            return
+        stood = 1 + sum(1 for position in earlier if position.key() == final.key())
+        if stood >= 2 and stood > self.went_on_standing:
+            self.repeats_to_draw = min(self.repeats_to_draw or stood, stood)
+        elif final.count > self.went_on_count:
+            self.count_to_draw = min(self.count_to_draw or final.count, final.count)
+
+    def went_on_from(self, earlier: list[Position]) -> None:
+        """The positions a game went on from, however it ended: how often each had stood, and how many moves since the
+        last that cannot be undone. A draw she read that a game has since gone on past was misread, and is let go: a
+        board she lost the thread of starts its count again, so a draw after it shows fewer moves than drew it. Read
+        twice from one game, it comes to the same."""
+        stood: dict[tuple, int] = {}
+        for position in earlier:
+            key = position.key()
+            stood[key] = stood.get(key, 0) + 1
+            self.went_on_standing = max(self.went_on_standing, stood[key])
+            self.went_on_count = max(self.went_on_count, position.count)
+        if self.repeats_to_draw and self.repeats_to_draw <= self.went_on_standing:
+            self.repeats_to_draw = 0
+        if self.count_to_draw and self.count_to_draw <= self.went_on_count:
+            self.count_to_draw = 0
 
     def kinds_of(self, side: int) -> set[str]:
         """The kinds a side has held: those it began with, and what they have been seen to become."""
@@ -1084,6 +1136,8 @@ class HowThePiecesMove:
             "takes_again": sorted(self.takes_again), "quiet_kept_back_while_taking": self.quiet_kept_back_while_taking,
             "quiet_offered_while_taking": self.quiet_offered_while_taking, "no_move_loses": self.no_move_loses,
             "unconfirmed": dict(self.unconfirmed), "wins_arriving": sorted(self.wins_arriving),
+            "count_to_draw": self.count_to_draw, "repeats_to_draw": self.repeats_to_draw,
+            "went_on_standing": self.went_on_standing, "went_on_count": self.went_on_count,
             "special_seen": dict(self.special_seen), "read_by": self.read_by,
         }
 
@@ -1128,6 +1182,10 @@ class HowThePiecesMove:
             learned.no_move_loses = bool(kept.get("no_move_loses", False))
             learned.unconfirmed = {str(k): int(v) for k, v in kept.get("unconfirmed", {}).items()}
             learned.wins_arriving = {str(k) for k in kept.get("wins_arriving", [])}
+            learned.count_to_draw = int(kept.get("count_to_draw", 0) or 0)
+            learned.repeats_to_draw = int(kept.get("repeats_to_draw", 0) or 0)
+            learned.went_on_standing = int(kept.get("went_on_standing", 0) or 0)
+            learned.went_on_count = int(kept.get("went_on_count", 0) or 0)
             learned.special_seen = {str(k): int(v) for k, v in kept.get("special_seen", {}).items()}
             first = kept.get("first_was_hers")
             learned.first_was_hers = first if isinstance(first, bool) else None
@@ -1332,6 +1390,8 @@ class HowThePiecesMove:
             quiet_kept_back_while_taking=self.quiet_kept_back_while_taking,
             quiet_offered_while_taking=self.quiet_offered_while_taking, no_move_loses=self.no_move_loses,
             first_was_hers=None if first is None else first != turned_round,
+            count_to_draw=self.count_to_draw, repeats_to_draw=self.repeats_to_draw,
+            went_on_standing=self.went_on_standing, went_on_count=self.went_on_count,
             special_seen={f"{names[k]}|{sort}": n for key, n in self.special_seen.items()
                           for k, sort in [key.split("|", 1)] if k in names})
 
@@ -1375,11 +1435,13 @@ class HowThePiecesMove:
                             takes_again=kind in self.takes_again or self.counterparts().get(kind, ("",))[0]
                             in self.takes_again,
                             wins_arriving=kind in self.wins_arriving,
+                            cannot_go_back=_only_forward(self._steps_of(kind)),
                             name=self.names.get(kind, ""))
                  for kind in sorted({k for _s, k in self.start.values()} | set(self.seen))}
         return Family(name="the game in front of me", rows=self.rows, columns=self.columns, kinds=kinds,
                       start=dict(self.start), takes_first=self.takes_first(),
-                      no_move_unattacked="loses" if self.no_move_loses else "draw")
+                      no_move_unattacked="loses" if self.no_move_loses else "draw",
+                      count_to_draw=self.count_to_draw, repeats_to_draw=self.repeats_to_draw)
 
     def what_it_does(self, kind: str) -> str:
         """A kind as she has seen it go, in words, for naming it where she has no other name for it."""

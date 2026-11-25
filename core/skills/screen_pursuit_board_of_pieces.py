@@ -140,9 +140,12 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["pieces_held"] = held_now
     # Where the game stood when it stopped, kept for reading how it ended; too long for the log.
     final, last_move = came.pop("final", None), came.pop("last_move", None)
+    earlier = came.pop("positions", None)
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
         keep["pieces_learned"] = learned_now
+        # However it ended, the game went on from every position before its last: what a draw is read against.
+        learned_now.went_on_from(earlier or [])
     if rehearsal_now is not None:
         keep["pieces_rehearsal"] = rehearsal_now
     # Off the loop: what she gathered beside the record runs to megabytes.
@@ -163,7 +166,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
             came["ended"], came["read_from_the_window"] = ended, words[:300]
             # How it ended is something she learns of the game: a side with no move lost, or a kind's arrival won.
             if learned_now is not None and final is not None:
-                learned_now.the_window_said(ended, final, last_move)
+                learned_now.the_window_said(ended, final, last_move, earlier)
                 await asyncio.to_thread(_keep_what_she_learned, target_app, seat.looks, learned_now, rehearsal_now,
                                         went_wrong_now, they_answered_now)
             _tell({"won": "The window says I won.", "lost": "The window says I lost.",

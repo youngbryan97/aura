@@ -2068,7 +2068,9 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None]) -> dict[str, 
         logger.info("she foresaw %d of their %d answers", game.foreseen, game.foreseeable)
     ended_with = {"ended": result, "moves": game.made, "theirs": game.theirs, "learned": game.learned,
                   "foresaw": (game.foreseen, game.foreseeable), "final": game.believed, "last_move": game.last_followed,
-                  "acts": game.did.as_record(), "held": game.held}
+                  "acts": game.did.as_record(), "held": game.held,
+                  # Every position she held before the last, for what the window says of how the game ended.
+                  "positions": list(game.earlier)}
     outcome = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(result)
     if outcome is not None:
         game.held.came_to([score for _place, _move, score in game.judged], outcome)
