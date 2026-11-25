@@ -292,11 +292,12 @@ def _her_unit(worth: dict, start: dict | None) -> tuple[float, str]:
 
 def _the_areas(game: _Game, family: Family, weights: Any) -> Any:
     """The board read area by area (core/agency/what_each_area_of_a_board_comes_to.py): each fight alone, two moves
-    deep, put back together. None where it cannot be read."""
+    deep, played as one game, and her moves that keep everything but weaken her told apart by her whole judgement. None
+    where it cannot be read."""
     from core.agency.what_each_area_of_a_board_comes_to import read_board
 
     try:
-        return read_board(family, game.believed, dict(weights.worth) if weights else {}, plies=2)
+        return read_board(family, game.believed, dict(weights.worth) if weights else {}, plies=2, weights=weights)
     # not a failure: a board her rules cannot read area by area is played by her search alone.
     except (KeyError, ValueError, TypeError) as why:
         logger.info("the board was not read area by area: %s", why)

@@ -135,3 +135,60 @@ def test_at_the_start_of_a_game_nothing_counted_tells_her_moves_apart_and_nothin
     worth = {"P": 100.0, "N": 300.0, "B": 300.0, "R": 500.0, "Q": 900.0, "K": 0.0}
     read = read_board(CHESS, position, worth, plies=2)
     assert read.choice.kind == "even" and read.choice.weighed is None
+
+
+def test_judged_by_her_weights_a_quiet_move_that_leaves_a_piece_fewer_ways_is_not_one_that_changes_nothing() -> None:
+    """Her knight in the middle of an empty board: every move keeps every piece, so judged by what is held alone every
+    move changes nothing. Judged by weights that also count each piece's ways to go, the knight's move to the edge
+    costs her, and is not a move that only passes the turn (a review Bryan passed on, 24 November 2026: "A waiting move
+    might preserve all pieces while weakening mobility, safety, or defensive coverage")."""
+    from dataclasses import replace
+
+    from core.agency.what_each_area_of_a_board_comes_to import _WORKED_OUT
+    from core.cognition.what_each_area_comes_to import changes_nothing, weigh_acts
+
+    position = from_fen("4k3/8/8/8/3N4/8/8/4K3 w - -")
+    held = first_weights(CHESS)
+    ways = replace(held, mobility={kind: 10.0 for kind in held.worth})
+    d4, c2 = (3, 3), (1, 2)
+    _WORKED_OUT.clear()
+    by_worth = read_board(CHESS, position, held.worth, plies=2)
+    assert all(changes_nothing(w, by_worth.readings) for w in weigh_acts(by_worth.readings))
+    by_weights = read_board(CHESS, position, held.worth, plies=2, weights=ways)
+    to_the_edge = next(w for w in weigh_acts(by_weights.readings) if (w.act.start, w.act.end) == (d4, c2))
+    assert not changes_nothing(to_the_edge, by_weights.readings)
+    knight = next(r for r in by_weights.readings if d4 in r.part)
+    assert to_the_edge.act in knight.weakens
+    # The knight's moves that keep its ways are still moves that change nothing.
+    assert any(changes_nothing(w, by_weights.readings) for w in weigh_acts(by_weights.readings) if w.act.start == d4)
+
+
+def test_her_choice_is_weighed_by_the_areas_played_as_one_game_where_there_was_time() -> None:
+    """Two pieces attacked in two fights: the areas are also played as one game, her to move and them to move, and the
+    move she chooses is weighed by what that game comes to after it, not by the quick sum (a review Bryan passed on,
+    24 November 2026: the exact sum was not yet deciding anything)."""
+    position = from_fen("4k3/6p1/7N/2p5/1p6/Q7/8/4K3 w - -")
+    read = read_board(CHESS, position, first_weights(CHESS).worth, plies=2)
+    assert read.played is not None
+    hers, theirs = read.played
+    exact = {(part, act): comes_to for part, act, comes_to in hers.each}
+    chosen = read.choice.weighed
+    assert chosen.whole == exact[(chosen.part, chosen.act)] and chosen.acting_nowhere == theirs.comes_to
+    assert chosen.act.start == (2, 0), "the queen is moved"
+
+
+def test_a_judgement_held_once_judges_each_board_as_judging_it_afresh_does() -> None:
+    """The compiled search's judgement, parsed once for many boards, says what its judgement of each board alone says."""
+    import pytest
+
+    from core.agency.searching_by_kind import _compiled, described, placed
+
+    engine = _compiled()
+    if engine is None or not hasattr(engine, "Judgement"):
+        pytest.skip("the compiled search is not built here, or is a build from before it could hold a judgement")
+    weights = first_weights(CHESS).as_json()
+    boards = [from_fen(fen) for fen in ("4k3/6p1/7N/2p5/1p6/Q7/8/4K3 w - -", "4k3/8/8/8/3N4/8/8/4K3 b - -")]
+    boards.append(CHESS.the_start())
+    held = engine.Judgement(described(CHESS), weights)
+    assert held.of_each([placed(board) for board in boards]) == [
+        engine.evaluate(described(CHESS), placed(board), weights) for board in boards]

@@ -3139,6 +3139,49 @@ fn evaluate(description: &str, position: &str, weights: &str) -> PyResult<i32> {
     Ok(s.evaluate())
 }
 
+/// One judgement, the game and the weights parsed once: what each position is worth to the side to move, without
+/// search, as ``evaluate`` says it. Parsing the weights cost nine tenths of a millisecond a call against a tenth for
+/// judging, so a reader of many positions by one judgement holds it here.
+#[pyclass(unsendable)]
+struct Judgement {
+    g: Game,
+    table: Table,
+}
+
+#[pymethods]
+impl Judgement {
+    #[new]
+    fn new(description: &str, weights: &str) -> PyResult<Self> {
+        let f: FamilyD = serde_json::from_str(description).map_err(|e| PyValueError::new_err(format!("description: {e}")))?;
+        let w: WeightsD = if weights.trim().is_empty() {
+            WeightsD::default()
+        } else {
+            serde_json::from_str(weights).map_err(|e| PyValueError::new_err(format!("weights: {e}")))?
+        };
+        let g = Game::new(&f, &w).map_err(PyValueError::new_err)?;
+        Ok(Judgement { g, table: Table::new(1) })
+    }
+
+    /// What each position is worth to its side to move, in order.
+    fn of_each(&self, positions: Vec<String>) -> PyResult<Vec<i32>> {
+        let mut judged = Vec::with_capacity(positions.len());
+        let mut searcher: Option<Searcher> = None;
+        for position in &positions {
+            let p: PosD = serde_json::from_str(position).map_err(|e| PyValueError::new_err(format!("position: {e}")))?;
+            let b = Board::from(&self.g, &p).map_err(PyValueError::new_err)?;
+            let s = match searcher.as_mut() {
+                Some(s) => {
+                    s.b = b;
+                    s
+                }
+                None => searcher.insert(Searcher::fresh(&self.g, b, &self.table, 1e9, Instant::now(), 0)),
+            };
+            judged.push(s.evaluate_afresh());
+        }
+        Ok(judged)
+    }
+}
+
 /// Hold endings worked out to the end under ``key``, for searches given that key: each as its pieces (side, kind
 /// letter) in the order its situations are named by, its board's rows and columns, and its values as little-endian
 /// 16-bit numbers. Held once and kept, so a game's searches do not pass them again.
@@ -3501,6 +3544,7 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(perft, m)?)?;
     m.add_function(wrap_pyfunction!(legal_moves, m)?)?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
+    m.add_class::<Judgement>()?;
     m.add_function(wrap_pyfunction!(exchange, m)?)?;
     m.add_function(wrap_pyfunction!(hold_endings, m)?)?;
     m.add_function(wrap_pyfunction!(beyond_counts, m)?)?;

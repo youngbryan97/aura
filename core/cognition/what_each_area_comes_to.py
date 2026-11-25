@@ -69,6 +69,10 @@ class Reading:
     looked: bool = True
     #: Where it was read from parts like it, how far their urgencies spread (0 for a part looked at).
     spread: float = 0.0
+    #: Her acts here that a fuller judgement than the one the part was read by says leave her worse, where the part
+    #: may stand as it stood: a move that keeps everything held but leaves her fewer ways to go, or a piece less
+    #: guarded. None of them only passes the turn.
+    weakens: tuple[Any, ...] = ()
 
     @property
     def urgency(self) -> float:
@@ -145,10 +149,19 @@ class Path:
     happen whatever they do (``for_certain``); what they can make happen to her after it, the same number from their
     side; what she gets only where they answer it badly or luck runs her way (``only_if_helped``: how far ``at_best``
     stands above ``for_certain``); what neither side can change (``settled``: every line comes to the same); and what is
-    not known (``uncertain``: the working-out stopped before every line was followed)."""
+    not known (``uncertain``: the working-out stopped before every line was followed).
+
+    And what is proven, apart from what is judged (a review Bryan passed on, 24 November 2026: "Deeper stochastic
+    branches currently use expected values, which means for_certain is not necessarily a genuine worst-case guarantee
+    ... reaching the requested search depth doesn't establish certainty beyond that depth"). ``for_certain`` is the
+    worst case with the world dealing against her at every turn it deals, not by its odds; where a line was cut at the
+    depth asked, it stands at what the state there is judged to be, which is a judgement. ``made_sure_of`` counts only
+    lines followed to where they end: what she is proven to get, whatever they do and however the world deals, and
+    minus infinity where no line under it was followed to its end."""
 
     act: Any
-    #: The worst it can come to for her, whatever they answer and however the world deals.
+    #: The worst it can come to for her, whatever they answer and however the world deals, as far as it was worked out:
+    #: a line cut at the depth asked stands at what its last state is judged to be.
     for_certain: float
     #: The best it can come to for her, where they answer it badly or the world deals her way.
     at_best: float
@@ -158,6 +171,9 @@ class Path:
     answers: int
     hurt: int
     uncertain: bool = False
+    #: What she is proven to get: the worst case over lines followed to where they end, with nothing judged at a
+    #: horizon. Minus infinity where it rests on any line cut short.
+    made_sure_of: float = -math.inf
 
     @property
     def only_if_helped(self) -> float:
@@ -166,6 +182,11 @@ class Path:
     @property
     def settled(self) -> bool:
         return self.at_best == self.for_certain
+
+    @property
+    def proven(self) -> bool:
+        """Whether ``for_certain`` is proven: every line under it ends within what was worked out."""
+        return not self.uncertain and self.made_sure_of >= self.for_certain
 
 
 @dataclass(frozen=True)
@@ -184,8 +205,14 @@ class Possibilities:
     hers: tuple[Path, ...]
     #: (their act, her answer or None where she leaves the part, what that comes to)
     counters: tuple[tuple[Any, Any, float], ...]
-    #: Whether every line was followed to its end or to the depth asked; False where time cut it short.
+    #: Whether every line was followed to its end or to the depth asked; False where time cut it short. Reaching the
+    #: depth asked proves nothing past it: ``proven`` says where the numbers rest on lines that ended.
     complete: bool = True
+
+    @property
+    def proven(self) -> bool:
+        """Whether the worst case of every act of hers rests only on lines followed to where they end."""
+        return self.complete and bool(self.hers) and all(path.proven for path in self.hers)
 
     def counter_to(self, act: Any) -> tuple[Any, float] | None:
         return next(((answer, comes_to) for theirs, answer, comes_to in self.counters if theirs == act), None)
@@ -201,12 +228,16 @@ def what_can_happen(part: Hashable, state: Any, *, acts: Callable[[Any, int], It
     deepest pass finished is what is kept. Where ``may_leave``, either side may leave the part and act elsewhere after
     the first act, as in ``read_part``: a part of a whole; where not, the part is the whole world, and a side acts in it
     whenever it can. ``dealt(state)``, where given, is the world's own turn: the states it can deal next with their odds,
-    and nothing where it is not the world's turn. ``name_of`` gives a state its name where states do not name
+    and nothing where it is not the world's turn. What a path is expected to come to follows the odds at every deal;
+    what it comes to for certain has the world deal against her at every deal, and at best her way. ``name_of`` gives a state its name where states do not name
     themselves, so that a state reached two ways is worked out once. ``stop()``, where given, ends the working-out as
     running out of time does: the time it was given was a guess, and the time is over when the world says so."""
     until = time.monotonic() + seconds
     name = name_of or (lambda st: st)
     over = stop or (lambda: False)
+    # How the world deals, where it deals: by its odds, against her, or her way. In a world that does not deal, one
+    # working-out serves all three.
+    by_odds, against, her_way = ("odds", "against", "her way") if dealt is not None else ("odds",) * 3
 
     class _OutOfTimeError(Exception):
         pass
@@ -214,61 +245,95 @@ def what_can_happen(part: Hashable, state: Any, *, acts: Callable[[Any, int], It
     def deals(st: Any) -> list[tuple[Any, float]]:
         return [(next_state, float(odds)) for next_state, odds in (dealt(st) if dealt is not None else ()) if odds > 0]
 
-    def value(st: Any, side: int, left: int, low: float, high: float, known: dict) -> float:
-        """What ``st`` comes to for her with ``side`` to act: her best, their worst for her, the world's dealing by its
-        odds."""
+    def ends(st: Any, side: int) -> bool:
+        """Whether a line ends at ``st``, ``side`` having no act in it: in a world that is the part, yes; in a part
+        of a whole, only where the other side has none either, since a side may act elsewhere and come back."""
+        return not may_leave or not list(acts(st, 1 - side))
+
+    def value(st: Any, side: int, left: int, low: float, high: float, known: dict, luck: str) -> tuple[float, float]:
+        """What ``st`` comes to for her with ``side`` to act: her best, their worst for her, the world dealing by
+        ``luck``; and what of it is proven (lines followed to their end, the world against her), minus infinity where
+        none is. Within the bounds ``low`` and ``high`` that matter to the acts above."""
         if time.monotonic() > until or over():
             raise _OutOfTimeError
-        key = (name(st), side, left)
+        key = (name(st), side, left, luck)
         if key in known:
             return known[key]
-        world = deals(st) if left > 0 else []
+        if left <= 0:
+            # Cut at the depth asked: what it is judged to be there, which proves nothing.
+            return judge(st), -math.inf
+        world = deals(st)
         if world:
-            total = sum(odds for _next_state, odds in world)
-            best = sum(odds * value(next_state, side, left - 1, -math.inf, math.inf, known)
-                       for next_state, odds in world) / total
-            known[key] = best
-            return best
-        options = list(acts(st, side)) if left > 0 else []
-        if not options or may_leave:
-            best = judge(st)  # leaving the part as it is, or nothing left to do in it
+            followed = [(value(next_state, side, left - 1, -math.inf, math.inf, known, luck), odds)
+                        for next_state, odds in world]
+            sure = min(proven for (_comes_to, proven), _odds in followed)
+            if luck == "against":
+                comes_to = min(got for (got, _proven), _odds in followed)
+            elif luck == "her way":
+                comes_to = max(got for (got, _proven), _odds in followed)
+            else:
+                total = sum(odds for _value, odds in followed)
+                comes_to = sum(odds * got for (got, _proven), odds in followed) / total
+            known[key] = (comes_to, sure)
+            return comes_to, sure
+        options = list(acts(st, side))
+        if not options:
+            here = judge(st)
+            return here, (here if ends(st, side) else -math.inf)
+        if may_leave:
+            # Leaving the part as it is: what it stands at now, not where it ends.
+            best, sure = judge(st), -math.inf
         else:
-            best = -math.inf if side == HERS else math.inf
+            best, sure = (-math.inf, -math.inf) if side == HERS else (math.inf, math.inf)
         for act in options:
             if side == HERS:
                 if best >= high:
                     break
-                best = max(best, value(after(st, act), THEIRS, left - 1, max(low, best), high, known))
+                got, proven = value(after(st, act), THEIRS, left - 1, max(low, best), high, known, luck)
+                best, sure = max(best, got), max(sure, proven)
             else:
                 if best <= low:
+                    # The acts not looked at could be worse for her: nothing here is proven.
+                    sure = -math.inf
                     break
-                best = min(best, value(after(st, act), HERS, left - 1, low, min(high, best), known))
+                got, proven = value(after(st, act), HERS, left - 1, low, min(high, best), known, luck)
+                best, sure = min(best, got), min(sure, proven)
         if low < best < high:
-            known[key] = best
-        return best
+            known[key] = (best, sure)
+        return best, sure
 
-    def following(made: Any, plies: int, known: dict) -> tuple[list[float], list[float], float]:
-        """What can follow her act: each answer of theirs (or each deal of the world's) and what it comes to, with the
-        odds where the world deals, and what the act comes to played as well as it can be."""
+    def following(made: Any, plies: int, known: dict, luck: str) -> tuple[list[tuple[float, float]], list[float]]:
+        """What can follow her act: each answer of theirs (or each deal of the world's), what it comes to with the
+        world dealing by ``luck`` and what of it is proven, and the odds where the world deals."""
         world = deals(made) if plies >= 2 else []
         if world:
-            outcomes = [value(next_state, THEIRS, plies - 2, -math.inf, math.inf, known) for next_state, _ in world]
             total = sum(odds for _next_state, odds in world)
-            return outcomes, [odds / total for _next_state, odds in world], sum(
-                odds / total * comes_to for (_next_state, odds), comes_to in zip(world, outcomes, strict=True))
-        answers = [value(after(made, answer), HERS, plies - 2, -math.inf, math.inf, known)
+            return ([value(next_state, THEIRS, plies - 2, -math.inf, math.inf, known, luck) for next_state, _ in world],
+                    [odds / total for _next_state, odds in world])
+        answers = [value(after(made, answer), HERS, plies - 2, -math.inf, math.inf, known, luck)
                    for answer in acts(made, THEIRS)] if plies >= 2 else []
-        outcomes = [judge(made), *answers] if may_leave or not answers else answers
-        return outcomes, [], min(outcomes)
+        if may_leave or not answers:
+            # They leave the part, or have nothing in it: proven only where the line ends here and was looked at.
+            here = judge(made)
+            left_as_is = (here, here if plies >= 2 and not answers and ends(made, THEIRS) else -math.inf)
+            return [left_as_is, *answers], []
+        return answers, []
 
     def one_pass(plies: int) -> Possibilities:
         known: dict = {}
         stands = judge(state)
         hers = []
         for act in acts(state, HERS):
-            outcomes, _odds, expected = following(after(state, act), plies, known)
-            hers.append(Path(act=act, for_certain=min(outcomes), at_best=max(outcomes), expected=expected,
-                             answers=len(outcomes), hurt=sum(1 for comes_to in outcomes if comes_to < stands)))
+            made = after(state, act)
+            odds_way, odds = following(made, plies, known, by_odds)
+            worst = following(made, plies, known, against)[0] if against != by_odds else odds_way
+            best = following(made, plies, known, her_way)[0] if her_way != by_odds else odds_way
+            comes_to = [got for got, _proven in odds_way]
+            expected = sum(share * got for share, got in zip(odds, comes_to, strict=True)) if odds else min(comes_to)
+            hers.append(Path(act=act, for_certain=min(got for got, _ in worst), at_best=max(got for got, _ in best),
+                             expected=expected, answers=len(comes_to),
+                             hurt=sum(1 for got in comes_to if got < stands),
+                             made_sure_of=min(proven for _, proven in worst)))
         hers.sort(key=lambda path: (path.for_certain, path.expected, path.at_best), reverse=True)
         counters = []
         for act in acts(state, THEIRS):
@@ -276,7 +341,7 @@ def what_can_happen(part: Hashable, state: Any, *, acts: Callable[[Any, int], It
             answers = list(acts(made, HERS)) if plies >= 2 else []
             best_answer, best = None, (judge(made) if may_leave or not answers else -math.inf)
             for answer in answers:
-                comes_to = value(after(made, answer), THEIRS, plies - 2, -math.inf, math.inf, known)
+                comes_to, _proven = value(after(made, answer), THEIRS, plies - 2, -math.inf, math.inf, known, by_odds)
                 if comes_to > best:
                     best_answer, best = answer, comes_to
             counters.append((act, best_answer, best))
@@ -294,32 +359,41 @@ def what_can_happen(part: Hashable, state: Any, *, acts: Callable[[Any, int], It
 
 @dataclass(frozen=True)
 class SumPlayed:
-    """The parts played as one game: what the whole comes to with her to act and both sides playing it as well as
-    they can, her act for it (the part and the act), how many acts deep, and whether every line was followed."""
+    """The parts played as one game: what the whole comes to with ``first`` to act and both sides playing it as well
+    as they can, the best act for that side (the part and the act), how many acts deep, and whether every line was
+    followed that deep. ``each`` holds every act of the side to act with what the whole comes to after it, best for
+    that side first. ``ended``: whether every line ended before the depth asked, so that nothing rests on what a state
+    cut short is judged to be."""
 
     comes_to: float
     part: Hashable | None
     act: Any
     deep: int
     complete: bool
+    first: int = HERS
+    each: tuple[tuple[Hashable, Any, float], ...] = ()
+    ended: bool = False
 
 
 def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, int], Iterable[Any]],
                  after: Callable[[Any, Any], Any], judge: Callable[[Any], float], plies_at_most: int, seconds: float,
                  name_of: Callable[[Any], Hashable] | None = None, may_pass: bool = False,
-                 stop: Callable[[], bool] | None = None) -> SumPlayed:
+                 stop: Callable[[], bool] | None = None, first: int = HERS) -> SumPlayed:
     """The parts played together as one game, exactly, as far as the time allows: a state is every part's state at
     once, a move is one act in one part, the sides take turns over all of them, and the whole stands at the sum of what
     the parts stand at. Where ``put_together`` takes the most urgent part and says one act settles it, this follows a
     part that needs several acts in a row, two threats in two parts that one answer cannot meet, and whose turn it is
     when each part is settled. ``may_pass``: whether a side with acts left may still act nowhere (a world where a turn
     can be let go); where not, a side acts while it has an act anywhere. A part's acts are worked out once for each
-    state it is in, however the other parts stand. ``stop()``, where given, ends it as running out of time does."""
+    state it is in, however the other parts stand, and so is what it is judged to stand at. ``first`` is the side to
+    act. ``stop()``, where given, ends it as running out of time does."""
     until = time.monotonic() + seconds
     name = name_of or (lambda st: st)
     over = stop or (lambda: False)
     names = [part for part, _state in parts]
     local_acts: dict = {}
+    judged: dict = {}
+    cut = False
 
     class _OutOfTimeError(Exception):
         pass
@@ -330,14 +404,24 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
             local_acts[key] = list(acts(state, side))
         return local_acts[key]
 
+    def judged_at(state: Any) -> float:
+        key = name(state)
+        if key not in judged:
+            judged[key] = judge(state)
+        return judged[key]
+
     def value(states: tuple, side: int, left: int, low: float, high: float, known: dict) -> float:
+        nonlocal cut
         if time.monotonic() > until or over():
             raise _OutOfTimeError
         key = (tuple(name(st) for st in states), side, left)
         if key in known:
             return known[key]
-        here = sum(judge(st) for st in states)
-        options = [(i, act) for i, st in enumerate(states) for act in acts_of(st, side)] if left > 0 else []
+        here = sum(judged_at(st) for st in states)
+        if left <= 0:
+            cut = True
+            return here
+        options = [(i, act) for i, st in enumerate(states) for act in acts_of(st, side)]
         if not options:
             return here
         best = here if may_pass else (-math.inf if side == HERS else math.inf)
@@ -356,20 +440,26 @@ def play_the_sum(parts: Sequence[tuple[Hashable, Any]], *, acts: Callable[[Any, 
         return best
 
     start = tuple(state for _part, state in parts)
-    found = SumPlayed(comes_to=sum(judge(st) for st in start), part=None, act=None, deep=0, complete=False)
+    found = SumPlayed(comes_to=sum(judged_at(st) for st in start), part=None, act=None, deep=0, complete=False,
+                      first=first)
     for plies in range(1, plies_at_most + 1):
         known: dict = {}
+        cut = False
         try:
-            best, chosen = -math.inf, (None, None)
+            each = []
             for i, state in enumerate(start):
-                for act in acts_of(state, HERS):
+                for act in acts_of(state, first):
                     moved = start[:i] + (after(state, act),) + start[i + 1:]
-                    comes_to = value(moved, THEIRS, plies - 1, -math.inf, math.inf, known)
-                    if comes_to > best:
-                        best, chosen = comes_to, (names[i], act)
-            if chosen[0] is None:
-                return replace(found, complete=True)
-            found = SumPlayed(comes_to=best, part=chosen[0], act=chosen[1], deep=plies, complete=True)
+                    each.append((names[i], act, value(moved, 1 - first, plies - 1, -math.inf, math.inf, known)))
+            if not each:
+                return replace(found, complete=True, ended=True)
+            each.sort(key=lambda one: one[2], reverse=(first == HERS))
+            part, act, comes_to = each[0]
+            found = SumPlayed(comes_to=comes_to, part=part, act=act, deep=plies, complete=True, first=first,
+                              each=tuple(each), ended=not cut)
+            if not cut:
+                # Every line ended before this depth: a deeper pass would find the same.
+                return found
         except _OutOfTimeError:
             return replace(found, complete=False)
     return found
@@ -463,12 +553,18 @@ class Choice:
 
 
 def changes_nothing(weighed: Weighed, readings: Sequence[Reading]) -> bool:
-    """Whether an act leaves its part as it stood and no more urgent: a move that only passes the turn."""
+    """Whether an act only passes the turn: in a part where acting first gains nothing, it leaves the part as it
+    stood, the other side's answers there looked at, and no fuller judgement says it leaves her worse (``weakens``).
+    A judgement of what is held alone calls a move that keeps every piece but leaves her fewer ways to go, or a piece
+    less guarded, a move that changes nothing; a judgement that counts those does not (a review Bryan passed on,
+    24 November 2026: "unchanged material doesn't necessarily mean unchanged strategic position"). The fuller judgement
+    is a veto and not the measure: by it nearly every quiet move changes something, and LIVE-like 25 November 2026,
+    read by it, the move that changes nothing was chosen on 48 turns of 52."""
     reading = next((r for r in readings if r.part == weighed.part), None)
     if reading is None:
         return False
     after_it = dict(reading.acts).get(weighed.act)
-    return after_it == reading.as_it_stands and reading.urgency <= 0
+    return after_it == reading.as_it_stands and reading.urgency <= 0 and weighed.act not in reading.weakens
 
 
 def the_waiting_game(her_spare: float, their_spare: float, *, hers_to_move: bool) -> bool | None:
@@ -483,17 +579,37 @@ def the_waiting_game(her_spare: float, their_spare: float, *, hers_to_move: bool
     return her_spare >= their_spare
 
 
+def _played_exactly(weighed: list[Weighed], played: tuple[SumPlayed, SumPlayed]) -> tuple[list[Weighed], float,
+                                                                                         list[float]]:
+    """Her acts weighed by the parts played as one game (``play_the_sum``, her to act and them to act), in place of
+    the quick sum: each act's whole, what acting nowhere leaves her, and what each act of theirs leaves her."""
+    hers, theirs = played
+    wholes = {(part, act): comes_to for part, act, comes_to in hers.each}
+    exact = [replace(w, whole=wholes[(w.part, w.act)], acting_nowhere=theirs.comes_to)
+             for w in weighed if (w.part, w.act) in wholes]
+    exact.sort(key=lambda w: w.whole, reverse=True)
+    return exact, theirs.comes_to, [comes_to for _part, _act, comes_to in theirs.each]
+
+
 def what_to_do(readings: Sequence[Reading], *, her_spare: float | None = None,
-               their_spare: float | None = None) -> Choice:
+               their_spare: float | None = None, played: tuple[SumPlayed, SumPlayed] | None = None) -> Choice:
     """Her act by what the whole comes to after the other side's best reply anywhere, and what kind of choice it is.
     ``her_spare`` and ``their_spare``, where counted, are how many moves that change nothing each side has
-    (core/cognition/who_can_wait_longer.py): whether she can make them commit first."""
+    (core/cognition/who_can_wait_longer.py): whether she can make them commit first. ``played``, where given, is the
+    parts played as one game with her to act and with them to act (``play_the_sum``): where both were played as deep
+    as asked, the whole after each act is theirs, not the quick sum's, which takes the most urgent part first and says
+    one act settles it (a review Bryan passed on, 24 November 2026: "The exact finite-horizon composition algorithm
+    exists, but I haven't found it controlling the board adapter's strategic decisions yet")."""
     weighed = weigh_acts(readings)
+    exact = played is not None and all(sum_played.complete for sum_played in played)
+    if exact:
+        weighed, them_first, committed = _played_exactly(weighed, played)
     if not weighed:
         return Choice(None, "least bad")
     waiting = [w for w in weighed if changes_nothing(w, readings)]
     acting = [w for w in weighed if w not in waiting]
-    them_first = put_together(readings, first=THEIRS).comes_to
+    if not exact:
+        them_first = put_together(readings, first=THEIRS).comes_to
     outlasts = (the_waiting_game(her_spare, their_spare, hers_to_move=True)
                 if her_spare is not None and their_spare is not None else None)
     best_acting = acting[0] if acting else None
@@ -502,8 +618,9 @@ def what_to_do(readings: Sequence[Reading], *, her_spare: float | None = None,
     they_can_pass = any(comes_to == reading.as_it_stands and reading.urgency <= 0
                         for reading in readings for _act, comes_to in reading.their_acts)
     they_must_commit = outlasts is True or (outlasts is None and not they_can_pass)
-    committed = [comes_to + put_together([r for r in readings if r.part != reading.part], first=HERS).comes_to
-                 for reading in readings for _act, comes_to in reading.their_acts]
+    if not exact:
+        committed = [comes_to + put_together([r for r in readings if r.part != reading.part], first=HERS).comes_to
+                     for reading in readings for _act, comes_to in reading.their_acts]
     # Waiting is chosen where it gains: what they must commit to leaves her better than acting now, or acting now costs
     # her and what they commit to does not. Where everything comes to the same, a tie is not a reason to stand still:
     # LIVE-like 24 November 2026, in a quiet position where no move changed what was counted, every move tied with

@@ -294,3 +294,123 @@ def test_where_every_act_comes_to_the_same_nothing_is_chosen_and_standing_still_
                        after=lambda state, act: act, judge=lambda state: 0.0, plies=2)
     choice = what_to_do([moving, _a_neutral_part()])
     assert choice.kind == "even" and choice.weighed is None
+
+
+def test_played_as_one_game_a_spare_move_that_only_delays_what_must_come_is_no_reason_to_wait() -> None:
+    """A part where whoever moves first loses two, a spare move only she has and a spare move only they have, and no
+    turn may be let go. The quick sum calls her spare move the neutral choice; played as one game, she spends hers,
+    they spend theirs, and she must move first where it costs her two all the same: every act comes to the same, and
+    nothing is chosen (a review Bryan passed on, 24 November 2026: the exact sum was not yet deciding anything)."""
+    from core.cognition.what_each_area_comes_to import play_the_sum
+
+    def acts(state, side):
+        name, now = state
+        if name == "cold":
+            return [side] if now == "open" else []
+        owner = HERS if name == "mine" else THEIRS
+        return ["spare"] if now == "open" and side == owner else []
+
+    def after(state, act):
+        name, _now = state
+        return name, (act if name == "cold" else "spent")
+
+    def judge(state):
+        return {"open": 0.0, HERS: -2.0, THEIRS: 2.0, "spent": 0.0}[state[1]]
+
+    parts = [(name, (name, "open")) for name in ("cold", "mine", "yours")]
+    readings = [read_part(name, state, acts=acts, after=after, judge=judge, plies=2) for name, state in parts]
+    assert what_to_do(readings).kind == "neutral"
+    played = tuple(play_the_sum(parts, acts=acts, after=after, judge=judge, plies_at_most=8, seconds=5.0, first=side)
+                   for side in (HERS, THEIRS))
+    assert all(one.complete and one.ended for one in played)
+    assert {comes_to for _part, _act, comes_to in played[0].each} == {-2.0}
+    choice = what_to_do(readings, played=played)
+    assert choice.kind == "even" and choice.weighed is None
+
+
+def test_what_luck_decides_after_their_answer_is_not_counted_as_certain() -> None:
+    """A gamble whose dealing comes after the other side's answer, against a sure point: what she makes sure of has the
+    world deal against her at every deal, not only at the first (a review Bryan passed on, 24 November 2026: "Deeper
+    stochastic branches currently use expected values, which means for_certain is not necessarily a genuine worst-case
+    guarantee")."""
+    from core.cognition.what_each_area_comes_to import what_can_happen
+
+    def acts(state, side):
+        if state == "start" and side == HERS:
+            return ["gamble", "sure"]
+        return ["go on"] if state == "their answer" and side == THEIRS else []
+
+    def after(state, act):
+        return {"gamble": "their answer", "sure": "plus one", "go on": "dealing"}[act]
+
+    def dealt(state):
+        return [("plus ten", 0.5), ("minus ten", 0.5)] if state == "dealing" else []
+
+    stands = {"start": 0.0, "their answer": 0.0, "dealing": 0.0, "plus one": 1.0, "plus ten": 10.0, "minus ten": -10.0}
+    found = what_can_happen("bet", "start", acts=acts, after=after, judge=stands.__getitem__, plies_at_most=4,
+                            seconds=2.0, may_leave=False, dealt=dealt)
+    paths = {path.act: path for path in found.hers}
+    assert paths["gamble"].for_certain == -10.0 and paths["gamble"].expected == 0.0
+    assert paths["gamble"].at_best == 10.0
+    assert paths["gamble"].proven and paths["gamble"].made_sure_of == -10.0
+    assert found.hers[0].act == "sure" and found.proven
+
+
+def test_a_number_that_rests_on_a_line_cut_at_the_depth_asked_is_not_proven() -> None:
+    """The take-away count from four: two moves deep, no line has reached the last token, and what each take comes to
+    is a judgement of a pile still standing; eight deep, every line ends, and what she makes sure of is proven (a review
+    Bryan passed on, 24 November 2026: "reaching the requested search depth doesn't establish certainty beyond that
+    depth")."""
+    from core.cognition.what_each_area_comes_to import what_can_happen
+
+    def acts(state, side):
+        pile, _last = state
+        return [(side, n) for n in (1, 2) if n <= pile]
+
+    def after(state, act):
+        side, take = act
+        return state[0] - take, side
+
+    def judge(state):
+        pile, last = state
+        return 0.0 if pile else (1.0 if last == HERS else -1.0)
+
+    shallow = what_can_happen("pile", (4, None), acts=acts, after=after, judge=judge, plies_at_most=2, seconds=5.0,
+                              may_leave=False)
+    assert shallow.complete and not shallow.proven
+    assert all(path.made_sure_of == float("-inf") for path in shallow.hers)
+    deep = what_can_happen("pile", (4, None), acts=acts, after=after, judge=judge, plies_at_most=8, seconds=5.0,
+                           may_leave=False)
+    best = deep.hers[0]
+    assert deep.proven and best.act == (HERS, 1) and best.made_sure_of == best.for_certain == 1.0
+
+
+def test_a_move_that_keeps_everything_held_but_leaves_fewer_ways_changes_something_where_ways_are_counted() -> None:
+    """A camp where her shuffle keeps everything she holds but closes one of her ways out. Judged by what is held alone,
+    the shuffle changes nothing; judged by what is held and the ways open, it costs her (a review Bryan passed on,
+    24 November 2026: "unchanged material doesn't necessarily mean unchanged strategic position")."""
+    from core.cognition.what_each_area_comes_to import changes_nothing
+
+    def acts(state, side):
+        return ["shuffle"] if side == HERS else []
+
+    def after(state, _act):
+        held, ways = state
+        return held, ways - 1
+
+    def held_alone(state):
+        return float(state[0])
+
+    def held_and_ways(state):
+        return float(state[0]) + state[1] / 10
+
+    for judge, it_changes in ((held_alone, False), (held_and_ways, True)):
+        reading = read_part("camp", (3, 4), acts=acts, after=after, judge=judge, plies=2)
+        shuffle = weigh_acts([reading])[0]
+        assert changes_nothing(shuffle, [reading]) is not it_changes
+    # Read by what is held, with the fuller judgement told of it: the shuffle weakens her, and is no waiting move.
+    from dataclasses import replace
+
+    held = read_part("camp", (3, 4), acts=acts, after=after, judge=held_alone, plies=2)
+    told = replace(held, weakens=("shuffle",))
+    assert not changes_nothing(weigh_acts([told])[0], [told])
