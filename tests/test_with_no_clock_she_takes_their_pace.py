@@ -1,4 +1,5 @@
-"""With no clock to share, she takes as long as the other side does (core/agency/playing_pieces_by_kind.py)."""
+"""With no clock to share, she takes as long as the other side does, and never less than she would alone
+(core/agency/playing_pieces_by_kind.py)."""
 from __future__ import annotations
 
 import asyncio
@@ -37,3 +38,10 @@ def test_a_game_with_no_clock_shown_gives_her_their_pace() -> None:
     assert (share, on_clock) == (6.0, False)
     share, on_clock = asyncio.run(playing._time_for_a_move(None, rehearsing, 3, 4.0, _game([6.0])))
     assert (share, on_clock) == (6.0, False)
+
+
+def test_a_side_that_answers_fast_does_not_hurry_her() -> None:
+    """Without a clock a slow turn costs her nothing: their quick answers leave her her own time to think."""
+    assert playing._their_pace(_game([1.2, 1.6, 1.4]), 4.0) == 4.0
+    share, on_clock = asyncio.run(playing._time_for_a_move(None, playing._Rehearsing(None), 3, 4.0, _game([1.5])))
+    assert (share, on_clock) == (4.0, False)

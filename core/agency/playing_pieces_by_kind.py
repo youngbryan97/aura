@@ -1601,15 +1601,18 @@ def _looks_first(game: _Game, *, pressed: bool = False, unseen: bool = False) ->
 
 
 def _their_pace(game: _Game | None, otherwise: float) -> float:
-    """With no clock to share, as long as the other side takes: the middle of the times it has taken to answer her this
-    game, ``otherwise`` until it has answered once. LIVE 24 November 2026, an untimed game against Stockfish 19: it took
-    about five seconds a move and she four, a number from her first board game, and the moves that lost were tactics
-    thirteen and fourteen moves deep that eight seconds of her looking finds."""
+    """With no clock to share, as long as the other side takes, and never less than ``otherwise``: the middle of the
+    times it has taken to answer her this game. What they take says how long a turn may run here, not how long hers
+    must, since without a clock a slow turn costs her nothing. LIVE 24 November 2026, an untimed game against
+    Stockfish 19: it took about five seconds a move and she four, and the moves that lost were tactics thirteen and
+    fourteen moves deep that eight seconds of her looking finds. The next game it answered in about a second and a
+    half, and her turns, held to that, thought for a fifth of a second."""
     answered = sorted(game.answers_s) if game is not None else []
     if not answered:
         return otherwise
     middle = len(answered) // 2
-    return answered[middle] if len(answered) % 2 else (answered[middle - 1] + answered[middle]) / 2
+    pace = answered[middle] if len(answered) % 2 else (answered[middle - 1] + answered[middle]) / 2
+    return max(otherwise, pace)
 
 
 async def _time_for_a_move(clock: Callable[[], Awaitable[float | None]] | None, rehearsing: _Rehearsing, made: int,
