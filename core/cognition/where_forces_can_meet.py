@@ -15,7 +15,8 @@ road network, a unit on a map and a piece on a board are all movers, and a place
 says matters (where a thing to be kept safe stands, a depot, a gate).
 
 - ``time_to_reach``: the fewest of its own moves a mover needs to each place, within a horizon, breadth first over its
-  reach, with what stands in its way where it stands now.
+  reach, with what stands in its way where it stands now; ``time_to_reach_safely`` the same by places where it
+  cannot be taken on arriving.
 - ``arrivals``: for a place, each side's movers and how soon each can be there.
 - ``balance``: for places that matter, how many of each side can be there within t moves, for each t up to the
   horizon. These are counts for a judgement to learn its weights for, not a judgement: how much a mover two moves away
@@ -34,7 +35,8 @@ from collections import deque
 from collections.abc import Callable, Hashable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-__all__ = ["Mover", "arrivals", "balance", "intended", "nearer", "overloaded", "time_to_reach"]
+__all__ = ["Mover", "arrivals", "balance", "intended", "nearer", "overloaded", "time_to_reach",
+           "time_to_reach_safely"]
 
 Place = Hashable
 
@@ -72,6 +74,28 @@ def time_to_reach(mover: Mover, reach: Reach, occupied: Iterable[Place], horizon
                 # A place another stands on is reached, not passed through: what stands there is met there.
                 if there not in standing:
                     frontier.append(there)
+    return reached
+
+
+def time_to_reach_safely(mover: Mover, reach: Reach, occupied: Iterable[Place], horizon: int,
+                         safe: Callable[[Mover, Place, frozenset], bool]) -> dict[Place, int]:
+    """As ``time_to_reach``, going only by places where ``safe`` says the mover cannot be taken on arriving, given
+    what stands where (the world's own rules of taking say which): a way through on cover. Bryan, 24 November 2026: he
+    "walked" pieces through the middle between pieces of both sides, knowing "the physics and rules of the game allow
+    me to do it safely"."""
+    standing = frozenset(occupied) - {mover.at}
+    reached: dict[Place, int] = {mover.at: 0}
+    frontier = deque([mover.at])
+    while frontier:
+        here = frontier.popleft()
+        if reached[here] >= horizon:
+            continue
+        for there in reach(mover, here, standing):
+            if there in reached or not safe(mover, there, standing):
+                continue
+            reached[there] = reached[here] + 1
+            if there not in standing:
+                frontier.append(there)
     return reached
 
 
