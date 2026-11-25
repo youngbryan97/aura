@@ -120,6 +120,17 @@ class Found:
     #: changed, milliseconds by then).
     accounting: dict[str, Any] = field(default_factory=dict)
 
+    def score_at_depth(self, depth: int) -> int | None:
+        """The score of the completed search at this depth."""
+        if depth < 1 or depth > self.depth:
+            return None
+        if depth == self.depth:
+            return self.score
+        for searched, score, _changed, _elapsed in self.accounting.get("iterations", ()):
+            if searched == depth:
+                return int(score)
+        return None
+
 
 def _reached_on_empty(family: Family, letter: str) -> float:
     """How many squares a kind reaches, on average over the squares of an empty board, as the first side."""
@@ -239,9 +250,17 @@ def _the_one_left(family: Family, position: Position, move: Move, **how: Any) ->
         return Found(move, score, 1, 1, [move], mate=won or lost, by="the one left, ended")
     earlier = [*(how.pop("earlier", None) or []), position]
     reply = search(family, made, earlier=earlier, **how)
+    accounting = dict(reply.accounting)
+    if "iterations" in accounting:
+        accounting["iterations"] = [
+            (depth + 1, -score, changed, elapsed)
+            for depth, score, changed, elapsed in accounting["iterations"]
+        ]
+    if "seldepth" in accounting:
+        accounting["seldepth"] += 1
     return Found(move, -reply.score, reply.depth + 1, reply.nodes, [move, *reply.line], mate=reply.mate,
                  ms=reply.ms, by=f"the one left, {reply.by}" if reply.by else "the one left", unsteady=reply.unsteady,
-                 accounting=reply.accounting)
+                 accounting=accounting)
 
 
 def search(family: Family, position: Position, *, seconds: float, weights: Weights | None = None,

@@ -39,3 +39,37 @@ def test_a_hint_that_loses_a_piece_to_the_answer_is_not_kept_against_the_look() 
     held = _checked(hint, now, legal, lambda aside: search(CHESS, TAKEN_BACK, seconds=0.5, nodes=20_000,
                                                            weights=WORTH, set_aside=aside))
     assert held.move == now.move and held.by == "worked out on their time, and a look now found better"
+
+
+def test_unmatched_search_depth_does_not_certify_an_alternative() -> None:
+    legal = moves(CHESS, TAKEN_BACK)
+    primary, alternate = legal[:2]
+    main = Found(primary, 80, 12, 1000, [primary], unsteady=30)
+    hint = Found(alternate, 140, 2, 0, [alternate], by="worked out ahead, to check")
+    shallow = Found(alternate, 140, 8, 100, [alternate])
+
+    held = _checked(hint, main, legal, lambda aside: shallow)
+    assert held.move == primary and held.by.endswith("not checked at the same depth")
+
+    deeper = Found(alternate, 120, 14, 2000, [alternate],
+                   accounting={"iterations": [(12, 20, False, 13), (14, 120, False, 15)]})
+    held = _checked(hint, main, legal, lambda aside: deeper)
+    assert held.move == primary
+    deeper.accounting["iterations"][0] = (12, 80, False, 13)
+    assert _checked(hint, main, legal, lambda aside: deeper).move == alternate
+
+
+def test_a_restricted_search_reports_depths_and_scores_from_the_original_position(monkeypatch) -> None:
+    from core.agency import searching_by_kind
+
+    legal = moves(CHESS, TAKEN_BACK)
+    take = _the_take(legal)
+    answer = Found(None, -78, 5, 10, [], accounting={"iterations": [(4, -16, False, 3)], "seldepth": 8})
+    monkeypatch.setattr(searching_by_kind, "search", lambda *args, **kwargs: answer)
+
+    result = searching_by_kind._the_one_left(CHESS, TAKEN_BACK, take, seconds=0.1)
+    assert result.depth == 6 and result.score_at_depth(6) == 78
+    assert result.score_at_depth(5) == 16
+    assert result.score_at_depth(4) is None
+    assert result.accounting["seldepth"] == 9
+    assert answer.accounting["iterations"][0] == (4, -16, False, 3)

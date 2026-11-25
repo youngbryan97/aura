@@ -644,6 +644,10 @@ class _Game:
     #: How long each of their answers took.
     answers_s: list[float] = field(default_factory=list)
 
+    def start_still_unconfirmed(self, now: float) -> bool:
+        """Whether a board that has never answered has exhausted its start wait."""
+        return self.theirs == 0 and now - self.waiting_since > NO_ANSWER_AFTER_S
+
     def timed_probe(self, seconds: float) -> None:
         self.probes_timed += 1
         self.probe_s += (seconds - self.probe_s) / self.probes_timed
@@ -1015,9 +1019,10 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 # Her clock is read, where her count of it may have drifted, while it stands still on their time.
                 game.read_this_wait = True
                 await _read_her_clock_while_it_stands(clock, rehearsing, game)
-            # A side that has not answered for ten times as long as it ever took is not playing: a board that took her
-            # move before the game was begun, or a game ended by something she cannot see. Given back, not waited on.
-            if monotonic_time() - game.waiting_since > max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s):
+            # With no answer yet, a setup or analysis board may have accepted
+            # a move. Once the opponent has played, a long search can take
+            # the rest of the task's budget without erasing that evidence.
+            if game.start_still_unconfirmed(monotonic_time()):
                 tell("They haven't answered my move, so I don't think the game has started; I'll look at the screen.")
                 return {"ended": "not answered", "moves": game.made, "theirs": game.theirs, "learned": game.learned}
             await asyncio.sleep(0.2)
@@ -1150,30 +1155,23 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 # first at their turns, beside what they have done.
                 areas = _the_areas(game, family, weights)
                 game.weights_seen = dict(weights.worth) if weights else {}
+                expected = _expected_with_the_areas(game, areas)
                 found = search(family, game.believed, seconds=most, weights=weights, earlier=game.earlier,
                                set_aside=set_aside, threads=_cores_free(), wary=FIRST,
-                               soft=thinks if most > thinks else None,
-                               expected=_expected_with_the_areas(game, areas),
-                               endings=endings)
+                               soft=thinks if most > thinks else None, expected=expected, endings=endings)
+
+                def search_only(aside: list[Move]) -> Found:
+                    return search(family, game.believed, seconds=max(0.2, thinks / 2), weights=weights,
+                                  earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST,
+                                  expected=expected, endings=endings)
+
                 if ready is not None:
-                    # Worked out under rules that have changed since: a hint, checked by the look just made.
-                    found = _checked(ready, found, legal, lambda aside, family=family, thinks=thinks, weights=weights:
-                                     search(family, game.believed, seconds=max(0.2, thinks / 2), weights=weights,
-                                            earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST))
-                # What can still change after the move, proved without looking ahead
-                # (core/agency/what_cannot_change_on_a_board.py).
-                found = _held_to_what_can_change(game, family, legal, set_aside, found,
-                                                 lambda aside, family=family, thinks=thinks, weights=weights:
-                                                 search(family, game.believed, seconds=max(0.2, thinks / 2),
-                                                        weights=weights, earlier=game.earlier, set_aside=aside,
-                                                        threads=_cores_free(), wary=FIRST))
-                # Where the board read area by area says to wait, or that nothing beats standing still: a move that
-                # changes nothing, checked by her look as any hint is.
-                found = _held_to_the_areas(game, areas, found, [m for m in legal if m not in set_aside],
-                                           lambda aside, family=family, thinks=thinks, weights=weights:
-                                           search(family, game.believed, seconds=max(0.2, thinks / 2),
-                                                  weights=weights, earlier=game.earlier, set_aside=aside,
-                                                  threads=_cores_free(), wary=FIRST))
+                    found = _checked(ready, found, legal, search_only)
+                # What can still change after the move, proved without looking ahead.
+                found = _held_to_what_can_change(game, family, legal, set_aside, found, search_only)
+                found = _held_to_the_areas(
+                    game, areas, found, [m for m in legal if m not in set_aside], search_only,
+                )
                 searched_s += monotonic_time() - search_began
             if found.move is None:
                 break
@@ -1404,12 +1402,12 @@ def _held_to_what_can_change(game: _Game, family: Family, legal: list[Move], set
 
 
 def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list[Move]], Any]) -> Any:
-    """An answer worked out ahead under rules that have changed since, held against a look made now (``now``): kept
-    where the look finds the same move, or finds it no worse than the look's own judgement moved while it looked
-    (``unsteady``), searched alone for that (``search_only``, given the moves set aside); else the look's move. A long
-    look under rules a little out of date is worth more than a short one under the rules as they are, unless the short
-    one finds it wrong. What the move is worth, and how deep that was seen, are the look's made now: that it agrees on
-    the move says nothing of numbers worked out under rules since changed (suggestions of 23 November 2026)."""
+    """Keep a proposed move when the current search agrees or measures it at the same depth.
+
+    The restricted search can finish at a different depth. Compare its score
+    at the main search's completed depth, within the main search's last
+    score change. When the depths cannot be aligned, use the main result.
+    """
     from dataclasses import replace
 
     origin = str(getattr(hint, "by", "") or "worked out ahead").removesuffix(", to check")
@@ -1418,7 +1416,12 @@ def _checked(hint: Any, now: Any, legal: list[Move], search_only: Callable[[list
     if now.move == hint.move:
         return replace(now, by=f"{origin}, checked")
     alone = search_only([m for m in legal if m != hint.move])
-    if alone.move == hint.move and now.score - alone.score <= max(0, int(now.unsteady)):
+    if alone.move != hint.move:
+        return replace(now, by=f"{origin}, not checked at the same depth")
+    comparable = alone.score_at_depth(now.depth)
+    if comparable is None:
+        return replace(now, by=f"{origin}, not checked at the same depth")
+    if now.score - comparable <= max(0, int(now.unsteady)):
         return replace(alone, by=f"{origin}, checked")
     return replace(now, by=f"{origin}, and a look now found better")
 

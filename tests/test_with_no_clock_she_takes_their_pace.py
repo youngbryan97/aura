@@ -52,3 +52,15 @@ def test_with_no_clock_a_look_whose_answer_will_not_settle_may_go_on_as_long_as_
     # On her clock, held to what the clock allows.
     assert playing._the_most_a_look_may_take(4.0, True, 100.0) == min(playing.SPENDS_AT_MOST * 4.0,
                                                                        playing.LEFT_AT_MOST * 100.0)
+
+
+def test_a_slow_answer_does_not_unstart_a_confirmed_game() -> None:
+    from core.agency.how_the_pieces_move import HowThePiecesMove
+    from tests.fixtures.a_game_of_pieces_to_learn import CHESS
+
+    game = playing._Game(learned=HowThePiecesMove.from_the_start(8, 8, dict(CHESS.start)),
+                         believed=CHESS.the_start())
+    now = game.waiting_since + playing.NO_ANSWER_AFTER_S + 1
+    assert game.start_still_unconfirmed(now)
+    game.theirs = 1
+    assert not game.start_still_unconfirmed(now)
