@@ -4375,6 +4375,9 @@ def stop_aura():
 
 def main():
     _ensure_bootstrap_logging()
+    from core.runtime.interpreter_turns import take_short_turns
+
+    take_short_turns()
     # The boot clock starts here, so the desktop boot window is measured
     # from the same moment the shell measures it.
     try:

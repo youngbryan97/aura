@@ -255,6 +255,8 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
         self._query_vectors: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
         self._query_inflight: dict[tuple[str, str], Future] = {}
         self._loader: threading.Thread | None = None
+        #: How long its last load took, in seconds: what having it again costs whoever closes it.
+        self.load_seconds = 0.0
         #: The lane's stamp when it refused this engine, or None when it did not.
         #:
         #: LIVE 2026-09-26, boot at 18:57: a standalone probe held the lane
@@ -411,6 +413,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                 # the stored width never moves. assert_window_matches_model
                 # is the check whose absence let a 256-token encoder accept
                 # 800-word chunks silently.
+                began = time.monotonic()
                 self._model = embedding_model.load_encoder(
                     model_lane_lease=lane_lease,
                 )
@@ -432,6 +435,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                 lane_lease.release(reason="embedding_model_activation_fence_lost")
                 raise RuntimeError("embedding_model_activation_fence_lost")
             self._lane_lease = lane_lease
+            self.load_seconds = time.monotonic() - began
             logger.info(
                 "✅ EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL
             )

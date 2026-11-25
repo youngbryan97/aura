@@ -32,6 +32,9 @@ REGULARISED = 0.01
 FOLDS = 5
 #: How many examples one job of the worker reads.
 A_BATCH = 8
+#: How many of the states just read are held, for whatever else the same words are read for.
+JUST_READ = 8
+_JUST_READ: dict[tuple[str, str], Any] = {}
 #: How long a batch waits for room on the lane, in all, and the longest pause between two tries at it.
 PATIENCE_S, LONGEST_PAUSE_S = 1800.0, 60.0
 
@@ -277,5 +280,14 @@ class FittedOnHerModel:
             fitted, model = self._held.fitted, self._held.model
         if fitted is None or model != self.model_of(client):
             return None
-        got = await client.states_at_turn([text], in_a_turn=True)
-        return fitted.probabilities(got[0]) if got else None
+        # One turn is read for several things, and her model's states at its end are the same for all of them.
+        key = (model, self._key(text))
+        state = _JUST_READ.get(key)
+        if state is None:
+            got = await client.states_at_turn([text], in_a_turn=True)
+            if not got:
+                return None
+            state = _JUST_READ[key] = got[0]
+            while len(_JUST_READ) > JUST_READ:
+                _JUST_READ.pop(next(iter(_JUST_READ)), None)
+        return fitted.probabilities(state)

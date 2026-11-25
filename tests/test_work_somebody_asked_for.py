@@ -83,3 +83,24 @@ def test_her_practice_between_games_takes_short_turns(monkeypatch):
     before = sys.getswitchinterval()
     practice._one_round("a-board", (0, 0))
     assert seen and seen[0] <= A_SHORT_TURN_S * 1.01 and sys.getswitchinterval() == pytest.approx(before, rel=0.01)
+
+
+def test_her_whole_process_takes_short_turns():
+    """LIVE 24 November 2026, 19:08: her event loop was starved for 14.4 s beside one thread working in Python."""
+    import inspect
+
+    import aura_main
+    from core.brain.llm import mlx_worker
+    from core.runtime.interpreter_turns import HER_TURN_S, take_short_turns
+
+    was = sys.getswitchinterval()
+    try:
+        sys.setswitchinterval(0.005)
+        assert take_short_turns() == pytest.approx(0.005)
+        assert sys.getswitchinterval() == pytest.approx(HER_TURN_S)
+        with short_turns():
+            assert sys.getswitchinterval() <= HER_TURN_S * 1.01, "what asks for shorter turns is not given longer ones"
+        assert sys.getswitchinterval() == pytest.approx(HER_TURN_S)
+    finally:
+        sys.setswitchinterval(was)
+    assert "take_short_turns()" in inspect.getsource(aura_main.main) and "take_short_turns()" in inspect.getsource(mlx_worker._mlx_worker_loop)

@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 27 outbound edges when this was generated.
+# 28 outbound edges when this was generated.
 
 description = "core.self: may import only what it already imports; every new edge is an edit here."
 
@@ -15,6 +15,7 @@ include_rules = [
 
     # What this package reaches for today.
     "+core.affect",
+    "+core.agency.what_she_does_next",
     # Her measured self estimate reads the values and choices in her agency record.
     "+core.agency.what_she_is_like",
     "+core.being",
@@ -42,6 +43,7 @@ include_rules = [
     "+core.skills",
     "+core.soma",
     "+core.state",
+    "+core.understanding",
     "+core.utils",
 
     # Everything else.

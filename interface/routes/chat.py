@@ -7069,7 +7069,9 @@ async def api_chat(
                             else "tool-governance spine was not ready at turn ingress"
                         ),
                     )
-                with reply_as_it_forms():
+                from core.brain.llm_health_router_gate_owners import a_turn_is_live
+
+                with reply_as_it_forms(), a_turn_is_live(f"typed:{exact_turn_id}"):
                     _turn = await _api_chat_turn(body, request)
                 _served = await _apply_recorded_answer(visible_user_message, _turn)
                 _mark_http_turn_served(_turn_outcome, _served)

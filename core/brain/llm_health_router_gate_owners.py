@@ -132,6 +132,18 @@ def a_live_turn(session: str, live: bool) -> None:
         _background_stands_aside(f"a live turn began: {key[:40]}")
 
 
+@contextmanager
+def a_turn_is_live(session: str) -> Iterator[None]:
+    """A turn somebody typed, from when it comes to when it is answered: what reads it, as well as what answers it, has her
+    model at once. LIVE 24 November 2026, 19:19, a typed turn came as she was working on a goal of hers. Reading what it
+    asked waited 12 s behind the goal's words and was given up, its answer waited 26 s more, and the smaller model gave it."""
+    a_live_turn(session, True)
+    try:
+        yield
+    finally:
+        a_live_turn(session, False)
+
+
 def a_live_turn_is_under_way() -> bool:
     with _PEOPLE_WAITING_LOCK:
         return bool(_LIVE_TURNS)

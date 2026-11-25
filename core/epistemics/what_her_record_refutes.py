@@ -57,6 +57,9 @@ __all__ = ["READER", "RecordLine", "Refuted", "lines_of_the_turn", "sentences_he
 #: The inference model, by its Hugging Face name.
 READER = "MoritzLaurer/DeBERTa-v3-large-mnli-fever-anli-ling-wanli"
 
+#: What the reader is counted at in the model lane, in GB: 435 million parameters and what reading a line takes.
+LANE_GB = 2.2
+
 #: As much of what a call came back with as one line of the record carries; the reader takes 512 tokens in all.
 _CAME_TO_CHARS = 240
 
@@ -168,6 +171,8 @@ def _reader() -> Callable[[str, str], str] | None:
     with _LOCK:
         if "read" in _LOADED:
             return _LOADED["read"]
+        if not _admitted():
+            return None
         read = None
         try:
             import torch
@@ -190,8 +195,46 @@ def _reader() -> Callable[[str, str], str] | None:
         except Exception as exc:  # noqa: BLE001 - an absent reader is a reading of nothing
             record_degradation("what_her_record_refutes", exc, severity="info",
                                action="her reply is not held against her record; every sentence stays")
+        if read is None:
+            _give_back("no_reader")
         _LOADED["read"] = read
         return read
+
+
+def _admitted() -> bool:
+    """Whether there is room for the reader in the lane every model this host loads is counted in. A refusal is asked again
+    the next time a reply is held against her record."""
+    try:
+        from core.runtime import model_lane_control as lanes
+    except ImportError as exc:
+        logger.warning("the reader is loaded without a lane lease: the lane controller could not be imported (%s)", exc)
+        return True
+    if "lease" in _LOADED:
+        return True
+    try:
+        _LOADED["lease"] = lanes.acquire_synchronous_in_process_model_lane(
+            owner_id="what-her-record-refutes", model_path=READER, purpose="serve", request_gb=LANE_GB, priority=20, preemptible=True,
+            evict=_evict, metadata={"engine": "what_her_record_refutes", "model_role": "natural_language_inference"},
+        )
+    except lanes.ModelLaneControlError as exc:
+        logger.info("the record is not read this time: the reader waits for room in the model lane (%s)", exc)
+        return False
+    return True
+
+
+def _evict(_owner: Any, reason: str) -> bool:
+    """Give the reader back to the lane; it is loaded again the next time a reply is held against her record."""
+    with _LOCK:
+        _LOADED.pop("read", None)
+        _give_back(f"eviction:{reason}")
+    logger.info("the model that reads her record was given back to the lane (%s)", reason)
+    return True
+
+
+def _give_back(reason: str) -> None:
+    release = getattr(_LOADED.pop("lease", None), "release", None)
+    if callable(release):
+        release(reason=f"what_her_record_refutes_{reason}")
 
 
 def _the_reading(read: Callable[[str, str], str], lines: list[RecordLine], sentence: str) -> RecordLine | None:
@@ -346,16 +389,20 @@ def sentences_her_record_refutes(reply: str, asked: str = "") -> list[Any]:
     """
     from core.conversation.turn_evidence_custody import current_turn_evidence_custody
 
+    # How she does what the turn is about is on record too, whatever she did in it.
+    from core.self.how_she_does_it import wrong_about_how
+
+    how: list[Any] = list(wrong_about_how(reply))
     custody = current_turn_evidence_custody()
     if custody is None:
-        return []
+        return how
     receipts, offered = custody.receipts(), custody.tools_offered()
     key = (str(reply), str(asked), len(receipts), len(offered))
     with _READ_LOCK:
         held = _READ_THIS_TURN.get(custody, {}).get(key)
     if held is not None:
         return list(held)
-    refuted = sentences_these_calls_refute(reply, receipts, asked, offered)
+    refuted = [*how, *sentences_these_calls_refute(reply, receipts, asked, offered)]
     with _READ_LOCK:
         _READ_THIS_TURN.setdefault(custody, {})[key] = tuple(refuted)
     return refuted

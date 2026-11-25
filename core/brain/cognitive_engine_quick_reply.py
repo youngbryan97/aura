@@ -60,6 +60,19 @@ def said_once(text: str) -> str:
 A_PARAGRAPH_BEGUN_AGAIN_IN = 5
 
 
+def what_it_is_given(system_prompt: Any, history: Any, blocks: Any) -> str:
+    """What a turn is given and how long each part of it is, by the names the parts have; none of what they say."""
+    import re
+
+    def named(block: str) -> str:
+        head = re.match(r"\s*(?:\[([^\]\n]{2,60})\]|#+ ([^\n]{2,60}))", block)
+        return (head.group(1) or head.group(2)).strip() if head else "unnamed"
+
+    said = [str(message.get("content") or "") for message in (history or []) if isinstance(message, dict)]
+    parts = ", ".join(f"{named(str(block))} {len(str(block))}" for block in (blocks or []))
+    return f"{len(str(system_prompt or ''))} characters of herself, {sum(map(len, said))} of {len(said)} messages, and {parts or 'no readings'}"
+
+
 class _AnswersTheDesktopDirectly:
     """Lifted whole out of CognitiveEngine; see cognitive_engine.py."""
 
@@ -1276,6 +1289,7 @@ class _AnswersTheDesktopDirectly:
                 *task_grounding_blocks,
                 *ambient_grounding_blocks,
             ]
+            logger.info("🧾 This turn is given %s.", what_it_is_given(system_prompt, history_messages, grounding_blocks))
             if grounding_blocks:
                 messages.append(
                     stamp_grounding(
@@ -1548,6 +1562,9 @@ class _AnswersTheDesktopDirectly:
         )
         if not isinstance(surface_receipt, dict):
             surface_receipt = {}
+        from core.conversation.left_unanswered import settle_by_meaning
+
+        await asyncio.to_thread(settle_by_meaning, surface_receipt, user_prompt, text)
         surface_reasons = tuple(surface_receipt.get("surface_quality_gate_reasons") or ())
         generation_stop_reason = str(
             surface_receipt.get("generation_stop_reason") or ""

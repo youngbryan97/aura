@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -2392,6 +2392,30 @@ def _a_prefix_worth_keeping(
     return max(0, keep_to - already_reused), keep
 
 
+def _prefixes_worth_keeping(
+    prompt_cache_lru: Any,
+    model_key: Any,
+    tokens: Any,
+    already_reused: int,
+    cache: Any,
+    step_size: int,
+    *,
+    shared: Sequence[int],
+) -> tuple[tuple[int, ...], Any]:
+    """Where to snapshot this prefill, for each of the calls that will share a different part of it, and what does it.
+
+    Each point is a call's own, and where the last search ran out is one more only where it lies past them all."""
+    deepest, keep = _a_prefix_worth_keeping(
+        prompt_cache_lru, model_key, tokens, already_reused, cache, step_size, shared_to=max(shared, default=0)
+    )
+    if keep is None:
+        return (), None
+    chunk = max(1, int(step_size or 1))
+    own = ((max(0, int(point or 0)) // chunk) * chunk for point in shared)
+    at = {point - already_reused for point in own if max(already_reused, chunk) < point < len(tokens)}
+    return tuple(sorted({*at, deepest})), keep
+
+
 class _PrefillCancelledError(InterruptedError):
     """Unwind model/cache contexts before acknowledging an interrupted prefill."""
 
@@ -2422,7 +2446,7 @@ def _build_prefill_progress_callback(
     *,
     request_id: str,
     action: str,
-    snapshot_at: int = 0,
+    snapshot_at: int | Sequence[int] = 0,
     keep_prefix: Any = None,
     cancel_check: Callable[[], bool] | None = None,
 ):
@@ -2434,7 +2458,7 @@ def _build_prefill_progress_callback(
     """
     normalized_request_id = str(request_id or "")
     normalized_action = str(action or "generate")
-    taken = {"snapshot": False}
+    wanted = sorted({int(at) for at in (snapshot_at if isinstance(snapshot_at, (list, tuple)) else (snapshot_at,)) if int(at or 0) > 0})
 
     def report(processed: int, total: int) -> None:
         watchdog.activity()
@@ -2452,15 +2476,11 @@ def _build_prefill_progress_callback(
         # them refuses to trim`.
         #
         # The prefill happening right now is the one moment the KV for a
-        # shorter prefix exists. Taken once, just past where the last search
-        # ran out of trie, so what is kept is the part that actually recurs.
-        if (
-            snapshot_at > 0
-            and keep_prefix is not None
-            and not taken["snapshot"]
-            and processed >= snapshot_at
-        ):
-            taken["snapshot"] = True
+        # shorter prefix exists. Taken once at each point some later call will
+        # share up to, so what is kept is the part that actually recurs.
+        if keep_prefix is not None and wanted and processed >= wanted[0]:
+            while wanted and processed >= wanted[0]:
+                wanted.pop(0)
             try:
                 keep_prefix(processed)
             except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -6251,6 +6271,10 @@ def _mlx_worker_loop(
     All Metal/GPU work, model loading, and inference happen inside this
     function's process boundary.  The parent communicates via IPC queues.
     """
+    # Its words are written on one thread, and what reads them as they come works on others.
+    from core.runtime.interpreter_turns import take_short_turns
+
+    take_short_turns()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - MLXWorker - %(levelname)s - %(message)s",
@@ -7580,15 +7604,17 @@ def _mlx_worker_loop(
                                     )
                                     prefill_step_size = _runtime_prefill_step_size(model_path)
                                     clean_kwargs["prefill_step_size"] = prefill_step_size
-                                    _shared_to = where_calls_stop_sharing(tokenizer, prompt, messages, tokens)
+                                    # The next turn shares what comes before the readings made for this one; a pass
+                                    # that may be asked again shares everything before the turn it answers. Both are
+                                    # kept. LIVE 24 November 2026 only the deeper was, the readings were in it, and the
+                                    # next turn of a three-turn talk read all 6,785 tokens again, 33.6 s.
+                                    _shared = [where_calls_stop_sharing(tokenizer, prompt, messages, tokens)]
                                     if internal_attempt < max_internal_retries:
-                                        # A pass that may be asked again keeps the prefix a retry shares with it:
-                                        # everything before the turn it answers (where_the_last_turn_starts).
-                                        _shared_to = max(_shared_to, where_the_last_turn_starts(tokenizer, tokens))
-                                    _snapshot_at, _keep_prefix = _a_prefix_worth_keeping(
+                                        _shared.append(where_the_last_turn_starts(tokenizer, tokens))
+                                    _snapshot_at, _keep_prefix = _prefixes_worth_keeping(
                                         prompt_cache_lru, model_key, tokens,
                                         len(tokens) - len(remaining_tokens), cache, prefill_step_size,
-                                        shared_to=_shared_to,
+                                        shared=_shared,
                                     )
                                     clean_kwargs["prompt_progress_callback"] = (
                                         _build_prefill_progress_callback(

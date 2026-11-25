@@ -146,6 +146,8 @@ TASK_INSTRUCTIONS: dict[str, str] = {
     "feeling_in_a_message": ("Given a message, retrieve messages that express the same feeling"),
     # Whether a request asks what an earlier one asked (core/conversation/asked_again.py).
     "same_question": ("Given a message, retrieve messages that ask the same question"),
+    # Whether a reply answers a question of a message (core/conversation/left_unanswered.py).
+    "answer": ("Given a question, retrieve the words that answer it"),
 }
 
 #: Used when a call site names no task. Deliberately the recall instruction

@@ -8473,6 +8473,8 @@ needs her 27B free (her app down, or her app's own influence trials).
     the state another shape leaves the old tests setting the old one, and nothing yet writes those again.
   - 24 November: her coding is watched as a session, with the program running beside it, and kept across restarts; her
     pictures are painted by her own image model.
+  - 25 November: the code of one work was shown in another's session; each is kept apart
+    (`tests/test_the_workbench_keeps_works_apart.py`).
   - 24 November, night: the search is for Python tools too (`searching_python.py`): the candidates of every repair module
     she has, thousands of them, tried in one process. 10 planted mistakes of 10 are put right with no model.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
@@ -8493,6 +8495,14 @@ needs her 27B free (her app down, or her app's own influence trials).
     source.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
+  - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.
+    Found and mended: her interpreter changed hands every 5 ms, so beside one thread working in Python her event loop got
+    144 of its 40,358 passes a second done (1,231 now); her worker loaded the encoder five times in a reply; a typed turn
+    waited behind her own goal's words; and the next turn read all of its prompt again, 6,785 tokens in 33.6 s, of which
+    3,542 had been read. What each turn is given is logged by part. Left: those numbers again, live.
+  - 25 November: a reply marked "Partial" held two whole replies. A question is left out only where its words and what it
+    means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
+    (`tests/test_how_she_does_it.py`).
 
 ## Live session 2026-09-07: what the runtime showed
 

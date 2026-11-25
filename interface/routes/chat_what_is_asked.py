@@ -38,7 +38,11 @@ def begin_reading_what_is_asked() -> None:
     """Fit the reading on the model that is running, while nobody is waiting; asked for again while it is not ready."""
     from core.brain.llm_health_router_gate_owners import a_person_is_waiting_for_her_model
     from core.understanding.what_is_asked import get_what_is_asked
-    from core.understanding.what_she_says_she_does import get_what_she_says_she_does, get_what_she_undertakes
+    from core.understanding.what_of_hers import get_what_of_hers
+    from core.understanding.what_she_says_she_does import (
+        get_what_she_says_she_does,
+        get_what_she_undertakes,
+    )
     from core.utils.task_tracker import get_task_tracker
 
     async def learn() -> None:
@@ -46,6 +50,10 @@ def begin_reading_what_is_asked() -> None:
         if client is not None and await get_what_is_asked().learn(client, waiting=a_person_is_waiting_for_her_model):
             await get_what_she_says_she_does().learn(client, waiting=a_person_is_waiting_for_her_model)
             await get_what_she_undertakes().learn(client, waiting=a_person_is_waiting_for_her_model)
+            await get_what_of_hers().learn(client, waiting=a_person_is_waiting_for_her_model)
+        from core.conversation.left_unanswered import warm
+
+        await asyncio.to_thread(warm)
 
     get_task_tracker().create_task(learn(), name="what_is_asked.learn")
 
@@ -97,8 +105,11 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
     clear()
     if skip or not str(said or "").strip():
         return None
+    from core.self.how_she_does_it import hold_ways
+    from core.understanding.what_of_hers import get_what_of_hers
     from interface.routes.her_own_time import somebody_spoke
 
+    hold_ways(None)
     somebody_spoke()
     try:
         from core.understanding.examples import attached
@@ -111,9 +122,9 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
             begin_reading_what_is_asked()
             return None
         names = await asyncio.to_thread(names_of, attachments) if attachments else []
-        asked = await asyncio.wait_for(
-            reads.read(attached(said, names), await _beside(said, session_id), client=client), timeout=READ_WITHIN_S,
-        )
+        beside = await _beside(said, session_id)
+        asked = await asyncio.wait_for(reads.read(attached(said, names), beside, client=client), timeout=READ_WITHIN_S)
+        hold_ways(await asyncio.wait_for(get_what_of_hers().read(attached(said, names), beside, client=client), timeout=READ_WITHIN_S) if asked is not None else None)
     except TimeoutError:
         logger.info("🧭 This turn was not read for what it asks within %.0f s.", READ_WITHIN_S)
         return None

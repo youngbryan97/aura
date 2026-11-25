@@ -103,3 +103,24 @@ def test_close_cancels_the_pending_release() -> None:
 
     assert closed == [1]
     assert runtime.snapshot()["engine_live"] is False
+
+
+def test_what_loading_it_took_is_held_for_and_not_only_what_making_it_took() -> None:
+    """LIVE 24 November 2026: made in 0.01 s and loaded at its first use in 0.5 to 2.6 s, it was held for 0.01 s, and loaded
+    five times in one reply."""
+    runtime, built, closed = _runtime()
+    for _ in range(5):
+        lease = runtime.acquire("worker")
+        runtime._engine.load_seconds = 0.6  # its first use loads it
+        lease.close()
+        time.sleep(0.05)
+    assert built == [1] and closed == []
+    assert _wait_until(lambda: closed == [1], seconds=5.0), "a process that stops embedding gives the memory back"
+
+
+def test_an_engine_says_how_long_its_loading_took() -> None:
+    import inspect
+
+    from core.memory.vector_memory_engine import EmbeddingEngine
+
+    assert "self.load_seconds = time.monotonic() - began" in inspect.getsource(EmbeddingEngine._initialize_locked)

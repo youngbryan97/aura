@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.conversation.closed_answer import gives_a_closed_answer
+from core.conversation.left_unanswered import left_out
 from core.conversation.requested_reply_shape import (
     is_reply_shape_constraint_segment,
     without_reply_shape_prefix,
@@ -1293,8 +1294,13 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
             if numbered_parts >= 3 and index >= numbered_start
             else 1
         )
-        if len(overlap) < required_anchors:
-            missed.append(str(segment))
+        if len(overlap) >= required_anchors:
+            continue
+        # A numbered part is told missing by its words. A question of a conversation is answered in other words more often
+        # than in its own, so it is left out only where what the reply means leaves it out too.
+        if not (numbered_parts and index >= numbered_start) and left_out(str(segment), local_body) is False:
+            continue
+        missed.append(str(segment))
     return missed
 
 

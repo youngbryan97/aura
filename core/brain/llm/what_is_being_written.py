@@ -14,8 +14,19 @@ from typing import Any
 __all__ = ["more_of", "pass_on", "watch_for", "watched", "watcher"]
 
 Watcher = Callable[[str, int], None]
-_WATCHER: contextvars.ContextVar[Watcher | None] = contextvars.ContextVar("aura_what_is_being_written", default=None)
-_FOR: dict[str, Watcher] = {}
+
+
+class _Watch:
+    """Who watches, for as long as they do."""
+
+    __slots__ = ("by", "open")
+
+    def __init__(self, by: Watcher) -> None:
+        self.by, self.open = by, True
+
+
+_WATCHER: contextvars.ContextVar[_Watch | None] = contextvars.ContextVar("aura_what_is_being_written", default=None)
+_FOR: dict[str, _Watch] = {}
 #: What has come so far of what is being written for each request that is watched.
 _SO_FAR: dict[str, str] = {}
 
@@ -34,23 +45,27 @@ def more_of(text: str, job: dict[str, Any]) -> dict[str, Any]:
 def watched(by: Watcher) -> Iterator[None]:
     """What is written in this context is passed to ``by(text, tokens)`` as it is, and how much of what it is given has been
     read to ``by.reading(read, of)`` where it has one."""
-    token = _WATCHER.set(by)
+    watch = _Watch(by)
+    token = _WATCHER.set(watch)
     try:
         yield
     finally:
+        # What was begun in this context and outlives it is not what was asked to be watched.
+        watch.open = False
         _WATCHER.reset(token)
 
 
 def watcher() -> Watcher | None:
-    return _WATCHER.get()
+    watch = _WATCHER.get()
+    return watch.by if watch is not None and watch.open else None
 
 
 def watch_for(request_id: str) -> bool:
     """Pass what is written for this request to this context's watcher; whether there is one."""
-    by = _WATCHER.get()
-    if by is None:
+    watch = _WATCHER.get()
+    if watch is None or not watch.open:
         return False
-    _FOR[str(request_id)] = by
+    _FOR[str(request_id)] = watch
     while len(_FOR) > 32:
         forget(next(iter(_FOR)))
     return True
@@ -59,9 +74,10 @@ def watch_for(request_id: str) -> bool:
 def pass_on(message: Any) -> None:
     """Pass a worker's progress message to its watcher, where it has one."""
     request_id = str(message.get("id")) if isinstance(message, dict) else ""
-    by = _FOR.get(request_id)
-    if by is None:
+    watch = _FOR.get(request_id)
+    if watch is None or not watch.open:
         return
+    by = watch.by
     if message.get("phase") == "prefill":
         reading = getattr(by, "reading", None)
         if reading is not None:

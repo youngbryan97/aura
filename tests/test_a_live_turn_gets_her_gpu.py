@@ -99,3 +99,18 @@ def test_a_gpu_model_or_a_persons_turn_keeps_the_gate(monkeypatch):
     assert not gate.acquire(False)
     router_module._release_generation_gate_after_call(lease)
     assert owners.a_cpu_client_gives_back_the_gate(_LazyClient("cpu")) is False  # outside any held lease
+
+
+def test_a_typed_turn_has_her_model_from_when_it_comes_to_when_it_is_answered(monkeypatch):
+    """LIVE 24 November 2026, 19:19: reading what a typed turn asked waited 12 s behind her own work and was given up."""
+    import inspect
+
+    from interface.routes import chat
+
+    asked = []
+    monkeypatch.setattr(owners, "_background_stands_aside", asked.append)
+    with pytest.raises(RuntimeError), owners.a_turn_is_live("typed:1"):
+        assert owners.a_person_is_waiting_for_her_model() and len(asked) == 1
+        raise RuntimeError("the turn broke off")
+    assert not owners.a_person_is_waiting_for_her_model()
+    assert "a_turn_is_live(" in inspect.getsource(chat) and "reply_as_it_forms(), a_turn_is_live(" in inspect.getsource(chat)

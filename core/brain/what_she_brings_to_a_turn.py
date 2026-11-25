@@ -45,6 +45,14 @@ def grounding_she_brings(context: dict[str, Any], request: str) -> list[str]:
             blocks.append(known)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
         logger.debug("Her checked facts unavailable for this turn: %s", exc)
+    try:
+        from core.self.how_she_does_it import how_she_does_it_block
+
+        how = how_she_does_it_block()
+        if how:
+            blocks.append(how)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.debug("How she does what this turn is about is unavailable: %s", exc)
     return blocks
 
 

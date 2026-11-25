@@ -824,11 +824,11 @@ def test_what_is_being_written_reaches_whoever_watches_that_request_and_nobody_e
     seen: list[tuple[str, int]] = []
     with written.watched(lambda text, tokens: seen.append((text, tokens))):
         assert written.watch_for("a")
+        written.pass_on({"id": "a", "written": "const x", "tokens_generated": 3})
+        written.pass_on({"id": "b", "written": "private", "tokens_generated": 3})
+        written.forget("a")
+        written.pass_on({"id": "a", "written": "more", "tokens_generated": 9})
     assert not written.watch_for("b")
-    written.pass_on({"id": "a", "written": "const x", "tokens_generated": 3})
-    written.pass_on({"id": "b", "written": "private", "tokens_generated": 3})
-    written.forget("a")
-    written.pass_on({"id": "a", "written": "more", "tokens_generated": 9})
     assert seen == [("const x", 3)]
 
 
@@ -1428,9 +1428,9 @@ def test_only_what_is_new_of_what_she_writes_is_sent():
     seen.reading = lambda done, of: read.append((done, of))
     with watched(seen):
         watch_for("r1")
-    pass_on({"id": "r1", "phase": "prefill", "prompt_tokens_processed": 5, "prompt_tokens_total": 9})
-    for message in sent:
-        pass_on({"id": "r1", **message})
+        pass_on({"id": "r1", "phase": "prefill", "prompt_tokens_processed": 5, "prompt_tokens_total": 9})
+        for message in sent:
+            pass_on({"id": "r1", **message})
     forget("r1")
     assert got == ["const", "const x", "const x = 1", "again"] and read == [(5, 9)]
 

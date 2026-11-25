@@ -73,7 +73,8 @@
 
   window.mountWorkbench = function (root, options) {
     const wide = !!(options && options.wide);
-    let chosen = '', list = [], last = null, after = 0, files = new Map(), checks = [], design = null, source = null, program = null, kept = 0, stopped = false, pinned = true, group = null, timer = null, tab = wide ? 'preview' : 'session', target = '', shownN = 0, liveKey = '', raf = 0, part = '', asking = [];
+    let chosen = '', list = [], last = null, after = 0, files = new Map(), checks = [], design = null, source = null, program = null, kept = 0, stopped = false, pinned = true, group = null, timer = null, tab = wide ? 'preview' : 'session', target = '', shownN = 0, liveKey = '', raf = 0, part = '', asking = [], live = null, writing = '';
+    const drafts = new Map();
     root.classList.toggle('wb-wide', wide);
     root.innerHTML = `
       ${wide ? '<nav class="wb-rail" aria-label="Her works"><h2>Work</h2><div class="wb-works"></div></nav>' : ''}
@@ -97,8 +98,9 @@
     // ── the session ────────────────────────────────────────────────
     function choose(id) {
       if (id === chosen) return;
+      clearTimeout(timer); cancelAnimationFrame(raf); raf = 0; live = null; writing = ''; if (chosen) drafts.set(chosen, say.value);
       chosen = id; last = null; after = 0; files = new Map(); checks = []; design = null; program = null; kept = 0; group = null; target = ''; shownN = 0; liveKey = ''; part = ''; pinned = true; asking = [];
-      log.innerHTML = ''; stream(); drawTabs(); drawView();
+      log.innerHTML = ''; view.innerHTML = ''; say.value = drafts.get(id) || ''; $('.wb-title').textContent = ''; $('.wb-status').textContent = ''; stream(); drawTabs(); drawView();
     }
     scroller.addEventListener('scroll', () => { pinned = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60; latest.hidden = pinned; });
     latest.addEventListener('click', () => { pinned = true; down(true); });
@@ -144,14 +146,14 @@
     };
     const MARKED = { held: 'Held', 'goes on': 'Going on', 'told to stop': 'Told to stop', 'taken up again': 'Taken up again', 'left off': 'Left off' };
     function happened(h) {
-      after = Math.max(after, h.n);
+      if (h.n <= after) return;
+      after = h.n;
       if (TELLS[h.what]) TELLS[h.what](h);
       else if (MARKED[h.what]) { log.appendChild(el('div', 'wb-line', `<span>${MARKED[h.what]}${h.why ? `: ${esc(h.why)}` : ''} · ${clock(h.at)}</span>`)); group = null; }
       while (log.children.length > 500) log.removeChild(log.firstChild);
     }
 
     // ── what she is writing, a few letters at a time ───────────────
-    let live = null;
     function liveBox() {
       if (live && live.isConnected) return live;
       live = el('div', 'wb-live', '<div class="wb-says"></div><div class="wb-live-code" hidden><header><span class="wb-dots"><i></i><i></i><i></i></span><span class="wb-live-n"></span></header><pre class="wb-code"><code></code></pre></div>');
@@ -193,7 +195,7 @@
         if (at && at.dataset.src === src) return;
         view.className = 'wb-view wb-preview'; view.innerHTML = kept || (last && last.made) ? `<iframe title="What she has made, running" sandbox="allow-scripts" data-src="${src}" src="${src}"></iframe>` : '<div class="wb-empty">What she makes runs here as soon as there is something to run.</div>';
       } else if (tab === 'code') {
-        if (!program) { try { program = await get(`/api/work/${id}/program`); } catch (e) { program = { parts: {} }; } if (id !== chosen || tab !== 'code') return; }
+        if (!program || program.of !== id) { let its; try { its = await get(`/api/work/${id}/program`); } catch (e) { its = { parts: {} }; } if (id !== chosen || tab !== 'code') return; program = { ...its, of: id }; }
         const names = Object.keys(program.parts || {});
         if (!names.length) { view.className = 'wb-view'; view.innerHTML = '<div class="wb-empty">Nothing of it is written yet.</div>'; return; }
         if (!names.includes(part)) part = names[0];
@@ -226,22 +228,22 @@
       } else { const html = `<span class="wb-doing">${w.state === 'done' ? 'Done' : 'Stopped'}${w.ended ? ' at ' + clock(w.ended) : ''}${w.ended && w.began ? ', after ' + lasted(w.ended - w.began) : ''}. Say something and she takes it up again.</span>`; if (box.__h !== html) { box.__h = html; box.innerHTML = html; } }
     }
     function came(w) {
+      if (w.id !== chosen) return;
       last = { ...(last || {}), ...w, happened: undefined };
       const n = w.now || {};
-      for (const h of w.happened || []) { if (h.what === 'code' || h.what === 'tried' || h.what === 'step' || h.what === 'says') wrote(''); happened(h); }
+      for (const h of w.happened || []) { if (h.n > after && (h.what === 'code' || h.what === 'tried' || h.what === 'step' || h.what === 'says')) wrote(''); happened(h); }
       if (typeof n.writing === 'string') wrote(n.writing); else if (!('writing' in n)) wrote('');
       drawHead(); if ((w.happened || []).length && pinned) requestAnimationFrame(() => down(false));
     }
 
     // ── streaming, with polling where there is none ────────────────
-    let writing = '';
     function stream() {
       if (source) { source.close(); source = null; }
       if (!chosen || !visible() || stopped) return;
       writing = '';
       const id = chosen, s = new EventSource(`/api/work/${id}/stream?after=${after}`); source = s;
       s.addEventListener('seen', (e) => { if (id !== chosen) return; const w = JSON.parse(e.data); const more = w.now && w.now.more; if (w.now) { if (more) writing = writing.slice(0, more[0]) + more[1]; else if (!w.now.is_writing) writing = ''; if (w.now.is_writing) w.now.writing = writing; delete w.now.more; } came(w); });
-      s.onerror = () => { s.close(); if (source === s) { source = null; clearTimeout(timer); timer = setTimeout(() => { poll(); stream(); }, 1500); } };
+      s.onerror = () => { s.close(); if (source === s) { source = null; clearTimeout(timer); timer = setTimeout(() => { if (id === chosen) { poll(); stream(); } }, 1500); } };
     }
     async function poll() { if (!chosen) return; try { came(await get(`/api/work/${chosen}?after=${after}`)); } catch (e) { /* asked again */ } }
     async function works() {

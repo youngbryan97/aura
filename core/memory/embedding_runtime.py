@@ -114,6 +114,7 @@ class SharedEmbeddingRuntime:
         #: reuses one engine. A process that genuinely stops embedding still
         #: gives the memory back.
         self._build_seconds = 0.0
+        self._longest_load = 0.0
         self._closing_timer: threading.Timer | None = None
         #: Set while one acquirer builds the engine OUTSIDE the lock. Loading
         #: the embedding model reads and fsyncs its cache, and lockdep named
@@ -174,7 +175,8 @@ class SharedEmbeddingRuntime:
                 return
             if self._owners or self._engine is None:
                 return
-            if self._build_seconds <= _shortest_hold_s():
+            hold_s = self._cost_to_have_again()
+            if hold_s <= _shortest_hold_s():
                 # Nothing to hold for: an engine that cost less to build
                 # than a timer takes to fire is closed now, on this thread.
                 # A zero-delay timer is not "at once" — it is another
@@ -183,7 +185,7 @@ class SharedEmbeddingRuntime:
                 engine, self._engine = self._engine, None
             else:
                 engine = None
-                timer = threading.Timer(self._build_seconds, self._close_if_still_idle)
+                timer = threading.Timer(hold_s, self._close_if_still_idle)
                 timer.daemon = True
                 self._closing_timer = timer
                 timer.start()
@@ -192,6 +194,17 @@ class SharedEmbeddingRuntime:
             if callable(close):
                 close()
             logger.info("Embedding runtime closed engine after final owner release")
+
+    def _cost_to_have_again(self) -> float:
+        """What it would take to have the engine as it is again, in seconds: making it, and loading what it has loaded.
+
+        Making it is a hundredth of a second, for it loads nothing until it is asked. LIVE 24 November 2026 that was all
+        that was counted, so a worker held the encoder for 0.01 s: it loaded it five times in one reply, 0.5 to 2.6 s
+        each, beside the words it was writing. The longest of its loads is what the next could cost.
+        """
+        loaded = float(getattr(self._engine, "load_seconds", 0.0) or 0.0)
+        self._longest_load = max(self._longest_load, loaded)
+        return self._build_seconds + self._longest_load
 
     def _close_if_still_idle(self) -> None:
         with self._lock:
@@ -204,8 +217,8 @@ class SharedEmbeddingRuntime:
         if callable(close):
             close()
         logger.info(
-            "Embedding runtime closed engine after %.2fs idle, which is what building it cost",
-            self._build_seconds,
+            "Embedding runtime closed engine after %.2fs idle, which is what having it again costs",
+            self._build_seconds + self._longest_load,
         )
 
     def close(self) -> None:

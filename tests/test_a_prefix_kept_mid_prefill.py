@@ -378,3 +378,45 @@ def test_with_no_grounding_added_calls_share_through_the_first_message():
     messages = [{"role": "system", "content": "abc"}, {"role": "user", "content": "def"}]
     tokens = [ord(c) for c in prompt]
     assert where_calls_stop_sharing(_CharTokenizer(), prompt, messages, tokens) == 5
+
+
+def test_what_the_next_turn_shares_is_kept_beside_what_a_retry_shares():
+    """LIVE 24 November 2026: a turn kept 6,656 of its 6,785 tokens, its own readings among them, and the next turn, which
+    shared 3,542, read all of its own again in 33.6 s."""
+    from core.brain.llm.mlx_worker import _build_prefill_progress_callback, _prefixes_worth_keeping
+
+    lru = PromptCacheLRU(max_size=8)
+    tokens = list(range(6785))
+    kv = {"read": 0}
+    at, keep = _prefixes_worth_keeping(lru, _KEY, tokens, 0, kv, 64, shared=[3542, 6700])
+    assert at == (3520, 6656) and keep is not None
+
+    class Watch:
+        def activity(self):
+            return None
+
+    class Sent:
+        def put(self, _message):
+            return None
+
+    report = _build_prefill_progress_callback(Watch(), Sent(), request_id="r", action="generate", snapshot_at=at, keep_prefix=keep)
+    for read in range(0, 6785, 64):
+        kv["read"] = read
+        report(read, len(tokens))
+    next_turn = [*tokens[:3542], *range(90_000, 93_000)]
+    cache, remaining = _fetch(lru, next_turn)
+    assert cache == {"read": 3520} and len(remaining) == len(next_turn) - 3520
+    retry = [*tokens[:6700], *range(80_000, 80_100)]
+    cache, remaining = _fetch(lru, retry)
+    assert cache == {"read": 6656}
+
+
+def test_where_the_last_search_ran_out_is_kept_too_where_it_lies_past_them():
+    from core.brain.llm.mlx_worker import _prefixes_worth_keeping
+
+    lru = PromptCacheLRU(max_size=8)
+    lru.insert_cache(_KEY, list(range(900)), ["KV"])
+    _fetch(lru, list(range(700)) + [9999] * 50)
+    at, _keep = _prefixes_worth_keeping(lru, _KEY, list(range(900)), 0, ["KV"], 64, shared=[300, 500])
+    assert at == (256, 448, 640)
+    assert _prefixes_worth_keeping(lru, _KEY, list(range(40)), 0, ["KV"], 64, shared=[0]) == ((), None)

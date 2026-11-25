@@ -397,11 +397,14 @@ def _merge_obligation_completion(
         from core.conversation.request_coverage import merge_numbered_answer_section
 
         return merge_numbered_answer_section(head, label, tail)
-    else:
-        addition = tail
     if not head:
-        return addition
-    return f"{head}\n\n{addition}"
+        return tail
+    # Two replies written apart are not one reply. Where the first answers the part by what it means, it is the reply.
+    from core.conversation.left_unanswered import left_out
+
+    if left_out(obligation.segment, head) is False:
+        return head
+    return f"{head}\n\n{tail}"
 
 
 def _user_surface_continuation_budget(prompt_shape: object | None) -> int:
