@@ -79,9 +79,10 @@ _EVERY_LINE = (Step(((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (1, -1), (-1, 1),
 #: misread look can show two. LIVE 23 November 2026 one look gave her royal kind two squares far up the board.
 SEEN_TO_BELIEVE = 3
 #: Which reading of a board's answers gathered what is kept: 2 since an answer is read from the board as it was, once
-#: it holds still (f60209bb0). What an earlier reading gathered weighs as kept knowledge does when it comes back
-#: (core/runtime/what_she_learned.py, TRUST_CARRIED_OVER), once, the first time the record is read after.
-READING = 2
+#: it holds still (f60209bb0); 3 since a change of kind is learned only once a second look shows it. What an earlier
+#: reading gathered weighs as kept knowledge does when it comes back (core/runtime/what_she_learned.py,
+#: TRUST_CARRIED_OVER), once, the first time the record is read after.
+READING = 3
 #: What one look counts for against SEEN_TO_BELIEVE, which counted squares: three squares were to make sure of two
 #: looks, since one misread look shows two at most, so two looks that agree are what it asked for.
 A_LOOK_IS_WORTH = SEEN_TO_BELIEVE / 2
@@ -312,6 +313,11 @@ class HowThePiecesMove:
         if family is not None:
             from core.agency.pieces_by_their_kind import _possible
 
+            # A crossing kept as a pair, not yet relied on, is asked of this offer too: the offer is how it comes to be.
+            candidate = self.crosses.get(kind)
+            if candidate and kind in family.kinds and not family.kinds[kind].crosses_with:
+                family = replace(family, kinds={**family.kinds,
+                                                kind: replace(family.kinds[kind], crosses_with=candidate)})
             crossings = [move for move in _possible(family, position)
                          if move.start == square and move.partner is not None and move.partner[0] != move.end]
             crossing_to = {move.partner[0] for move in crossings}
@@ -606,9 +612,12 @@ class HowThePiecesMove:
             self._saw_special(kind, "swaps")
             return
         if move.partner is not None:
+            # Seen made, a move that changes two things says which two changed and not which of them made it: both
+            # readings fit what was seen. It is kept as a pair and credited to neither; the game offering it to one of
+            # them, when that one is picked up, says which (offered). LIVE 24 November 2026 eight crossings watched
+            # had been credited to the partner, and her straight-runner was held to cross with her royal kind.
             partner_kind = position.cells[move.partner[0]][1]
-            self.crosses[kind] = partner_kind
-            self._saw_special(kind, "crosses")
+            self.crosses.setdefault(kind, partner_kind)
             return
         if _takes_over_seen(side, move):
             self._saw_special(kind, "takes over")
@@ -750,8 +759,15 @@ class HowThePiecesMove:
         return furthest
 
     def _crosses_surely(self, kind: str) -> bool:
-        """Whether this kind crosses with a partner, seen often enough to be relied on."""
-        return bool(self.crosses.get(kind)) and self.special_seen.get(f"{kind}|crosses", 0) >= SEEN_TO_BELIEVE
+        """Whether this kind crosses with a partner, seen often enough to be relied on. Two kinds each held to cross with
+        the other are two explanations of the same moves, of which one is so: the one with more behind it stands."""
+        partner = self.crosses.get(kind)
+        if not partner:
+            return False
+        seen = self.special_seen.get(f"{kind}|crosses", 0)
+        if self.crosses.get(partner) == kind and self.special_seen.get(f"{partner}|crosses", 0) >= seen:
+            return False
+        return seen >= SEEN_TO_BELIEVE
 
     def _sure_as_far_as(self, way: _Seen, rides: int) -> int:
         """How far along a way, of at most ``rides`` squares (0 the whole line), it can be relied on: up to the first
@@ -761,9 +777,10 @@ class HowThePiecesMove:
         held = 1
         while held < furthest:
             further = held + 1
-            contested = (further in way.withheld or further in way.withheld_unmoved
-                         or way.refused_going_at.get(further, 0) or way.refused_taking_at.get(further, 0))
-            if contested and way.looks([further]) < SEEN_TO_BELIEVE:
+            # The game's word against the game's word: what was seen there against what was withheld or refused there.
+            against = (int(further in way.withheld or further in way.withheld_unmoved)
+                       + way.refused_going_at.get(further, 0) + way.refused_taking_at.get(further, 0))
+            if against and (way.looks([further]) < SEEN_TO_BELIEVE or way.looks([further]) <= against):
                 break
             held = further
         return rides if held >= furthest else held
@@ -1011,8 +1028,11 @@ class HowThePiecesMove:
             first = kept.get("first_was_hers")
             learned.first_was_hers = first if isinstance(first, bool) else None
             read_by = int(kept.get("read_by", 1))
-            if read_by < READING:
+            if read_by < 2:
                 learned._weighed_as_read_before_mending()
+            if read_by < READING:
+                learned._unlisted_as_read_before_mending()
+            learned.read_by = READING
             return learned
         except (KeyError, TypeError, ValueError) as why:
             logger.info("what she learned of this game could not be read back (%s); learning it afresh", why)
@@ -1053,9 +1073,19 @@ class HowThePiecesMove:
                         kept -= gone
                         dropped += len(gone)
         self.special_seen = {k: less(v) for k, v in self.special_seen.items() if less(v) > 0}
-        self.read_by = READING
         logger.info("what an earlier reading of this board gathered now weighs %.1f of itself; %d distance(s) it alone "
                     "held are let go", TRUST_CARRIED_OVER, dropped)
+
+    def _unlisted_as_read_before_mending(self) -> None:
+        """What an earlier reading kept as a bare list with no count, of kinds a piece was read as having become: each
+        stands for at least one reading of no known number, and weighed as every count of that reading is
+        (TRUST_CARRIED_OVER of one) it comes to less than one, and is let go. A kind's becoming is learned again the
+        next time two looks show it (core/agency/playing_pieces_by_kind.py, became_on_landing). LIVE 24 November 2026,
+        measured on her record: two kinds held to become a third cost every game of 42 against a stronger program, and
+        taking what each kind becomes from the true game alone lifted that to 0.119."""
+        let_go = sum(len(v) for v in self.becomes.values())
+        self.becomes = {}
+        logger.info("what an earlier reading kept of kinds becoming others is let go: %d entries", let_go)
 
     def under_other_names(self, names: dict[str, str], *, turned_round: bool = False) -> HowThePiecesMove:
         """What she learned here, for a board that begins as this one does with each kind called what ``names`` maps
@@ -1120,7 +1150,14 @@ class HowThePiecesMove:
         kinds = {kind: Kind(kind, steps=tuple(self._steps_of(kind) or (
                                 _EVERY_LINE if unseen_go_every_way else ())), royal=self.royal(kind),
                             becomes=tuple(b for b in self.becomes.get(kind, ()) if b in there),
-                            crosses_with=self.crosses.get(kind, ""),
+                            # A move that changes two things at once belongs to the kind the game offered it to, or
+                            # was seen making it, often enough; not to whichever of the two a reading named as the
+                            # mover. LIVE 24 November 2026 her record held the crossing both ways, from a reading
+                            # that once named the partner as the mover, so her straight-runner "crossed" by going
+                            # two squares toward her royal kind, and she played it, a plain move on the board,
+                            # giving the crossing up (7.Rf1). The royal kind had been offered it twelve times, the
+                            # straight-runner never.
+                            crosses_with=self.crosses.get(kind, "") if self._crosses_surely(kind) else "",
                             takes_again=kind in self.takes_again or self.counterparts().get(kind, ("",))[0]
                             in self.takes_again,
                             wins_arriving=kind in self.wins_arriving,

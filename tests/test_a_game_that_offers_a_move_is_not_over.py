@@ -190,3 +190,13 @@ def test_a_refusal_counts_against_a_way_she_is_not_sure_of_rather_than_where_it_
     before = rules.seen["K"][(1, 0)].refused_going_at.get(2, 0)
     rules.refused(FILE_HELD, move, family=family)
     assert rules.seen["K"][(1, 0)].refused_going_at.get(2, 0) == before + 1
+
+
+def test_a_move_that_changes_two_things_belongs_to_the_kind_seen_making_it() -> None:
+    """LIVE 24 November 2026: a reading once named the partner as the mover of the crossing, her straight-runner was
+    held to cross too, and she played its two squares toward her royal kind, a plain move on the board (7.Rf1)."""
+    rules = HowThePiecesMove.from_the_start(CHESS.rows, CHESS.columns, CHESS.start)
+    rules.crosses.update({"K": "R", "R": "K"})
+    rules.special_seen["K|crosses"] = 12
+    family = rules.family()
+    assert family.kinds["K"].crosses_with == "R" and family.kinds["R"].crosses_with == ""

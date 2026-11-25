@@ -36,8 +36,15 @@ def test_a_crossing_rests_on_how_often_one_was_seen() -> None:
     board = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
     castling = Move(E1, (0, 6), partner=((0, 7), (0, 5)))
     assert rules.seen_going_there(board, castling) == 0
+    # Watched, a crossing does not say which of the two made it, and counts for neither (24 November 2026)...
     for _ in range(SEEN_TO_BELIEVE):
         rules.watched(board, castling)
+    assert rules.seen_going_there(board, castling) == 0
+    # ...offered to the piece picked up, it does. (The first look comes before she knows how a royal kind steps, so
+    # theirs might go anywhere and no crossing could be open to hers then.)
+    side_steps = {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}
+    for _ in range(SEEN_TO_BELIEVE + 1):
+        rules.offered(board, E1, side_steps | {(0, 6)}, family=rules.family(unseen_go_every_way=True))
     assert rules.seen_going_there(board, castling) >= SEEN_TO_BELIEVE
     kept = HowThePiecesMove.from_memory(rules.as_memory())
     assert kept is not None and kept.seen_going_there(board, castling) >= SEEN_TO_BELIEVE

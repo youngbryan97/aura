@@ -426,6 +426,9 @@ class _Game:
     earlier: list[Position] = field(default_factory=list)
     #: The last move followed, whose piece may show on the square it came to what the move made of it.
     last_followed: Move | None = None
+    #: A piece read as another kind on the square it came to: (square, the kind it was, the kind it was read as),
+    #: learned only once a second look still shows it so.
+    becoming: tuple | None = None
     first_is_hers: bool = True
     made: int = 0
     theirs: int = 0
@@ -515,13 +518,23 @@ class _Game:
         """The piece of the last move followed, shown on the square it came to as another kind than she holds: the
         move made it that kind there. LIVE-like 22 November 2026 her man crowned on the far row was held a man, its look
         unread, because her board already had it there."""
+        if self.becoming is not None:
+            # A change of kind is learned once a second look still shows it: one look read wrong (a mark over the
+            # piece, a piece still arriving) taught her, LIVE to 24 November 2026, that two kinds become a third that
+            # neither does. Shown as it was, or as something else, it was a misreading.
+            square, was, became = self.becoming
+            now = shown.get(square)
+            if now is not None and now[1] == became:
+                self.learned.watched_becoming(was, became)
+            if now is None or now[1] is not None:
+                self.becoming = None
         move = self.last_followed
         if move is None:
             return
         held, seen = self.believed.cells.get(move.end), shown.get(move.end)
         if held is None or seen is None or seen[0] != held[0] or seen[1] in (None, held[1]):
             return
-        self.learned.watched_becoming(held[1], seen[1])
+        self.becoming = (move.end, held[1], seen[1])
         self.believed = Position(cells={**self.believed.cells, move.end: (held[0], seen[1])}, turn=self.believed.turn,
                                  unmoved=self.believed.unmoved, passable=self.believed.passable)
 

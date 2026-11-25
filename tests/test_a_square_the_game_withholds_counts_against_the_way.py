@@ -106,6 +106,7 @@ def test_a_partner_square_offered_for_a_crossing_is_the_crossing_and_not_two_pie
     unmoved = from_fen("4k3/8/8/8/8/8/8/4K2R w K -")
     rules.offered(unmoved, E1, {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5)}, family=CHESS)
     rules.crosses["K"] = "R"
+    rules.special_seen["K|crosses"] = 3  # the crossing seen of her king often enough to be relied on
     rules.offered(unmoved, E1, {(1, 4), (1, 3), (1, 5), (0, 3), (0, 5), (0, 6), (0, 7)},
                   family=rules.family(unseen_go_every_way=True))
     assert not rules.seen["K"][(0, 1)].swapped

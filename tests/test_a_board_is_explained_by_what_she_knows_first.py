@@ -111,7 +111,19 @@ def test_her_piece_shown_changed_where_her_move_landed_became_that_kind() -> Non
     game.follow(Move((6, 0), (7, 1)))
     game.became_on_landing({(7, 1): (FIRST, "K"), (5, 5): (SECOND, "M")})
     assert game.believed.cells[(7, 1)] == (FIRST, "K")
+    # One look is not enough to learn it: a second that still shows it so is (24 November 2026).
+    assert "M" not in learned.becomes
+    game.became_on_landing({(7, 1): (FIRST, "K"), (5, 5): (SECOND, "M")})
     assert learned.becomes["M"] == ["K"]
+
+
+def test_a_change_of_kind_one_look_showed_and_the_next_did_not_is_not_learned() -> None:
+    learned = HowThePiecesMove.from_the_start(8, 8, DRAUGHTS.start)
+    game = playing._Game(learned=learned, believed=_board({(6, 0): (FIRST, "M"), (5, 5): (SECOND, "M")}))
+    game.follow(Move((6, 0), (7, 1)))
+    game.became_on_landing({(7, 1): (FIRST, "K"), (5, 5): (SECOND, "M")})
+    game.became_on_landing({(7, 1): (FIRST, "M"), (5, 5): (SECOND, "M")})
+    assert "M" not in learned.becomes
 
 
 def _castled(fen: str, mover: tuple, partner: tuple) -> tuple[Position, dict]:
