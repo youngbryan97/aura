@@ -1812,9 +1812,13 @@ def moves_seen(before: Position, after_cells: dict[Square, tuple[int, str | None
     # answer, has no square it landed on that the board still shows. LIVE-like 22 November 2026, b4xd6 answered by
     # c7xe5 before she looked again left the board unexplained; and a man of hers stepping forward and taken over at
     # once was read as a two-square step sideways taken where it landed, which taught her men to step sideways.
+    # A crossing, two pieces of hers moved in one move, is not a plain move from a square she left to one she landed
+    # on, and is read here too. LIVE 25 November 2026, game m: her king crossing with her straight-runner, and their
+    # answer, both made before she looked, explained nothing, and she lost the thread of the moves.
     for mine in legal_moves(family, Position(cells=before.cells, turn=side, unmoved=before.unmoved,
                                              passable=before.passable)):
-        if not mine.taken() and after_cells.get(mine.end, (None,))[0] == side:
+        if (not mine.taken() and mine.partner is None and not mine.via
+                and after_cells.get(mine.end, (None,))[0] == side):
             continue
         mine = as_shown(mine)
         middle = after(family, before, mine)

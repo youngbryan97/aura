@@ -156,6 +156,22 @@ def test_she_finds_out_who_goes_first(monkeypatch: pytest.MonkeyPatch) -> None:
     assert came["ended"] != "lost track of the board"
 
 
+def test_her_crossing_and_their_answer_made_before_she_looked_are_read_as_they_happened() -> None:
+    """LIVE 25 November 2026, game m against Stockfish: her king crossed with her rook, c7-c5 came before she looked,
+    and nothing she could read explained the board."""
+    from core.agency.how_the_pieces_move import moves_seen
+
+    before = from_fen("r2r2k1/p1pnqppp/1p2p3/3n4/3P4/4PN2/PP1NBPPP/2RQK2R w K -")
+    crossing = next(m for m in moves(CHESS, before) if (m.start, m.end) == ((0, 4), (0, 6)))
+    assert crossing.partner is not None
+    middle = after(CHESS, before, crossing)
+    answer = next(m for m in moves(CHESS, middle) if (m.start, m.end) == ((6, 2), (4, 2)))
+    shown = dict(after(CHESS, middle, answer).cells)
+    read = moves_seen(before, shown, FIRST, CHESS)
+    assert read is not None
+    assert [(m.start, m.end, m.partner) for m in read] == [((0, 4), (0, 6), ((0, 7), (0, 5))), ((6, 2), (4, 2), None)]
+
+
 def test_a_take_answered_by_a_take_on_the_same_square_is_read_as_it_happened() -> None:
     """Her knight takes on e6 and a pawn takes it back there: the picture shows two squares emptied and nothing new,
     and "her knight took the far rook, and a pawn became a rook there" fits it as well. The rules she holds decide."""
