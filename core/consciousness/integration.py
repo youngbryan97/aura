@@ -118,21 +118,21 @@ class ConsciousnessIntegration:
                     self.experiencer.on_broadcast(snap)
                 
                 self.orchestrator.global_workspace.subscribe(sync_bridge)
-                logger.info("✅ Experiencer subscribed to GlobalWorkspace (via bridge)")
+                logger.info("Experiencer subscribed to GlobalWorkspace (via bridge)")
             elif self.orchestrator:
-                logger.warning("⚠️ Consciousness Integration: GlobalWorkspace not available for subscription")
+                logger.warning("Consciousness Integration: GlobalWorkspace not available for subscription")
                 
             self._running = True
-            logger.info("🌟 Consciousness Integration Layer initialized")
+            logger.info("Consciousness Integration Layer initialized")
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('integration', e)
-            logger.error("❌ Consciousness Integration failed: %s", e)
+            logger.error("Consciousness Integration failed: %s", e)
 
     async def shutdown(self):
         """Graceful shutdown of consciousness layers."""
         self._running = False
         await self.experiencer.stop()
-        logger.info("🌟 Consciousness Integration Layer offline")
+        logger.info("Consciousness Integration Layer offline")
 
     def get_phenomenal_context(self) -> str:
         """

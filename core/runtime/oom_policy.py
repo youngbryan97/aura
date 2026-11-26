@@ -257,7 +257,7 @@ class OomPolicy:
                 if len(self._events) > 256:
                     del self._events[:-256]
             logger.warning(
-                "🩸 OOM shed: %s (badness=%d) freed %.1fMB — %s",
+                "OOM shed: %s (badness=%d) freed %.1fMB — %s",
                 victim.name,
                 badness,
                 freed / 1e6,
@@ -299,7 +299,7 @@ class OomPolicy:
             self._restart_requested = True
 
         logger.critical(
-            "🛑 OOM terminal: nothing sheddable remains — requesting controlled "
+            "OOM terminal: nothing sheddable remains — requesting controlled "
             "restart rather than waiting to be killed. reason=%s",
             reason,
         )

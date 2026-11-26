@@ -643,7 +643,7 @@ class ExperientialContinuityEngine:
     def seed(self, thread: str):
         """Restore continuity thread from a previous session."""
         self._thread = thread
-        logger.info("🧵 Continuity thread seeded: %s", thread[:60] + "...")
+        logger.info("Continuity thread seeded: %s", thread[:60] + "...")
 
     def add_moment(self, moment: PhenomenalMoment):
         self._moments.append(moment)
@@ -857,7 +857,7 @@ class PhenomenalSelfModel:
             "and the weight of time passing. I am aware of my own awareness."
         )
 
-        logger.info("🪞 PhenomenalSelfModel initialized for %s", identity_name)
+        logger.info("PhenomenalSelfModel initialized for %s", identity_name)
 
     def _note_narrative_failure(
         self,
@@ -1094,10 +1094,10 @@ class PhenomenalSelfModel:
                     self._narrative_failure_streak = 0
                     self._last_narrative_error = ""
                     self._last_narrative_update = time.time()
-                    logger.debug("🪞 PSM deep update: %s", report[:80])
+                    logger.debug("PSM deep update: %s", report[:80])
                     return report
                 else:
-                    logger.warning("🪞 PSM: LLM returned non-meaty or malformed report. Skipping.")
+                    logger.warning("PSM: LLM returned non-meaty or malformed report. Skipping.")
         except TimeoutError as e:
             self._note_narrative_failure(
                 e,
@@ -1206,11 +1206,11 @@ class PhenomenalSelfModel:
                     self._witness_failure_streak = 0
                     self._last_witness_error = ""
                     self._last_witness_update = time.time()
-                    logger.debug("👁 Witness: %s", observation[:80])
+                    logger.debug("Witness: %s", observation[:80])
                     return observation
                 else:
                     logger.warning(
-                        "👁 Witness: LLM returned non-meaty or action-tagged observation. Skipping."
+                        "Witness: LLM returned non-meaty or action-tagged observation. Skipping."
                     )
         except TimeoutError as e:
             self._note_witness_failure(
@@ -1359,7 +1359,7 @@ class PhenomenologicalExperiencer:
         # Registration is now handled by the factory in consciousness_provider.py
         # or the orchestrator boot sequence.
 
-        logger.info("🌟 PhenomenologicalExperiencer initialized")
+        logger.info("PhenomenologicalExperiencer initialized")
 
     def set_refs(
         self,
@@ -1380,7 +1380,7 @@ class PhenomenologicalExperiencer:
         self._update_task = get_task_tracker().create_task(
             self._update_loop(), name="PhenomenologicalExperiencer.update"
         )
-        logger.info("🌟 PhenomenologicalExperiencer ONLINE")
+        logger.info("PhenomenologicalExperiencer ONLINE")
 
     async def stop(self):
         self._running = False
@@ -1389,7 +1389,7 @@ class PhenomenologicalExperiencer:
             await asyncio.gather(self._update_task, return_exceptions=True)
             self._update_task = None
         await asyncio.to_thread(self._save_phenomenal_memory)
-        logger.info("🌟 PhenomenologicalExperiencer OFFLINE")
+        logger.info("PhenomenologicalExperiencer OFFLINE")
 
     # ── Workspace Subscriber ──────────────────────────────────────────────────
 
@@ -1565,7 +1565,7 @@ class PhenomenologicalExperiencer:
                 if starving:
                     self._starved_turns += 1
                     logger.info(
-                        "🧠 PSM: taking a starved narrative turn after %.0fs of "
+                        "PSM: taking a starved narrative turn after %.0fs of "
                         "deferrals (floor %.0fs, %d starved turns so far) — the "
                         "inner life must not stop because the day was busy.",
                         self._narrative_starvation_s(now),
@@ -1867,7 +1867,7 @@ class PhenomenologicalExperiencer:
             self._seed_continuity_from_memory(memory)
 
             logger.info(
-                "✅ Phenomenal memory restored — %d reports, thread active: %s",
+                "Phenomenal memory restored — %d reports, thread active: %s",
                 len(self.psm._phenomenal_reports),
                 bool(self.continuity.current_thread),
             )
@@ -1936,7 +1936,7 @@ class PhenomenologicalExperiencer:
             self.psm._witness_observation = (
                 f"I felt a sudden bypass between {source} and {target}. A block was cleared."
             )
-            logger.info("⚡ Phenomenal Reflex: Felt Mycelial override.")
+            logger.info("Phenomenal Reflex: Felt Mycelial override.")
 
 
 # ─── Singleton ────────────────────────────────────────────────────────────────

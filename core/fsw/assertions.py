@@ -114,7 +114,7 @@ class AssertionLog:
             stored = self._records.get(record.site, record)
         if first:
             logger.critical(
-                "❗ ASSERTION FAILED at %s in %s: %s | args=%s | response=%s",
+                "ASSERTION FAILED at %s in %s: %s | args=%s | response=%s",
                 record.site,
                 record.function,
                 record.condition,
@@ -259,7 +259,7 @@ def fw_assert(
 def _request_restart(record: AssertionRecord) -> None:
     """A violated invariant means the in-memory state is a guess."""
     logger.critical(
-        "❗ assertion at %s requests a controlled restart: state is not what the "
+        "assertion at %s requests a controlled restart: state is not what the "
         "code believes, and continuing would be guessing",
         record.site,
     )

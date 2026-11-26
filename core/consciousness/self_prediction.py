@@ -185,7 +185,7 @@ class SelfPredictionLoop:
                     logger.debug("the sign of this surprise was not kept: %s", exc)
                 if error.was_surprising:
                     logger.debug(
-                        f"🌟 Surprise! error={error.composite_error:.2f} "
+                        f"Surprise! error={error.composite_error:.2f} "
                         f"(valence_err={error.valence_error:.2f}, "
                         f"drive={'wrong' if error.drive_error > 0.5 else 'ok'}, "
                         f"focus={'wrong' if error.focus_error > 0.5 else 'ok'})"

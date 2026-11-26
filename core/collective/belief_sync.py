@@ -117,7 +117,7 @@ class BeliefSync:
         self._sync_task = tracker.create_task(self._sync_loop(), name="belief_sync.sync")
         self._resonance_task = tracker.create_task(self._resonance_loop(), name="belief_sync.resonance")
         self._discovery_task = tracker.create_task(self._discovery_loop(), name="belief_sync.discovery")
-        logger.info("🌌 BeliefSync protocol active (Discovery & Resonance enabled)")
+        logger.info("BeliefSync protocol active (Discovery & Resonance enabled)")
 
     async def stop(self):
         self.running = False
@@ -133,7 +133,7 @@ class BeliefSync:
                     await task
                 except asyncio.CancelledError as _exc:
                     logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-        logger.info("🌌 BeliefSync protocol stopped")
+        logger.info("BeliefSync protocol stopped")
 
     async def _sync_loop(self):
         backoff: float = 0.0
@@ -180,7 +180,7 @@ class BeliefSync:
                     "principles": principles
                 }
                 
-                logger.info("🌌 Syncing %d beliefs with %d peers...", len(strong_beliefs), len(self.orchestrator.peers))
+                logger.info("Syncing %d beliefs with %d peers...", len(strong_beliefs), len(self.orchestrator.peers))
                 
                 # Phase 16.2: Implement actual p2p transport
                 success = await self._broadcast_to_peers(payload)
@@ -304,7 +304,7 @@ class BeliefSync:
                     "drives": status
                 }
                 
-                logger.debug("🌌 Broadcasting Resonance Pulse to peers...")
+                logger.debug("Broadcasting Resonance Pulse to peers...")
                 await self._broadcast_resonance(payload)
 
             except asyncio.CancelledError:
@@ -345,7 +345,7 @@ class BeliefSync:
         """Entry point for incoming RPC calls from peers with validation."""
         allowed_methods = ["query_beliefs", "receive_resonance", "attention_spike", "receive_beliefs", "receive_principles"]
         if method not in allowed_methods:
-            logger.warning("🛡️ Blocked unauthorized RPC method: %s", method)
+            logger.warning("Blocked unauthorized RPC method: %s", method)
             return {"error": "Method not allowed"}
 
         if method == "query_beliefs":
@@ -367,7 +367,7 @@ class BeliefSync:
             token = params.get("token")
             # SEC-AUDIT: validate against per-instance secret or registered peer tokens
             if token != self._instance_secret and not any(p.get("auth_token") == token for p in self.orchestrator.peers.values()):
-                logger.warning("🛡️ Blocked unauthorized belief sync attempt (Invalid token)")
+                logger.warning("Blocked unauthorized belief sync attempt (Invalid token)")
                 return {"error": "Unauthorized"}
             
             await self.handle_incoming_beliefs(params)
@@ -389,7 +389,7 @@ class BeliefSync:
         if not drive_engine: return
 
         origin = payload.get("origin", "unknown")
-        logger.debug("🌌 Processing Resonance from %s", origin)
+        logger.debug("Processing Resonance from %s", origin)
 
         for drive_name, info in drives.items():
             level = info.get("level", 0.0)
@@ -397,10 +397,10 @@ class BeliefSync:
             if drive_name == "curiosity" and level < 30.0:
                 # Slight dip in our curiosity level (making us more curious)
                 await drive_engine.impose_penalty("curiosity", 5.0)
-                logger.debug("🌌 Resonating with Peer Curiosity: +5.0 Urge")
+                logger.debug("Resonating with Peer Curiosity: +5.0 Urge")
             elif drive_name == "social" and level < 20.0:
                 await drive_engine.impose_penalty("social", 5.0)
-                logger.debug("🌌 Resonating with Peer Loneliness: +5.0 Urge")
+                logger.debug("Resonating with Peer Loneliness: +5.0 Urge")
 
     async def broadcast_attention_spike(self, context: str, urgency: float = 1.0):
         """Phase 18.1: Broadcast a collective attention spike."""
@@ -413,7 +413,7 @@ class BeliefSync:
             "urgency": urgency
         }
         
-        logger.info("🌌 Broadcasting Attention Spike: %s (urg=%.1f)", context[:30], urgency)
+        logger.info("Broadcasting Attention Spike: %s (urg=%.1f)", context[:30], urgency)
         tasks = []
         for peer_id, peer_info in self.orchestrator.peers.items():
             addr = peer_info.get("address")
@@ -432,7 +432,7 @@ class BeliefSync:
         urgency = payload.get("urgency", 0.5)
         origin = payload.get("origin", "unknown")
         
-        logger.info("🌌 Collective Attention Spike received from %s: %s", origin, context)
+        logger.info("Collective Attention Spike received from %s: %s", origin, context)
         
         # Trigger immediate local sensory pulse if urgency is high
         if urgency > 0.7:
@@ -456,7 +456,7 @@ class BeliefSync:
         graph = ServiceContainer.get("belief_graph", default=None) or getattr(self.orchestrator, 'knowledge_graph', None)
         if not graph: return
         
-        logger.info("🌌 Integrating %d beliefs from external node: %s", len(beliefs), payload.get("origin"))
+        logger.info("Integrating %d beliefs from external node: %s", len(beliefs), payload.get("origin"))
         
         immune_sys = get_immune_system()
         
@@ -464,12 +464,12 @@ class BeliefSync:
         async with (lock if lock else asyncio.Lock()):
             for belief in beliefs:
                 if not self._validate_belief_schema(belief):
-                    logger.warning("⚠️ Skipping malformed belief from peer: %s", belief)
+                    logger.warning("Skipping malformed belief from peer: %s", belief)
                     continue
 
                 # Phase 15.3: Immune System Safety Gate
                 if immune_sys.is_protected(belief):
-                    logger.warning("🛡️ Blocked remote sync attempt on protected enclave: %s", belief.get("id", belief.get("source")))
+                    logger.warning("Blocked remote sync attempt on protected enclave: %s", belief.get("id", belief.get("source")))
                     continue
 
                 if hasattr(graph, 'update_belief'):
@@ -489,7 +489,7 @@ class BeliefSync:
         abs_engine = ServiceContainer.get("abstraction_engine", default=None)
         if not abs_engine: return
 
-        logger.info("🌌 Integrating %d principles from external node: %s", len(principles), payload.get("origin"))
+        logger.info("Integrating %d principles from external node: %s", len(principles), payload.get("origin"))
 
         for p_data in principles:
             principle = p_data.get("principle") if isinstance(p_data, dict) else str(p_data or "")
@@ -497,7 +497,7 @@ class BeliefSync:
                 existing = self._load_existing_principles(abs_engine)
                 if not self._principle_semantically_duplicate(principle, existing):
                     await abs_engine._commit_principle(principle)
-                    logger.debug("🌌 New principle learned from swarm: %s", principle[:40])
+                    logger.debug("New principle learned from swarm: %s", principle[:40])
 
     def _load_existing_principles(self, abs_engine) -> List[str]:
         try:
@@ -539,7 +539,7 @@ class BeliefSync:
             self._said_no_grant = False
             return True
         if not getattr(self, "_said_no_grant", False):
-            logger.info("🌌 BeliefSync: no standing grant lets her scan the network for peers; discovery waits for one")
+            logger.info("BeliefSync: no standing grant lets her scan the network for peers; discovery waits for one")
             self._said_no_grant = True
         return False
 
@@ -578,7 +578,7 @@ class BeliefSync:
                                     "status": "discovered",
                                     "auth_token": _generate_instance_secret()
                                 }
-                                logger.info("🌌 New Aura Peer discovered: %s@%s", peer_id, peer_addr)
+                                logger.info("New Aura Peer discovered: %s@%s", peer_id, peer_addr)
                 
                 await asyncio.sleep(self.discovery_interval)
             except asyncio.CancelledError:

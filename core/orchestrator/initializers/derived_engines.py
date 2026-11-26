@@ -82,7 +82,7 @@ def register_derived_engines(orchestrator: Any = None) -> dict[str, Any]:
             )
             logger.warning("Derived engine '%s' failed to register: %s", name, exc)
 
-    logger.info("✅ Derived engines registered from organs: %s", ", ".join(engines))
+    logger.info("Derived engines registered from organs: %s", ", ".join(engines))
     return engines
 
 

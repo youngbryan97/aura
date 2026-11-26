@@ -90,19 +90,19 @@ class SoftwareFactory:
             objective=objective,
         )
         self.jobs[job.job_id] = job
-        logger.info("🏭 SoftwareFactory starting job %s: %s", job.job_id, objective[:60])
+        logger.info("SoftwareFactory starting job %s: %s", job.job_id, objective[:60])
 
         try:
             # 1. MAP: Analyze the repository
             job.stage = PipelineStage.MAPPING
             job.repo_map = await self.cartographer.map_repo(repo_path)
-            logger.info("🗺️  Repo mapped: %d files, %d modules",
+            logger.info(" Repo mapped: %d files, %d modules",
                        job.repo_map.get("file_count", 0), job.repo_map.get("module_count", 0))
 
             # 2. PLAN: Determine what to change
             job.stage = PipelineStage.PLANNING
             job.plan = await self.planner.create_plan(objective, job.repo_map)
-            logger.info("📋 Plan created: %d changes proposed", len(job.plan.get("changes", [])))
+            logger.info("Plan created: %d changes proposed", len(job.plan.get("changes", [])))
 
             # 3. BRANCH: Create isolated workspace
             job.stage = PipelineStage.BRANCHING
@@ -114,13 +114,13 @@ class SoftwareFactory:
             for change in job.plan.get("changes", []):
                 patch = await self.writer.write_patch(change, repo_path)
                 job.patches.append(patch)
-            logger.info("✏️  Applied %d patches", len(job.patches))
+            logger.info(" Applied %d patches", len(job.patches))
 
             # 5. TEST: Run test suite
             job.stage = PipelineStage.TESTING
             job.test_results = await self.tester.run_tests(repo_path)
             if not job.test_results.get("all_passed", False):
-                logger.warning("❌ Tests failed: %s", job.test_results.get("summary"))
+                logger.warning("Tests failed: %s", job.test_results.get("summary"))
                 if not auto_approve:
                     job.stage = PipelineStage.FAILED
                     job.error = "test_failure"
@@ -130,7 +130,7 @@ class SoftwareFactory:
             job.stage = PipelineStage.GUARDING
             job.guard_results = await self.guard.run_checks(repo_path, job.patches)
             if job.guard_results.get("regressions_found", 0) > 0:
-                logger.warning("🛡️ Regression guard found issues: %s", job.guard_results)
+                logger.warning("Regression guard found issues: %s", job.guard_results)
 
             # 7. DIFF: Generate summary
             job.stage = PipelineStage.DIFFING
@@ -147,7 +147,7 @@ class SoftwareFactory:
         except (AttributeError, LookupError, RuntimeError, TypeError, ValueError) as e:
             job.error = str(e)
             job.stage = PipelineStage.FAILED
-            logger.error("🏭 Factory job %s failed at stage %s: %s", job.job_id, job.stage, e)
+            logger.error("Factory job %s failed at stage %s: %s", job.job_id, job.stage, e)
 
         return self._finalize(job)
 

@@ -25,7 +25,7 @@ class PerceptualBuffer:
     def __init__(self, maxsize: int = 100) -> None:
         self._buffer: deque[SensoryMoment] = deque(maxlen=maxsize)
         self._lock = Lock()
-        logger.info("📡 Perceptual Buffer initialized (capacity: %d moments)", maxsize)
+        logger.info("Perceptual Buffer initialized (capacity: %d moments)", maxsize)
 
     def append(self, source: str, content: Any, metadata: dict[str, Any] | None = None) -> None:
         """Add a new sensory moment to the buffer."""

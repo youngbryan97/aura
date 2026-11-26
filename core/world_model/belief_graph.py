@@ -339,7 +339,7 @@ class BeliefGraph:
             effective_new_weight = new_conf * (1.0 + new_cent)
 
             if effective_new_weight > effective_old_weight:
-                logger.warning("🧠 Cognitive Dissonance Resolved: '%s' supersedes '%s' (Weight: %.2f > %.2f)", p, old_p, effective_new_weight, effective_old_weight)
+                logger.warning("Cognitive Dissonance Resolved: '%s' supersedes '%s' (Weight: %.2f > %.2f)", p, old_p, effective_new_weight, effective_old_weight)
                 # Remove old contradicting edge if it was a functional conflict
                 if o_new != o_old:
                     self._remove_from_indices(s, o_old)
@@ -348,7 +348,7 @@ class BeliefGraph:
                 self.graph.add_edge(s, o_new, relation=p, confidence=new_conf, centrality=new_cent, last_updated=time.time(), evidence_count=1)
                 self._update_indices(s, o_new, p, new_conf, False) # Goals are resolved differently, assuming not goal here
             else:
-                logger.info("🧠 Dissonance Rejected: New data '%s' (Weight: %.2f) weaker than existing '%s' (Weight: %.2f)", p, effective_new_weight, old_p, effective_new_weight)
+                logger.info("Dissonance Rejected: New data '%s' (Weight: %.2f) weaker than existing '%s' (Weight: %.2f)", p, effective_new_weight, old_p, effective_new_weight)
                 # Reinforce old belief
                 edge_data['confidence'] = min(1.0, edge_data.get('confidence', 0.5) + 0.02)
                 edge_data['evidence_count'] = edge_data.get('evidence_count', 1) + 1

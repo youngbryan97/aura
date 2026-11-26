@@ -62,7 +62,7 @@ class GoalHierarchy:
         # Don't add if an identical pending goal already exists to prevent loops
         for g in self.goals.values():
             if g.description == description and g.status == "pending" and g.parent_id == parent_id:
-                logger.debug("🎯 Goal already pending: %s", description[:50])
+                logger.debug("Goal already pending: %s", description[:50])
                 return g.id
 
         constitutional_runtime_live = False
@@ -140,11 +140,11 @@ class GoalHierarchy:
         if parent_id and parent_id in self.goals:
             self.goals[parent_id].subgoals.append(goal_id)
             
-        logger.info("🎯 New Goal: %s (ID: %s)", description, goal_id)
+        logger.info("New Goal: %s (ID: %s)", description, goal_id)
         # UI Visibility: Neural Stream integration (v40)
         try:
             from core.thought_stream import get_emitter
-            get_emitter().emit("Goal Set 🎯", description, level="info", category="Motivation", goal_id=goal_id)
+            get_emitter().emit("Goal Set", description, level="info", category="Motivation", goal_id=goal_id)
         except (ImportError, AttributeError, RuntimeError) as _exc:
             record_degradation('goal_hierarchy', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
@@ -211,7 +211,7 @@ class GoalHierarchy:
                         if auditor:
                             audit = await auditor.check_alignment(task, directives)
                             if audit.get("score", 1.0) < 0.3:
-                                logger.warning("🚫 REJECTED GOAL (Low Alignment): %s", task)
+                                logger.warning("REJECTED GOAL (Low Alignment): %s", task)
                                 is_aligned = False
                         
                         if is_aligned:
@@ -366,14 +366,14 @@ class GoalHierarchy:
                     self._save()
                     
                     logger.info(
-                        "⚡ Goal conflict resolved: '%s' wins over '%s' — %s",
+                        "Goal conflict resolved: '%s' wins over '%s' — %s",
                         winner.description[:40], loser.description[:40], reason
                     )
                     
                     try:
                         from core.thought_stream import get_emitter
                         get_emitter().emit(
-                            "Goal Conflict ⚡",
+                            "Goal Conflict",
                             f"Resolved: '{winner.description[:50]}' prioritized over '{loser.description[:50]}'",
                             level="warning",
                             category="Motivation"
@@ -398,11 +398,11 @@ class GoalHierarchy:
     def mark_complete(self, goal_id: str):
         if goal_id in self.goals:
             self.goals[goal_id].status = "completed"
-            logger.info("✅ Goal Completed: %s", self.goals[goal_id].description)
+            logger.info("Goal Completed: %s", self.goals[goal_id].description)
             # UI Visibility: Neural Stream integration (v40)
             try:
                 from core.thought_stream import get_emitter
-                get_emitter().emit("Goal Completed ✅", self.goals[goal_id].description, level="success", category="Motivation", goal_id=goal_id)
+                get_emitter().emit("Goal Completed", self.goals[goal_id].description, level="success", category="Motivation", goal_id=goal_id)
             except (ImportError, AttributeError, RuntimeError) as _exc:
                 record_degradation('goal_hierarchy', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
@@ -411,11 +411,11 @@ class GoalHierarchy:
     def mark_failed(self, goal_id: str, reason: str = ""):
         if goal_id in self.goals:
             self.goals[goal_id].status = "failed"
-            logger.info("❌ Goal Failed: %s — %s", self.goals[goal_id].description, reason)
+            logger.info("Goal Failed: %s — %s", self.goals[goal_id].description, reason)
             # UI Visibility: Neural Stream integration (v40)
             try:
                 from core.thought_stream import get_emitter
-                get_emitter().emit("Goal Failed ❌", f"{self.goals[goal_id].description}: {reason}", level="warning", category="Motivation", goal_id=goal_id)
+                get_emitter().emit("Goal Failed", f"{self.goals[goal_id].description}: {reason}", level="warning", category="Motivation", goal_id=goal_id)
             except (ImportError, AttributeError, RuntimeError) as _exc:
                 record_degradation('goal_hierarchy', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)

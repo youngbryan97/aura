@@ -654,13 +654,13 @@ class IntegrityGuardian:
         critical_hit = [p for p in all_bad if p in CRITICAL_CORE_FILES]
         if critical_hit:
             logger.error(
-                "🚨 CRITICAL INTEGRITY BREACH: core security files modified: %s",
+                "CRITICAL INTEGRITY BREACH: core security files modified: %s",
                 critical_hit
             )
             self._notify_emergency(critical_hit, severity="critical")
         else:
             logger.warning(
-                "⚠️ Integrity alert: %d files tampered, %d missing.",
+                "Integrity alert: %d files tampered, %d missing.",
                 len(tampered), len(missing)
             )
             self._notify_emergency(all_bad[:5], severity="warning")

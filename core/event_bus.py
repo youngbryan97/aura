@@ -238,7 +238,7 @@ class AuraEventBus:
         self._stats_lock = threading.Lock()
         
         logger.info("AuraEventBus initialized (Redis: %s).", self._use_redis)
-        logger.info("✅ [EVENT_BUS] Kernel signaling READY.")
+        logger.info("[EVENT_BUS] Kernel signaling READY.")
 
     def get_status(self) -> dict[str, Any]:
         """Return a diagnostic report of the event bus health."""
@@ -366,7 +366,7 @@ class AuraEventBus:
         }, priority=EventPriority.AUTONOMIC)
         
         if self._error_count > 0:
-            logger.warning("🚨 [EVENT_BUS] Degradation detected: %s errors. Report: %s", 
+            logger.warning("[EVENT_BUS] Degradation detected: %s errors. Report: %s", 
                            self._error_count, status)
         else:
             logger.info("✓ [EVENT_BUS] Health check passed: %s topics active.", len(self._subscribers))
@@ -647,7 +647,7 @@ class AuraEventBus:
             return True
         acquired = await asyncio.to_thread(self._lock.acquire, True, timeout)
         if not acquired:
-            logger.error("🚨 [EVENTBUS] lock contention timeout in %s", where)
+            logger.error("[EVENTBUS] lock contention timeout in %s", where)
         return acquired
 
     async def subscribe(self, topic: str) -> asyncio.Queue:
@@ -794,7 +794,7 @@ class AuraEventBus:
 
         _record_to_bag(topic, data)
 
-        # --- 🛑 PREVENT EVENT ECHOES (H-21 FIX: Proper cloning) ---
+        # --- PREVENT EVENT ECHOES (H-21 FIX: Proper cloning) ---
         if isinstance(data, dict):
             # Create a shallow copy to prevent sub-scribers from mutating the shared data
             data = data.copy() 
@@ -987,7 +987,7 @@ class AuraEventBus:
         # C-09 FIX: Use run_coroutine_threadsafe for consistent background -> loop transition
         target_loop = self._loop
         
-        # 🛡️ Hardening: Aggressively look for a running loop if the bound one is stale
+        # Hardening: Aggressively look for a running loop if the bound one is stale
         if not target_loop or not target_loop.is_running():
             try:
                 target_loop = asyncio.get_running_loop()
@@ -1014,7 +1014,7 @@ class AuraEventBus:
             
             # Periodic health report for diagnostics
             if self._delivered_count % 100 == 0:
-                logger.debug("📡 [EVENT_BUS:%s] Status: %d delivered, %d subs active.", 
+                logger.debug("[EVENT_BUS:%s] Status: %d delivered, %d subs active.", 
                             self._bus_id[:8], self._delivered_count, len(self._subscribers))
         else:
             # No loop during sync init (e.g., skill discovery at import time) — not an error

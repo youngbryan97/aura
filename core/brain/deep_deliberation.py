@@ -97,7 +97,7 @@ class DeepDeliberationEngine:
         self._consecutive_failures = 0
         self._last_latency_s = 0.0
         self._last_completed_at = 0.0
-        logger.info("🪐 DeepDeliberationEngine initialized (Deep Thought lineage)")
+        logger.info("DeepDeliberationEngine initialized (Deep Thought lineage)")
 
     @staticmethod
     def _heuristic_refine(question: str) -> str:

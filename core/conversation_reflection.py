@@ -216,11 +216,11 @@ class ConversationReflector:
                         "timestamp": now,
                         "mood": mood,
                     })
-                    logger.info("💭 Reflection: %s...", reflection[:80])
+                    logger.info("Reflection: %s...", reflection[:80])
                     # Phase 7: UI Visibility
                     try:
                         from core.thought_stream import get_emitter
-                        get_emitter().emit("Reflection 💭", reflection, level="info", category="Cognition")
+                        get_emitter().emit("Reflection", reflection, level="info", category="Cognition")
                     except (ImportError, AttributeError, RuntimeError) as _exc:
                         record_degradation('conversation_reflection', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
@@ -308,7 +308,7 @@ class ConversationReflector:
         certificate = self.training_certificate(reflection, conversation_history)
         if not certificate["eligible"]:
             logger.info(
-                "🚫 Reflection withheld from online adaptation: %s",
+                "Reflection withheld from online adaptation: %s",
                 ", ".join(certificate["refusals"]),
             )
             return
@@ -375,7 +375,7 @@ class ConversationReflector:
         self.last_excerpt_had_injection = contains_injection(conversation_excerpt)
         if self.last_excerpt_had_injection:
             logger.warning(
-                "💭 Reflecting on a transcript containing instruction-override "
+                "Reflecting on a transcript containing instruction-override "
                 "phrasing; the excerpt is fenced and marked untrusted."
             )
 
@@ -629,14 +629,14 @@ class ConversationReflector:
 
         if receipt["stored"]:
             logger.info(
-                "📚 Stored %d preference claim(s) (%d stated, %d inferred, %d rejected)",
+                "Stored %d preference claim(s) (%d stated, %d inferred, %d rejected)",
                 receipt["stored"], len(receipt["stated"]),
                 len(receipt["inferred"]), len(receipt["rejected"]),
             )
             try:
                 from core.thought_stream import get_emitter
                 get_emitter().emit(
-                    "Learning 📚",
+                    "Learning",
                     "Learned user preferences from reflection",
                     level="info",
                     category="Memory",
@@ -743,7 +743,7 @@ class ConversationReflector:
             )
             receipt["stored"] += 1
         logger.info(
-            "🤝 SharedGround: stored %d of %d candidate entries (%d rejected)",
+            "SharedGround: stored %d of %d candidate entries (%d rejected)",
             receipt["stored"], len(sg_items), len(receipt["rejected"]),
         )
         return receipt

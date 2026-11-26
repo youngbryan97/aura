@@ -336,7 +336,7 @@ class CRSMLoopMonitor:
                 encoding="utf-8",
                 source="training:crsm_loop_monitor",
             )
-            logger.info("🔁 [CRSMLoop] dataset consumed: %d lines → %s", lines_consumed, model_path)
+            logger.info("[CRSMLoop] dataset consumed: %d lines → %s", lines_consumed, model_path)
             return True
         except OSError as exc:
             record_degradation("crsm_loop_monitor", exc)
@@ -548,7 +548,7 @@ class CRSMLoopMonitor:
         state = self.loop_state()
         if state["state"] == "open":
             logger.warning(
-                "🔁 [CRSMLoop] LOOP OPEN: %s — captured experience is not being "
+                "[CRSMLoop] LOOP OPEN: %s — captured experience is not being "
                 "crystallized into weights. Run LoRA training on the synthetic dataset.",
                 state["reason"],
             )

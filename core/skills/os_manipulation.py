@@ -79,7 +79,7 @@ class DesktopControlSkill(BaseSkill):
         from core.container import ServiceContainer
         host_auto = ServiceContainer.get("host_automation", default=None)
         if host_auto:
-            logger.warning("🖐️ OS MANIPULATION (Governed HostAutomation): %s %s", action, params)
+            logger.warning("OS MANIPULATION (Governed HostAutomation): %s %s", action, params)
             if action == "type":
                 text = params.text
                 if not text:
@@ -141,7 +141,7 @@ class DesktopControlSkill(BaseSkill):
                 "status": "unavailable",
             }
 
-        logger.warning("🖐️ OS MANIPULATION (Direct PyAutoGUI): %s %s", action, params)
+        logger.warning("OS MANIPULATION (Direct PyAutoGUI): %s %s", action, params)
 
         if action == "type":
             text = params.text

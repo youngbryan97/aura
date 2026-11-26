@@ -710,9 +710,9 @@ class LockdepValidator:
                     # boot on 2026-09-23, every one at 0 ms on CPU while a test
                     # suite and two other jobs had the host. The stall is the
                     # loop monitor's to report, and the hold stays in report().
-                    logger.info("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                    logger.info("LOCKDEP %s: %s", splat.kind, splat.message)
                     continue
-                logger.error("🔒 LOCKDEP %s: %s", splat.kind, splat.message)
+                logger.error("LOCKDEP %s: %s", splat.kind, splat.message)
                 try:
                     taint(
                         TaintFlag.LOCK_ORDER,
@@ -796,7 +796,7 @@ class LockdepValidator:
                 stack=self._stack(),
                 context=label,
             )
-        logger.error("🔒 LOCKDEP %s: %s", kind, message)
+        logger.error("LOCKDEP %s: %s", kind, message)
         taint(TaintFlag.LOCK_ORDER, f"{kind}: {message[:200]}", subsystem="lockdep")
 
     def note_blocking_on_loop(self, site: str, operation: str) -> bool:
@@ -1396,7 +1396,7 @@ def report_blocking_on_loop(operation: str) -> bool:
     )
     if _VALIDATOR.note_blocking_on_loop(site, operation):
         logger.warning(
-            "🔒 %s on the event loop thread from %s%s — every task waits on the disk "
+            "%s on the event loop thread from %s%s — every task waits on the disk "
             "for as long as it takes; said once per place",
             operation,
             site,

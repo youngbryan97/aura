@@ -445,7 +445,7 @@ def enforce_json(
                 state["refused"] += 1
                 state["enforcing"] = False
                 logger.warning(
-                    "🧠 [WORKER] JSON shape lost at token %d (%r); no longer enforced.",
+                    "[WORKER] JSON shape lost at token %d (%r); no longer enforced.",
                     state["seen"], text,
                 )
                 return logits

@@ -117,7 +117,7 @@ class _RunsTheRequiredSearch:
             "method": "deterministic_grounded_evidence",
         }
         logger.warning(
-            "🛡️ ResponseGeneration replaced false %s inability after successful required evidence.",
+            "ResponseGeneration replaced false %s inability after successful required evidence.",
             skill_name,
         )
         return repaired
@@ -188,7 +188,7 @@ class _RunsTheRequiredSearch:
         # contract carries no search_query. So this lane ran, against a real
         # search engine, with:
         #
-        #     query=The Sick Mind of EDP445 | …Documentary - YouTube 🔊
+        #     query=The Sick Mind of EDP445 | …Documentary - YouTube
         #     query=License Plate Lookup & VIN Search | VehicleHistory.us
         #     query=Monthly Expenses
         #     query=t get a clear enough answer together, and I
@@ -205,7 +205,7 @@ class _RunsTheRequiredSearch:
         # relation to the user's own words means no search.
         if not self._query_comes_from_the_user(query, runtime_context, objective):
             logger.warning(
-                "🔎 ResponseGeneration: refused required search evidence — the "
+                "ResponseGeneration: refused required search evidence — the "
                 "query is not derived from the user's message (likely a window "
                 "title or internal objective). Nothing was sent."
             )
@@ -218,7 +218,7 @@ class _RunsTheRequiredSearch:
 
         if cap is None:
             logger.warning(
-                "🔎 ResponseGeneration: required search evidence skipped because capability_engine is unavailable."
+                "ResponseGeneration: required search evidence skipped because capability_engine is unavailable."
             )
             return False
 
@@ -334,7 +334,7 @@ class _RunsTheRequiredSearch:
                 exc,
             )
         logger.info(
-            "🔎 ResponseGeneration: executed required search evidence via %s (ok=%s query=%s).",
+            "ResponseGeneration: executed required search evidence via %s (ok=%s query=%s).",
             skill_name,
             ok,
             query[:120],
@@ -445,7 +445,7 @@ class _RunsTheRequiredSearch:
                 exc,
             )
         logger.info(
-            "🔎 ResponseGeneration: read the named document instead of searching for it (%s).",
+            "ResponseGeneration: read the named document instead of searching for it (%s).",
             url[:120],
         )
         return True

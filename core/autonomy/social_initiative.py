@@ -285,12 +285,12 @@ class _StartsSomethingSocial:
             if sent.get("ok"):
                 await mark_sent(str(draft["id"]))
                 went.add(str(draft["id"]))
-                logger.info("📧 Her reply to %s about %r went out (%s).", draft.get("to"), draft.get("subject"), draft["id"])
+                logger.info("Her reply to %s about %r went out (%s).", draft.get("to"), draft.get("subject"), draft["id"])
             elif tool_result_is_deferred(sent):
-                logger.info("📧 Her reply %s is kept for her next round, its send deferred: %s", draft["id"], self._why_not(sent))
+                logger.info("Her reply %s is kept for her next round, its send deferred: %s", draft["id"], self._why_not(sent))
                 break
             else:
-                logger.warning("📧 Her reply %s could not be sent: %s", draft["id"], self._why_not(sent))
+                logger.warning("Her reply %s could not be sent: %s", draft["id"], self._why_not(sent))
         return went
 
     async def _check_email_initiative(self) -> str:
@@ -306,9 +306,9 @@ class _StartsSomethingSocial:
         # minutes on both day runs the skill ran under an executive token and
         # came back "credentials not found" (34 warnings in two days).
         if not await asyncio.to_thread(EmailAdapterSkill.configured):
-            logger.debug("📧 Email not configured; no inbox to check.")
+            logger.debug("Email not configured; no inbox to check.")
             return ""
-        logger.info("📧 Checking email for autonomous initiatives...")
+        logger.info("Checking email for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)
             # Headers only, as many as one check returns (email_adapter._bounded_limit), so who sent each message is
@@ -320,9 +320,9 @@ class _StartsSomethingSocial:
                 # This returned without a word, and the round counted as a check (LIVE 10 November 2026).
                 why = self._why_not(result)
                 if tool_result_is_deferred(result):
-                    logger.info("📧 Her mail round was deferred before it reached her inbox: %s", why)
+                    logger.info("Her mail round was deferred before it reached her inbox: %s", why)
                     return why
-                logger.info("📧 Her mail round could not read her inbox: %s", why)
+                logger.info("Her mail round could not read her inbox: %s", why)
                 return ""
 
             unread_count = result.get("unread", 0)
@@ -362,7 +362,7 @@ class _StartsSomethingSocial:
                     # deferred in turn: each went to her feed as a card and was not tried again for half an hour
                     # (LIVE 10 November 2026). The round ends here and the message waits for the next one.
                     self._recent_email_uids.pop(key, None)
-                    logger.info("📧 Her mail round stopped at UID %s, deferred: %s", uid, self._why_not(read_result))
+                    logger.info("Her mail round stopped at UID %s, deferred: %s", uid, self._why_not(read_result))
                     break
                 if not read_result.get("ok"):
                     self._emit_feed(
@@ -435,7 +435,7 @@ class _StartsSomethingSocial:
             logger,
         )
 
-        logger.info("📱 Browsing Reddit for autonomous initiatives...")
+        logger.info("Browsing Reddit for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)
             # Public reading is independent from account authentication and
@@ -452,7 +452,7 @@ class _StartsSomethingSocial:
             )
             if tool_result_is_deferred(result):
                 why = self._why_not(result)
-                logger.info("📱 Her Reddit round was deferred before it reached Reddit: %s", why)
+                logger.info("Her Reddit round was deferred before it reached Reddit: %s", why)
                 return why
             if result.get("ok") and result.get("posts"):
                 posts = result.get("posts")

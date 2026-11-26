@@ -70,20 +70,20 @@ class ResearchLab:
             topic=topic,
         )
         self.cycles[cycle.cycle_id] = cycle
-        logger.info("🔬 ResearchLab starting cycle %s on '%s'", cycle.cycle_id, topic)
+        logger.info("ResearchLab starting cycle %s on '%s'", cycle.cycle_id, topic)
 
         try:
             # 1. HYPOTHESIS: Generate hypothesis
             cycle.stage = ResearchStage.HYPOTHESIS
             cycle.hypothesis = self.hypothesis_engine.generate_hypothesis(topic)
-            logger.info("💡 Generated Hypothesis: '%s'", cycle.hypothesis.statement)
+            logger.info("Generated Hypothesis: '%s'", cycle.hypothesis.statement)
 
             # 2. LITERATURE: Mine literature
             cycle.stage = ResearchStage.LITERATURE
             cycle.mined_facts = self.literature_miner.mine_documents([
                 {"title": "Prior Research", "content": f"Previous baseline data regarding {topic}", "confidence": 0.85}
             ])
-            logger.info("📖 Mined %d facts from prior literature", len(cycle.mined_facts))
+            logger.info("Mined %d facts from prior literature", len(cycle.mined_facts))
 
             # 3. DESIGN: Design a falsifiable experiment. The topic itself is passed as
             # the checkable claim so a verifiable topic ("is n^5 - n divisible by 30?")
@@ -92,13 +92,13 @@ class ResearchLab:
             cycle.experiment_spec = self.designer.design_experiment(
                 cycle.hypothesis, cycle.mined_facts, claim=topic
             )
-            logger.info("🧪 Designed experiment: '%s'", cycle.experiment_spec.get("name"))
+            logger.info("Designed experiment: '%s'", cycle.experiment_spec.get("name"))
 
             # 4. SIMULATION: Run the experiment as a REAL exact falsification (no fabrication).
             cycle.stage = ResearchStage.SIMULATION
             cycle.simulation_result = await self.simulator.run_sim(cycle.experiment_spec)
             logger.info(
-                "🔬 Experiment verdict: status=%s validated=%s refuted=%s",
+                "Experiment verdict: status=%s validated=%s refuted=%s",
                 cycle.simulation_result.get("status"),
                 cycle.simulation_result.get("validated"),
                 cycle.simulation_result.get("refuted"),
@@ -107,7 +107,7 @@ class ResearchLab:
             # 5. INTERPRET: Map the exact verdict to a conclusion (can now refute).
             cycle.stage = ResearchStage.INTERPRETATION
             cycle.conclusion = self.interpreter.interpret(cycle.hypothesis, cycle.simulation_result)
-            logger.info("🎯 Interpretation: hypothesis_validated=%s", cycle.conclusion.get("validated"))
+            logger.info("Interpretation: hypothesis_validated=%s", cycle.conclusion.get("validated"))
 
             # 6. BELIEF UPDATE — only verified survivors are committed into beliefs; an
             # inconclusive/refuted result is never laundered into a "validated" belief.
@@ -123,7 +123,7 @@ class ResearchLab:
         except (AttributeError, LookupError, RuntimeError, TypeError, ValueError) as e:
             cycle.stage = ResearchStage.FAILED
             cycle.error = str(e)
-            logger.error("🔬 Research cycle %s failed at stage %s: %s", cycle.cycle_id, cycle.stage, e)
+            logger.error("Research cycle %s failed at stage %s: %s", cycle.cycle_id, cycle.stage, e)
 
         return {
             "ok": cycle.stage == ResearchStage.COMPLETED,

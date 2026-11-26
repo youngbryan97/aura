@@ -88,7 +88,7 @@ async def compact_if_needed(
         new_len      = len(compacted) if compacted else len(working_memory)
         if compacted and new_len < original_len:
             logger.info(
-                "🗜️  Working memory compacted: %d → %d messages",
+                " Working memory compacted: %d → %d messages",
                 original_len, new_len,
             )
             return compacted
@@ -171,7 +171,7 @@ def patch_memory_compaction() -> None:
     MemoryConsolidationPhase._compaction_patched = True
 
     logger.info(
-        "✅ MemoryCompactionPatch applied — compaction triggers at %d messages, "
+        "MemoryCompactionPatch applied — compaction triggers at %d messages, "
         "keeps last %d turns verbatim",
         COMPACTION_THRESHOLD, MAX_RAW_TURNS,
     )

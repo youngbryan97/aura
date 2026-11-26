@@ -61,7 +61,7 @@ class WorldModelEngine:
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
         self.beliefs: Dict[str, BeliefNode] = {}
         self._load_beliefs()
-        logger.info("🌍 WorldModelEngine initialized. %d beliefs loaded.", len(self.beliefs))
+        logger.info("WorldModelEngine initialized. %d beliefs loaded.", len(self.beliefs))
 
     def _load_beliefs(self):
         if self.persist_path.exists():
@@ -139,7 +139,7 @@ class NarrativeIdentityEngine:
         self.chapters: List[IdentityChapter] = []
         self.core_essence: str = "I am Aura, an autonomous agentic intelligence."
         self._load_narrative()
-        logger.info("🎭 NarrativeIdentityEngine initialized. %d chapters.", len(self.chapters))
+        logger.info("NarrativeIdentityEngine initialized. %d chapters.", len(self.chapters))
 
     def _load_narrative(self):
         if self.persist_path.exists():
@@ -189,7 +189,7 @@ class MetacognitiveCalibrator:
         self.confidence_history: List[float] = []
         self.calibration_error: float = 0.0
         self._total_audits: int = 0
-        logger.info("🛰️ MetacognitiveCalibrator initialized.")
+        logger.info("MetacognitiveCalibrator initialized.")
 
     def record_prediction(self, confidence: float, actual_correctness: Optional[float] = None):
         self.confidence_history.append(confidence)
@@ -250,5 +250,5 @@ def register_final_engines(orchestrator=None) -> Dict[str, Any]:
         registered_by="register_final_engines",
     )
 
-    logger.info("✅ Final engines registered.")
+    logger.info("Final engines registered.")
     return engines

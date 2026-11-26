@@ -130,7 +130,7 @@ class BeliefChallenger:
                 )
                 logger.warning("BeliefChallenger event-bus registration failed: %s", exc)
 
-            logger.info("✅ BeliefChallenger ONLINE — stress testing the worldview.")
+            logger.info("BeliefChallenger ONLINE — stress testing the worldview.")
             return {
                 "ok": True,
                 "already_running": False,
@@ -226,14 +226,14 @@ class BeliefChallenger:
         target = random.choice(eligible)
         self._last_challenged_at[target.concept] = now
 
-        logger.info("🔥 Challenging foundational belief: '%s'", target.concept[:60])
+        logger.info("Challenging foundational belief: '%s'", target.concept[:60])
         return await self._perform_dialectical_pass(target.concept)
 
     async def challenge_pair(self, a: str, b: str):
         """Special challenge for two contradictory beliefs."""
         if not self._api:
             return {"ok": False, "reason": "api_unavailable"}
-        logger.info("⚖️ Resolving contradiction: '%s' vs '%s'", a[:40], b[:40])
+        logger.info("Resolving contradiction: '%s' vs '%s'", a[:40], b[:40])
 
         prompt = f"""You are Aura's Internal Dialectical Resolver. 
 Aura currently holds two beliefs that appear to be in tension or contradiction:
@@ -336,7 +336,7 @@ Be intellectually honest. Growth requires being wrong sometimes."""
                             source="self_correction",
                         )
                     )
-                logger.info("📉 Belief revised after challenge.")
+                logger.info("Belief revised after challenge.")
 
                 # Persist the correction into the learning pipeline so it
                 # survives across sessions and can influence future LoRA training
@@ -387,7 +387,7 @@ Be intellectually honest. Growth requires being wrong sometimes."""
                             depth_delta=0.1,
                         )
                     )
-                logger.info("🛡️ Belief survived challenge. Conviction increased.")
+                logger.info("Belief survived challenge. Conviction increased.")
                 return {"ok": True, "revised": False, "belief": belief_text}
 
         except _BELIEF_CHALLENGER_RECOVERABLE_ERRORS as e:

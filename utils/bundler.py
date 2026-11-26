@@ -172,7 +172,7 @@ def write_bundle(
     sha = hashlib.sha256(output.read_bytes()).hexdigest()[:12]
     size_kb = output.stat().st_size / 1024
 
-    print(f"✅  Bundle written: {output}")
+    print(f" Bundle written: {output}")
     print(f"    Files:    {len(files)}")
     print(f"    Size:     {size_kb:.1f} KB")
     print(f"    SHA256:   {sha}…")

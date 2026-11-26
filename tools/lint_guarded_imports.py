@@ -239,9 +239,9 @@ def main() -> int:
     findings, checked = _findings()
     print(f"guarded first-party symbol imports checked: {checked}")
     if not findings:
-        print("✅ every guarded import resolves")
+        print("every guarded import resolves")
         return 0
-    print(f"❌ {len(findings)} guarded import(s) name something that does not exist:")
+    print(f"{len(findings)} guarded import(s) name something that does not exist:")
     for finding in findings:
         print(f"  {finding}")
     print(

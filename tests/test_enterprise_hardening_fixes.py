@@ -2970,7 +2970,7 @@ def test_mlx_baseline_cancellation_and_loop_sentinel_are_classified_as_recoverab
     assert "and not proof_evaluation_contract" in gate_source
     assert "refusing retry/fallback cascade after no text" in gate_source
     assert "logger.warning(" in sentinel_source
-    assert "logger.error(\"🚨 SENTINEL: Mathematical loop detected" not in sentinel_source
+    assert "logger.error(\"SENTINEL: Mathematical loop detected" not in sentinel_source
 
 
 @requires_mlx

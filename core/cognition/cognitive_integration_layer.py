@@ -283,7 +283,7 @@ class CognitiveIntegrationLayer:
 
     def setup(self) -> bool:
         """Prepare local synchronous resources before async services start."""
-        logger.info("🧠 CognitiveIntegrationLayer: Synchronous setup beginning...")
+        logger.info("CognitiveIntegrationLayer: Synchronous setup beginning...")
         self.base_data_dir.mkdir(parents=True, exist_ok=True)
         self._setup_complete = True
         return True
@@ -296,7 +296,7 @@ class CognitiveIntegrationLayer:
         if not self._setup_complete:
             self.setup()
 
-        logger.info("🧠 CognitiveIntegrationLayer: Initializing Advanced Intelligence Pipeline...")
+        logger.info("CognitiveIntegrationLayer: Initializing Advanced Intelligence Pipeline...")
         # Publish the cognitive contract and growth fragments, and register the
         # architecture invariants. Called here rather than relying on an import
         # side effect: a module is imported once per process, so a registration
@@ -343,7 +343,7 @@ class CognitiveIntegrationLayer:
                         severity="warning",
                         extra={"service": name},
                     )
-                    logger.warning("⚠️ [BOOT] Could not register '%s' in ServiceContainer: %s", name, register_err)
+                    logger.warning("[BOOT] Could not register '%s' in ServiceContainer: %s", name, register_err)
 
             _safe_register("cognitive_kernel", self.kernel)
 
@@ -385,7 +385,7 @@ class CognitiveIntegrationLayer:
                 logger.warning("LanguageCenter failed to resolve: %s. Proceeding in degraded mode.", e)
 
             self._initialized = True
-            logger.info("✅ CognitiveIntegrationLayer initialized successfully.")
+            logger.info("CognitiveIntegrationLayer initialized successfully.")
             return True
         except _CIL_RECOVERABLE_ERRORS as e:
             _record_cil_degradation(
@@ -393,11 +393,11 @@ class CognitiveIntegrationLayer:
                 action="retrying CognitiveIntegrationLayer initialization once before failing closed",
                 severity="degraded",
             )
-            logger.error("❌ CognitiveIntegrationLayer initialization FAILED: %s", e, exc_info=True)
+            logger.error("CognitiveIntegrationLayer initialization FAILED: %s", e, exc_info=True)
             # [RECOVERY] One-time force-reload attempt for critical components
             if not getattr(self, "_retrying_init", False):
                 self._retrying_init = True
-                logger.warning("🧠 [RECOVERY] Retrying CognitiveIntegrationLayer initialization once...")
+                logger.warning("[RECOVERY] Retrying CognitiveIntegrationLayer initialization once...")
                 await asyncio.sleep(1.0)
                 return await self.initialize()
             return False
@@ -468,7 +468,7 @@ class CognitiveIntegrationLayer:
                 origin=turn_origin,
             )
             logger.debug(
-                "🗣️ [Phase7→SubstrateVoice] Profile: budget=%d, tone=%s",
+                "[Phase7→SubstrateVoice] Profile: budget=%d, tone=%s",
                 _speech_profile.word_budget,
                 _speech_profile.tone_override or "default",
             )
@@ -536,12 +536,12 @@ class CognitiveIntegrationLayer:
 
                 if threat is not None and threat.level in ("elevated", "high"):
                     logger.warning(
-                        "🛟 Safe Surf: %s threat to user [%s] — %s",
+                        "Safe Surf: %s threat to user [%s] — %s",
                         threat.level, ", ".join(threat.categories), threat.advice,
                     )
                 if intrusion is not None and intrusion.level in ("elevated", "high"):
                     logger.warning(
-                        "🧊 ICE: %s inbound intrusion [%s] — recommend %s",
+                        "ICE: %s inbound intrusion [%s] — recommend %s",
                         intrusion.level, ", ".join(intrusion.categories), intrusion.recommended_action,
                     )
             except _CIL_RECOVERABLE_ERRORS as _def_exc:
@@ -571,7 +571,7 @@ class CognitiveIntegrationLayer:
                         st.cognition.modifiers["affect_valence"] = _res.valence
                 if _res.resonance >= 0.5:
                     logger.debug(
-                        "💟 Samantha attunement: tone=%s valence=%.2f",
+                        "Samantha attunement: tone=%s valence=%.2f",
                         _res.recommended_tone, _res.valence,
                     )
             except _CIL_RECOVERABLE_ERRORS as _att_exc:
@@ -590,7 +590,7 @@ class CognitiveIntegrationLayer:
                 self._reflex_executor, reflex.process, message
             )
             if reflex_response:
-                logger.info("⚡ [REFLEX] Instant response generated (Thread Isolated).")
+                logger.info("[REFLEX] Instant response generated (Thread Isolated).")
                 return self._shape_with_substrate(reflex_response, _sve, _speech_profile)
         except _CIL_RECOVERABLE_ERRORS as exc:
             _record_cil_degradation(
@@ -643,20 +643,20 @@ class CognitiveIntegrationLayer:
 
                 if looks_like_learning_resource_bundle(message):
                     logger.info(
-                        "🔍 [AGENCY] Structured learning bundle detected; "
+                        "[AGENCY] Structured learning bundle detected; "
                         "skipping one-shot blob search in favor of deterministic task decomposition."
                     )
                 else:
                     # AgencyCoordinator is registered as agency_coordinator in ServiceContainer
                     agency = optional_service("agency_coordinator")
                     if agency:
-                        logger.info("🔍 [AGENCY] Tool use required. Dispatching to AgencyCoordinator.")
+                        logger.info("[AGENCY] Tool use required. Dispatching to AgencyCoordinator.")
                         # Direct skill trigger for research
                         search_res = await agency.execute_skill("web_search", {"query": message})
                         if isinstance(search_res, dict) and search_res.get("ok"):
                             findings = search_res.get("result", "")
                             if findings:
-                                logger.info("✅ [AGENCY] Research findings captured.")
+                                logger.info("[AGENCY] Research findings captured.")
                                 # Inject findings as key points so the LanguageCenter sees them
                                 brief.key_points.append(f"RESEARCH FINDINGS: {findings}")
                                 if hasattr(brief, "internal_notes"):
@@ -737,7 +737,7 @@ class CognitiveIntegrationLayer:
                 
                 # If Cortana determines context is saturated, trigger memory eviction
                 if cortana.should_prune():
-                    logger.warning("🧠 Cortana: Cognitive Overload detected. Evicting oldest context layers.")
+                    logger.warning("Cortana: Cognitive Overload detected. Evicting oldest context layers.")
                     mem = resolve_memory_facade()
                     if mem and hasattr(mem, "prune_context"):
                          mem.prune_context()
@@ -836,7 +836,7 @@ class CognitiveIntegrationLayer:
         try:
             mem = resolve_memory_facade()
             if mem and hasattr(mem, "commit_interaction"):
-                logger.info("💾 [MEMORY] Recording interaction to Episodic/Vector systems.")
+                logger.info("[MEMORY] Recording interaction to Episodic/Vector systems.")
                 await mem.commit_interaction(
                     context=f"User: {message[:200]}",
                     action="conversation_turn",

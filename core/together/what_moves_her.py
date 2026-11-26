@@ -565,7 +565,7 @@ class WhatMovesHer(_KeepsThePeopleSheMeets):
             raised = _stands_out(opens, reading.open, least_spread=LEAST_SPREADS["words"], fewest=FEWEST_READINGS)
             self._take(Felt("open", at, raised, 0.0, then, _stems(then)))
         self._maybe_recall(at, then)
-        logger.info("🎬 words at %.0fs: surprisal %.2f, shift %.2f, open %.2f%s, stands %s, evidence %.2f: %s", at,
+        logger.info("words at %.0fs: surprisal %.2f, shift %.2f, open %.2f%s, stands %s, evidence %.2f: %s", at,
                     reading.surprisal, reading.shift, reading.open, "" if reading.made_out else " (not made out)",
                     "-" if standing is None else f"{standing:.2f}", felt.evidence, then[:120])
         self.keep({"kind": "moved", "channel": "words", "at": at, "words": then[:400],

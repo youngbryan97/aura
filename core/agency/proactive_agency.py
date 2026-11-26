@@ -102,7 +102,7 @@ class ProactiveAgency:
         if self._background_allowed is not None:
             try:
                 if not self._background_allowed():
-                    logger.debug("⏸️ [Proactive] background action not allowed; skipping '%s'.", goal[:50])
+                    logger.debug("[Proactive] background action not allowed; skipping '%s'.", goal[:50])
                     return None
             except (RuntimeError, AttributeError, TypeError) as exc:
                 # Fail CLOSED. The exception was recorded and execution fell
@@ -143,9 +143,9 @@ class ProactiveAgency:
             )
             if getattr(outcome, "completed", False):
                 self._completed += 1
-                logger.info("✅ [Proactive] autonomously completed goal: %s", goal[:60])
+                logger.info("[Proactive] autonomously completed goal: %s", goal[:60])
             elif getattr(outcome, "deferred", False):
-                logger.debug("⏸️ [Proactive] goal deferred (timing): %s", goal[:50])
+                logger.debug("[Proactive] goal deferred (timing): %s", goal[:50])
             return outcome
         finally:
             self._running = False

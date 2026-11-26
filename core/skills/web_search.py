@@ -296,7 +296,7 @@ class EnhancedWebSearchSkill(BaseSkill):
                 return self._finalize_result(query, local_first)
 
         logger.info(
-            "🔍 WebSearch: '%s' (deep=%s, effective_deep=%s, retain=%s, force_refresh=%s)",
+            "WebSearch: '%s' (deep=%s, effective_deep=%s, retain=%s, force_refresh=%s)",
             query[:80],
             deep,
             effective_deep,

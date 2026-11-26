@@ -83,7 +83,7 @@ class ConsciousnessPhase(BasePhase):
         if integration:
             phenomenal_claim = integration.get_phenomenal_context()
             new_state.cognition.phenomenal_state = phenomenal_claim
-            logger.debug("🌅 ConsciousnessPhase: Layer 8 phenomenal context injected.")
+            logger.debug("ConsciousnessPhase: Layer 8 phenomenal context injected.")
         
         # Causal Simulation
         causal_model = get_runtime_service("causal_world_model", default=None)
@@ -95,7 +95,7 @@ class ConsciousnessPhase(BasePhase):
                     new_state.cognition.causal_reasoning = causal_context
                 else:
                     new_state.cognition.causal_reasoning = causal_context
-                logger.debug("🧶 ConsciousnessPhase: Causal world cascades injected.")
+                logger.debug("ConsciousnessPhase: Causal world cascades injected.")
 
         # Show the world model what just happened.
         #
@@ -168,10 +168,10 @@ class ConsciousnessPhase(BasePhase):
             reading = drive_selfhood(new_state)
             new_state.cognition.selfhood_reading = reading.as_dict()
             if reading.skipped:
-                logger.debug("🪞 ConsciousnessPhase: selfhood not advanced — %s", reading.skipped)
+                logger.debug("ConsciousnessPhase: selfhood not advanced — %s", reading.skipped)
             else:
                 logger.debug(
-                    "🪞 ConsciousnessPhase: selfhood advanced on %d readings (%s).",
+                    "ConsciousnessPhase: selfhood advanced on %d readings (%s).",
                     len(reading.readings),
                     reading.selfhood.get("dominant_deficit", "?"),
                 )

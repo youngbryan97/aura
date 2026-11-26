@@ -141,7 +141,7 @@ class ExperienceBuffer:
                             )
             if malformed:
                 logger.warning("Skipped %d malformed experience-buffer rows", malformed)
-            logger.info("📚 Experience buffer loaded: %d examples", len(self._buffer))
+            logger.info("Experience buffer loaded: %d examples", len(self._buffer))
         except _LEARNING_RECOVERABLE_ERRORS as exc:
             _record_learning_degradation(
                 "genuine_learning_pipeline",
@@ -249,7 +249,7 @@ class ExperienceBuffer:
 
             threading.Thread(target=_write_record, daemon=True).start()
 
-        logger.debug("📖 Recorded experience (quality=%.2f, source=%s)", quality_score, source)
+        logger.debug("Recorded experience (quality=%.2f, source=%s)", quality_score, source)
         return True
 
     def get_training_batch(self, n: int = 50, min_quality: float = 0.65) -> list[dict]:
@@ -349,9 +349,9 @@ class BehavioralBenchmark:
 
         passed = len(failures) == 0
         if passed:
-            logger.info("✅ Behavioral benchmark PASSED (%d tests)", len(self.CORE_BENCHMARKS))
+            logger.info("Behavioral benchmark PASSED (%d tests)", len(self.CORE_BENCHMARKS))
         else:
-            logger.error("❌ Behavioral benchmark FAILED (%d/%d failures):\n%s",
+            logger.error("Behavioral benchmark FAILED (%d/%d failures):\n%s",
                         len(failures), len(self.CORE_BENCHMARKS), "\n".join(failures))
 
         return passed, failures
@@ -494,17 +494,17 @@ class LoRATrainer:
             "--val-batches", "0",  # Skip validation for speed
         )
 
-        logger.info("🧬 Starting LoRA training: %s", " ".join(cmd))
+        logger.info("Starting LoRA training: %s", " ".join(cmd))
 
         try:
             result = self._command_runner(cmd, 1800.0)
             if result.ok:
-                logger.info("✅ Training complete.\n%s", result.stdout[-500:])
+                logger.info("Training complete.\n%s", result.stdout[-500:])
                 return True, result.stdout
             if result.timed_out:
-                logger.error("❌ Training timed out after 30 minutes")
+                logger.error("Training timed out after 30 minutes")
                 return False, "timeout"
-            logger.error("❌ Training failed:\n%s", result.stderr[-500:])
+            logger.error("Training failed:\n%s", result.stderr[-500:])
             return False, result.stderr
         except _LEARNING_RECOVERABLE_ERRORS as exc:
             _record_learning_degradation(
@@ -513,7 +513,7 @@ class LoRATrainer:
                 action="failed training command closed and left adapter promotion uncommitted",
                 extra={"adapter_dir": str(self.adapter_dir), "model_path": str(self.model_path)},
             )
-            logger.error("❌ Training command error: %s", exc)
+            logger.error("Training command error: %s", exc)
             return False, str(exc)
 
     async def train(self, examples: list[dict]) -> bool:
@@ -530,7 +530,7 @@ class LoRATrainer:
         now = time.time()
         if now - self._last_train_time < self.MIN_TRAIN_INTERVAL_S:
             wait = self.MIN_TRAIN_INTERVAL_S - (now - self._last_train_time)
-            logger.info("⏳ Training throttled. Next run in %.0fs", wait)
+            logger.info("Training throttled. Next run in %.0fs", wait)
             return False
 
         acquired = self._training_lock.acquire(blocking=False)
@@ -539,7 +539,7 @@ class LoRATrainer:
             return False
 
         try:
-            logger.info("🧬 Initiating genuine learning from %d examples", len(examples))
+            logger.info("Initiating genuine learning from %d examples", len(examples))
 
             def _prepare_and_train():
                 # Write data (I/O offloaded from hot path)
@@ -643,7 +643,7 @@ class LearningScheduler:
         # Flag-based guard is sufficient here as it's checked early,
         # but we use try/finally to ensure it's always reset.
         self._running = True
-        logger.info("🧬 LearningScheduler triggering training: %s", reason)
+        logger.info("LearningScheduler triggering training: %s", reason)
 
         try:
             # Get best examples from buffer
@@ -662,9 +662,9 @@ class LearningScheduler:
                     context={"operation": "lora_training_batch", "reason": reason},
                 )
                 if not decision.is_approved():
-                    logger.warning("🚫 Will rejected genuine learning run: %s", decision.reason)
+                    logger.warning("Will rejected genuine learning run: %s", decision.reason)
                     return False
-                logger.info("✅ Will approved training run (Receipt: %s)", decision.receipt_id)
+                logger.info("Will approved training run (Receipt: %s)", decision.receipt_id)
             except _LEARNING_RECOVERABLE_ERRORS as exc:
                 _record_learning_degradation(
                     "genuine_learning_will",
@@ -672,7 +672,7 @@ class LearningScheduler:
                     action="blocked training run because Will approval could not be established",
                     extra={"reason": reason, "examples": len(examples)},
                 )
-                logger.warning("🚫 Will unavailable; blocking training run: %s", exc)
+                logger.warning("Will unavailable; blocking training run: %s", exc)
                 return False
 
             try:
@@ -727,7 +727,7 @@ class LearningScheduler:
                     return False
                 if not passed:
                     logger.error(
-                        "🔄 Rolling back training — behavioral benchmark failed:\n%s",
+                        "Rolling back training — behavioral benchmark failed:\n%s",
                         "\n".join(failures)
                     )
                     restored = await asyncio.to_thread(
@@ -744,7 +744,7 @@ class LearningScheduler:
                     return False
 
             await asyncio.to_thread(self.trainer.discard_rollback_snapshot, snapshot)
-            logger.info("✨ Training accepted and committed. Aura has genuinely learned.")
+            logger.info("Training accepted and committed. Aura has genuinely learned.")
             return True
 
         finally:
@@ -779,7 +779,7 @@ class ContinuousLearner:
             trainer=self.trainer,
             benchmark=self.benchmark,
         )
-        logger.info("🧬 ContinuousLearner initialized. Buffer: %d existing examples", len(self.buffer))
+        logger.info("ContinuousLearner initialized. Buffer: %d existing examples", len(self.buffer))
 
     def record_turn(
         self,
@@ -830,7 +830,7 @@ class ContinuousLearner:
                 source="explicit_correction",
                 emotional_context=emotional_context,
             )
-            logger.info("📖 Explicit correction recorded as high-quality training example")
+            logger.info("Explicit correction recorded as high-quality training example")
             return
 
         if explicit_positive:
@@ -914,7 +914,7 @@ def register_continuous_learner(orchestrator=None) -> ContinuousLearner:
                 break
 
     if not model_path:
-        logger.warning("⚠️ ContinuousLearner: No model path found. "
+        logger.warning("ContinuousLearner: No model path found. "
                       "Set config.local_model_path to enable genuine learning.")
 
     learner = ContinuousLearner(
@@ -922,5 +922,5 @@ def register_continuous_learner(orchestrator=None) -> ContinuousLearner:
         adapter_dir=str(config.paths.data_dir / "learning" / "adapters"),
     )
 
-    logger.info("🧬 ContinuousLearner created.")
+    logger.info("ContinuousLearner created.")
     return learner

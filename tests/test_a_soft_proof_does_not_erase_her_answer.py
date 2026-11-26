@@ -2,9 +2,9 @@
 
 Live, 2026-07-27, twice in one conversation:
 
-    ✅ Cortex response received (len=199)
-    ⚠️ Response confidence: degraded (same_answer_diff_prompt=True, ...)
-    ⚠️ Required desktop full-mind contract was not proven; failing closed
+    Cortex response received (len=199)
+    Response confidence: degraded (same_answer_diff_prompt=True, ...)
+    Required desktop full-mind contract was not proven; failing closed
        instead of serving partial/raw speech (path=cognitive_engine)
 
     -> "I couldn't get my full attention onto that one, and I'd rather tell you

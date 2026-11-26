@@ -224,7 +224,7 @@ class InquiryEngine:
             )
             logger.debug("InquiryEngine mycelium registration failed: %s", exc)
 
-        logger.info("✅ InquiryEngine ONLINE — %d active questions.", len(self._questions))
+        logger.info("InquiryEngine ONLINE — %d active questions.", len(self._questions))
 
     async def stop(self):
         self.running = False
@@ -259,7 +259,7 @@ class InquiryEngine:
         self._questions.append(q)
         self._trim_to_max()
         self._save()
-        logger.info("📋 New inquiry: [%s] %s", domain, question[:80])
+        logger.info("New inquiry: [%s] %s", domain, question[:80])
         return q
 
     def add_evidence(self, question_id: str, content: str, source: str,
@@ -317,7 +317,7 @@ class InquiryEngine:
                 tags=[q.domain, "settled_question"],
             ))
 
-        logger.info("✅ Question settled: %s → %s (conf=%.2f)",
+        logger.info("Question settled: %s → %s (conf=%.2f)",
                     q.question[:50], final_answer[:80], confidence)
 
     def get_active_question(self) -> OpenQuestion | None:
@@ -393,7 +393,7 @@ class InquiryEngine:
             logger.debug("InquiryEngine: no api_adapter, skipping research on '%s'", q.question[:40])
             return
 
-        logger.info("🔍 InquiryEngine: researching '%s'", q.question[:60])
+        logger.info("InquiryEngine: researching '%s'", q.question[:60])
 
         # Build the research prompt
         evidence_text = ""

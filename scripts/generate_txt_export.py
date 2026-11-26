@@ -103,7 +103,7 @@ def generate_txt_export():
         shutil.copy2(p, target)
 
     print(
-        f"✅ Created folder copy with {len(all_files[:folder_copy_cap])} files "
+        f"Created folder copy with {len(all_files[:folder_copy_cap])} files "
         f"in {copy_dir} (cap {folder_copy_cap}; total architecture files: "
         f"{len(all_files)})"
     )
@@ -155,7 +155,7 @@ def generate_txt_export():
         out_path.write_text(final_text, encoding="utf-8")
         part_stats.append((out_path.name, len(final_text), len(final_text.splitlines())))
 
-    print("\n⏺ Done. Here's what was generated:\n")
+    print("\nDone. Here's what was generated:\n")
     print("  Text files (in ~/Downloads/):")
     print("  ┌" + "─"*24 + "┬" + "─"*13 + "┬" + "─"*9 + "┐")
     print("  │" + "      File".ljust(24) + "│" + "    Size".ljust(13) + "│" + "  Lines".ljust(9) + "│")

@@ -214,7 +214,7 @@ class WorldActuator:
         })
 
         if is_high_risk:
-            logger.warning("⚠️ High-risk action op=%s: %s — requiring Will validation.", operation_id, action_name)
+            logger.warning("High-risk action op=%s: %s — requiring Will validation.", operation_id, action_name)
 
         domain = _CATEGORY_DOMAIN.get(category, ActionDomain.EXTERNAL_ACTION)
 

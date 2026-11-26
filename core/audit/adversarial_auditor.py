@@ -26,7 +26,7 @@ class AdversarialAuditor:
 
     def audit_claims(self) -> Dict[str, Any]:
         """Scan ClaimStore and TruthEngine to identify unproven assumptions or evidence gaps."""
-        logger.warning("🚨 AdversarialAuditor: scanning knowledge base for vulnerabilities...")
+        logger.warning("AdversarialAuditor: scanning knowledge base for vulnerabilities...")
 
         claims = self.truth.claims.values()
         unproven_assumptions = []
@@ -58,7 +58,7 @@ class AdversarialAuditor:
 
     def challenge_plan(self, plan_steps: List[str]) -> List[Dict[str, Any]]:
         """Anticipate failure scenarios and challenge each step of an action plan."""
-        logger.warning("🚨 AdversarialAuditor: challenging candidate plan...")
+        logger.warning("AdversarialAuditor: challenging candidate plan...")
 
         challenges = []
         for idx, step in enumerate(plan_steps, 1):
@@ -82,7 +82,7 @@ class AdversarialAuditor:
 
     async def run_audit_cycle(self, truth_engine: Any) -> Dict[str, Any]:
         """Runs one full adversarial evaluation over the truth engine's claims."""
-        logger.warning("🚨 AdversarialAuditor: executing audit cycle...")
+        logger.warning("AdversarialAuditor: executing audit cycle...")
 
         claims = truth_engine.claims.values()
         flagged = []

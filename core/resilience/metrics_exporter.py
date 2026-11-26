@@ -112,7 +112,7 @@ class MetricsExporter:
                     name="metrics-exporter-registration-rollback",
                 )
                 raise
-            logger.info("📊 Metrics Exporter ONLINE (port %s)", self.actual_port)
+            logger.info("Metrics Exporter ONLINE (port %s)", self.actual_port)
             self._task = get_task_tracker().create_task(
                 self._monitor_loop(),
                 name="metrics_exporter.monitor_loop",
@@ -152,7 +152,7 @@ class MetricsExporter:
                     exc,
                 )
         self.actual_port = None
-        logger.info("📊 Metrics Exporter OFFLINE")
+        logger.info("Metrics Exporter OFFLINE")
 
     def _close_http_server_blocking(self) -> None:
         server, self._http_server = self._http_server, None

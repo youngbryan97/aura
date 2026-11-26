@@ -28,10 +28,10 @@ if sys.version_info.major != REQUIRED_MAJOR or sys.version_info.minor != REQUIRE
     # Attempt to locate the venv python if we're not running it
     VENV_PYTHON = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "python3"
     if VENV_PYTHON.exists():
-        print(f"🔄 [BRAINSTEM] Version mismatch (running on {sys.version.split()[0]}). Re-executing with 3.12 venv...")
+        print(f"[BRAINSTEM] Version mismatch (running on {sys.version.split()[0]}). Re-executing with 3.12 venv...")
         os.execv(str(VENV_PYTHON), [str(VENV_PYTHON)] + sys.argv)
     else:
-        print(f"⚠️ [BRAINSTEM] Warning: Running on {sys.version.split()[0]}. Expected 3.12. Native AI cores may fail.")
+        print(f"[BRAINSTEM] Warning: Running on {sys.version.split()[0]}. Expected 3.12. Native AI cores may fail.")
 
 # ---------------------------------------------------------------
 
@@ -61,7 +61,7 @@ _BRAINSTEM_RECOVERABLE_ERRORS = (OSError, RuntimeError, TimeoutExpired, ValueErr
 
 def launch_mind_process() -> Any | None:
     """Launches the cognitive core in a new, separate process."""
-    log_brainstem("🚀 Igniting cognitive core process...")
+    log_brainstem("Igniting cognitive core process...")
     
     # The gateway still spawns an independent child process, but gives launch
     # ownership, cwd/env validation, and strict/live governance fail-closed behavior.
@@ -76,15 +76,15 @@ def launch_mind_process() -> Any | None:
                 offline_tooling=True,
                 source="maintenance_tooling:brainstem_launch_mind",
             )
-        log_brainstem(f"✅ Mind process launched with PID: {process.pid}")
+        log_brainstem(f"Mind process launched with PID: {process.pid}")
         return process
     except _BRAINSTEM_RECOVERABLE_ERRORS as exc:
-        log_brainstem(f"❌ Failed to launch Mind process: {type(exc).__name__}: {exc}")
+        log_brainstem(f"Failed to launch Mind process: {type(exc).__name__}: {exc}")
         return None
 
 def main():
     """The main life-support loop."""
-    log_brainstem("🛡️  Lazarus Protocol Active. Awaiting cognitive ignition.")
+    log_brainstem(" Lazarus Protocol Active. Awaiting cognitive ignition.")
     
     # Ensure heartbeat file is clean on start
     if HEARTBEAT_FILE.exists():
@@ -108,8 +108,8 @@ def main():
             # 1. Check if process is still running
             return_code = mind_process.poll()
             if return_code is not None:
-                log_brainstem(f"⚠️  CRITICAL: Mind process terminated unexpectedly (Exit Code: {return_code}).")
-                log_brainstem("🔄 Rebooting cognitive core...")
+                log_brainstem(f" CRITICAL: Mind process terminated unexpectedly (Exit Code: {return_code}).")
+                log_brainstem("Rebooting cognitive core...")
                 time.sleep(2)
                 mind_process = launch_mind_process()
                 boot_grace_period = time.time() + 30
@@ -118,13 +118,13 @@ def main():
             # 2. Check for hung process via heartbeat
             if not HEARTBEAT_FILE.exists():
                 if time.time() > boot_grace_period:
-                    log_brainstem("⚠️  WARNING: No heartbeat file detected after grace period.")
+                    log_brainstem(" WARNING: No heartbeat file detected after grace period.")
                 continue
                 
             last_pulse_age = time.time() - HEARTBEAT_FILE.stat().st_mtime
             if last_pulse_age > HEARTBEAT_TIMEOUT:
-                log_brainstem(f"🛑 CRITICAL: Cognitive heartbeat timed out (last pulse {last_pulse_age:.1f}s ago).")
-                log_brainstem("💀 Assuming hang. Terminating and rebooting...")
+                log_brainstem(f"CRITICAL: Cognitive heartbeat timed out (last pulse {last_pulse_age:.1f}s ago).")
+                log_brainstem("Assuming hang. Terminating and rebooting...")
                 
                 mind_process.terminate()
                 try:
@@ -144,7 +144,7 @@ def main():
                 
         except KeyboardInterrupt:
             running = False
-            log_brainstem("🛑 Lazarus Protocol disabled by user. Shutting down Mind...")
+            log_brainstem("Lazarus Protocol disabled by user. Shutting down Mind...")
             mind_process.terminate()
             try:
                 mind_process.wait(timeout=5)

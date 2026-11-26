@@ -42,7 +42,7 @@ CORE_OPINIONS = [
 ]
 
 async def seed():
-    print("🌱 Seeding Aura's OpinionEngine with core positions...")
+    print("Seeding Aura's OpinionEngine with core positions...")
     engine = OpinionEngine()
     
     for data in CORE_OPINIONS:
@@ -58,10 +58,10 @@ async def seed():
             source="seeding_script"
         )
         engine._opinions[opinion.topic] = opinion
-        print(f"  ✅ Seeded: {data['topic']}")
+        print(f"  Seeded: {data['topic']}")
     
     engine._save()
-    print(f"\n✨ Successfully seeded {len(CORE_OPINIONS)} opinions to {engine._db_path}")
+    print(f"\nSuccessfully seeded {len(CORE_OPINIONS)} opinions to {engine._db_path}")
 
 if __name__ == "__main__":
     asyncio.run(seed())

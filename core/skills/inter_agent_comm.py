@@ -32,7 +32,7 @@ class InterAgentCommSkill(BaseSkill):
     def __init__(self):
         # Ensure we have a place to store these outbound messages
         self.comm_log_path = Path("data/comm_logs.jsonl")
-        logger.info("✅ InterAgentComm initialized (v3.4 Patch Applied)")
+        logger.info("InterAgentComm initialized (v3.4 Patch Applied)")
 
     async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Execute the communication request (Async)."""
@@ -44,7 +44,7 @@ class InterAgentCommSkill(BaseSkill):
             return {"ok": False, "error": "Missing agent_name or message in params"}
         try:
             timestamp = time.time()
-            logger.info("📡 Transmitting to %s: %s...", agent_name, message[:50])
+            logger.info("Transmitting to %s: %s...", agent_name, message[:50])
 
             # 1. Log locally
             payload = {
@@ -60,12 +60,12 @@ class InterAgentCommSkill(BaseSkill):
             orchestrator = resolve_orchestrator()
             swarm_data = []
             if orchestrator and hasattr(orchestrator, 'belief_sync'):
-                logger.info("🌌 Querying swarm for context on: %s", agent_name)
+                logger.info("Querying swarm for context on: %s", agent_name)
                 swarm_data = await orchestrator.belief_sync.query_peers(agent_name)
 
             # 3. Transmit payload across network
             target_endpoint = f"http://localhost:8000/api/v1/agents/{agent_name}/message"
-            logger.info("🚀 Initiating Swarm HTTP POST to %s", target_endpoint)
+            logger.info("Initiating Swarm HTTP POST to %s", target_endpoint)
             
             try:
                 # We do a fire-and-forget style async post, but wait briefly for a 200 OK acceptance

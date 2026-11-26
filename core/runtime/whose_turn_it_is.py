@@ -181,7 +181,7 @@ class TheTurn:
             lease = self._install(origin=origin, turn_id=turn_id)
             if previous is not None:
                 logger.info(
-                    "🔁 turn %s took over from %s", lease.turn_id, previous.turn_id
+                    "turn %s took over from %s", lease.turn_id, previous.turn_id
                 )
             return lease
 

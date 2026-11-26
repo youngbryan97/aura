@@ -78,7 +78,7 @@ class MindModel(AuraBaseModule):
 
         # Heuristic: If user is asking questions, they are acquiring facts.
         # This will be refined via prompt injections.
-        self.logger.info("🧠 MindModel: User mood projected as %s", current_mood)
+        self.logger.info("MindModel: User mood projected as %s", current_mood)
         self.save()
 
     def get_context_for_brain(self) -> str:

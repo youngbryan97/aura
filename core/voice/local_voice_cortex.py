@@ -245,7 +245,7 @@ class LocalVoiceCortex:
             self.loop = asyncio.get_running_loop()
             self.audio_queue = asyncio.Queue(maxsize=500)
             self._shutdown_event = asyncio.Event()
-            logger.info("🧠 Loading Local Auditory Cortex (mlx-whisper)...")
+            logger.info("Loading Local Auditory Cortex (mlx-whisper)...")
             self._shutdown_event.clear()
 
             audio_backend = _load_pyaudio()
@@ -268,7 +268,7 @@ class LocalVoiceCortex:
             self.is_listening = True
 
             self._loop_task = fire_and_track(self.listen_loop(), name="VoiceListenLoop")
-            logger.info("✅ Voice Cortex online. Aura is listening locally.")
+            logger.info("Voice Cortex online. Aura is listening locally.")
             return True
         except _LOCAL_VOICE_RECOVERABLE_ERRORS as e:
             _record_voice_degradation(
@@ -330,7 +330,7 @@ class LocalVoiceCortex:
         text = str(text or "").strip()
         if not text:
             return False
-        logger.info("🗣️ Aura: %s", text)
+        logger.info("Aura: %s", text)
         try:
             voice = ServiceContainer.get("voice_engine", default=None)
             if voice:
@@ -375,7 +375,7 @@ class LocalVoiceCortex:
             if not _user_voice_input_enabled():
                 # User disabled microphone input: never open the capture stream.
                 # Poll so toggling it back on resumes listening without a restart.
-                logger.debug("🎙️🚫 Voice input suppressed: voice.input_enabled=False (user setting)")
+                logger.debug("Voice input suppressed: voice.input_enabled=False (user setting)")
                 await asyncio.sleep(2.0)
                 continue
             lease_result = get_microphone_authority().acquire(
@@ -494,7 +494,7 @@ class LocalVoiceCortex:
 
             if not self.is_listening or self._shutdown_event.is_set():
                 break  # Normal exit
-            logger.warning("🎙️ Audio loop exited abnormally, restarting stream...")
+            logger.warning("Audio loop exited abnormally, restarting stream...")
             await asyncio.sleep(1.0)
 
     async def _process_audio_segment(self, frames):
@@ -533,7 +533,7 @@ class LocalVoiceCortex:
                 # IMPORTANT: If cancelled, do NOT release the vram lock until the thread
                 # actually finishes, otherwise the worker thread will crash the neural engine
                 # when another model is swapped into VRAM concurrently.
-                logger.warning("⚠️ Transcribe cancelled! Waiting for thread to release VRAM cleanly...")
+                logger.warning("Transcribe cancelled! Waiting for thread to release VRAM cleanly...")
                 try:
                     await transcribe_task
                 except _LOCAL_VOICE_RECOVERABLE_ERRORS as _exc:
@@ -548,7 +548,7 @@ class LocalVoiceCortex:
             transcript = str(result.get("text", "")).strip()
 
             if transcript and len(transcript) > 2:
-                logger.info("👂 Heard: \"%s\"", transcript)
+                logger.info("Heard: \"%s\"", transcript)
 
                 if self.orchestrator:
                     # Send to Broca's Area (fast local LLM)

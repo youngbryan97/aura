@@ -130,11 +130,11 @@ def _spawn_server_task(coro, *, name: str) -> asyncio.Task:
 def _spawn_server_bounded_task(coro, *, name: str) -> asyncio.Task:
     return _server_task_tracker.bounded_track(coro, name=name)
 
-logger.info("🚀 KERNEL LIFESPAN: Starting... EventBus ID: %s", bus._bus_id)
+logger.info("KERNEL LIFESPAN: Starting... EventBus ID: %s", bus._bus_id)
 
 # Diagnostic: Identify process role
 _is_proxy = os.environ.get("AURA_GUI_PROXY") == "1"
-logger.info("📡 [PROCESS_BOOT] PID: %s | Role: %s", os.getpid(), "GUI_PROXY" if _is_proxy else "KERNEL")
+logger.info("[PROCESS_BOOT] PID: %s | Role: %s", os.getpid(), "GUI_PROXY" if _is_proxy else "KERNEL")
 
 # Lazy-loaded heavy subsystems (via lifespan)
 _LocalBrain       = None
@@ -542,7 +542,7 @@ async def lifespan(app: FastAPI):
     if is_gui_proxy:
         bus = ServiceContainer.get("actor_bus", default=None)
         if bus:
-            logger.info("📡 Igniting deferred ActorBus transports...")
+            logger.info("Igniting deferred ActorBus transports...")
             bus.start_transports()
 
     # 0.1 Mycelial Network
@@ -554,7 +554,7 @@ async def lifespan(app: FastAPI):
         ServiceContainer.register_instance("mycelial_network", mycelial)
     mapping_scheduled = mycelial.setup()
     logger.info(
-        "📡 Mycelial infrastructure map: %s.",
+        "Mycelial infrastructure map: %s.",
         "scheduled"
         if mapping_scheduled
         else mycelial.get_infrastructure_report()["mapping_state"],
@@ -564,11 +564,11 @@ async def lifespan(app: FastAPI):
 
     mycelial.set_ui_callback(mycelial_ui_callback)
     if is_gui_proxy:
-        logger.info("📡 GUI Proxy: Mycelial Network synchronized.")
+        logger.info("GUI Proxy: Mycelial Network synchronized.")
 
     # Ensure data directories exist
     config.paths.create_directories()
-    logger.info("📡 Lifespan: Directories verified.")
+    logger.info("Lifespan: Directories verified.")
 
     # ── Boot heavy subsystems (each gracefully degraded) ──
     from core.utils.safe_import import async_safe_import, is_missing
@@ -623,19 +623,19 @@ async def lifespan(app: FastAPI):
                 try:
                     _ve_check = _voice_engine_fn()
                     if _ve_check is None:
-                        logger.warning("⚠️ Voice engine factory returned None — voice features unavailable.")
+                        logger.warning("Voice engine factory returned None — voice features unavailable.")
                         _voice_engine_fn = None
                     else:
                         logger.info("✓ Voice engine health check passed.")
                 except _SERVER_BOUNDARY_ERRORS as ve_err:
                     record_degradation('server', ve_err)
-                    logger.warning("⚠️ Voice engine health check failed: %s — disabling voice.", ve_err)
+                    logger.warning("Voice engine health check failed: %s — disabling voice.", ve_err)
                     _voice_engine_fn = None
         except _SERVER_BOUNDARY_ERRORS as _exc:
             record_degradation('server', _exc)
             logger.warning("Optional voice engine import failed; continuing degraded: %s", _exc)
     else:
-        logger.info("📡 GUI Proxy Mode: Skipping heavy subsystem initialization (Brain, TTS, Vision).")
+        logger.info("GUI Proxy Mode: Skipping heavy subsystem initialization (Brain, TTS, Vision).")
 
     # Share voice engine factory with privacy route module
     from interface.routes.privacy import set_voice_engine_fn
@@ -643,9 +643,9 @@ async def lifespan(app: FastAPI):
 
     # ── Trigger cognitive substrate ──
     if not is_gui_proxy:
-        logger.info("📡 Kernel Mode: Orchestrator startup deferred to aura_main (to prevent double-boot).")
+        logger.info("Kernel Mode: Orchestrator startup deferred to aura_main (to prevent double-boot).")
     else:
-        logger.info("📡 GUI Proxy Mode: Cognitive Orchestrator boot SKIPPED.")
+        logger.info("GUI Proxy Mode: Cognitive Orchestrator boot SKIPPED.")
 
     # ── Start WS broadcaster ──
     _spawn_server_task(_ws_broadcaster(), name="ws_broadcaster")

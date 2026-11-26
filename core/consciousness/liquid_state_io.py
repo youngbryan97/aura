@@ -327,7 +327,7 @@ class _KeepsItsStateOnDisk:
                 with os.fdopen(fd, "wb") as f:
                     np.savez_compressed(f, x=self.x, W=self.W, tick=self.tick_count)
                 os.replace(temp_path, str(self.state_path))
-                logger.info("💾 Substrate state saved (atomic)")
+                logger.info("Substrate state saved (atomic)")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation("liquid_substrate", e)
                 if os.path.exists(temp_path):

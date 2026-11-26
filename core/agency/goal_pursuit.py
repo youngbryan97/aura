@@ -103,7 +103,7 @@ class GoalPursuitEngine:
         if timing_ok is not None:
             try:
                 if not await _maybe_await(timing_ok()):
-                    logger.info("⏸️ [Pursuit] deferring '%s' — not an appropriate time to act.", goal)
+                    logger.info("[Pursuit] deferring '%s' — not an appropriate time to act.", goal)
                     return PursuitOutcome(goal=goal, completed=False, deferred=True, reason="timing not appropriate")
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_pursuit", exc)
@@ -140,7 +140,7 @@ class GoalPursuitEngine:
                 checked = receipt.tasks if isinstance(receipt, SwarmReceipt) else [receipt]
                 outcome.verified = bool(checked) and all(item.verification_complete for item in checked)
                 outcome.reason = "goal completed"
-                logger.info("✅ [Pursuit] '%s' completed in %d attempt(s).", goal, attempt)
+                logger.info("[Pursuit] '%s' completed in %d attempt(s).", goal, attempt)
                 return outcome
 
             pending = receipt.tasks if isinstance(receipt, SwarmReceipt) else [receipt]
@@ -156,13 +156,13 @@ class GoalPursuitEngine:
                     record_degradation("goal_pursuit", exc)
                     new_plan = None
                 if new_plan:
-                    logger.info("🔁 [Pursuit] '%s' stalled; re-planning (attempt %d).", goal, attempt + 1)
+                    logger.info("[Pursuit] '%s' stalled; re-planning (attempt %d).", goal, attempt + 1)
                     current_plan = new_plan
                     continue
             break
 
         outcome.reason = "not completed"
-        logger.info("🛑 [Pursuit] '%s' not completed after %d attempt(s).", goal, outcome.attempts)
+        logger.info("[Pursuit] '%s' not completed after %d attempt(s).", goal, outcome.attempts)
         return outcome
 
 
@@ -177,7 +177,7 @@ class GoalPursuitEngine:
             allow_world_changing=allow_world_changing,
         )
         if not built.usable:
-            logger.info("🛑 [Pursuit] no plan for '%s': %s", goal, "; ".join(built.rejected))
+            logger.info("[Pursuit] no plan for '%s': %s", goal, "; ".join(built.rejected))
         return built.steps
 
     @staticmethod

@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Benchmark")
 
 async def benchmark():
-    print("\n🚀 STARTING LATENCY BENCHMARK...")
+    print("\nSTARTING LATENCY BENCHMARK...")
     # 1. Initialize Orchestrator
     orchestrator = SovereignOrchestrator()
     await orchestrator.start()
@@ -39,12 +39,12 @@ async def benchmark():
         await orchestrator._handle_incoming_message(msg)
         
         duration = time.time() - start_time
-        print(f"⏱️  Latency: {duration:.2f}s")
+        print(f" Latency: {duration:.2f}s")
         
         if duration < 3.0 and "Reflex" in category:
-            print("✅ PASS: Low latency")
+            print("PASS: Low latency")
         elif "Reflex" in category:
-            print("❌ FAIL: Latency too high for reflex")
+            print("FAIL: Latency too high for reflex")
 
 if __name__ == "__main__":
     asyncio.run(benchmark())

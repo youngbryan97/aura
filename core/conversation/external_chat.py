@@ -154,7 +154,7 @@ class TerminalChatWindow:
             initial_message: What Aura says when opening the window
 
         """
-        logger.info("📟 Opening terminal chat window: %s", self.window_id)
+        logger.info("Opening terminal chat window: %s", self.window_id)
 
         try:
             script_path = self._create_chat_script()
@@ -200,7 +200,7 @@ end tell
             self._start_message_handler()
             if initial_message:
                 self.send_message(initial_message)
-            logger.info("✅ Terminal window opened: %s", self.window_id)
+            logger.info("Terminal window opened: %s", self.window_id)
         except _RECOVERABLE_EXTERNAL_CHAT_ERRORS as exc:
             record_degradation("external_chat", exc)
             logger.error("Failed to open terminal: %s", exc)
@@ -345,7 +345,7 @@ end tell
         except _RECOVERABLE_EXTERNAL_CHAT_ERRORS as exc:
             record_degradation("external_chat", exc)
             logger.debug("External chat cleanup skipped %s: %s", self.channel_dir, exc)
-        logger.info("✅ Terminal window closed: %s", self.window_id)
+        logger.info("Terminal window closed: %s", self.window_id)
 
 
 class GUIChatWindow:
@@ -375,7 +375,7 @@ class GUIChatWindow:
 
     def open(self, initial_message: str | None = None) -> None:
         """Open GUI chat window"""
-        logger.info("🪟 Opening GUI chat window: %s", self.window_id)
+        logger.info("Opening GUI chat window: %s", self.window_id)
 
         try:
             self._event_loop = asyncio.get_running_loop()
@@ -615,7 +615,7 @@ class ExternalChatManager:
             raise ValueError(f"unsupported external chat window type: {window_type}")
         window_id = f"chat_{secrets.token_hex(12)}"
 
-        logger.info("🪟 Opening %s chat window: %s", window_type, window_id)
+        logger.info("Opening %s chat window: %s", window_type, window_id)
 
         # Create window
         if window_type == "gui":
@@ -713,5 +713,5 @@ def integrate_external_chat(orchestrator):
     # orchestrator usually just prints or returns.
     # We might need to monkey patch or rely on orchestrator calling this explicitly.
 
-    logger.info("✅ External chat integrated")
+    logger.info("External chat integrated")
     logger.info("   Aura can now open chat windows and initiate conversations")

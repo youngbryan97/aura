@@ -65,7 +65,7 @@ class BootProfiler:
         warn_s = PHASE_WARN_S.get(str(name), SLOW_PHASE_WARN_S)
         if duration_s >= warn_s:
             logger.warning(
-                "🐢 [BOOT] phase '%s' took %.1fs (offset +%.1fs)",
+                "[BOOT] phase '%s' took %.1fs (offset +%.1fs)",
                 name,
                 duration_s,
                 offset_s,

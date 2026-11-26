@@ -187,7 +187,7 @@ def _load_unified_recurrent_shadow(
         #   MLXWorker CRITICAL: configured_unified_recurrent_shadow_invalid:
         #   .../releases/cp366-source-migrated-recurrent: unified shadow
         #   mechanics or resident model binding differs
-        #   🔄 [MLX] Worker init failed ... Retrying spawn
+        #   [MLX] Worker init failed ... Retrying spawn
         #
         # The integrity check is right — that package was built against a
         # different resident binding and must not be used. But it runs in

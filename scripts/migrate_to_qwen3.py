@@ -79,12 +79,12 @@ def preflight(
     ram = _total_ram_gb(observer=observer)
     print(f"  Host RAM: {ram:.0f} GB")
     if ram and ram < 48:
-        print("  ⚠️  <48 GB RAM: a 32B-8bit fuse is tight; prefer a 4-bit base.")
+        print("   <48 GB RAM: a 32B-8bit fuse is tight; prefer a 4-bit base.")
 
     free = _free_disk_gb(PROJECT_ROOT, observer=observer)
     print(f"  Free disk: {free:.0f} GB")
     if free < 60:
-        print("  ⚠️  <60 GB free: a 32B fuse + base may not fit. Free space first.")
+        print("   <60 GB free: a 32B fuse + base may not fit. Free space first.")
         ok = False
 
     if base.exists():
@@ -104,11 +104,11 @@ def preflight(
         ok = False
 
     if out.exists():
-        print(f"  ⚠️  output dir already exists (will be reused/overwritten): {out}")
+        print(f"   output dir already exists (will be reused/overwritten): {out}")
 
     # Same-family tokenizer guard (best-effort): warn if base name leaves the Qwen line.
     if "qwen" not in base.name.lower():
-        print("  ⚠️  base is not in the Qwen family — chat template / stop-sequence handling in")
+        print("   base is not in the Qwen family — chat template / stop-sequence handling in")
         print("      mlx_worker is Qwen-tuned; expect tokenizer work for a cross-family base.")
 
     print(f"  Preflight: {'PASS' if ok else 'BLOCKED'}")
@@ -183,7 +183,7 @@ def invalidate_steering(*, execute: bool) -> bool:
         lib = SteeringVectorLibrary()
         cache_dir = Path(lib.cache_dir)
     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        print(f"  ⚠️  could not locate steering cache via library ({exc}). Default likely:")
+        print(f"   could not locate steering cache via library ({exc}). Default likely:")
         cache_dir = Path.home() / ".aura" / "data" / "steering"
     print(f"  CAA steering cache: {cache_dir}")
     print("  Old vectors are keyed to the previous hidden dim and must be re-derived")

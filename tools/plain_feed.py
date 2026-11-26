@@ -124,7 +124,7 @@ def call_sites() -> list[dict[str, str]]:
 
 
 def _says_anything(says: str, kind: str) -> bool:
-    """Whether a format string has a word of its own. "%s" or "🫀 %s" writes whatever it is given, and one sentence
+    """Whether a format string has a word of its own. "%s" or "%s" writes whatever it is given, and one sentence
     cannot stand for all of that: such a line needs a format string with words in it where it is logged."""
     literal = _PERCENT.sub("", says) if kind == "%" else says.replace("{}", "")
     return bool(re.search(r"[A-Za-z]{2}", literal))
@@ -162,8 +162,11 @@ class Index:
             entries.sort(key=lambda entry: -entry[0])
 
     def which_call(self, logger: str, text: str) -> dict[str, str] | None:
-        """The call a line came from: the most specific format string that writes it, its own logger's first."""
-        for _length, pattern, site in self.by_logger.get(logger, ()):
+        """The call a line came from: the most specific format string that writes it, among its own logger's and those
+        whose logger could not be read, so "[MLX] %s" under the line's logger does not take a line that
+        "[MLX] first-token ceiling %.1fs ..." wrote under a logger built elsewhere; then by how the line begins."""
+        unread = [entry for entry in self.by_lead.get(text[:3], ()) if not entry[2]["logger"]]
+        for _length, pattern, site in sorted((*self.by_logger.get(logger, ()), *unread), key=lambda e: -e[0]):
             if pattern.fullmatch(text):
                 return site
         candidates = sorted((*self.by_lead.get(text[:3], ()), *self.by_lead.get("", ())), key=lambda e: -e[0])
@@ -262,9 +265,9 @@ def main() -> int:
         for key in stale:
             print(f"stale: {key[0]} {key[1][:100]!r} is no longer in her code", file=sys.stderr)
         if stale or result["share"] + 1e-9 < baseline:
-            print(f"❌ plain faces {result['share']:.1%} against a baseline of {baseline:.1%}", file=sys.stderr)
+            print(f"failed plain faces {result['share']:.1%} against a baseline of {baseline:.1%}", file=sys.stderr)
             return 1
-        print(f"✅ plain faces {result['share']:.1%}, baseline {baseline:.1%}")
+        print(f"ok plain faces {result['share']:.1%}, baseline {baseline:.1%}")
     return 0
 
 

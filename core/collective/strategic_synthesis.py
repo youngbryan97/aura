@@ -40,7 +40,7 @@ class StrategicSynthesizer:
             logger.error("StrategicSynthesizer: AgentDelegator not available. Synthesis failed.")
             return None
             
-        logger.info("🧠 Beginning Strategic Synthesis for complex goal: %s", goal[:60])
+        logger.info("Beginning Strategic Synthesis for complex goal: %s", goal[:60])
         
         # 1. Define specializing roles for the swarm
         roles = ["architect", "critic", "researcher"]
@@ -141,7 +141,7 @@ class StrategicSynthesizer:
                 }
             )
             
-            logger.info("✅ Strategic Synthesis complete. Produced plan with %d steps.", len(plan.plan_steps))
+            logger.info("Strategic Synthesis complete. Produced plan with %d steps.", len(plan.plan_steps))
             return plan
             
         except (ImportError, AttributeError, RuntimeError) as e:

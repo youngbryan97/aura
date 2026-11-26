@@ -225,7 +225,7 @@ class FittedOnHerModel:
             given = self.examples()
             wanted = [(self._key(text), text) for _kind, text in given]
             missing = [(key, text) for key, text in dict(wanted).items() if key not in states]
-            logger.info("🧭 %s: %d examples held, %d to read.", self.name, len(wanted) - len(missing), len(missing))
+            logger.info("%s: %d examples held, %d to read.", self.name, len(wanted) - len(missing), len(missing))
             for at in range(0, len(missing), A_BATCH):
                 batch = missing[at:at + A_BATCH]
                 got = await self._read_when_it_can([text for _key, text in batch], ask, waiting)
@@ -235,7 +235,7 @@ class FittedOnHerModel:
             if any(key not in states for key, _text in wanted):
                 if states:
                     await self._save(model, states)
-                logger.info("🧭 %s: %d of %d examples are read; the rest wait for a quieter time.", self.name,
+                logger.info("%s: %d of %d examples are read; the rest wait for a quieter time.", self.name,
                             sum(1 for key, _ in wanted if key in states), len(wanted))
                 return False
             if missing:
@@ -244,7 +244,7 @@ class FittedOnHerModel:
                                              [kind for kind, _text in given], kind_of_nothing=self._nothing)
             with self._lock:
                 self._held.fitted, self._held.states, self._held.model = fitted, {k: states[k] for k, _ in wanted}, model
-            logger.info("🧭 %s is read on %s: the kind told on %.1f%% of %d examples kept out, and whether it is any of "
+            logger.info("%s is read on %s: the kind told on %.1f%% of %d examples kept out, and whether it is any of "
                         "them on %.1f%%; its probabilities are tempered by %.2f.", self.name, Path(model).name,
                         100 * fitted.told, fitted.over, 100 * fitted.told_asking, fitted.temperature)
             return True

@@ -28,7 +28,7 @@ class RegressionMemory:
         code_hash = hashlib.sha256(code.encode("utf-8")).hexdigest()
         for item in self.failed_patches:
             if item["patch_hash"] == code_hash:
-                logger.warning("⚠️ Proposed patch matches a known historically failed patch hash!")
+                logger.warning("Proposed patch matches a known historically failed patch hash!")
                 return True
         return False
 

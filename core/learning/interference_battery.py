@@ -218,7 +218,7 @@ def run_interference_battery(
         "ran_at": time.time(),
     }
     logger.info(
-        "🛡 Interference battery: %d/%d stable → %s",
+        "Interference battery: %d/%d stable → %s",
         stable,
         len(results),
         verdict,

@@ -452,7 +452,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         ready = await asyncio.wait_for(browser.ensure_ready(), timeout=browser.startup_bound_s())
         took = time.monotonic() - started
         if took > browser.LAUNCH_TIMEOUT_S:
-            logger.info("🌐 The browser took %.1fs to start.", took)
+            logger.info("The browser took %.1fs to start.", took)
         if not ready:
             status = browser.get_status()
             raise RuntimeError(
@@ -628,7 +628,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             return await asyncio.wait_for(browser.read_content(), timeout=self.READ_TIMEOUT)
         except TimeoutError:
-            logger.warning("🕐 read_content() timed out after %.0fs", self.READ_TIMEOUT)
+            logger.warning("read_content() timed out after %.0fs", self.READ_TIMEOUT)
             return ""
         except (RuntimeError, AttributeError) as e:
             record_degradation('sovereign_browser', e)
@@ -650,7 +650,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         try:
             got = await asyncio.wait_for(browser.browse(url), timeout=self.BROWSE_TIMEOUT)
         except TimeoutError:
-            logger.warning("🕐 browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
+            logger.warning("browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
             self._why_it_would_not_load = (
                 f"it did not answer inside {self.BROWSE_TIMEOUT:.0f}s"
             )
@@ -788,12 +788,12 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         if page is None:
             return {}
         before = str(getattr(page, "url", "") or "")
-        logger.info("🌐 %s is checking whether a person is at the browser; waiting for it to go on.", before[:80])
+        logger.info("%s is checking whether a person is at the browser; waiting for it to go on.", before[:80])
         try:
             await page.wait_for_url(lambda now: str(now) != before, timeout=self.BROWSE_TIMEOUT * 1000.0)
         except Exception as exc:  # noqa: BLE001 - a check that does not go on by itself is loaded again, below
             record_degradation("sovereign_browser", exc, severity="info", action="loaded a check that sat there again")
-            logger.info("🌐 The check did not go on by itself; loading %s again once.", before[:80])
+            logger.info("The check did not go on by itself; loading %s again once.", before[:80])
             if not await browser.browse(before, principal="owner"):
                 return {}
         return await self._look_again_once_loaded(browser)
@@ -1151,7 +1151,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         if not query:
             return {"ok": False, "error": "Search mode requires a 'query'."}
 
-        logger.info("🔍 Searching: %s (Deep: %s)", query, deep)
+        logger.info("Searching: %s (Deep: %s)", query, deep)
         # User requested: doesn't have to be duckduckgo
         engines = [
             f"https://duckduckgo.com/?q={urllib.parse.quote_plus(query)}",
@@ -1165,7 +1165,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # Detect block/CAPTCHA
                 preview = await self._safe_read_content(browser)
                 if self._check_blocked(preview):
-                    logger.warning("🚫 Search engine blocked. Rotating UA and trying next engine...")
+                    logger.warning("Search engine blocked. Rotating UA and trying next engine...")
                     try:
                         await asyncio.wait_for(browser.rotate_user_agent(), timeout=10.0)
                     except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as rot_exc:
@@ -1175,21 +1175,21 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
 
                 await browser._human_delay(2, 3)
                 if deep:
-                    get_emitter().emit("🔍 Deep Search", "Analyzing search results for organic targets...", category="Browser")
+                    get_emitter().emit("Deep Search", "Analyzing search results for organic targets...", category="Browser")
                     try:
                         links = await asyncio.wait_for(browser.get_links(), timeout=10.0)
                     except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError):
                         links = []
                     target = self._select_search_result(links, query=query)
                     if target:
-                        get_emitter().emit("🌊 Deep-Diving", f"Navigating to exact source: {target}", category="Browser")
-                        logger.info("🌊 Deep-diving into: %s", target)
+                        get_emitter().emit("Deep-Diving", f"Navigating to exact source: {target}", category="Browser")
+                        logger.info("Deep-diving into: %s", target)
                         try:
                             if await self._safe_browse(browser, target):
                                 # Check if target site is blocked too
                                 target_content = await self._safe_read_content(browser)
                                 if self._check_blocked(target_content):
-                                    get_emitter().emit("🔒 Security Block", "Target site is blocking access. Attempting rotation...", level="warning", category="Browser")
+                                    get_emitter().emit("Security Block", "Target site is blocking access. Attempting rotation...", level="warning", category="Browser")
                                     try:
                                         await asyncio.wait_for(browser.rotate_user_agent(), timeout=10.0)
                                     except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError):
@@ -1198,7 +1198,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                                         continue
                                     target_content = await self._safe_read_content(browser)
 
-                                get_emitter().emit("📄 Extracting Content", f"Reading content from {target}", category="Browser")
+                                get_emitter().emit("Extracting Content", f"Reading content from {target}", category="Browser")
                                 content = target_content or await self._safe_read_content(browser)
                                 title = ""
                                 try:
@@ -1212,7 +1212,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                                 snippet = content[:snippet_size].strip() if content else "Content could not be extracted."
                                 observed_url = self._observed_url(browser)
 
-                                logger.info("✅ Deep synthesized %d chars from %s", len(snippet), target)
+                                logger.info("Deep synthesized %d chars from %s", len(snippet), target)
                                 return {
                                     "ok": True, "source": target, "title": title, "content": content, "mode": "deep_search",
                                     "observed_url": observed_url,
@@ -1224,14 +1224,14 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                             logger.error("Deep dive into %s failed: %s", target, e)
                             continue
 
-                get_emitter().emit("📄 Reading Search Results", f"Extracting immediate snippets from {url}", category="Browser")
+                get_emitter().emit("Reading Search Results", f"Extracting immediate snippets from {url}", category="Browser")
                 content = await self._safe_read_content(browser)
                 # Increase snippet size for non-deep search too
                 snippet_size = 2000
                 snippet = content[:snippet_size].strip() if content else "No content extracted."
                 observed_url = self._observed_url(browser)
 
-                logger.info("✅ Extracted %d chars from %s", len(snippet), url)
+                logger.info("Extracted %d chars from %s", len(snippet), url)
                 return {
                     "ok": True, "source": url, "content": content, "mode": "search",
                     "observed_url": observed_url,
@@ -1249,9 +1249,9 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         if not url:
             return {"ok": False, "error": "Browse mode requires a 'url'."}
 
-        get_emitter().emit("🌐 Navigating", f"Opening {url}", category="Browser")
+        get_emitter().emit("Navigating", f"Opening {url}", category="Browser")
         if await self._safe_browse(browser, url):
-            get_emitter().emit("📄 Reading Document", f"Extracting content from {url}", category="Browser")
+            get_emitter().emit("Reading Document", f"Extracting content from {url}", category="Browser")
             content = await self._safe_read_content(browser)
             observed_url = self._observed_url(browser)
             payload = {
@@ -1341,7 +1341,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
         lease_revoked = browser_lease is None
         try:
             for action in actions:
-                logger.info("🎬 Action: %s | Sel: %s", action.type, action.selector)
+                logger.info("Action: %s | Sel: %s", action.type, action.selector)
                 try:
                     if action.type == "click":
                         success = await asyncio.wait_for(
@@ -1570,7 +1570,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # it, which is the general fact and the one worth acting on.
                 if signature in been_in and last_moves:
                     went_nowhere.update(last_moves)
-                    logger.info("🌐 Retired %d control(s) that led back to a page already seen.", len(last_moves))
+                    logger.info("Retired %d control(s) that led back to a page already seen.", len(last_moves))
                 been_in.add(signature)
                 new_lines = remember_what_was_seen(seen_here, observation)
                 noticed = what_the_move_did(
@@ -1616,7 +1616,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 decision = None
                 shaped_like_a_scale = self._asks_about_the_one_answering(observation)
                 logger.info(
-                    "🌐 %s: %d control(s), asks about her: %s",
+                    "%s: %d control(s), asks about her: %s",
                     str(observation.get("url") or "")[:80],
                     len(list(observation.get("elements") or [])),
                     shaped_like_a_scale,
@@ -1685,7 +1685,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     # "unparsable_decision" names the parser's problem and hides
                     # the model's answer, which is the only thing that says why.
                     logger.warning(
-                        "🌐 Pursuit decision unusable (%s): %.240s",
+                        "Pursuit decision unusable (%s): %.240s",
                         decision.get("error"),
                         str(decision.get("raw") or "(no text captured)"),
                     )

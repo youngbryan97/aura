@@ -195,9 +195,9 @@ class CombinedDemoProof(VoiceWakeJournalProof):
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
                 (
-                    "✅ COMBINED DEMO PROOF PASSED"
+                    "COMBINED DEMO PROOF PASSED"
                     if verdict["passed"]
-                    else "❌ COMBINED DEMO PROOF FAILED"
+                    else "COMBINED DEMO PROOF FAILED"
                 )
                 + f" → {self.verdict_path}"
             )

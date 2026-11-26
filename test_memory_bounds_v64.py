@@ -34,7 +34,7 @@ async def test_memory_bounds():
     print("=" * 60)
     
     # Test 1: BlackHoleVault
-    print("\n🧪 Testing BlackHoleVault bounds (max 5000)...")
+    print("\nTesting BlackHoleVault bounds (max 5000)...")
     try:
         from core.memory.black_hole_vault import BlackHoleVault
         with tempfile.TemporaryDirectory(prefix="aura_test_vault_") as vault_dir:
@@ -61,7 +61,7 @@ async def test_memory_bounds():
         return False
     
     # Test 2: LongTermMemoryEngine
-    print("\n🧪 Testing LongTermMemoryEngine bounds (max 10000)...")
+    print("\nTesting LongTermMemoryEngine bounds (max 10000)...")
     try:
         from core.memory.long_term_memory_engine import LongTermMemoryEngine, TaggedMemory
         import time
@@ -109,14 +109,14 @@ async def main():
     
     print("\n" + "=" * 60)
     if success:
-        print("✅ ALL MEMORY BOUNDS TESTS PASSED")
+        print("ALL MEMORY BOUNDS TESTS PASSED")
         print("   - BlackHoleVault capped at 5000")
         print("   - LongTermMemoryEngine capped at 10000")
         print("   - No unbounded accumulation")
         print("   - System ready for tool execution")
         return 0
     else:
-        print("❌ MEMORY BOUNDS TESTS FAILED")
+        print("MEMORY BOUNDS TESTS FAILED")
         return 1
 
 if __name__ == '__main__':

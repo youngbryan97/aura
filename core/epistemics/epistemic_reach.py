@@ -802,7 +802,7 @@ class EpistemicReachEngine:
             # Founded on what the person told her, which no page holds. LIVE 20 November 2026, "you asked me to keep
             # this one, and I did. The locker code for the Brimvaltor depot is 6182." was looked for on Wikipedia, in
             # journals and on a newspaper's site for 16 s of a 65 s turn, and found INCONCLUSIVE.
-            logger.info("🌐 [EpistemicReach] not looked for on the web: %r says what the person asked her to keep",
+            logger.info("[EpistemicReach] not looked for on the web: %r says what the person asked her to keep",
                         claim[:80])
             return None
         gateway = self._resolve_gateway()
@@ -977,7 +977,7 @@ class EpistemicReachEngine:
         self._publish_consequence(verdict)
         self._emit_metrics(verdict)
         logger.info(
-            "🌐 [EpistemicReach] %s — claim %r (overlap=%.2f, source=%s)",
+            "[EpistemicReach] %s — claim %r (overlap=%.2f, source=%s)",
             verdict.verdict, verdict.claim[:80], verdict.overlap,
             verdict.source_url or "none",
         )
@@ -1247,7 +1247,7 @@ def check_asked(claim: str, *, timeout_s: float, reach: EpistemicReachEngine | N
     try:
         asyncio.run(asyncio.wait_for(reading(), timeout=timeout_s))
     except TimeoutError:
-        logger.info("🌐 [EpistemicReach] asked to check %r: %d source(s) read before its %.0fs ran out",
+        logger.info("[EpistemicReach] asked to check %r: %d source(s) read before its %.0fs ran out",
                     claim[:80], len(read), timeout_s)
     for verdict in read:
         reach._apply_effects(verdict, hers=False)

@@ -38,7 +38,7 @@ class SomaticComputeSentinel:
     """Natively enforces metabolic constraints directly inside the LLM token generation cycle."""
 
     def __init__(self):
-        logger.info("🌡️ SomaticComputeSentinel initialized.")
+        logger.info("SomaticComputeSentinel initialized.")
 
     def adjust_generation_options(
         self, base_options: dict[str, Any], *, foreground: bool = False
@@ -145,12 +145,12 @@ class SomaticComputeSentinel:
             # Token exhaustion: severe cap to block further consumption
             if _cap(8, 0.05):
                 logger.error(
-                    "🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. "
+                    "GOVERNANCE QUOTA EXHAUSTED: Token limit hit. "
                     "Sampling capped to 8 tokens."
                 )
             else:
                 logger.error(
-                    "🚫 GOVERNANCE QUOTA EXHAUSTED: Token limit hit. This turn "
+                    "GOVERNANCE QUOTA EXHAUSTED: Token limit hit. This turn "
                     "is user-facing and keeps its budget."
                 )
         elif is_critical:
@@ -162,7 +162,7 @@ class SomaticComputeSentinel:
             elif "recurrent_depth" in base_options:
                 base_options["recurrent_depth"] = 0.2
             logger.warning(
-                "🔥 CRITICAL METABOLIC PANIC: Arousal=%.2f, RAM=%.1f%%, "
+                "CRITICAL METABOLIC PANIC: Arousal=%.2f, RAM=%.1f%%, "
                 "CPU=%.1f%%, GovThrottle=%.2f. %s",
                 arousal, ram_pct * 100, cpu_load * 100, gov_throttle,
                 "Parameter throttle ENABLED (max_tokens capped at 128)."
@@ -177,7 +177,7 @@ class SomaticComputeSentinel:
             elif "recurrent_depth" in base_options:
                 base_options["recurrent_depth"] = 0.4
             logger.info(
-                "⚠️ SYSTEMIC STRESS DETECTED: Arousal=%.2f, RAM=%.1f%%, "
+                "SYSTEMIC STRESS DETECTED: Arousal=%.2f, RAM=%.1f%%, "
                 "CPU=%.1f%%, GovThrottle=%.2f. %s",
                 arousal, ram_pct * 100, cpu_load * 100, gov_throttle,
                 "Parameter throttle activated (max_tokens capped at 256)."

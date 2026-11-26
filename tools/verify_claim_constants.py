@@ -239,9 +239,9 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"claim constants checked: {len(assertions)}")
     if not findings:
-        print("✅ every constant a claim cites still holds that value")
+        print("every constant a claim cites still holds that value")
         return 0
-    print(f"❌ {len(findings)} claim(s) cite a constant the code no longer holds:")
+    print(f"{len(findings)} claim(s) cite a constant the code no longer holds:")
     for finding in findings:
         print("  " + finding.render())
     print(

@@ -405,7 +405,7 @@ class OntologyGenesisEngine:
             return False
         self._integrated += int(accepted)
         if accepted:
-            logger.info("🔬 OntologyGenesis integrated a discovered law: %s", rule)
+            logger.info("OntologyGenesis integrated a discovered law: %s", rule)
         return accepted
 
     async def _discovery_loop(self, volition: int = 0) -> None:

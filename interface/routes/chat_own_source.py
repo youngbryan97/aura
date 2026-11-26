@@ -944,7 +944,7 @@ def _serve_repo_diagnosis(reply: object) -> object:
         from core.conversation.reply_provenance import ReplyProvenance, declared_provenance
 
         if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
-            logger.info("🔬 Served the diagnosis alone; the draft admitted having nothing.")
+            logger.info("Served the diagnosis alone; the draft admitted having nothing.")
             return found
         # Her explanation leads when there is one.
         #
@@ -957,9 +957,9 @@ def _serve_repo_diagnosis(reply: object) -> object:
         # It only leads when it IS an explanation: a short reply that says
         # nothing about the finding would bury the finding instead.
         if _explains_the_finding(written, found):
-            logger.info("🔬 Served the diagnosis under the explanation of it.")
+            logger.info("Served the diagnosis under the explanation of it.")
             return f"{written}\n\nWhat I ran, and what it showed:\n{found}"
-        logger.info("🔬 Served the diagnosis from running the project.")
+        logger.info("Served the diagnosis from running the project.")
         return f"{found}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
@@ -1005,12 +1005,12 @@ def _what_the_tools_found() -> str:
 
             custody = current_turn_evidence_custody()
             logger.info(
-                "🧾 nothing to report from this turn's tools: custody=%s admits=%s",
+                "nothing to report from this turn's tools: custody=%s admits=%s",
                 "present" if custody is not None else "absent",
                 custody.admits_current_execution() if custody is not None else "n/a",
             )
         except _CHAT_RECOVERABLE_ERRORS:
-            logger.info("🧾 nothing to report from this turn's tools.")
+            logger.info("nothing to report from this turn's tools.")
         return ""
     said: list[str] = []
     for receipt in receipts:
@@ -1026,7 +1026,7 @@ def _what_the_tools_found() -> str:
     if not said:
         return ""
     logger.info(
-        "🧾 Served what this turn's tools returned (%d of %d).",
+        "Served what this turn's tools returned (%d of %d).",
         min(len(said), _RECEIPTS_WORTH_READING),
         len(said),
     )

@@ -45,7 +45,7 @@ class AutonomousCuriosityDaemon:
             self.start_exploration_loop(capability_engine),
             name="AutonomousCuriosityDaemon",
         )
-        logger.info("🚀 AutonomousCuriosityDaemon background task started.")
+        logger.info("AutonomousCuriosityDaemon background task started.")
 
     async def stop(self):
         """Stop the background exploration loop."""
@@ -71,7 +71,7 @@ class AutonomousCuriosityDaemon:
                     query = target_gap.seed_question
 
                     logger.info(
-                        "🚀 Curiosity drive triggered: Investigating missing domain '%s' (gap: %s)",
+                        "Curiosity drive triggered: Investigating missing domain '%s' (gap: %s)",
                         target_domain,
                         target_gap.description,
                     )

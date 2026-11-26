@@ -97,12 +97,12 @@ class ImmuneSystem:
                         if tier == "critical":
                             report["failed"].append(entry)
                             logger.warning(
-                                "🛡️ IMMUNE: CRITICAL service '%s' is missing or None", service_name
+                                "IMMUNE: CRITICAL service '%s' is missing or None", service_name
                             )
                         else:
                             report["degraded"].append(entry)
                             logger.info(
-                                "🛡️ IMMUNE: Service '%s' is not available (tier=%s)", service_name, tier
+                                "IMMUNE: Service '%s' is not available (tier=%s)", service_name, tier
                             )
                         continue
 
@@ -120,7 +120,7 @@ class ImmuneSystem:
                         }
                         report["degraded"].append(entry)
                         logger.warning(
-                            "🛡️ IMMUNE: Service '%s' (%s) missing methods: %s",
+                            "IMMUNE: Service '%s' (%s) missing methods: %s",
                             service_name,
                             type(instance).__name__,
                             missing_methods,
@@ -136,7 +136,7 @@ class ImmuneSystem:
                         "error": str(e),
                     })
                     logger.error(
-                        "🛡️ IMMUNE: Service '%s' resolution raised: %s", service_name, e
+                        "IMMUNE: Service '%s' resolution raised: %s", service_name, e
                     )
 
         self._last_scan_results = report
@@ -152,16 +152,16 @@ class ImmuneSystem:
                         "type": "silent_failure_detected",
                         "failed_services": [f["service"] for f in report["failed"]],
                         "degraded_count": len(report["degraded"]),
-                        "message": f"🛡️ {len(report['failed'])} critical service(s) failed, "
+                        "message": f"{len(report['failed'])} critical service(s) failed, "
                                    f"{len(report['degraded'])} degraded",
                     },
                 )
         except (ImportError, AttributeError, RuntimeError) as _e:
             record_degradation('immune_system', _e)
-            logger.error("🛡️ IMMUNE: Failed to publish health report to event bus: %s", _e)
+            logger.error("IMMUNE: Failed to publish health report to event bus: %s", _e)
 
         summary = (
-            f"🛡️ Immune Scan: {len(report['healthy'])} healthy, "
+            f"Immune Scan: {len(report['healthy'])} healthy, "
             f"{len(report['degraded'])} degraded, {len(report['failed'])} failed"
         )
         logger.info(summary)
@@ -175,14 +175,14 @@ class ImmuneSystem:
         
         if report["failed"]:
             logger.critical(
-                "🚨 IMMUNE SYSTEM: %d critical service(s) FAILED after boot: %s",
+                "IMMUNE SYSTEM: %d critical service(s) FAILED after boot: %s",
                 len(report["failed"]),
                 [f["service"] for f in report["failed"]],
             )
         
         if report["degraded"]:
             logger.warning(
-                "⚠️ IMMUNE SYSTEM: %d service(s) degraded after boot: %s",
+                "IMMUNE SYSTEM: %d service(s) degraded after boot: %s",
                 len(report["degraded"]),
                 [d["service"] for d in report["degraded"]],
             )
@@ -217,7 +217,7 @@ class ImmuneSystem:
             )
             if not verdict.ok:
                 logger.error(
-                    "🛑 Rollback refused: %s (%s)", verdict.failure, verdict.detail
+                    "Rollback refused: %s (%s)", verdict.failure, verdict.detail
                 )
                 return False
             snapshot = verdict.path
@@ -225,11 +225,11 @@ class ImmuneSystem:
             # AUTHORITY. Overwriting core code is the most consequential act
             # this module can take and it had no governance decision at all.
             if not await self._rollback_authorized(snapshot):
-                logger.error("🛑 Rollback refused: no governing approval for %s.",
+                logger.error("Rollback refused: no governing approval for %s.",
                              snapshot)
                 return False
 
-            logger.warning("🚨 CRITICAL FAILURE: Rolling back to %s", snapshot)
+            logger.warning("CRITICAL FAILURE: Rolling back to %s", snapshot)
             target = await asyncio.to_thread(
                 lambda: Path("core/cognition/cognitive_kernel.py").resolve()
             )
@@ -240,7 +240,7 @@ class ImmuneSystem:
                 await asyncio.to_thread(shutil.copy2, target, undo)
                 logger.info("Saved pre-rollback copy: %s", undo)
             await asyncio.to_thread(shutil.copy2, snapshot, target)
-            logger.info("✅ Rollback complete: %s restored.", target)
+            logger.info("Rollback complete: %s restored.", target)
             return True
         except OSError as e:
             record_degradation('immune_system', e)

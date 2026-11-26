@@ -254,7 +254,7 @@ class SelfPlayFlywheel:
 
         if burst_stats["attempts"]:
             logger.info(
-                "🎯 Self-play burst (seed %d): %d/%d correct, +%d pairs%s.",
+                "Self-play burst (seed %d): %d/%d correct, +%d pairs%s.",
                 seed, burst_stats["correct"], burst_stats["attempts"],
                 burst_stats["pairs"], " (yielded early)" if burst_stats["aborted"] else "",
             )

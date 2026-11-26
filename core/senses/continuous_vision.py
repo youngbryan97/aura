@@ -82,7 +82,7 @@ class ContinuousSensoryBuffer:
 
             self._mss_module = mss
         except (ImportError, ModuleNotFoundError):
-            logger.warning("👁️ [VISION] mss not found. Continuous Sensory Buffer will be disabled.")
+            logger.warning("[VISION] mss not found. Continuous Sensory Buffer will be disabled.")
 
         self.frame_buffer = deque(maxlen=6)
         self._capture_task = None
@@ -118,12 +118,12 @@ class ContinuousSensoryBuffer:
             requested_camera and (self.camera_enabled or sidecar_available)
         )
         if self.camera_enabled and os.environ.get("AURA_FORCE_CAMERA") == "1":
-            logger.info("👁️ [VISION] Camera FORCED ON via AURA_FORCE_CAMERA=1.")
+            logger.info("[VISION] Camera FORCED ON via AURA_FORCE_CAMERA=1.")
         elif requested_camera and not self.camera_enabled:
-            logger.warning("👁️ [VISION] %s", camera_reason)
+            logger.warning("[VISION] %s", camera_reason)
         elif not self.camera_enabled:
             logger.info(
-                "👁️ [VISION] Camera disabled by default (Metal Conflict Safety). "
+                "[VISION] Camera disabled by default (Metal Conflict Safety). "
                 "Use AURA_FORCE_CAMERA=1 plus "
                 "AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA=1 to override."
             )
@@ -168,7 +168,7 @@ class ContinuousSensoryBuffer:
     def start(self):
         """Starts the background rolling capture loop."""
         if is_shutdown_requested():
-            logger.info("👁️ Continuous Sensory Buffer not started: runtime shutdown requested.")
+            logger.info("Continuous Sensory Buffer not started: runtime shutdown requested.")
             return
         from core.senses.vision_policy import vision_policy_reason
 
@@ -178,7 +178,7 @@ class ContinuousSensoryBuffer:
             # same sentence, which made a missing screen indistinguishable from
             # a deliberate setting.
             logger.info(
-                "👁️ Continuous Sensory Buffer not started (%s).", vision_refusal
+                "Continuous Sensory Buffer not started (%s).", vision_refusal
             )
             return
         if not self._is_active:
@@ -196,7 +196,7 @@ class ContinuousSensoryBuffer:
                 and not native_bridge_available
                 and not self.camera_capture_enabled
             ):
-                logger.warning("👁️ Continuous Sensory Buffer not started: no capture backends are available.")
+                logger.warning("Continuous Sensory Buffer not started: no capture backends are available.")
                 return
             self._is_active = True
             try:
@@ -207,9 +207,9 @@ class ContinuousSensoryBuffer:
             except RuntimeError as exc:
                 self._is_active = False
                 record_degradation("continuous_vision", exc)
-                logger.warning("👁️ Continuous Sensory Buffer not started: no running event loop.")
+                logger.warning("Continuous Sensory Buffer not started: no running event loop.")
                 return
-            logger.info("👁️ Continuous Sensory Buffer Online.")
+            logger.info("Continuous Sensory Buffer Online.")
 
     def stop(self):
         """Stops the capture loop."""
@@ -225,7 +225,7 @@ class ContinuousSensoryBuffer:
         if self._capture_task:
             self._capture_task.cancel()
             self._capture_task = None
-            logger.info("👁️ Continuous Sensory Buffer Offline.")
+            logger.info("Continuous Sensory Buffer Offline.")
 
     async def _screen_permission_active(self) -> bool:
         admission = await evaluate_screen_capture_admission_async()
@@ -240,7 +240,7 @@ class ContinuousSensoryBuffer:
                 or (now - getattr(self, "_screen_permission_notice_at", 0.0))
                 >= getattr(self, "_screen_permission_notice_interval_s", 300.0)
             ):
-                logger.info("👁️ [VISION] Continuous screen buffer deferred: %s.", admission.public_error)
+                logger.info("[VISION] Continuous screen buffer deferred: %s.", admission.public_error)
                 self._screen_permission_notice_at = now
             return False
         try:
@@ -270,7 +270,7 @@ class ContinuousSensoryBuffer:
                     >= getattr(self, "_screen_permission_notice_interval_s", 300.0)
                 ):
                     logger.info(
-                        "👁️ [VISION] Continuous screen buffer deferred: screen permission is not active for this app identity."
+                        "[VISION] Continuous screen buffer deferred: screen permission is not active for this app identity."
                     )
                     self._screen_permission_notice_at = now
             else:
@@ -521,7 +521,7 @@ class ContinuousSensoryBuffer:
                     "capture_ready",
                 )
                 logger.info(
-                    "👁️ [VISION] Continuous screen capture backend initialized: %sx%s.",
+                    "[VISION] Continuous screen capture backend initialized: %sx%s.",
                     monitor.get("width", 0),
                     monitor.get("height", 0),
                 )
@@ -548,7 +548,7 @@ class ContinuousSensoryBuffer:
                 "native_bridge_capture_ready",
             )
             logger.info(
-                "👁️ [VISION] Signed native screen capture backend initialized: %sx%s.",
+                "[VISION] Signed native screen capture backend initialized: %sx%s.",
                 native_monitor["width"],
                 native_monitor["height"],
             )
@@ -560,7 +560,7 @@ class ContinuousSensoryBuffer:
         )
         self._schedule_screen_retry()
         logger.info(
-            "👁️ [VISION] Screen capture unavailable: neither mss nor the signed native bridge exposed a valid display."
+            "[VISION] Screen capture unavailable: neither mss nor the signed native bridge exposed a valid display."
         )
         return False
 
@@ -578,7 +578,7 @@ class ContinuousSensoryBuffer:
                         now = time.monotonic()
                         if now - getattr(self, "_last_backend_fail_log", 0) > 300.0:
                             logger.info(
-                                "👁️ [VISION] Screen capture deferred: state=%s reason=%s.",
+                                "[VISION] Screen capture deferred: state=%s reason=%s.",
                                 getattr(
                                     self,
                                     "_screen_backend_state",
@@ -640,7 +640,7 @@ class ContinuousSensoryBuffer:
                                         timeout=10.0
                                     )
                             except TimeoutError:
-                                logger.error("👁️ [VISION] Screenshot capture timed out. Skipping frame.")
+                                logger.error("[VISION] Screenshot capture timed out. Skipping frame.")
                                 await self._invalidate_screen_backend("capture_timeout")
                                 capture_result = None
                             except ScreenCaptureDeferredError as exc:
@@ -660,7 +660,7 @@ class ContinuousSensoryBuffer:
                                     enforce_failure_policy=False,
                                 )
                                 logger.warning(
-                                    "👁️ [VISION] Screenshot capture failed; reopening the backend: %s",
+                                    "[VISION] Screenshot capture failed; reopening the backend: %s",
                                     exc,
                                 )
                                 await self._invalidate_screen_backend(type(exc).__name__)
@@ -730,7 +730,7 @@ class ContinuousSensoryBuffer:
                             if acquired.reason != self._last_camera_denial:
                                 self._last_camera_denial = acquired.reason
                                 logger.info(
-                                    "👁️ [VISION] Camera not available: %s — %s",
+                                    "[VISION] Camera not available: %s — %s",
                                     acquired.reason,
                                     acquired.detail,
                                 )

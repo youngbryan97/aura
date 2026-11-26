@@ -27,7 +27,7 @@ class ContextPruner:
         if len(history) < 60:
             return history
             
-        logger.info("🕸️ Pruning Context (Size: %d messages)...", len(history))
+        logger.info("Pruning Context (Size: %d messages)...", len(history))
         
         # Keep the last 30 messages raw to maintain personality and flow
         keep_recent = 30
@@ -65,7 +65,7 @@ DENSE MEMORY SPORES:
             
             # Reassemble
             new_history = [summary_message] + newer_half
-            logger.info("✅ Context Pruned. Reduced to %d messages.", len(new_history))
+            logger.info("Context Pruned. Reduced to %d messages.", len(new_history))
             return new_history
             
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:

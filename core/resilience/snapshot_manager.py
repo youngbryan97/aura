@@ -35,7 +35,7 @@ class SnapshotManager:
         self.snapshot_dir = config.paths.data_dir / "snapshots"
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         self.snapshot_file = self.snapshot_dir / "latest.aura_snapshot"
-        logger.info("📸 Cognitive Snapshot Manager ONLINE")
+        logger.info("Cognitive Snapshot Manager ONLINE")
 
     def freeze(self) -> bool:
         """Freeze current state to disk."""
@@ -43,7 +43,7 @@ class SnapshotManager:
             logger.error("SnapshotManager requires orchestrator reference to freeze state.")
             return False
 
-        logger.info("🥶 Freezing cognitive state...")
+        logger.info("Freezing cognitive state...")
         
         try:
             state = {
@@ -102,7 +102,7 @@ class SnapshotManager:
                     source="resilience.snapshot_manager.snapshot",
                 )
             
-            logger.info("✅ Cognitive state frozen to disk: %s", self.snapshot_file)
+            logger.info("Cognitive state frozen to disk: %s", self.snapshot_file)
             return True
 
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -181,7 +181,7 @@ class SnapshotManager:
             logger.warning("SnapshotManager: State thaw BLOCKED by governance.")
             return False
 
-        logger.info("🔥 Thawing cognitive state from disk...")
+        logger.info("Thawing cognitive state from disk...")
         
         try:
             with open(self.snapshot_file, "r") as f:
@@ -261,7 +261,7 @@ class SnapshotManager:
                 if "cognitive_load" in o_state:
                     self._orch.cognitive_load = o_state["cognitive_load"]
 
-            logger.info("✅ Cognitive state thawed successfully.")
+            logger.info("Cognitive state thawed successfully.")
             return True
 
         except (ImportError, AttributeError, RuntimeError) as e:

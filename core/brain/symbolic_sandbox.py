@@ -184,7 +184,7 @@ class SymbolicSandbox:
         if _fence_count(code) > 1:
             warnings = [*warnings, "multiple code fences concatenated"]
         if not runnable:
-            logger.info("🔒 [Sandbox] refused a script that cannot run: %s", warnings)
+            logger.info("[Sandbox] refused a script that cannot run: %s", warnings)
             return SandboxResult(ok=False, refused=True, warnings=warnings, final_code=body)
 
         effective_timeout = _clamp_timeout(timeout_override) if timeout_override is not None else self._timeout
@@ -275,7 +275,7 @@ class SymbolicSandbox:
             last = await self.run(current, timeout_override=min(self._timeout, remaining))
             last.rounds = round_idx + 1
             if last.ok:
-                logger.info("✅ [Sandbox] script succeeded on round %d", last.rounds)
+                logger.info("[Sandbox] script succeeded on round %d", last.rounds)
                 return last
             failure = last.traceback or last.stderr or ("refused: " + "; ".join(last.warnings))
             if round_idx == rounds_budget - 1 or (deadline - time.monotonic()) <= 0:
@@ -288,7 +288,7 @@ class SymbolicSandbox:
             repaired = _strip_fence(repaired)
             if not repaired or repaired == current:
                 break
-            logger.info("🔁 [Sandbox] round %d failed (%s) → repairing", last.rounds, failure[:80])
+            logger.info("[Sandbox] round %d failed (%s) → repairing", last.rounds, failure[:80])
             current = repaired
         return last
 

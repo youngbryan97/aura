@@ -2,8 +2,8 @@
 
 LIVE, 2026-09-21, on a turn asking how far the bird flies:
 
-    🧠 [ANSWER BUDGET] 258 tokens fit this turn's clock at the measured rate
-    🔥 CRITICAL METABOLIC PANIC: Arousal=0.11, RAM=71.3%, CPU=99.6%,
+    [ANSWER BUDGET] 258 tokens fit this turn's clock at the measured rate
+    CRITICAL METABOLIC PANIC: Arousal=0.11, RAM=71.3%, CPU=99.6%,
        GovThrottle=1.00. Parameter throttle ENABLED (max_tokens capped at 128).
 
 Nothing was capped. ``_cap`` returns early for a foreground turn — which is

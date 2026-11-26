@@ -243,7 +243,7 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
 
             self.running = True
             logger.info(
-                "✅ AutonomousInitiativeLoop ACTIVE - Monitoring global events and knowledge gaps."
+                "AutonomousInitiativeLoop ACTIVE - Monitoring global events and knowledge gaps."
             )
 
             self._spawn_missing_core_tasks()
@@ -542,7 +542,7 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
             advanced += 1
             step_label = node.description or node.action
             logger.info(
-                "🎯 [MissionWatcher] Advanced mission %s step: %s",
+                "[MissionWatcher] Advanced mission %s step: %s",
                 mission.mission_id, step_label,
             )
             self._emit_feed(
@@ -742,7 +742,7 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
                     title = latest.title
 
                     if title not in self._seen_titles:
-                        logger.info("📰 New world event detected: %s", title)
+                        logger.info("New world event detected: %s", title)
                         self._seen_titles.add(title)
 
                         # Limit memory of titles
@@ -1181,7 +1181,7 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
         """Explicitly triggered when a gap is found."""
         if not _background_initiative_allowed(self.orchestrator):
             return
-        logger.info("🔍 Knowledge gap found: '%s'. Initiating autonomous browser research.", topic)
+        logger.info("Knowledge gap found: '%s'. Initiating autonomous browser research.", topic)
 
         try:
             from core.thought_stream import get_emitter
@@ -1511,7 +1511,7 @@ class AutonomousInitiativeLoop(_StartsSomethingSocial):
         payload = self._normalize_proactive_event(data)
         content = payload.get("content")
         if content:
-            logger.info("🔭 Proactive initiation received: %s", content[:60])
+            logger.info("Proactive initiation received: %s", content[:60])
             self._emit_feed(
                 "Proactive Initiation",
                 content,

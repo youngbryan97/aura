@@ -744,7 +744,7 @@ class SafeSelfModification:
 
             tm_desc = ServiceContainer()._services.get("terminal_monitor")
             if tm_desc and tm_desc.instance and getattr(tm_desc.instance, "_sepsis_mode", False):
-                logger.warning("🚫 Modification blocked: System is in Sepsis Mode (error spike)")
+                logger.warning("Modification blocked: System is in Sepsis Mode (error spike)")
                 return False, "Sepsis Loop Detected: Error rate too high"
 
             # Check custom sepsis registry if exists
@@ -981,7 +981,7 @@ class SafeSelfModification:
             )
 
         if isinstance(fix, LogicTransplant):
-            logger.info("🧬 Initiating Logic Transplantation for %s", fix.target_file)
+            logger.info("Initiating Logic Transplantation for %s", fix.target_file)
         else:
             logger.info("Applying fix to %s:%d", fix.target_file, getattr(fix, "target_line", 0))
 
@@ -1008,7 +1008,7 @@ class SafeSelfModification:
         staging_file = self.staging_dir / stage_token / target_rel
         staging_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(target_path, staging_file)
-        logger.info("🛡️ [QUARANTINE] Staged %s for validation", target_rel)
+        logger.info("[QUARANTINE] Staged %s for validation", target_rel)
 
         # Stage 2: Create git branch (if available)
         branch_name = f"autofix-{int(time.time())}"
@@ -1098,7 +1098,7 @@ class SafeSelfModification:
         # v6.2: Core Boot Integrity Check (Ghost Boot)
         ghost_boot_passed = True
         if target_rel.startswith("core/"):
-            logger.info("👻 Critical path change detected. Initiating Ghost Boot in Quarantine...")
+            logger.info("Critical path change detected. Initiating Ghost Boot in Quarantine...")
             # Validate the STAGING file's effect on boot
             # Note: This is a simplified validation; a full Ghost Boot would need
             # to swap the file in a temporary root, which we approximate here.
@@ -1124,7 +1124,7 @@ class SafeSelfModification:
             return False, "Quarantine verification failed"
 
         # PROMOTE FROM QUARANTINE TO REAL FILE
-        logger.info("🚀 [PROMOTION] Quarantine passed. Applying to primary repository.")
+        logger.info("[PROMOTION] Quarantine passed. Applying to primary repository.")
         await asyncio.to_thread(atomic_write_text, target_path, staged_content, encoding="utf-8")
 
         logger.info("✓ Stage 5: System Verification passed & Promoted")
@@ -1171,7 +1171,7 @@ class SafeSelfModification:
         record.file_path = target_rel
         self._log_modification(record)
 
-        logger.info("✅ Successfully applied autonomous fix to %s", fix.target_file)
+        logger.info("Successfully applied autonomous fix to %s", fix.target_file)
         return True, "Fix applied successfully"
 
     async def _run_promotion_harness(
@@ -1366,7 +1366,7 @@ class SafeSelfModification:
             sepsis_data["last_sepsis_event"] = time.time()
 
             atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
-            logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
+            logger.error("FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation("safe_modification", e)
             logger.error("Failed to mark sepsis: %s", e)

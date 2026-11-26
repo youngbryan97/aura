@@ -211,7 +211,7 @@ def cdp_call(
         "at": time.time(),
     }
     if kind != "read":
-        logger.info("🖥️ CDP %s call: %s (%s)", kind, method, reason or "no reason given")
+        logger.info("CDP %s call: %s (%s)", kind, method, reason or "no reason given")
 
     ws = websocket.create_connection(url, timeout=budget)
     events: list[dict[str, Any]] = []

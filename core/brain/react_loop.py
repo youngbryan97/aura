@@ -972,7 +972,7 @@ class ReActLoop:
         elif self._is_simple_query(query):
             logger.debug("ReAct: Simple query detected but staying on the governed reasoning path")
 
-        logger.info("🧠 ReAct: Starting reasoning loop for: %s...", query[:50])
+        logger.info("ReAct: Starting reasoning loop for: %s...", query[:50])
 
         try:
             async with asyncio.timeout(self.timeout_seconds):
@@ -1058,7 +1058,7 @@ class ReActLoop:
                             elapsed_ms=(time.time() - step_start) * 1000,
                         )
                         trace.steps.append(step)
-                        logger.info("🧠 ReAct: Completed conceptually in %d steps", step_num)
+                        logger.info("ReAct: Completed conceptually in %d steps", step_num)
 
                         trace.total_steps = len(trace.steps)
                         trace.elapsed_ms = (time.time() - start_time) * 1000
@@ -1136,7 +1136,7 @@ class ReActLoop:
         trace.elapsed_ms = (time.time() - start_time) * 1000
 
         logger.info(
-            "🧠 ReAct: trace complete — %d steps, %.0fms, reason=%s",
+            "ReAct: trace complete — %d steps, %.0fms, reason=%s",
             trace.total_steps, trace.elapsed_ms, trace.terminated_reason
         )
 

@@ -127,7 +127,7 @@ class SovereignTerminalSkill(BaseSkill):
         normalized_cmd = cmd.lower()
         obfuscation_patterns = ["base64 -d", "base64 --decode", "\\x", "\\u", "${", "eval $(", "echo -e"]
         if any(p in normalized_cmd for p in obfuscation_patterns):
-            logger.warning("🛡️ Potential obfuscation bypass attempt: %s", cmd)
+            logger.warning("Potential obfuscation bypass attempt: %s", cmd)
             return {"ok": False, "error": "Command blocked: Obfuscation patterns detected."}
 
         destructive_patterns = [
@@ -138,7 +138,7 @@ class SovereignTerminalSkill(BaseSkill):
         
         for pattern in destructive_patterns:
             if pattern in normalized_cmd:
-                logger.warning("🛡️ Destructive command blocked: %s", pattern)
+                logger.warning("Destructive command blocked: %s", pattern)
                 return {"ok": False, "error": f"Command blocked: Destructive operation '{pattern}' detected."}
 
         # RM Specific Guard: rm must only operate on relative paths within workspace
@@ -153,10 +153,10 @@ class SovereignTerminalSkill(BaseSkill):
                         resolved = await asyncio.to_thread(_resolve_terminal_path, cwd, arg)
                         allowed_root = await asyncio.to_thread(_resolve_allowed_root)
                         if allowed_root != Path("/") and resolved != allowed_root and allowed_root not in resolved.parents:
-                            logger.warning("🛡️ RM blocked: path %s is outside %s", resolved, allowed_root)
+                            logger.warning("RM blocked: path %s is outside %s", resolved, allowed_root)
                             return {"ok": False, "error": f"rm blocked: '{arg}' resolves outside sanctioned path."}
 
-        logger.info("🐚 Shell Execute: %s (CWD: %s)", cmd, cwd)
+        logger.info("Shell Execute: %s (CWD: %s)", cmd, cwd)
         
         try:
             process = await get_subprocess_gateway().spawn_shell_async(
@@ -319,7 +319,7 @@ class SovereignTerminalSkill(BaseSkill):
         if not verdict.approved:
             return verdict.as_error()
 
-        logger.info("🚀 Launching %s: %s", action, target)
+        logger.info("Launching %s: %s", action, target)
         try:
             # Tracking open actions too
             with task_tracker.track("system_open", details={"target": target}):

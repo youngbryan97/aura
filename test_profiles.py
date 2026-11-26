@@ -114,7 +114,7 @@ async def main():
         results.append(("Context Injection", test3))
         
     except SCRIPT_RECOVERABLE_ERRORS as e:
-        print(f"\n❌ Test failed with error: {e}")
+        print(f"\nTest failed with error: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -128,7 +128,7 @@ async def main():
     total = len(results)
     
     for test_name, result in results:
-        status = "✅ PASS" if result else "❌ FAIL"
+        status = "PASS" if result else "FAIL"
         print(f"║ {test_name:<40} {status:>15} ║")
     
     print("╠════════════════════════════════════════════════════════════╣")

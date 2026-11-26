@@ -58,4 +58,4 @@ async def test_realtime_concurrency():
         bg_thread.join(timeout=1.0)
 
     assert not bg_thread.is_alive()
-    print("   ✅ Real-time concurrency test passed!")
+    print("   Real-time concurrency test passed!")

@@ -30,7 +30,7 @@ class PerceptionHub:
 
     async def perceive(self, query: str) -> Dict[str, Any]:
         """Ingest claims related to the search query / objective."""
-        logger.info("📡 Ingesting world knowledge for objective query: '%s'", query)
+        logger.info("Ingesting world knowledge for objective query: '%s'", query)
 
         claims_ingested = 0
 

@@ -351,7 +351,7 @@ class HotReloader:
             result.unmatched_prefixes = self._unmatched_prefixes((scope,))
         if result.unmatched_prefixes:
             logger.error(
-                "♻️ HotReload[%s]: %d declared prefix(es) matched no loaded "
+                "HotReload[%s]: %d declared prefix(es) matched no loaded "
                 "module and reloaded nothing: %s",
                 scope,
                 len(result.unmatched_prefixes),
@@ -360,12 +360,12 @@ class HotReloader:
 
         if not modules:
             result.duration_ms = (time.monotonic() - start) * 1000
-            logger.info("♻️ HotReload[%s]: No loaded modules matched.", scope)
+            logger.info("HotReload[%s]: No loaded modules matched.", scope)
             self._last_result = result
             return result
 
         logger.info(
-            "♻️ HotReload[%s]: Reloading %d module(s)...",
+            "HotReload[%s]: Reloading %d module(s)...",
             scope,
             len(modules),
         )
@@ -385,7 +385,7 @@ class HotReloader:
                 result.skipped.append(module_name)
                 result.orphan_risks.append({"module": module_name, "reason": anchor})
                 logger.warning(
-                    "♻️ HotReload: refusing to reload %s — %s. Reloading it "
+                    "HotReload: refusing to reload %s — %s. Reloading it "
                     "would leave every existing subclass bound to the old "
                     "class object, and identity checks against the new one "
                     "would fail until restart.",
@@ -401,7 +401,7 @@ class HotReloader:
                 record_degradation('hot_reload', exc)
                 tb = traceback.format_exc()
                 logger.error(
-                    "♻️ HotReload: Failed to reload %s: %s",
+                    "HotReload: Failed to reload %s: %s",
                     module_name,
                     exc,
                 )
@@ -416,7 +416,7 @@ class HotReloader:
         self._last_reload_at = time.time()
         self._last_result = result
 
-        status = "✅" if result.ok else "⚠️"
+        status = "ok" if result.ok else "warning"
         logger.info(
             "%s HotReload[%s]: %d reloaded, %d skipped, %d failed (%.1fms)",
             status,
@@ -484,7 +484,7 @@ class HotReloader:
             result.skipped.append(module_name)
             result.orphan_risks.append({"module": module_name, "reason": anchor})
             logger.warning(
-                "♻️ HotReload: refusing to reload %s — %s. A restart is "
+                "HotReload: refusing to reload %s — %s. A restart is "
                 "required for this change to take effect.",
                 module_name,
                 anchor,

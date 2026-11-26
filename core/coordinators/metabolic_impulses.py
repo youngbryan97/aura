@@ -29,7 +29,7 @@ class _TriggersTheImpulses:
         if reason:
             logger.debug("Skipping boredom impulse: %s", reason)
             return
-        logger.info("🥱 BOREDOM TRIGGERED: Generating curiosity impulse.")
+        logger.info("BOREDOM TRIGGERED: Generating curiosity impulse.")
         orch._last_boredom_impulse = time.time()
         try:
             from core.autonomy.topic_selection import select_autonomous_topic
@@ -80,7 +80,7 @@ class _TriggersTheImpulses:
         if reason:
             logger.debug("Skipping reflection impulse: %s", reason)
             return
-        logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
+        logger.info("FRUSTRATION TRIGGERED: Generating reflection impulse.")
         orch._last_reflection_impulse = time.time()
         try:
             asyncio.get_running_loop()
@@ -146,7 +146,7 @@ class _TriggersTheImpulses:
 
             if idle >= threshold:
                 orch.boredom = int(idle)
-                logger.info("🧠 Accelerated Thought (Volition: L%d, Factor: %.1fx, Threshold: %.1fs)", volition, factor, threshold)
+                logger.info("Accelerated Thought (Volition: L%d, Factor: %.1fx, Threshold: %.1fs)", volition, factor, threshold)
                 orch._current_thought_task = self.track_metabolic_task(
                     "metabolic.autonomous_thought",
                     orch._perform_autonomous_thought(),

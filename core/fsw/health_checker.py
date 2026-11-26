@@ -197,7 +197,7 @@ class HealthChecker:
 
     def _announce_unresponsive(self, entry: Watched) -> None:
         logger.error(
-            "💀 health: %s is UNRESPONSIVE — %d consecutive missed pings "
+            "health: %s is UNRESPONSIVE — %d consecutive missed pings "
             "(last answered %s)",
             entry.name,
             entry.consecutive_misses,
@@ -229,7 +229,7 @@ class HealthChecker:
 
     def _announce_recovery(self, entry: Watched) -> None:
         logger.info(
-            "🫀 health: %s is answering again after %.0fs unresponsive",
+            "health: %s is answering again after %.0fs unresponsive",
             entry.name,
             time.time() - entry.declared_at if entry.declared_at else 0.0,
         )

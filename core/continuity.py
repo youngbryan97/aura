@@ -350,7 +350,7 @@ class ContinuityEngine:
         self._looked = True
         path = _get_continuity_path()
         if not path.exists():
-            logger.info("🌅 First awakening — no prior continuity record.")
+            logger.info("First awakening — no prior continuity record.")
             return None
         try:
             with open(path) as f:
@@ -391,7 +391,7 @@ class ContinuityEngine:
                     enforce_failure_policy=False,
                 )
                 logger.warning(
-                    "⚠️ Continuity record is unsigned or does not verify — "
+                    "Continuity record is unsigned or does not verify — "
                     "timing kept, narrative dropped."
                 )
                 for narrative_field in (
@@ -414,7 +414,7 @@ class ContinuityEngine:
             )[:1200]
             self._gap_seconds = self._boot_time - self._record.last_shutdown
             logger.info(
-                "⏳ Continuity loaded: session %d, gap=%.1fh, uptime_total=%.1fh",
+                "Continuity loaded: session %d, gap=%.1fh, uptime_total=%.1fh",
                 self._record.session_count,
                 self._gap_seconds / 3600,
                 self._record.total_uptime_seconds / 3600,

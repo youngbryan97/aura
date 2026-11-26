@@ -209,7 +209,7 @@ def _check_the_grounded_claims(
                 authorship_effect="augmented_by_runtime",
             )
             logger.warning(
-                "🧭 [GROUNDING] reconciled a spoken claim against a real reading: %s",
+                "[GROUNDING] reconciled a spoken claim against a real reading: %s",
                 "; ".join(_grounded.corrections)[:240],
             )
             _final_reply = _grounded.text or _final_reply

@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Test.CognitiveStack")
 
 async def test_stack():
-    logger.info("🧪 Testing Cognitive Architecture Initialization...")
+    logger.info("Testing Cognitive Architecture Initialization...")
     
     try:
         # 1. Import Modules
@@ -83,11 +83,11 @@ async def test_stack():
         logger.info(f"         Context Built (Length: {len(ctx)})")
         logger.info("         Success.")
 
-        logger.info("✅ COGNITIVE STACK VERIFIED. All systems nominal.")
+        logger.info("COGNITIVE STACK VERIFIED. All systems nominal.")
         return True
 
     except (AttributeError, ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
-        logger.error(f"❌ TEST FAILED: {e}")
+        logger.error(f"TEST FAILED: {e}")
         import traceback
         traceback.print_exc()
         return False

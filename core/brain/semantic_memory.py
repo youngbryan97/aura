@@ -32,7 +32,7 @@ class SemanticMemory:
     """
 
     def __init__(self, memory_dir: str = "memory_storage"):
-        logger.info("🧠 Booting Semantic Memory (Hybrid Mode)...")
+        logger.info("Booting Semantic Memory (Hybrid Mode)...")
 
         self.memory_dir = memory_dir
         self.metadata_path = os.path.join(self.memory_dir, "aura_metadata.json")
@@ -164,7 +164,7 @@ class SemanticMemory:
         try:
             if self._closing:
                 return
-            logger.info("🧠 Starting Background Vector Engine Init...")
+            logger.info("Starting Background Vector Engine Init...")
 
             # --- FAISS ---
             try:
@@ -241,7 +241,7 @@ class SemanticMemory:
                 lane_lease = None
                 self.is_vector_ready = True
                 self._init_error = None
-            logger.info("🧠 Semantic Memory Upgraded: VECTOR MODE READY ⚡")
+            logger.info("Semantic Memory Upgraded: VECTOR MODE READY")
 
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             if lane_lease is not None:

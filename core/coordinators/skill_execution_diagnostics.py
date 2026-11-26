@@ -28,7 +28,7 @@ class SelfDiagnosisTool:
         
         Returns comprehensive capability report.
         """
-        logger.info("🔍 Running self-diagnostic (Async)...")
+        logger.info("Running self-diagnostic (Async)...")
         
         # Get health report
         health = self.execution.get_health_report()
@@ -134,7 +134,7 @@ class SelfDiagnosisTool:
         if issues:
             explanation += f"Issues detected ({len(issues)}):\n"
             for issue in issues:
-                explanation += f"  ⚠️ {issue}\n"
+                explanation += f"  {issue}\n"
             explanation += "\n"
         
         # Recommendations
@@ -275,7 +275,7 @@ def add_self_diagnosis_skill(orchestrator):
             description=f"Alias for self_diagnosis: {alias}"
         )
     
-    logger.info("✅ Self-diagnosis skills registered (including 10+ standard aliases)")
+    logger.info("Self-diagnosis skills registered (including 10+ standard aliases)")
     logger.info("   Aura can now check her own capabilities")
 
     # CRITICAL: Also register instances in router.skills (where execute() actually looks)

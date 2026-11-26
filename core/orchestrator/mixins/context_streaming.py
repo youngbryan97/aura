@@ -305,7 +305,7 @@ class ContextStreamingMixin:
                     "category": category,
                     "recommended_tools": recommendations,
                 }
-                logger.info("🛠️ Tool Recommendations: %s -> %s", category, recommendations)
+                logger.info("Tool Recommendations: %s -> %s", category, recommendations)
         except _CONTEXT_STREAMING_ERRORS as e:
             _record_context_degradation(
                 e,
@@ -418,7 +418,7 @@ class ContextStreamingMixin:
                     resolved_topics=1
                 )
                 if cortana.should_prune():
-                    logger.info("🧠 Cortana: Saturation detected. Compacting history asynchronously...")
+                    logger.info("Cortana: Saturation detected. Compacting history asynchronously...")
                     self._fire_and_forget(
                         self._prune_history_async(),
                         name="orchestrator.cortana.prune_history"
@@ -625,7 +625,7 @@ class ContextStreamingMixin:
             if len(self.conversation_history) % 15 != 0:
                 return
 
-            logger.info("🧠 Consolidating session highlights to long-term memory...")
+            logger.info("Consolidating session highlights to long-term memory...")
 
             # 1. Gather recent dialogue (last 20 messages)
             recent = (
@@ -667,7 +667,7 @@ class ContextStreamingMixin:
                 highlights = ""
 
             if highlights:
-                logger.info("✨ Key Highlights Extracted: %s", (highlights or "")[:100])
+                logger.info("Key Highlights Extracted: %s", (highlights or "")[:100])
 
                 # 3. Store in Vector Memory
                 if self.memory_manager:
@@ -686,7 +686,7 @@ class ContextStreamingMixin:
 
                 archive_eng = ServiceContainer.get("archive_engine", default=None)
                 if archive_eng and hasattr(archive_eng, "archive_vital_logs"):
-                    logger.info("📦 Deep Sleep Cycle: Triggering Metabolic Archival Compression...")
+                    logger.info("Deep Sleep Cycle: Triggering Metabolic Archival Compression...")
                     await archive_eng.archive_vital_logs()
 
         except _CONTEXT_STREAMING_ERRORS as e:

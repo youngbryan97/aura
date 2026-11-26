@@ -164,7 +164,7 @@ class SpeakSkill(BaseSkill):
                 "error": f"Speech text exceeds {self._max_text_chars} characters.",
             }
 
-        logger.info("🔊 Speaking: %s...", text[:50])
+        logger.info("Speaking: %s...", text[:50])
         attempts: list[dict[str, str]] = []
 
         # Strategy 1: Sovereign Voice Engine (Premium/Standard)

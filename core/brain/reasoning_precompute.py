@@ -129,7 +129,7 @@ class PrecomputeQueue:
                 if bool(getattr(result, "verified", False)):
                     self._stats["solved"] += 1
                     solved += 1
-                    logger.info("🧠 [Precompute] idle-solved a queued problem (%s).", task_type)
+                    logger.info("[Precompute] idle-solved a queued problem (%s).", task_type)
                 else:
                     self._stats["failed"] += 1
             except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError, ValueError) as exc:

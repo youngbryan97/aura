@@ -121,7 +121,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
         # --- FAIL-FIRST: Preflight Check ---
         ok, msg = self.preflight_security_check(fix.fixed_code)
         if not ok:
-            logger.warning("❌ Fail-First Filter: Fix rejected during preflight. Reason: %s", msg)
+            logger.warning("Fail-First Filter: Fix rejected during preflight. Reason: %s", msg)
             return False, f"Preflight rejected fix: {msg}"
         # Read the current file as base (Async)
         full_path = self.code_base / fix.target_file
@@ -143,7 +143,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
         fail_verified, fail_results = await self._run_probe_on_code(fix.target_file, full_original_content, probe_code)
         
         if fail_verified:
-            logger.info("✅ Weakness Reproduced: Probe failed as expected on original code.")
+            logger.info("Weakness Reproduced: Probe failed as expected on original code.")
         else:
             return False, f"Probe failed to reproduce the bug (it passed on original code). Results: {fail_results.get('error')}"
 
@@ -155,7 +155,7 @@ Return ONLY the Python code, no explanation, no markdown blocks.
         success_verified, success_results = await self._run_probe_on_code(fix.target_file, full_fixed_content, probe_code, expect_pass=True)
         
         if success_verified:
-            logger.info("✅ Fix Validated: Probe passed on fixed code.")
+            logger.info("Fix Validated: Probe passed on fixed code.")
             return True, "Evaluation Harness: Fix successfully reproduced and validated."
         else:
             return False, f"Fix failed to resolve the weakness. Probe still fails. Error: {success_results.get('error')}"

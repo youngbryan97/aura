@@ -117,7 +117,7 @@ class LeviathanKernel:
         self.subsystems[name] = instance
         if critical:
             self.critical_subsystems.add(name)
-        logger.info("🔌 Leviathan Kernel registered subsystem: %s", name)
+        logger.info("Leviathan Kernel registered subsystem: %s", name)
 
     def get_subsystem(self, name: str) -> Any | None:
         return self.subsystems.get(name)
@@ -128,15 +128,15 @@ class LeviathanKernel:
         """Check whether an action class has remaining budget and is not on cooldown."""
         budget = self._permission_economy.get(action_class)
         if budget is None:
-            logger.warning("⚠️ Unknown action class '%s' — defaulting to deny", action_class)
+            logger.warning("Unknown action class '%s' — defaulting to deny", action_class)
             return False
         now = time.time()
         if budget.cooldown_seconds > 0 and (now - budget.last_used) < budget.cooldown_seconds:
-            logger.warning("🕐 Action class '%s' is on cooldown (%.1fs remaining)",
+            logger.warning("Action class '%s' is on cooldown (%.1fs remaining)",
                            action_class, budget.cooldown_seconds - (now - budget.last_used))
             return False
         if budget.budget_remaining <= 0:
-            logger.warning("💰 Action class '%s' has exhausted its hourly budget", action_class)
+            logger.warning("Action class '%s' has exhausted its hourly budget", action_class)
             return False
         return True
 
@@ -176,7 +176,7 @@ class LeviathanKernel:
             return
 
         self.startup_failures.clear()
-        logger.info("🛡️  Leviathan Kernel initializing registered subsystems...")
+        logger.info(" Leviathan Kernel initializing registered subsystems...")
         for name, subsystem in self.subsystems.items():
             if hasattr(subsystem, "initialize") and callable(subsystem.initialize):
                 try:
@@ -195,7 +195,7 @@ class LeviathanKernel:
                         raise RuntimeError(f"critical_subsystem_failed:{name}") from e
 
         self._initialized = True
-        logger.info("👑 Leviathan Kernel fully online.")
+        logger.info("Leviathan Kernel fully online.")
 
     # ── Health ──────────────────────────────────────────────────────────
 
@@ -225,7 +225,7 @@ class LeviathanKernel:
             objective=objective,
         )
         self.active_missions.append(objective[:80])
-        logger.info("🎯 Leviathan Kernel spine cycle #%d: '%s'", self._cycle_count, objective)
+        logger.info("Leviathan Kernel spine cycle #%d: '%s'", self._cycle_count, objective)
 
         try:
             # ── 1. PERCEIVE: Update world state ─────────────────────────
@@ -284,7 +284,7 @@ class LeviathanKernel:
 
 
             if not debate_result.get("approved"):
-                logger.warning("🚫 Mission rejected by Council: %s", debate_result.get("reason", "no consensus"))
+                logger.warning("Mission rejected by Council: %s", debate_result.get("reason", "no consensus"))
                 trace.error = "council_rejected"
                 trace.completed_at = time.time()
                 self._spine_history.append(trace)
@@ -391,7 +391,7 @@ class LeviathanKernel:
             "common_errors": list(set(errors))[:10],
             "retained_traces": len(self._spine_history),
         }
-        logger.info("📦 Compressed %d spine traces: %d ok, %d failed", len(old), successes, failures)
+        logger.info("Compressed %d spine traces: %d ok, %d failed", len(old), successes, failures)
         return summary
 
     def get_recent_traces(self, n: int = 10) -> list[SpineTrace]:

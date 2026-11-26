@@ -369,7 +369,7 @@ class AutonomyConductor:
         if denial:
             if not self._autonomy_denied_logged:
                 self._autonomy_denied_logged = True
-                logger.warning("🛑 Autonomy held: %s", denial)
+                logger.warning("Autonomy held: %s", denial)
             return {"held": denial}
 
         now = time.time()
@@ -394,7 +394,7 @@ class AutonomyConductor:
             if job.last_started_at > job.last_finished_at and running_for > job.interval_s:
                 if self._said_overrun.get(job.name) != job.last_started_at:
                     self._said_overrun[job.name] = job.last_started_at
-                    logger.warning("⏳ autonomy job '%s' has run %.0fs, past its interval of %.0fs", job.name,
+                    logger.warning("autonomy job '%s' has run %.0fs, past its interval of %.0fs", job.name,
                                    running_for, job.interval_s)
 
     async def _run(self) -> None:

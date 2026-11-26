@@ -16,7 +16,7 @@ def extract_json(text: str | Any) -> JsonValue | None:
     """
     text_str = text if isinstance(text, str) else str(text)
 
-    # --- 🛑 PHASE 19.3: STALLING PHRASE TRAP ---
+    # --- PHASE 19.3: STALLING PHRASE TRAP ---
     if "Processing deeper reflections" in text_str or text_str.strip() == "":
         logger.warning("Caught non-JSON cognitive stalling phrase. Rejecting immediately.")
         return None 

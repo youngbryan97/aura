@@ -120,7 +120,7 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
                      "for": request.said, "where": "in the background, after this reply",
                      "when_done": "what it came to is said here, in the conversation",
                      **({"how_it_stood": request.account()} if request.tries else {})}, ok=begun)
-    logger.info("🧰 Request %s (%s) %s: %s", request.id, request.effect, "begun" if begun else "not begun", said[:120])
+    logger.info("Request %s (%s) %s: %s", request.id, request.effect, "begun" if begun else "not begun", said[:120])
     return True
 
 
@@ -178,7 +178,7 @@ async def ask_them(request: Request, ask: Ask) -> None:
 
     await she_said_unasked(words, origin=ORIGIN)
     await get_requests_of_her().keep()
-    logger.info("🧰 She asked of request %s: %s", request.id, ask.words[:160])
+    logger.info("She asked of request %s: %s", request.id, ask.words[:160])
 
 
 def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
@@ -222,7 +222,7 @@ async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str
         # Begun where failing to keep her word would cost more than doing what she did not mean she was doing.
         likelier = sure > (1.0 - sure) * (BY_NAME[kind].unasked if kind in BY_NAME else 1.0)
         if kind not in carrying_out.carriers() or not likelier:
-            logger.info("🧰 Her reply undertakes something (%.2f) that is not hers to begin from here (%s).", says[UNDERTAKES], kind)
+            logger.info("Her reply undertakes something (%.2f) that is not hers to begin from here (%s).", says[UNDERTAKES], kind)
             return
         ledger = get_requests_of_her()
         if kind == "document_read" and not ledger.given(session_id):
@@ -235,7 +235,7 @@ async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str
         from core.skills.screen_pursuit import _tell
 
         begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to, asks=ask_them)
-        logger.info("🧰 Her reply said she was doing it (%.2f), so request %s (%s) is %s: %s", says[UNDERTAKES], request.id, kind,
+        logger.info("Her reply said she was doing it (%.2f), so request %s (%s) is %s: %s", says[UNDERTAKES], request.id, kind,
                     "begun" if begun else "not begun", said[:120])
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("carrying_out", exc, severity="warning", action="what a reply undertook was not begun")
@@ -315,7 +315,7 @@ def _holds_to(words: str, account: list[str], request: Request) -> bool:
     named = re.findall(r"https?://[^\s)\]>\"']+|(?:~|/Users|/Applications)/[^\s)\]>\"'`]+", words)
     strange = [name for name in named if name.rstrip(".,;:!?") not in known]
     if strange:
-        logger.info("🧰 Her words on request %s name what was neither made nor found: %s", request.id, strange[:3])
+        logger.info("Her words on request %s name what was neither made nor found: %s", request.id, strange[:3])
     return not strange
 
 
@@ -344,7 +344,7 @@ def _shown(message: str, request: Request) -> None:
     orchestrator = resolve_orchestrator()
     publish = getattr(orchestrator, "_publish_telemetry", None) if orchestrator else None
     if publish is None:
-        logger.warning("🧰 What request %s came to could not be shown: no window to show it in.", request.id)
+        logger.warning("What request %s came to could not be shown: no window to show it in.", request.id)
         return
     publish({"type": "aura_message", "message": message,
              "metadata": {"work_asked_for": request.id, "stands": request.stands}})

@@ -23,7 +23,7 @@ class TheMachine:
             self._event_bus = get_event_bus()
         except ImportError as _exc:
             logger.debug("Suppressed ImportError: %s", _exc)
-        logger.info("👁️ [THE MACHINE] Social Graph Prophet ACTIVE. Sourcing PoIs.")
+        logger.info("[THE MACHINE] Social Graph Prophet ACTIVE. Sourcing PoIs.")
 
     async def register_interaction(self, source_id: str, success: bool, related_sources: List[str] = ()):
         """Update threat scores using PageRank flow logic."""
@@ -53,7 +53,7 @@ class TheMachine:
         self._trust_graph = new_scores
         
         if any(t > 0.8 for t in self._trust_graph.values()):
-            logger.warning("📍 [THE MACHINE] HIGH-RISK PARTICIPANT DETECTED in social graph.")
+            logger.warning("[THE MACHINE] HIGH-RISK PARTICIPANT DETECTED in social graph.")
 
     def get_threat(self, source_id: str) -> float:
         return self._trust_graph.get(source_id, 0.5)

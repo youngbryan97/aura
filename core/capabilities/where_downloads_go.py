@@ -65,7 +65,7 @@ async def _keep(download: Any) -> None:
         logger.warning("a download (%s) could not be kept in %s: %s", name, folder, why)
         return
     _KEPT.append(target)
-    logger.info("📥 kept %s in %s", target.name, folder)
+    logger.info("kept %s in %s", target.name, folder)
 
 
 def _free_name(wanted: Path) -> Path:

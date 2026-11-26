@@ -112,7 +112,7 @@ class _WaitsForTheResult:
         )
         if 0.0 < self._current_first_token_hard_ceiling_s < needed:
             logger.info(
-                "⏱️ [MLX] first-token ceiling raised %.1fs → %.1fs: a %d-char prompt "
+                "[MLX] first-token ceiling raised %.1fs → %.1fs: a %d-char prompt "
                 "takes about %.1fs to read at %.0f tok/s",
                 self._current_first_token_hard_ceiling_s,
                 needed,
@@ -130,7 +130,7 @@ class _WaitsForTheResult:
         # playing was cancelled this way.
         if self._current_first_token_hard_ceiling_s > 0.0:
             logger.info(
-                "⏱️ [MLX] first-token ceiling %.1fs for a %d-char prompt (%d max tokens)",
+                "[MLX] first-token ceiling %.1fs for a %d-char prompt (%d max tokens)",
                 self._current_first_token_hard_ceiling_s,
                 self._current_prompt_chars,
                 self._current_requested_max_tokens,
@@ -364,7 +364,7 @@ class _WaitsForTheResult:
             if not self._said_it_is_taking_longer:
                 self._said_it_is_taking_longer = True
                 logger.info(
-                    "⏳ [MLX] Past the deadline and still producing tokens; "
+                    "[MLX] Past the deadline and still producing tokens; "
                     "waiting for the answer rather than cancelling it "
                     "(bounded at %.0fs).",
                     hard_cap,
@@ -432,7 +432,7 @@ class _WaitsForTheResult:
         )
 
         logger.error(
-            "🛑 [MLX] Aborting generation for %s under live memory pressure: %s",
+            "[MLX] Aborting generation for %s under live memory pressure: %s",
             os.path.basename(self.model_path),
             memory_snapshot.reason,
         )
@@ -592,9 +592,9 @@ class _WaitsForTheResult:
         # it is the one a person reads. Live 2026-08-03, two
         # consecutive lines:
         #
-        #   🛑 HARD CEILING exceeded (livelocked: heartbeats but
+        #   HARD CEILING exceeded (livelocked: heartbeats but
         #      zero tokens) ... 18.4s elapsed, hard=16.8s
-        #   ⏱️ ...but is healthy (heartbeat 0.7s ago, livelock
+        #   ...but is healthy (heartbeat 0.7s ago, livelock
         #      ceiling 20.0s). KEEPING the warm lane.
         #
         # 18.4s was under the 20.0s livelock ceiling. Nothing was
@@ -610,7 +610,7 @@ class _WaitsForTheResult:
         livelocked = elapsed_without_token > livelock_ceiling
         if livelocked:
             logger.error(
-                "🛑 [MLX] First-token LIVELOCK for %s: heartbeats but zero tokens "
+                "[MLX] First-token LIVELOCK for %s: heartbeats but zero tokens "
                 "in %.1fs (livelock ceiling %.1fs, sla=%.1fs).",
                 os.path.basename(self.model_path),
                 elapsed_without_token,
@@ -619,7 +619,7 @@ class _WaitsForTheResult:
             )
         elif elapsed_without_token > hard_first_token_ceiling:
             logger.warning(
-                "⏱️ [MLX] First-token deadline exceeded for %s (%.1fs elapsed, "
+                "[MLX] First-token deadline exceeded for %s (%.1fs elapsed, "
                 "turn budget %.1fs, sla=%.1fs). The worker is not wedged — the "
                 "livelock ceiling is %.1fs.",
                 os.path.basename(self.model_path),
@@ -630,7 +630,7 @@ class _WaitsForTheResult:
             )
         else:
             logger.warning(
-                "⏱️ [MLX] First-token SLA exceeded for %s (%.1fs elapsed, "
+                "[MLX] First-token SLA exceeded for %s (%.1fs elapsed, "
                 "sla=%.1fs) with no runtime progress.",
                 os.path.basename(self.model_path),
                 elapsed_without_token,
@@ -688,7 +688,7 @@ class _WaitsForTheResult:
             self._deferred_reboot_reason = "first_token_sla_exceeded"
         elif livelocked:
             logger.warning(
-                "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago) but produced "
+                "[MLX] Cortex still sending heartbeats (%.1fs ago) but produced "
                 "no token in %.1fs (livelock ceiling %.1fs). Recycling the lane.",
                 heartbeat_age,
                 elapsed_without_token,
@@ -697,7 +697,7 @@ class _WaitsForTheResult:
             self._deferred_reboot_reason = "recoverable_first_token_sla_exceeded"
         else:
             logger.warning(
-                "⏱️ [MLX] Cortex ran past this turn's deadline (%.1fs elapsed, "
+                "[MLX] Cortex ran past this turn's deadline (%.1fs elapsed, "
                 "budget %.1fs) but is healthy (heartbeat %.1fs ago, livelock "
                 "ceiling %.1fs). Cancelling the request and KEEPING the warm lane.",
                 elapsed_without_token,
@@ -743,7 +743,7 @@ class _WaitsForTheResult:
         )
 
         logger.error(
-            "🛑 [MLX] Token progress stalled during generation for %s (>%.1fs).",
+            "[MLX] Token progress stalled during generation for %s (>%.1fs).",
             os.path.basename(self.model_path),
             token_stall_after,
         )
@@ -767,7 +767,7 @@ class _WaitsForTheResult:
             self._deferred_reboot_reason = "token_progress_stalled"
         else:
             logger.warning(
-                "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
+                "[MLX] Cortex still sending heartbeats (%.1fs ago). "
                 "Recycling after this abandoned foreground request so late text cannot bleed into the next turn.",
                 heartbeat_age,
             )
@@ -834,7 +834,7 @@ class _WaitsForTheResult:
 
                 if self._process is not None and not self._process.is_alive():
                     logger.error(
-                        "🛑 [MLX] Worker died during generation. Deferring reboot until lock released."
+                        "[MLX] Worker died during generation. Deferring reboot until lock released."
                     )
                     self._pending_generations.pop(req_id, None)
                     self._record_degraded_event(
@@ -942,7 +942,7 @@ class _WaitsForTheResult:
                 )
                 if last_progress and (time.time() - last_progress) > stall_after:
                     logger.error(
-                        "🛑 [MLX] Worker heartbeat stalled during generation. Deferring reboot until lock released."
+                        "[MLX] Worker heartbeat stalled during generation. Deferring reboot until lock released."
                     )
                     self._pending_generations.pop(req_id, None)
                     self._record_degraded_event(

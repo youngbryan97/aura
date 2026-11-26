@@ -49,7 +49,7 @@ async def her_reply_while_waking(words: str, *, session_id: str, timeout_s: floa
     reply = str(reply or "").strip()
     if not reply:
         return None
-    logger.info("🌅 a typed turn answered on her cortex while she is still starting (%d characters)", len(reply))
+    logger.info("a typed turn answered on her cortex while she is still starting (%d characters)", len(reply))
     try:
         from interface.routes import chat_preflight
 

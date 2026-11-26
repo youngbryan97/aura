@@ -49,7 +49,7 @@ class DirectiveConflictSentinel:
     def __init__(self):
         self._directives: dict[str, Directive] = {}
         self._conflicts_found = 0
-        logger.info("🔴 DirectiveConflictSentinel initialized (anti-HAL lineage)")
+        logger.info("DirectiveConflictSentinel initialized (anti-HAL lineage)")
 
     def add_directive(self, name: str, text: str, priority: int = 5, source: str = "system") -> None:
         self._directives[name] = Directive(name=name, text=text, priority=priority, source=source)
@@ -185,11 +185,11 @@ def register_directive_sentinel(orchestrator: Any = None) -> DirectiveConflictSe
             conflicts = inst.scan()
             if conflicts:
                 logger.warning(
-                    "🔴 HAL: %d directive conflict(s) in constitution: %s",
+                    "HAL: %d directive conflict(s) in constitution: %s",
                     len(conflicts), [c.kind for c in conflicts],
                 )
             else:
-                logger.info("🔴 HAL: constitution scanned — no directive conflicts (anti-HAL clear).")
+                logger.info("HAL: constitution scanned — no directive conflicts (anti-HAL clear).")
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("HAL constitution seed/scan skipped: %s", exc)
 

@@ -55,7 +55,7 @@ class DegradationManager:
     def report_failure(self, failure: FailureEvent):
         """Report a failure and adjust system state."""
         self.failure_history.append(failure)
-        logger.warning("⚠️ Failure Reported: %s in %s (Severity: %.2f)", failure.type.name, failure.component, failure.severity)
+        logger.warning("Failure Reported: %s in %s (Severity: %.2f)", failure.type.name, failure.component, failure.severity)
         
         self._evaluate_state(failure)
         
@@ -82,7 +82,7 @@ class DegradationManager:
         # Priority check: Don't upgrade state automatically (requires manual or heuristic recovery)
         # Actually, we might want to downgrade freely.
         
-        logger.warning("📉 State Transition: %s -> %s | Reason: %s", self.current_state.name, new_state.name, reason)
+        logger.warning("State Transition: %s -> %s | Reason: %s", self.current_state.name, new_state.name, reason)
         self.current_state = new_state
         self._enforce_policy(new_state)
         
@@ -96,17 +96,17 @@ class DegradationManager:
             # Keep core running but disable complex planning and flag degradation
             self.capabilities["complex_planning"] = False
             self.degraded = True
-            logger.warning("⚠️ DEGRADED MODE: Disabling complex planning. Subsystems should check 'degraded' flag.")
+            logger.warning("DEGRADED MODE: Disabling complex planning. Subsystems should check 'degraded' flag.")
             
         elif state == SystemState.SAFE_MODE:
             self.capabilities["complex_planning"] = False
             self.capabilities["tool_execution"] = False # Only basic replies
-            logger.info("🛡️ SAFE MODE ENGAGED: Disabling tools and planning.")
+            logger.info("SAFE MODE ENGAGED: Disabling tools and planning.")
             
         elif state == SystemState.CRITICAL:
             self.capabilities["memory_write"] = False
             self.capabilities["tool_execution"] = False
-            logger.critical("🚨 CRITICAL STATE: Memory Write-Lock Engaged.")
+            logger.critical("CRITICAL STATE: Memory Write-Lock Engaged.")
 
     def can_perform(self, action_type: str) -> bool:
         """Check if action is allowed in current state."""

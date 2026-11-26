@@ -61,7 +61,7 @@ class MetaCognition:
         """
         Calls the MetaEvolutionEngine to address recurring issues.
         """
-        logger.info("🌀 Structural failure threshold met. Initiating Meta-Evolution reflex...")
+        logger.info("Structural failure threshold met. Initiating Meta-Evolution reflex...")
         mee = get_runtime_service("meta_evolution", default=None)
         if mee:
             mee.queue_optimization(

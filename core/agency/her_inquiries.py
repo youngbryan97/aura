@@ -176,5 +176,5 @@ async def look_into_one(inquiry: Inquiry, *, ask: Ask, pages: Pages, seen: Calla
         question.answer, question.quote, question.where = said.answer.strip()[:600], said.quote.strip()[:400], page.url
     if question.stands != ANSWERED and question.tries >= LET_GO_AFTER:
         question.stands = LET_GO if question.stands == OPEN else ANSWERED
-    logger.info("🔎 She asked %r: %s, from %d pages%s", question.question[:160], question.stands, len(read), f" ({question.where[:120]})" if question.where else "")
+    logger.info("She asked %r: %s, from %d pages%s", question.question[:160], question.stands, len(read), f" ({question.where[:120]})" if question.where else "")
     return Answered(question, tuple(read))

@@ -84,7 +84,7 @@ class DreamJournal:
             recent = self.memory.episodic.retrieve_recent(limit=10)
         else:
             # Fallback for unified memory like BlackHoleVault
-            logger.info("🌌 DreamJournal: Using unified memory fallback for seeds.")
+            logger.info("DreamJournal: Using unified memory fallback for seeds.")
             all_mems = getattr(self.memory, 'memories', [])
             if not all_mems:
                 return []
@@ -123,11 +123,11 @@ class DreamJournal:
 
     async def synthesize_dream(self) -> dict[str, Any] | None:
         """Generate a novel subconscious metaphor based on recent resonant memory."""
-        logger.info("🌌 Entering Deep REM: Dreaming from qualitative experience...")
+        logger.info("Entering Deep REM: Dreaming from qualitative experience...")
         
         seeds = await self.retrieve_dream_seeds()
         if not seeds:
-            logger.info("🌌 Dream skipped: Insufficient highly-charged episodic material.")
+            logger.info("Dream skipped: Insufficient highly-charged episodic material.")
             return None
 
         seeds = sorted(seeds, key=self._seed_weight, reverse=True)
@@ -196,7 +196,7 @@ class DreamJournal:
             if mycelium:
                 mycelium.pulse_hypha("memory", "consciousness", success=True)
 
-            logger.info("🌌 Dream realized and journaled (Length: %d characters).", len(dream_content))
+            logger.info("Dream realized and journaled (Length: %d characters).", len(dream_content))
             return {
                 "dream_content": dream_content,
                 "seed_count": len(seeds)
@@ -212,7 +212,7 @@ class DreamJournal:
                 classification="background_degraded",
                 exc=e,
             )
-            logger.error("🌌 Dream syntax failed: %s", e)
+            logger.error("Dream syntax failed: %s", e)
             return None
 
     def _save_dream(self, content: str, seeds: list[Episode]):

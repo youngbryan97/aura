@@ -547,7 +547,7 @@ class MorphogeneticRuntime(_KeepsTheTopology, _BridgesSignalsToImmunity):
             self.registry.register_cell(cell_manifest, handler=service_health_handler)
             self.substrate.place(cell_id)
             logger.info(
-                "🧬 Morphogenesis grew %s (%s) in %s.",
+                "Morphogenesis grew %s (%s) in %s.",
                 cell_manifest.name, cell_id, cell_manifest.subsystem,
             )
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:

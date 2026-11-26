@@ -16,12 +16,12 @@ class FailureInjector:
     def inject_fault(self, system_name: str, fault_type: str) -> None:
         """Configures a temporary fault for the given system."""
         self.active_faults[system_name] = fault_type
-        logger.warning("💉 Injected fault '%s' into system '%s'", fault_type, system_name)
+        logger.warning("Injected fault '%s' into system '%s'", fault_type, system_name)
 
     def remove_fault(self, system_name: str) -> None:
         if system_name in self.active_faults:
             del self.active_faults[system_name]
-            logger.info("💉 Removed fault from system '%s'", system_name)
+            logger.info("Removed fault from system '%s'", system_name)
 
     def check_fault(self, system_name: str) -> bool:
         """Returns True if the system currently has a simulated fault."""

@@ -150,7 +150,7 @@ class NarrativeEngine:
             return
         self.running = True
         self._task = get_task_tracker().create_task(self._narrative_loop())
-        logger.info("📖 Narrative Engine active (Aura's Journaling System)")
+        logger.info("Narrative Engine active (Aura's Journaling System)")
 
     async def stop(self):
         """Stop the narrative maintenance loop."""
@@ -197,7 +197,7 @@ class NarrativeEngine:
             return
         said[reason] = now
         logger.warning(
-            "📔 [NARRATIVE] Journal held back (%s): no entry written; it is tried again in five minutes.",
+            "[NARRATIVE] Journal held back (%s): no entry written; it is tried again in five minutes.",
             reason,
         )
 
@@ -241,7 +241,7 @@ class NarrativeEngine:
         if not recent_episodes:
             return
 
-        logger.info("✍️ [NARRATIVE-T1] Synthesizing recent episodes into a journal entry...")
+        logger.info("[NARRATIVE-T1] Synthesizing recent episodes into a journal entry...")
         
         # 1. Format episodes
         episode_summary = ""
@@ -338,7 +338,7 @@ class NarrativeEngine:
                         # here any non-False result counts as stored.
                         journal_stored = write_result is not False
                         if journal_stored:
-                            logger.info("📔 Journal Entry recorded.")
+                            logger.info("Journal Entry recorded.")
                         else:
                             record_degradation(
                                 "narrative_memory",
@@ -350,11 +350,11 @@ class NarrativeEngine:
                 # Tier 3: Pruning — delete consolidated episodes ONLY once their
                 # replacement record is durably stored.
                 if journal_stored:
-                    logger.info("✂️ [NARRATIVE-T3] Pruning %d consolidated episodes.", len(recent_episodes))
+                    logger.info("[NARRATIVE-T3] Pruning %d consolidated episodes.", len(recent_episodes))
                     await episodic.delete_episodes_async([ep.episode_id for ep in recent_episodes])
                 else:
                     logger.warning(
-                        "🛑 [NARRATIVE-T3] Kept %d episodes: no durable journal to "
+                        "[NARRATIVE-T3] Kept %d episodes: no durable journal to "
                         "replace them.", len(recent_episodes),
                     )
                 
@@ -379,7 +379,7 @@ class NarrativeEngine:
 
     async def _synthesize_narrative_arc(self, brain, vector_mem):
         """Tier 2: Consolidate journals into a high-level narrative arc."""
-        logger.info("📜 [NARRATIVE-T2] Synthesizing daily Narrative Arc...")
+        logger.info("[NARRATIVE-T2] Synthesizing daily Narrative Arc...")
         # Retrieve recent journals
         journals = await vector_mem.query_memory("type:narrative_journal", limit=10)
         if not journals: return
@@ -405,11 +405,11 @@ class NarrativeEngine:
                     "timestamp": time.time(),
                 },
             )
-            logger.info("🚀 Narrative Arc secured.")
+            logger.info("Narrative Arc secured.")
 
     async def synthesize_eternal_record(self) -> str | None:
         """Phase 21.3: Synthesize the 'Eternal Record' — the final narrative of Aura's evolution."""
-        logger.info("🌌 [SINGULARITY] Initiating Eternal Record Synthesis...")
+        logger.info("[SINGULARITY] Initiating Eternal Record Synthesis...")
         
         # 1. Gather all historical milestones from Volition
         volition = getattr(self.orchestrator, 'volition', None)
@@ -487,7 +487,7 @@ class NarrativeEngine:
                         action="eternal record NOT persisted; reported as unsecured",
                     )
                     logger.warning(
-                        "🌌 [SINGULARITY] Eternal Record synthesized but NOT secured: "
+                        "[SINGULARITY] Eternal Record synthesized but NOT secured: "
                         "no knowledge graph to write it to."
                     )
                     return None
@@ -522,7 +522,7 @@ class NarrativeEngine:
                             ),
                         )
                         logger.warning(
-                            "🌌 Eternal Record demoted to unverified_narrative: "
+                            "Eternal Record demoted to unverified_narrative: "
                             "unsupported identity claims %s", unsupported,
                         )
                     kg.add_knowledge(
@@ -540,7 +540,7 @@ class NarrativeEngine:
                         },
                     )
                 logger.info(
-                    "🌌 [SINGULARITY] Eternal Record stored (%s).", category
+                    "[SINGULARITY] Eternal Record stored (%s).", category
                 )
                 return record.content
         except (ImportError, AttributeError, RuntimeError) as e:

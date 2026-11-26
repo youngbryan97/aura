@@ -276,7 +276,7 @@ class OutcomeLedger:
                         "WHERE status = 'expired'"
                     ).rowcount
                     logger.info(
-                        "📒 [OutcomeLedger] marked %d expired receipts as unobserved "
+                        "[OutcomeLedger] marked %d expired receipts as unobserved "
                         "(assumed zeros, not measurements)", int(migrated or 0),
                     )
                 conn.commit()
@@ -420,7 +420,7 @@ class OutcomeLedger:
                 ] = (rid, opened)
             if self._startup_expired_count:
                 logger.info(
-                    "📒 [OutcomeLedger] expired %d stale pending receipts during startup compaction",
+                    "[OutcomeLedger] expired %d stale pending receipts during startup compaction",
                     self._startup_expired_count,
                 )
             if self._pending:
@@ -429,7 +429,7 @@ class OutcomeLedger:
                     if self._pending_load_truncated
                     else ""
                 )
-                logger.info("📒 [OutcomeLedger] recovered %d pending receipts%s", len(self._pending), suffix)
+                logger.info("[OutcomeLedger] recovered %d pending receipts%s", len(self._pending), suffix)
         except (sqlite3.Error, OSError, ValueError) as e:
             record_degradation("outcome_ledger", e)
 

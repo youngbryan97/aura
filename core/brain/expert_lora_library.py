@@ -238,14 +238,14 @@ class NoopApplier:
 
     def load(self, adapter: LoRAAdapter) -> bool:
         logger.info(
-            "📎 [ExpertLoRA] (noop) NOT loading adapter '%s' from %s — no applier is wired",
+            "[ExpertLoRA] (noop) NOT loading adapter '%s' from %s — no applier is wired",
             adapter.name,
             adapter.path,
         )
         return False
 
     def unload(self, adapter: LoRAAdapter) -> bool:
-        logger.info("📎 [ExpertLoRA] (noop) adapter '%s' was never attached", adapter.name)
+        logger.info("[ExpertLoRA] (noop) adapter '%s' was never attached", adapter.name)
         return True
 
 
@@ -311,7 +311,7 @@ class ExpertLoRALibrary:
                 severity="warning",
             )
             logger.warning(
-                "📚 [ExpertLoRA] refused '%s': %s (%s)", adapter.name, reason, adapter.path
+                "[ExpertLoRA] refused '%s': %s (%s)", adapter.name, reason, adapter.path
             )
             return False
         with self._lock:
@@ -323,7 +323,7 @@ class ExpertLoRALibrary:
                 # applier to unload the wrong path. Retire the live one first.
                 if existing.path != adapter.path:
                     logger.warning(
-                        "📚 [ExpertLoRA] '%s' is resident and its artifact changed — "
+                        "[ExpertLoRA] '%s' is resident and its artifact changed — "
                         "evicting the loaded adapter before re-registration.",
                         adapter.name,
                     )
@@ -352,7 +352,7 @@ class ExpertLoRALibrary:
                     severity="error",
                 )
                 return False
-        logger.info("📚 [ExpertLoRA] registered '%s' (task_types=%s)", adapter.name, sorted(adapter.task_types))
+        logger.info("[ExpertLoRA] registered '%s' (task_types=%s)", adapter.name, sorted(adapter.task_types))
         return True
 
     def unregister(self, name: str) -> bool:
@@ -447,7 +447,7 @@ class ExpertLoRALibrary:
             # CP126 20a12402: never record residency behind an applier that
             # does not attach weights.
             logger.info(
-                "📎 [ExpertLoRA] '%s' not activated: no weight-attaching applier is wired.",
+                "[ExpertLoRA] '%s' not activated: no weight-attaching applier is wired.",
                 name,
             )
             return False
@@ -661,7 +661,7 @@ class ExpertLoRALibrary:
                 # NOT loaded in this one, so claiming True would attest weights
                 # that were never attached here.
                 logger.info(
-                    "📎 [ExpertLoRA] '%s' is resident on a different applier (%s); "
+                    "[ExpertLoRA] '%s' is resident on a different applier (%s); "
                     "not claiming residency for %s.",
                     name,
                     entry.applier_id,
@@ -684,7 +684,7 @@ class ExpertLoRALibrary:
                     # budget — the previous code reserved nothing while it
                     # awaited I/O, so two callers each concluded there was room.
                     logger.info(
-                        "📎 [ExpertLoRA] '%s' not activated: residency budget is "
+                        "[ExpertLoRA] '%s' not activated: residency budget is "
                         "fully reserved (resident=%d pending=%d).",
                         name,
                         len(self._resident),
@@ -824,7 +824,7 @@ class ExpertLoRALibrary:
                         continue
                     if not any((cfg / m).is_file() for m in weight_markers):
                         logger.debug(
-                            "📚 [ExpertLoRA] scan skipped '%s': no weight material", cfg
+                            "[ExpertLoRA] scan skipped '%s': no weight material", cfg
                         )
                         continue
                     size_mb = sum(

@@ -124,7 +124,7 @@ def _she_ended_it(client: Any, origin: str) -> bool:
     """
     receipt = getattr(client, "get_last_surface_control_receipt", dict)() or {}
     if receipt.get("ended_by_the_model") is False:
-        logger.info("🫧 %s: her turn was ended by %s before she finished it; nothing is said", origin,
+        logger.info("%s: her turn was ended by %s before she finished it; nothing is said", origin,
                     receipt.get("generation_stop_reason") or "the runtime")
         return False
     return True
@@ -204,7 +204,7 @@ async def her_turn_at_the_desk(heading: str, reading: str, *, least_s: float,
                            action="stayed silent because her own voice was unavailable")
         return ""
     for call in list((result or {}).get("tool_calls") or []):
-        logger.info("🖐️ at the desk she called %s %s: %s", call.get("tool"), call.get("args") or {},
+        logger.info("at the desk she called %s %s: %s", call.get("tool"), call.get("args") or {},
                     str(call.get("result") or "")[:200])
     return what_she_finished(str((result or {}).get("content") or ""))
 
@@ -230,7 +230,7 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
     from core.runtime.work_somebody_asked_for import under_way as work_is_under_way
 
     if a_person_is_waiting_for_her_model():
-        logger.info("🫧 %s: her model is someone's now", origin)
+        logger.info("%s: her model is someone's now", origin)
         return None
     client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
     if client is None or not hasattr(client, needs):
@@ -257,7 +257,7 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         lease = await acquire_external_generation_gate_lease(
             owner=f"{origin}:her_own_turn", timeout_s=seconds, wait_s=max(seconds, _BACKGROUND_GENERATION_GATE_WAIT_S))
     if lease is None:
-        logger.info("🫧 %s: her model is held for something else", origin)
+        logger.info("%s: her model is held for something else", origin)
         return None
     try:
         return await work(client, seconds)

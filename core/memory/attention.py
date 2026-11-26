@@ -25,13 +25,13 @@ class AttentionSummarizer:
         if self.running: return
         self.running = True
         self._task = get_task_tracker().create_task(self._compression_loop())
-        logger.info("🧠 AttentionSummarizer active (Metabolic Context Compression)")
+        logger.info("AttentionSummarizer active (Metabolic Context Compression)")
 
     async def stop(self):
         self.running = False
         if self._task:
             self._task.cancel()
-        logger.info("🧠 AttentionSummarizer stopped")
+        logger.info("AttentionSummarizer stopped")
 
     async def _compression_loop(self):
         while self.running:
@@ -57,7 +57,7 @@ class AttentionSummarizer:
                             target=seed_thought,
                             confidence_score=0.9
                         )
-                        logger.info("🧠 Compressed %d items into a Latent Seed Thought.", len(items_to_summarize))
+                        logger.info("Compressed %d items into a Latent Seed Thought.", len(items_to_summarize))
                     
                 # 4. Cleanup history (remove summarized items)
                 workspace.history = workspace.history[self.history_trigger:]

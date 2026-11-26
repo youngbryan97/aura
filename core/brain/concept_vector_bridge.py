@@ -68,7 +68,7 @@ class ConceptVectorBridge:
             self.active_streams[target] = []
             
         self.active_streams[target].append(thought)
-        logger.debug("🌌 [Cryptolalia] %s -> %s (Vector dim: %s)", source, target, len(semantic_vector))
+        logger.debug("[Cryptolalia] %s -> %s (Vector dim: %s)", source, target, len(semantic_vector))
         
         # Fire event for the decoder or monitoring
         event_bus = get_runtime_service("event_bus", default=None)

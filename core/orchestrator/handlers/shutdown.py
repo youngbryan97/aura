@@ -248,7 +248,7 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
     if hasattr(orch, "mind_tick") and orch.mind_tick:
         try:
             await asyncio.wait_for(orch.mind_tick.stop(), timeout=5.0)
-            logger.info("💓 MindTick: Stopped.")
+            logger.info("MindTick: Stopped.")
         except TimeoutError:
             _record_shutdown_degradation(
                 TimeoutError("MindTick stop timed out"),
@@ -296,11 +296,11 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
             await orch.state_repo.commit(state.derive("shutdown"), "shutdown")
             pending = getattr(orch.state_repo, "_pending_proxy_commit_payload", None)
             if isinstance(pending, dict) and pending.get("cause") == "shutdown":
-                logger.info("💾 UPSO: Shutdown state queued for boot replay.")
+                logger.info("UPSO: Shutdown state queued for boot replay.")
             else:
-                logger.info("💾 UPSO: Shutdown state committed.")
+                logger.info("UPSO: Shutdown state committed.")
         else:
-            logger.info("💾 UPSO: Skipping shutdown state commit; no current state available.")
+            logger.info("UPSO: Skipping shutdown state commit; no current state available.")
     except asyncio.CancelledError as exc:
         _record_shutdown_degradation(
             exc,
@@ -436,7 +436,7 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
 
     sensory = getattr(orch, "_sensory_actor", None)
     if sensory and hasattr(sensory, "is_alive") and sensory.is_alive():
-        logger.info("🛑 Terminating SensoryGate Actor...")
+        logger.info("Terminating SensoryGate Actor...")
         sensory.terminate()
         await run_sync_shutdown_callable(
             lambda: sensory.join(2.0),
@@ -518,4 +518,4 @@ async def _orchestrator_shutdown_impl(orch: RobustOrchestrator) -> None:
         )
         logger.warning("Task tracker shutdown failed: %s", exc)
 
-    logger.info("✅ Orchestrator stopped.")
+    logger.info("Orchestrator stopped.")

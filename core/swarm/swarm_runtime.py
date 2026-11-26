@@ -24,7 +24,7 @@ class SwarmRuntime:
         task_specs: list[dict[str, Any]],
     ) -> list[WorkerProposal]:
         """Distribute objective tasks to specialized workers."""
-        logger.info("🐝 SwarmRuntime: dispatching %d tasks to workers", len(task_specs))
+        logger.info("SwarmRuntime: dispatching %d tasks to workers", len(task_specs))
 
         jobs = []
         for spec in task_specs:

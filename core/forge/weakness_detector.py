@@ -29,7 +29,7 @@ class WeaknessDetector:
         # Flag modules exceeding failure threshold (e.g. > 2 failures)
         for module, count in failures_by_module.items():
             if count >= 2:
-                logger.warning("⚠️ High failure rates identified in module '%s': %d failures", module, count)
+                logger.warning("High failure rates identified in module '%s': %d failures", module, count)
                 weaknesses.append({
                     "module": module,
                     "failure_count": count,

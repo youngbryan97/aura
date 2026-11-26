@@ -243,7 +243,7 @@ def _run_admitted_lab(
         adapter_dir = Path(args.adapter).expanduser()
         adapter_receipt = _load_recurrence_adapter(model, adapter_dir)
         print(
-            "🧬 recurrence-native adapter loaded: "
+            "recurrence-native adapter loaded: "
             f"{adapter_receipt['wrapped_projections']} projections, "
             f"rank {adapter_receipt['rank']}, "
             f"trained_steps {adapter_receipt.get('trained_steps')}",
@@ -288,7 +288,7 @@ def _run_admitted_lab(
 
     def out_of_time() -> bool:
         if time.monotonic() > deadline:
-            print("⏰ wall-clock bound reached — reporting what completed", flush=True)
+            print("wall-clock bound reached — reporting what completed", flush=True)
             return True
         return False
 
@@ -668,7 +668,7 @@ def _run_admitted_lab(
         out_path,
         json.dumps(report, indent=1, sort_keys=True).encode(),
     )
-    print(f"📄 report → {out_path}")
+    print(f"report → {out_path}")
 
     if args.record_foundry:
         for res in report["results"].values():

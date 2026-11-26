@@ -261,7 +261,7 @@ def collect_memory_inventory(facade: Any) -> MemoryInventory:
         # believes it recorded was written nowhere. That is worth saying out
         # loud rather than leaving in a dictionary nobody reads.
         logger.warning(
-            "🧠 Memory inventory: %d durable store(s) absent: %s",
+            "Memory inventory: %d durable store(s) absent: %s",
             len(inventory.durable_missing),
             ", ".join(inventory.durable_missing),
         )

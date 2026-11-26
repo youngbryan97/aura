@@ -141,7 +141,7 @@ def _check_hardware_accelerator() -> dict[str, Any]:
 
 def main() -> int:
     print("=" * 60)
-    print(" 🛠️  Aura Sovereign Stack: Preflight Bootstrap Diagnostic")
+    print("  Aura Sovereign Stack: Preflight Bootstrap Diagnostic")
     print("=" * 60)
     
     system = _check_system()
@@ -181,7 +181,7 @@ def main() -> int:
         REPORT_PATH.write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(f"\n✓ Diagnostic health report saved to: {REPORT_PATH}")
     except OSError as e:
-        print(f"\n⚠️ Failed to write diagnostic health report: {e}")
+        print(f"\nFailed to write diagnostic health report: {e}")
         
     print("=" * 60)
     return 0 if report["overall_healthy"] else 1

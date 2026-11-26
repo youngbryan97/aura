@@ -69,7 +69,7 @@ def validate_dataset(file_path: str):
             print(f"  ... and {len(errors) - 10} more errors.")
         return False
     
-    print(f"✅ {file_path} passed validation.")
+    print(f"{file_path} passed validation.")
     return True
 
 if __name__ == "__main__":

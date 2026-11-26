@@ -623,7 +623,7 @@ def _recovered_search_result(query: str, exc: BaseException) -> dict[str, Any]:
         }
     sources = list(held.sources)
     logger.info(
-        "🔍 Search summary ran out of time; answering from the %d source(s) already fetched.",
+        "Search summary ran out of time; answering from the %d source(s) already fetched.",
         len(sources),
     )
     return {
@@ -1192,7 +1192,7 @@ async def _what_the_world_says_for_the_turn(
     read = asked_by(user_message)
     if read is not None and (read.request_id or read.effect in _NEEDS_NOTHING_LOOKED_UP):
         # Read as asking for nothing from outside: what she says of it, makes of it or reads of it is not on the web.
-        logger.info("🌐 Nothing is looked up for this turn: it was read as %s.", read.effect)
+        logger.info("Nothing is looked up for this turn: it was read as %s.", read.effect)
         return None, effective_user_message
     turn_began = time.time()
     # This is the turn's retrieval on her desktop lane, which runs no retrieval phase: LIVE 10 November 2026 every
@@ -1345,7 +1345,7 @@ async def _what_the_world_says_for_the_turn(
     tool_during = (receipt.latency_s.get("tool", 0.0) if receipt is not None else 0.0) - tool_before
     record_latency("retrieval", max(0.0, time.monotonic() - looking_began - tool_during))
     rendered = evidence.render()
-    logger.info("🌍 What the world says for this turn: %s", evidence.to_dict())
+    logger.info("What the world says for this turn: %s", evidence.to_dict())
     if not rendered:
         return contracted, effective_user_message
     from core.conversation.turn_evidence_custody import record_turn_world_source
@@ -1381,5 +1381,5 @@ def _beside_the_turn(rendered: str) -> None:
     )
 
     if not record_turn_world_evidence(rendered):
-        logger.warning("🌍 The sources read for this turn had no turn to attach to; she answers without them.")
+        logger.warning("The sources read for this turn had no turn to attach to; she answers without them.")
     record_turn_grounding(rendered)

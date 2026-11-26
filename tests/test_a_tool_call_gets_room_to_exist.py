@@ -2,7 +2,7 @@
 
 LIVE, 2026-08-19. Every tool-using turn came back:
 
-    ⚠️ [WORKER] Generation produced 1 token(s) but no text survived to the
+    [WORKER] Generation produced 1 token(s) but no text survived to the
     caller — discarded downstream, not a decode failure
 
 The prompt was correct and ended in an open assistant turn. The tools were

@@ -63,12 +63,12 @@ class _ArrivesWhereItWasSent:
             "you've been blocked",
         ]
         if title.strip() in ("just a moment...", "attention required! | cloudflare"):
-            logger.warning("🚨 Browser Blocked Detected: %s", title)
+            logger.warning("Browser Blocked Detected: %s", title)
             return True
 
         for signal in block_signals:
             if signal in content or signal in title:
-                logger.warning("🚨 Browser Blocked Detected: %s", signal)
+                logger.warning("Browser Blocked Detected: %s", signal)
                 return True
         return False
 
@@ -110,7 +110,7 @@ class _ArrivesWhereItWasSent:
         self._document = {"url": final_url, "kind": kind, "title": name, "text": text,
                           "page_url": str(getattr(self.page, "url", "") or "")}
         record.update(ok=True, reason="arrived_at_a_document", kind=kind)
-        logger.info("🌐 %s is a %s; read %d characters of it", final_url, kind, len(text))
+        logger.info("%s is a %s; read %d characters of it", final_url, kind, len(text))
         return True
 
     def _document_on_the_page(self) -> dict[str, Any] | None:

@@ -103,7 +103,7 @@ def enforce_one_of(tokenizer: Any, choices: Sequence[str], *, after_token: int |
         if not allowed:
             # A token this did not allow got through (a sampler bypass, a rewind): the choice is no longer claimed.
             state["lost"] = True
-            logger.warning("🧠 [WORKER] Choice lost after %d token(s); no longer held.", len(so_far))
+            logger.warning("[WORKER] Choice lost after %d token(s); no longer held.", len(so_far))
             return logits
         mask = mx.full((width,), -mx.inf, dtype=logits.dtype)
         mask[mx.array(sorted(allowed))] = 0.0

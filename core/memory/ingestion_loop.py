@@ -93,7 +93,7 @@ class IngestionLoop:
         elif curiosity >= 0.8:
             query = "advanced neuro-symbolic cognitive architecture upgrades"
 
-        logger.info("⚡ [INGESTION] Triggered by curiosity=%.2f. Target query: '%s'", curiosity, query)
+        logger.info("[INGESTION] Triggered by curiosity=%.2f. Target query: '%s'", curiosity, query)
 
         # 3. Call web search actuator
         registry = get_actuator_registry()
@@ -143,7 +143,7 @@ class IngestionLoop:
             return
 
         for url in urls:
-            logger.info("⚡ [INGESTION] Fetching target url: %s", url)
+            logger.info("[INGESTION] Fetching target url: %s", url)
             fetch_res = await asyncio.to_thread(
                 registry.execute_action,
                 "web_fetch",

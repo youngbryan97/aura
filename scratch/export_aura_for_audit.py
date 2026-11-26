@@ -126,7 +126,7 @@ def export_to_folder(files):
     return min(len(files), FILE_LIMIT)
 
 if __name__ == "__main__":
-    print("🚀 Starting Perfect Aura Source Export...")
+    print("Starting Perfect Aura Source Export...")
     files = collect_files()
     txt_stats = export_to_txt(files)
     folder_count = export_to_folder(files)

@@ -96,11 +96,11 @@ class _GateInitializationMixin:
                     receipt["cortex_ready"] = bool(ready)
                     if ready:
                         self._extend_startup_quiet_window(5.0)
-                        logger.info("✅ InferenceGate ONLINE (Cortex fully warmed).")
+                        logger.info("InferenceGate ONLINE (Cortex fully warmed).")
                     else:
                         receipt["reason"] = str(incomplete_reason or "warmup_incomplete")
                         logger.warning(
-                            "⚠️ InferenceGate ONLINE with Cortex warmup incomplete "
+                            "InferenceGate ONLINE with Cortex warmup incomplete "
                             "(state=%s, reason=%s). Will retry on foreground demand.",
                             lane.get("state", "unknown"),
                             incomplete_reason,
@@ -113,7 +113,7 @@ class _GateInitializationMixin:
                         action="continued initialization with degraded warmup path",
                     )
                     logger.warning(
-                        "⚠️ Cortex warmup slow/failed: %s. Will retry on first request.", warmup_err
+                        "Cortex warmup slow/failed: %s. Will retry on first request.", warmup_err
                     )
             elif self._boot_should_schedule_deferred_prewarm():
                 deferred_delay = 45.0 if self._desktop_safe_boot_enabled() else 12.0
@@ -121,14 +121,14 @@ class _GateInitializationMixin:
                 receipt["mode"] = "deferred_prewarm"
                 receipt["reason"] = "warmup_deferred_until_post_boot"
                 logger.info(
-                    "⏸️ InferenceGate ONLINE (%s warmup deferred until post-boot memory settles).",
+                    "InferenceGate ONLINE (%s warmup deferred until post-boot memory settles).",
                     _primary_lane_label(),
                 )
             else:
                 receipt["mode"] = "ram_admitted"
                 receipt["reason"] = "warmup_requires_ram_admission"
                 logger.info(
-                    "🛡️ InferenceGate ONLINE (desktop resource guard: %s warmup is RAM-admitted).",
+                    "InferenceGate ONLINE (desktop resource guard: %s warmup is RAM-admitted).",
                     _primary_lane_label(),
                 )
 
@@ -149,7 +149,7 @@ class _GateInitializationMixin:
             self._initialized = False
             receipt["reason"] = f"init_error:{type(e).__name__}"
             logger.error(
-                "❌ InferenceGate init failed: %s. Gate remains unhealthy until explicit recovery succeeds.",
+                "InferenceGate init failed: %s. Gate remains unhealthy until explicit recovery succeeds.",
                 e,
             )
 

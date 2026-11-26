@@ -275,9 +275,9 @@ class FullVisibleMultiappDemoProof(JournalDemoProof):
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
                 (
-                    "✅ FULL VISIBLE MULTIAPP DEMO PROOF PASSED"
+                    "FULL VISIBLE MULTIAPP DEMO PROOF PASSED"
                     if verdict["passed"]
-                    else "❌ FULL VISIBLE MULTIAPP DEMO PROOF FAILED"
+                    else "FULL VISIBLE MULTIAPP DEMO PROOF FAILED"
                 )
                 + f" → {self.verdict_path}"
             )

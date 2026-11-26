@@ -1,6 +1,6 @@
 """A deferral was read as a refusal, and 108 pieces of learning data vanished.
 
-Live 2026-08-17: 108 "🚫 ACG write blocked: sync_approved|ontogeny:deferred"
+Live 2026-08-17: 108 "ACG write blocked: sync_approved|ontogeny:deferred"
 in one sampled window. The reason string is the whole story — the executive's
 own rules APPROVED the write, and the learned ontogeny organ then overrode the
 outcome to DEFERRED, producing that combined reason.

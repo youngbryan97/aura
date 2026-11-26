@@ -1038,7 +1038,7 @@ class MycelialNetwork(_ReadsTheVault):
             object.__setattr__(self, "_aegis_locked", True)
             self._setup_default_pathways()
             
-            logger.info("🍄 [MYCELIUM] Network Online v4.0 (Hardened) — Enterprise Grade.")
+            logger.info("[MYCELIUM] Network Online v4.0 (Hardened) — Enterprise Grade.")
 
     def _publish_topology_read_models_locked(self) -> None:
         endpoints = {
@@ -1150,7 +1150,7 @@ class MycelialNetwork(_ReadsTheVault):
             + r"(?:search (?:the web )?for|look up|google|find info on)\s+(.+)",
             "search_web",
             priority=1.5,
-            activity_label="🔍 Searching the Intelligence Web"
+            activity_label="Searching the Intelligence Web"
         )
         self.register_pathway(
             "direct_self_repair",
@@ -1159,7 +1159,7 @@ class MycelialNetwork(_ReadsTheVault):
             r"|(?:run|do) a system check|system check\b|fix system\b)",
             "self_repair",
             priority=1.5,
-            activity_label="🧬 Running Self-Diagnostics"
+            activity_label="Running Self-Diagnostics"
         )
     #: Container attributes that may not be REBOUND once the network is live.
     _AEGIS_PROTECTED_ATTRS: ClassVar[frozenset[str]] = frozenset(
@@ -1188,7 +1188,7 @@ class MycelialNetwork(_ReadsTheVault):
             return
 
         if name in self._AEGIS_PROTECTED_ATTRS:
-            logger.critical("🛡️ AEGIS: Unauthorized attempt to overwrite %s!", name)
+            logger.critical("AEGIS: Unauthorized attempt to overwrite %s!", name)
             raise PermissionError(f"Aegis True-Lock: Cannot overwrite core Mycelial attribute '{name}'")
 
         super().__setattr__(name, value)
@@ -1241,7 +1241,7 @@ class MycelialNetwork(_ReadsTheVault):
 
             mapping_base = config.paths.base_dir
             logger.info(
-                "🍄 [MYCELIUM] Scheduling infrastructure mapping at: %s",
+                "[MYCELIUM] Scheduling infrastructure mapping at: %s",
                 mapping_base,
             )
             admission_token = object()
@@ -1300,7 +1300,7 @@ class MycelialNetwork(_ReadsTheVault):
                         else "left infrastructure graph unmapped after owned mapper failure"
                     ),
                 )
-            logger.error("🍄 [MYCELIUM] Infrastructure mapping failed: %s", exc, exc_info=True)
+            logger.error("[MYCELIUM] Infrastructure mapping failed: %s", exc, exc_info=True)
         finally:
             with self._mapping_lock:
                 # A worker may lose admission to a direct caller. It must never
@@ -1381,7 +1381,7 @@ class MycelialNetwork(_ReadsTheVault):
             self._mark_topology_mutated_locked(structure_changed=True)
 
         logger.info(
-            "🍄 [MYCELIUM] Pathway Hardwired: '%s' → %s (priority=%.1f, groups=%s)",
+            "[MYCELIUM] Pathway Hardwired: '%s' → %s (priority=%.1f, groups=%s)",
             pathway_id, skill_name, priority, list((param_map or {}).keys()),
         )
 
@@ -1393,7 +1393,7 @@ class MycelialNetwork(_ReadsTheVault):
 
         # ISSUE-77: Strict Message Validation
         if len(text) > 4096:
-            logger.warning("🍄 [MYCELIUM] Message too long for hardwired matching (%d chars)", len(text))
+            logger.warning("[MYCELIUM] Message too long for hardwired matching (%d chars)", len(text))
             return None
             
         text_clean = text.strip()
@@ -1437,7 +1437,7 @@ class MycelialNetwork(_ReadsTheVault):
                                 params[param_name] = value.strip()
                         except (IndexError, AttributeError):
                             logger.warning(
-                                "🍄 [MYCELIUM] Param extraction failed for '%s' group %s in pathway '%s'",
+                                "[MYCELIUM] Param extraction failed for '%s' group %s in pathway '%s'",
                                 param_name, mapping, pw_id,
                             )
                     else:
@@ -1457,7 +1457,7 @@ class MycelialNetwork(_ReadsTheVault):
                     result = current.model_copy(deep=True)
 
                 logger.info(
-                    "🍄 [MYCELIUM] ⚡ HardwiredPathway MATCHED: '%s' → skill=%s, params=%s, confidence=%.2f",
+                    "[MYCELIUM] HardwiredPathway MATCHED: '%s' → skill=%s, params=%s, confidence=%.2f",
                     pw_id, pw.skill_name, params, pw.confidence,
                 )
 
@@ -1488,7 +1488,7 @@ class MycelialNetwork(_ReadsTheVault):
                 )
                 self.hyphae[hypha_id] = hypha
                 self._mark_topology_mutated_locked(structure_changed=True)
-                logger.info("🍄 [MYCELIUM] Hypha established: %s", hypha_id)
+                logger.info("[MYCELIUM] Hypha established: %s", hypha_id)
             return hypha.model_copy(deep=True)
 
     def add_hypha(self, source: str, target: str, link_type: str = "general", metadata: dict | None = None):
@@ -1508,7 +1508,7 @@ class MycelialNetwork(_ReadsTheVault):
                     trace=[f"Link Type: {link_type}"]
                 )
                 self._mark_topology_mutated_locked(structure_changed=True)
-                logger.info("🍄 [MYCELIUM] Hypha added: %s (%s)", hypha_id, link_type)
+                logger.info("[MYCELIUM] Hypha added: %s (%s)", hypha_id, link_type)
 
     def get_hypha(self, source: str, target: str = None) -> Hypha | None:
         """Return a detached hypha read model."""
@@ -1662,7 +1662,7 @@ class MycelialNetwork(_ReadsTheVault):
 
     def link_layer(self, layer_name: str, module_class: Any):
         """High-level linking for transcendence modules."""
-        logger.info("🍄 [MYCELIUM] Linking Transcendence Layer: '%s' -> %s", layer_name, module_class.__name__)
+        logger.info("[MYCELIUM] Linking Transcendence Layer: '%s' -> %s", layer_name, module_class.__name__)
         # This typically involves registering the module's presence for the discovery engine
         # and creating primary hyphae to the core cognition engine.
         self.establish_connection(layer_name, "cognition", priority=0.9)
@@ -1713,7 +1713,7 @@ class MycelialNetwork(_ReadsTheVault):
                 self._route_signal_log_state[key] = (payload_text, now, 0)
         if repeated:
             logger.debug(
-                "🍄 [MYCELIUM] Repeated signal pulse suppressed: %s | Payload: %s",
+                "[MYCELIUM] Repeated signal pulse suppressed: %s | Payload: %s",
                 key,
                 payload_text,
             )
@@ -1721,7 +1721,7 @@ class MycelialNetwork(_ReadsTheVault):
 
         if suppressed:
             logger.info(
-                "🍄 [MYCELIUM] 📡 Signal Routed: %s -> %s | Payload: %s | repeated=%d",
+                "[MYCELIUM] Signal Routed: %s -> %s | Payload: %s | repeated=%d",
                 source,
                 target,
                 payload_text,
@@ -1729,7 +1729,7 @@ class MycelialNetwork(_ReadsTheVault):
             )
             return
         logger.info(
-            "🍄 [MYCELIUM] 📡 Signal Routed: %s -> %s | Payload: %s",
+            "[MYCELIUM] Signal Routed: %s -> %s | Payload: %s",
             source,
             target,
             payload_text,
@@ -1764,7 +1764,7 @@ class MycelialNetwork(_ReadsTheVault):
             await get_event_bus().publish(signal_type, payload, priority=EventPriority.COGNITIVE)
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('mycelium', exc)
-            logger.debug("🍄 [MYCELIUM] emit bridge publish failed: %s", exc)
+            logger.debug("[MYCELIUM] emit bridge publish failed: %s", exc)
         return payload
 
     def _should_monitor_hypha(self, hypha: Hypha) -> bool:
@@ -1816,7 +1816,7 @@ class MycelialNetwork(_ReadsTheVault):
                 if isinstance(hypha, NeuralRoot)
             ]
             self._mark_topology_mutated_locked(structure_changed=True)
-        logger.info("🍄 [MYCELIUM] 🌿 Neural Root topology recorded: %s (unbound)", hypha_id)
+        logger.info("[MYCELIUM] Neural Root topology recorded: %s (unbound)", hypha_id)
         return nr.model_copy(deep=True)
 
     @staticmethod
@@ -1923,12 +1923,12 @@ class MycelialNetwork(_ReadsTheVault):
             self._mark_topology_mutated_locked(structure_changed=structure_changed)
         if recovered:
             logger.info(
-                "🍄 [MYCELIUM] Neural Root recovered from owner attestation: %s",
+                "[MYCELIUM] Neural Root recovered from owner attestation: %s",
                 hypha_id,
             )
         elif structure_changed:
             logger.info(
-                "🍄 [MYCELIUM] 🌿 Neural Root owner-attested: %s",
+                "[MYCELIUM] Neural Root owner-attested: %s",
                 hypha_id,
             )
         return root.model_copy(deep=True)
@@ -1989,10 +1989,10 @@ class MycelialNetwork(_ReadsTheVault):
                 failed = previous_state != "error"
             self._mark_topology_mutated_locked()
         if recovered:
-            logger.info("🍄 [MYCELIUM] Neural Root recovered: %s", hypha_id)
+            logger.info("[MYCELIUM] Neural Root recovered: %s", hypha_id)
         elif failed:
             logger.warning(
-                "🍄 [MYCELIUM] Neural Root owner probe failed: %s (%s)",
+                "[MYCELIUM] Neural Root owner probe failed: %s (%s)",
                 hypha_id,
                 root.last_error,
             )
@@ -2127,7 +2127,7 @@ class MycelialNetwork(_ReadsTheVault):
                     # Unmeasured arousal is not middling arousal. Skip the
                     # weighting rather than inventing the missing half of it.
                     logger.debug(
-                        "🍄 [MYCELIUM] Qualia weighting skipped for '%s': arousal "
+                        "[MYCELIUM] Qualia weighting skipped for '%s': arousal "
                         "is unmeasured.",
                         pathway_id,
                     )
@@ -2143,7 +2143,7 @@ class MycelialNetwork(_ReadsTheVault):
                             qualia_bonus if success else -qualia_bonus * 0.5,
                         )
                     logger.debug(
-                        "🍄 [MYCELIUM] 🧠 Qualia-weighted session adjustment: "
+                        "[MYCELIUM] Qualia-weighted session adjustment: "
                         "'%s' ±%.3f (q=%.2f, a=%.2f)",
                         pathway_id, qualia_bonus, q_norm, arousal
                     )
@@ -2182,7 +2182,7 @@ class MycelialNetwork(_ReadsTheVault):
                         self._mark_topology_mutated_locked()
                 if pulsed > 0:
                     logger.debug(
-                        "🍄 [MYCELIUM] ⚡ Runtime pulse: %d physical hyphae for '%s' (%s)",
+                        "[MYCELIUM] Runtime pulse: %d physical hyphae for '%s' (%s)",
                         pulsed, source_module, "✓" if success else "✗",
                     )
 
@@ -2195,13 +2195,13 @@ class MycelialNetwork(_ReadsTheVault):
             is_weak = current.is_weak if current is not None else pw.is_weak
         if is_weak:
             logger.warning(
-                "🍄 [MYCELIUM] ⚠️ Pathway '%s' is WEAK (confidence=%.2f, rate=%.0f%%). "
+                "[MYCELIUM] Pathway '%s' is WEAK (confidence=%.2f, rate=%.0f%%). "
                 "Consider reviewing or removing.",
                 pathway_id, confidence, success_rate * 100,
             )
         else:
             logger.debug(
-                "🍄 [MYCELIUM] Pathway '%s' reinforced: confidence=%.2f (%s)",
+                "[MYCELIUM] Pathway '%s' reinforced: confidence=%.2f (%s)",
                 pathway_id, confidence, "✓" if success else "✗",
             )
 
@@ -2284,7 +2284,7 @@ class MycelialNetwork(_ReadsTheVault):
             self._discovery_candidates[skill_name] = 0
 
         logger.info(
-            "🍄 [MYCELIUM] 🌱 Discovery: skill '%s' used %d times via slow path. "
+            "[MYCELIUM] Discovery: skill '%s' used %d times via slow path. "
             "Consider adding a hardwired pathway for common patterns.",
             skill_name, relevant_count,
         )
@@ -2302,7 +2302,7 @@ class MycelialNetwork(_ReadsTheVault):
             if owner is not self:
                 return owner.set_ui_callback(callback)
             self.ui_callback = callback
-        logger.info("🍄 [MYCELIUM] Direct UI Hypha Connected.")
+        logger.info("[MYCELIUM] Direct UI Hypha Connected.")
 
 
     def establish_unification_hyphae(self):
@@ -2349,14 +2349,14 @@ class MycelialNetwork(_ReadsTheVault):
                     hypha.description = desc
                     hypha.strength = 5.0
                     self._mark_topology_mutated_locked()
-        logger.info("🍄 [MYCELIUM] ✅ Core Unification Hyphae established (%d links)", len(unification_links))
+        logger.info("[MYCELIUM] Core Unification Hyphae established (%d links)", len(unification_links))
         return True
 
     def shutdown(self):
         """Phase 28: Total Neural Root Cleanup (Issue 76).
         Ensures all hardware pins and active hyphae are safely disconnected.
         """
-        logger.info("🍄 [MYCELIUM] Neutralizing all neural roots and hyphae...")
+        logger.info("[MYCELIUM] Neutralizing all neural roots and hyphae...")
         with MycelialNetwork._lock:
             self._stop_event.set()
             if MycelialNetwork._instance is self:
@@ -2394,7 +2394,7 @@ class MycelialNetwork(_ReadsTheVault):
                     enforce_failure_policy=False,
                 )
                 logger.warning(
-                    "🍄 [MYCELIUM] Mapper did not drain within shutdown budget; "
+                    "[MYCELIUM] Mapper did not drain within shutdown budget; "
                     "the publication latch remains closed."
                 )
         with MycelialNetwork._lock:
@@ -2421,7 +2421,7 @@ class MycelialNetwork(_ReadsTheVault):
             self._neural_roots.clear()
             self.ui_callback = None
             self._mark_topology_mutated_locked(structure_changed=True)
-        logger.info("🍄 [MYCELIUM] Network Offline.")
+        logger.info("[MYCELIUM] Network Offline.")
 
     def on_stop(self) -> None:
         """ServiceContainer lifecycle hook."""
@@ -2442,7 +2442,7 @@ class MycelialNetwork(_ReadsTheVault):
         # They start with evidence_basis "declared" and only become "observed"
         # once something actually pulses them; the log says which it is.
         logger.info(
-            "🍄 [MYCELIUM] 👁️ Declared %d consciousness hyphae (no traffic "
+            "[MYCELIUM] Declared %d consciousness hyphae (no traffic "
             "observed on them yet).",
             len(links),
         )
@@ -2508,12 +2508,12 @@ class MycelialNetwork(_ReadsTheVault):
             except Exception as topology_error:  # noqa: BLE001 - preserve original error
                 record_degradation("mycelium.rooted_flow_telemetry", topology_error)
                 logger.error(
-                    "🍄 [MYCELIUM] Could not persist rooted-flow failure for %s: %s",
+                    "[MYCELIUM] Could not persist rooted-flow failure for %s: %s",
                     hypha_id,
                     topology_error,
                     exc_info=True,
                 )
-            logger.error("🍄 [MYCELIUM] Critical Stall in %s (%s). Triggering Override.", hypha_id, e)
+            logger.error("[MYCELIUM] Critical Stall in %s (%s). Triggering Override.", hypha_id, e)
             recovery_owner = self._active_owner()
             if hypha is not None and recovery_owner is not None:
                 recovery_timeout_s = min(5.0, max(0.1, timeout_s))
@@ -2535,7 +2535,7 @@ class MycelialNetwork(_ReadsTheVault):
                         ),
                     )
                     logger.error(
-                        "🍄 [MYCELIUM] Emergency override failed for %s: %s",
+                        "[MYCELIUM] Emergency override failed for %s: %s",
                         hypha_id,
                         recovery_error,
                         exc_info=True,
@@ -2554,7 +2554,7 @@ class MycelialNetwork(_ReadsTheVault):
 
     async def _emergency_override(self, hypha: Hypha, activity: str, error_msg: str):
         """Force a result through the Mycelium when the standard path stalls."""
-        logger.warning("⚡ [ROOT OVERRIDE] Forcing path completion: %s → %s", hypha.name, activity)
+        logger.warning("[ROOT OVERRIDE] Forcing path completion: %s → %s", hypha.name, activity)
         
         # Bridge to Hardened Reflex Core
         if self.reflex:
@@ -2568,7 +2568,7 @@ class MycelialNetwork(_ReadsTheVault):
             # Honest failure: the operation did NOT complete. Do not claim the
             # block was bypassed when the original action remains failed.
             msg = (
-                "⚠️ I hit a stall while processing your request and couldn't "
+                "I hit a stall while processing your request and couldn't "
                 f"complete it ({error_msg}). I've logged the failure and will "
                 "recover the affected path — please try again."
             )
@@ -2679,7 +2679,7 @@ class MycelialNetwork(_ReadsTheVault):
             scan_dirs = list(_DEFAULT_INFRASTRUCTURE_SCAN_DIRS)
 
         start_time_map = time.monotonic()
-        logger.info("🍄 [MYCELIUM] 🗺️ Infrastructure Mapping starting from: %s", base)
+        logger.info("[MYCELIUM] Infrastructure Mapping starting from: %s", base)
 
         # 1. Discover all .py files.
         all_files: dict[str, Path] = {}  # module_key → file_path
@@ -2696,11 +2696,11 @@ class MycelialNetwork(_ReadsTheVault):
         for subdir in scan_dirs:
             scan_root = base / subdir
             if not scan_root.exists():
-                logger.debug("🍄 [MYCELIUM] Scan directory not found: %s", scan_root)
+                logger.debug("[MYCELIUM] Scan directory not found: %s", scan_root)
                 continue
             for py_file in scan_root.rglob("*.py"):
                 if self._stop_event.is_set():
-                    logger.info("🍄 [MYCELIUM] Infrastructure mapping cancelled during discovery.")
+                    logger.info("[MYCELIUM] Infrastructure mapping cancelled during discovery.")
                     return False
                 if len(all_files) >= _MAPPING_MAX_MODULES:
                     raise ValueError(
@@ -2721,14 +2721,14 @@ class MycelialNetwork(_ReadsTheVault):
                 except ValueError:
                     continue
 
-        logger.info("🍄 [MYCELIUM] Discovered %d Python modules.", len(all_files))
+        logger.info("[MYCELIUM] Discovered %d Python modules.", len(all_files))
 
         # 2. Parse imports and build dependency edges
         dependency_graph: dict[str, list[str]] = {}
         mapped_files: dict[str, dict[str, Any]] = {}
         for module_key, file_path in all_files.items():
             if self._stop_event.is_set():
-                logger.info("🍄 [MYCELIUM] Infrastructure mapping cancelled during parsing.")
+                logger.info("[MYCELIUM] Infrastructure mapping cancelled during parsing.")
                 return False
             if time.monotonic() - start_time_map > _MAPPING_BUDGET_S:
                 raise TimeoutError(
@@ -2871,7 +2871,7 @@ class MycelialNetwork(_ReadsTheVault):
 
         # M-15 FIX: Prevent false-positive mapping if zero modules found
         if not all_files:
-            logger.warning("🍄 [MYCELIUM] ❌ Infrastructure mapping found 0 modules! Retrying in next cycle.")
+            logger.warning("[MYCELIUM] Infrastructure mapping found 0 modules! Retrying in next cycle.")
             with self._mapping_lock:
                 self.infrastructure_mapped = previously_mapped
                 self._mapping_last_error = "no_modules_discovered"
@@ -2920,12 +2920,12 @@ class MycelialNetwork(_ReadsTheVault):
             with MycelialNetwork._lock:
                 if self._active_owner_locked() is not self:
                     logger.info(
-                        "🍄 [MYCELIUM] Infrastructure publication cancelled after owner replacement."
+                        "[MYCELIUM] Infrastructure publication cancelled after owner replacement."
                     )
                     return False
                 if self._stop_event.is_set():
                     logger.info(
-                        "🍄 [MYCELIUM] Infrastructure mapping cancelled before publication."
+                        "[MYCELIUM] Infrastructure mapping cancelled before publication."
                     )
                     return False
                 current_logical = {
@@ -3010,7 +3010,7 @@ class MycelialNetwork(_ReadsTheVault):
             )
         elapsed = time.monotonic() - start_time_map
         logger.info(
-            "🍄 [MYCELIUM] 🗺️ Infrastructure Mapping COMPLETE (%.2fs): "
+            "[MYCELIUM] Infrastructure Mapping COMPLETE (%.2fs): "
             "%d modules, %d physical connections, %d pathways annotated, "
             "%d critical indicators tagged.",
             elapsed, len(all_files), physical_connections, annotated, len(critical_modules)
@@ -3052,7 +3052,7 @@ class MycelialNetwork(_ReadsTheVault):
             if len(candidates) != 1:
                 if len(candidates) > 1:
                     logger.debug(
-                        "🍄 [MYCELIUM] Pathway '%s' has %d candidate source "
+                        "[MYCELIUM] Pathway '%s' has %d candidate source "
                         "modules; leaving it unattributed.",
                         pathway_id,
                         len(candidates),
@@ -3081,7 +3081,7 @@ class MycelialNetwork(_ReadsTheVault):
                 f"foreground_quiet_window:{age_s:.1f}s/{max(0.0, quiet_s):.1f}s"
             )
             logger.info(
-                "🍄 [MYCELIUM] Infrastructure mapping deferred (%s).",
+                "[MYCELIUM] Infrastructure mapping deferred (%s).",
                 self._deferred_mapping_reason,
             )
             return True
@@ -3110,7 +3110,7 @@ class MycelialNetwork(_ReadsTheVault):
             source = raw.decode("utf-8")
             tree = ast.parse(source, filename=str(file_path))
         except (SyntaxError, UnicodeDecodeError, ValueError, OSError) as e:
-            logger.debug("🍄 [MYCELIUM] AST parse failed for %s: %s", file_path.name, e)
+            logger.debug("[MYCELIUM] AST parse failed for %s: %s", file_path.name, e)
             return imports, None
 
         for node in ast.walk(tree):
@@ -3406,7 +3406,7 @@ class MycelialNetwork(_ReadsTheVault):
                             hypha.active = False
                             hypha.last_error = "owner_heartbeat_stale"
                             logger.warning(
-                                "🍄 [MYCELIUM] Neural Root stale: %s "
+                                "[MYCELIUM] Neural Root stale: %s "
                                 "(last verified %.1fs ago; contract %.1fs).",
                                 name,
                                 (
@@ -3431,7 +3431,7 @@ class MycelialNetwork(_ReadsTheVault):
                 return
             for pathway_id, confidence in weak_pathways:
                 logger.warning(
-                    "🍄 [MYCELIUM] Weak pathway detected: '%s' (confidence=%.2f)",
+                    "[MYCELIUM] Weak pathway detected: '%s' (confidence=%.2f)",
                     pathway_id,
                     confidence,
                 )
@@ -3462,7 +3462,7 @@ class MycelialNetwork(_ReadsTheVault):
                 enforce_failure_policy=False,
             )
             logger.error(
-                "🍄 [MYCELIUM] Unclaimed absorbed failure on %s (%s), opened at "
+                "[MYCELIUM] Unclaimed absorbed failure on %s (%s), opened at "
                 "%s: %s",
                 handle._hypha_id,
                 handle._activity or "unnamed activity",
@@ -3504,17 +3504,17 @@ class MycelialNetwork(_ReadsTheVault):
                 try:
                     if hasattr(self, '_critical_cleanup') and callable(self._critical_cleanup):
                         await self._critical_cleanup()
-                        logger.info("🛡️ Memory Governor shutdown complete. All worker handles leaked/active were purged.")
+                        logger.info("Memory Governor shutdown complete. All worker handles leaked/active were purged.")
                 except (RuntimeError, AttributeError, TypeError) as e:
                     record_degradation('mycelium', e)
                     logger.error("Error during Memory Governor shutdown: %s", e)
-                logger.info("🍄 [MYCELIUM] Pulse check loop shutting down.")
+                logger.info("[MYCELIUM] Pulse check loop shutting down.")
                 break
             except (OSError, ConnectionError, TimeoutError, RuntimeError, AttributeError, TypeError, ValueError, KeyError, LookupError) as e:
                 # Broadened: a narrow I/O-only family let ordinary RuntimeError/
                 # TypeError from a probe permanently kill the maintenance loop.
                 record_degradation('mycelium', e)
-                logger.error("🍄 [MYCELIUM] Pulse check error: %s", e, exc_info=True)
+                logger.error("[MYCELIUM] Pulse check error: %s", e, exc_info=True)
                 await asyncio.sleep(10)  # Backoff on error
 
     # ======================================================================
@@ -4034,7 +4034,7 @@ class MycelialNetwork(_ReadsTheVault):
             # behaviour and the right one here — an unavailable registry is not
             # evidence that a skill is missing.
             logger.info(
-                "🛡️ AEGIS: Skill registry unavailable; restoring %d routes "
+                "AEGIS: Skill registry unavailable; restoring %d routes "
                 "without a compatibility check.",
                 len(pathways),
             )
@@ -4049,7 +4049,7 @@ class MycelialNetwork(_ReadsTheVault):
             pathways.pop(key, None)
         if stale:
             logger.warning(
-                "🛡️ AEGIS: Dropped %d restored route(s) whose skill this build "
+                "AEGIS: Dropped %d restored route(s) whose skill this build "
                 "does not have: %s",
                 len(stale),
                 ", ".join(sorted(stale)[:10]),
@@ -4083,7 +4083,7 @@ class MycelialNetwork(_ReadsTheVault):
         stored_mac = str(attestation_row[1] or "") if attestation_row else ""
         if not stored_mac:
             logger.warning(
-                "🛡️ AEGIS: Root vault carries no tamper evidence; restoring an "
+                "AEGIS: Root vault carries no tamper evidence; restoring an "
                 "UNATTESTED topology generation."
             )
             return False
@@ -4490,16 +4490,16 @@ class MycelialNetwork(_ReadsTheVault):
             snapshot_revision, current_revision = await run_io_bound(_sync_worker)
         except (sqlite3.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mycelium", exc)
-            logger.error("🛡️ AEGIS: Vault Sync Failed! %s", exc)
+            logger.error("AEGIS: Vault Sync Failed! %s", exc)
             return False
         if current_revision != snapshot_revision:
             logger.debug(
-                "🛡️ AEGIS: Vault committed coherent revision %d while live topology "
+                "AEGIS: Vault committed coherent revision %d while live topology "
                 "advanced to %d; the next interval will capture the newer state.",
                 snapshot_revision,
                 current_revision,
             )
-        logger.debug("🛡️ AEGIS: Vault Sync Complete.")
+        logger.debug("AEGIS: Vault Sync Complete.")
         return True
 
     @classmethod
@@ -4517,14 +4517,14 @@ class MycelialNetwork(_ReadsTheVault):
         )
         db_path = config.paths.base_dir / vault_path
         if not db_path.exists():
-            logger.critical("🛡️ AEGIS FATAL: Cannot restore; Root Vault missing!")
+            logger.critical("AEGIS FATAL: Cannot restore; Root Vault missing!")
             return False
 
         with cls._lock:
             target_instance = cls._instance
             if target_instance is None:
                 logger.critical(
-                    "🛡️ AEGIS: Restoration aborted — Mycelium is not initialized."
+                    "AEGIS: Restoration aborted — Mycelium is not initialized."
                 )
                 return False
             mapping_thread = target_instance._mapping_thread
@@ -4532,11 +4532,11 @@ class MycelialNetwork(_ReadsTheVault):
                 mapping_thread is not None and mapping_thread.is_alive()
             ):
                 logger.critical(
-                    "🛡️ AEGIS: Restoration deferred while a map generation is active."
+                    "AEGIS: Restoration deferred while a map generation is active."
                 )
                 return False
             if target_instance._stop_event.is_set():
-                logger.critical("🛡️ AEGIS: Restoration refused during shutdown.")
+                logger.critical("AEGIS: Restoration refused during shutdown.")
                 return False
             target_revision = target_instance._topology_revision
 
@@ -4633,12 +4633,12 @@ class MycelialNetwork(_ReadsTheVault):
                     instance._publish_topology_read_models_locked()
                     object.__setattr__(instance, "_aegis_locked", True)
 
-        logger.critical("🛡️ AEGIS: Initiating Emergency Vault Restoration...")
+        logger.critical("AEGIS: Initiating Emergency Vault Restoration...")
         try:
             await run_io_bound(_restore_worker)
         except (sqlite3.Error, OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("mycelium", exc)
-            logger.critical("🛡️ AEGIS FATAL: Restoration Failed! %s", exc)
+            logger.critical("AEGIS FATAL: Restoration Failed! %s", exc)
             return False
-        logger.critical("🛡️ AEGIS: Restoration Successful. Mycelium Unity restored.")
+        logger.critical("AEGIS: Restoration Successful. Mycelium Unity restored.")
         return True

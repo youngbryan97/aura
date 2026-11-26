@@ -54,5 +54,5 @@ async def she_said_unasked(words: str, *, origin: str) -> bool:
             record_degradation("conversation", exc, severity="warning",
                                action="something she said unasked was shown but not kept in her conversation")
     if not kept:
-        logger.info("💬 said unasked, and no conversation kept it (%d keeper(s)): %r", len(_KEEPERS), said[:80])
+        logger.info("said unasked, and no conversation kept it (%d keeper(s)): %r", len(_KEEPERS), said[:80])
     return kept

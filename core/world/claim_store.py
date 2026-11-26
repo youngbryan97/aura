@@ -59,7 +59,7 @@ class ClaimStore:
             metadata=metadata or {},
         )
         self.claims[claim_id] = claim
-        logger.info("📋 Claim Ingested: '%s' from %s", content[:60], source)
+        logger.info("Claim Ingested: '%s' from %s", content[:60], source)
         return claim
 
     def get_claim(self, claim_id: str) -> Optional[WorldClaim]:

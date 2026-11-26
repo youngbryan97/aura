@@ -204,7 +204,7 @@ class EpistemicTracker:
             capture_and_log(e, {"context": "EpistemicTracker.start.event_bus"})
             logger.debug("EpistemicTracker event bus registration failed: %s", e)
 
-        logger.info("✅ EpistemicTracker ONLINE — meta-cognition active.")
+        logger.info("EpistemicTracker ONLINE — meta-cognition active.")
 
     async def stop(self):
         self.running = False

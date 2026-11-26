@@ -117,7 +117,7 @@ class BootPhases:
             return
         self.state = new
         self.last_transition_at = time.time()
-        logger.info("🟢 boot %s", new.value)
+        logger.info("boot %s", new.value)
 
     def snapshot(self) -> BootSnapshot:
         # Progress: monotonic across the linear states

@@ -78,5 +78,5 @@ def install(tokenizer: Any, job: dict[str, Any], processors: list[Any]) -> bool:
     if processor is None:
         return False
     processors.append(processor)
-    logger.info("✍️ [WORKER] This pass writes her answer: no tool call can be opened.")
+    logger.info("[WORKER] This pass writes her answer: no tool call can be opened.")
     return True

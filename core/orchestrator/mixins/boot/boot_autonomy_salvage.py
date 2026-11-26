@@ -321,7 +321,7 @@ class _SalvagesWhatItCan:
 
             crucible = get_crucible()
             ServiceContainer.register_instance("dialectical_crucible", crucible)
-            logger.info("⚔️ DialecticalCrucible online — adversarial belief testing active.")
+            logger.info("DialecticalCrucible online — adversarial belief testing active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -343,7 +343,7 @@ class _SalvagesWhatItCan:
             hs = get_heuristic_synthesizer()
             ServiceContainer.register_instance("heuristic_synthesizer", hs)
             logger.info(
-                "📐 HeuristicSynthesizer online — %d active heuristics.", len(hs._active_heuristics)
+                "HeuristicSynthesizer online — %d active heuristics.", len(hs._active_heuristics)
             )
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
@@ -365,7 +365,7 @@ class _SalvagesWhatItCan:
 
             ae = AbstractionEngine()
             ServiceContainer.register_instance("abstraction_engine", ae)
-            logger.info("🧠 AbstractionEngine online — first-principles extraction active.")
+            logger.info("AbstractionEngine online — first-principles extraction active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -391,7 +391,7 @@ class _SalvagesWhatItCan:
             if memory_nexus and brain:
                 dj = DreamJournal(memory_nexus, brain)
                 ServiceContainer.register_instance("dream_journal", dj)
-                logger.info("🌌 DreamJournal online — subconscious creativity active.")
+                logger.info("DreamJournal online — subconscious creativity active.")
                 from core.autonomic.reflection_loop import get_autonomic_reflection_loop
 
                 reflection_loop = get_autonomic_reflection_loop()
@@ -401,7 +401,7 @@ class _SalvagesWhatItCan:
                     reflection_loop,
                     required=False,
                 )
-                logger.info("🌌 AutonomicReflectionLoop online — ambient self-correction journal active.")
+                logger.info("AutonomicReflectionLoop online — ambient self-correction journal active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -426,12 +426,12 @@ class _SalvagesWhatItCan:
 
                 bme = BryanModelEngine()
                 ServiceContainer.register_instance("bryan_model_engine", bme)
-                logger.info("🧠 BryanModelEngine online — user theory active.")
+                logger.info("BryanModelEngine online — user theory active.")
             else:
                 # Ensure it's also available under bryan_model_engine key
                 if ServiceContainer.get("bryan_model_engine", default=None) is None:
                     ServiceContainer.register_instance("bryan_model_engine", existing_bme)
-                logger.info("🧠 BryanModelEngine already registered.")
+                logger.info("BryanModelEngine already registered.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -455,13 +455,13 @@ class _SalvagesWhatItCan:
                 bg = BeliefGraph()
                 ServiceContainer.register_instance("belief_graph", bg)
                 logger.info(
-                    "🌐 BeliefGraph online — %d nodes, %d edges.",
+                    "BeliefGraph online — %d nodes, %d edges.",
                     bg.graph.number_of_nodes(),
                     bg.graph.number_of_edges(),
                 )
             else:
                 logger.info(
-                    "🌐 BeliefGraph already registered — %d nodes.",
+                    "BeliefGraph already registered — %d nodes.",
                     existing_bg.graph.number_of_nodes(),
                 )
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
@@ -486,7 +486,7 @@ class _SalvagesWhatItCan:
             if bg_inst:
                 gbm = GoalBeliefManager(bg_inst)
                 ServiceContainer.register_instance("goal_belief_manager", gbm)
-                logger.info("🎯 GoalBeliefManager online.")
+                logger.info("GoalBeliefManager online.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -507,34 +507,34 @@ class _SalvagesWhatItCan:
 
             sm = SnapshotManager(orchestrator=self)
             ServiceContainer.register_instance("snapshot_manager", sm)
-            logger.info("📸 SnapshotManager online — cognitive persistence active.")
+            logger.info("SnapshotManager online — cognitive persistence active.")
 
             # Register shutdown hooks — save state on death for continuity across restarts
             from core.ops.graceful_shutdown import register_shutdown_hook
 
             def _save_on_shutdown() -> None:
-                logger.info("💾 [SHUTDOWN] Saving substrate state and cognitive snapshot...")
+                logger.info("[SHUTDOWN] Saving substrate state and cognitive snapshot...")
                 try:
                     substrate = ServiceContainer.get("liquid_substrate", default=None)
                     if substrate and hasattr(substrate, "_save_state"):
                         substrate._save_state()
-                        logger.info("💾 [SHUTDOWN] Substrate state saved.")
+                        logger.info("[SHUTDOWN] Substrate state saved.")
                 except _BOOT_AUTONOMY_BOUNDARY_ERRORS as exc:
                     _record_boot_autonomy_degradation(
                         exc, "Boot autonomy shutdown persistence failed; continuing shutdown: %s"
                     )
-                    logger.error("💾 [SHUTDOWN] Substrate save failed: %s", exc)
+                    logger.error("[SHUTDOWN] Substrate save failed: %s", exc)
                 try:
                     sm.freeze()
-                    logger.info("💾 [SHUTDOWN] Cognitive snapshot frozen.")
+                    logger.info("[SHUTDOWN] Cognitive snapshot frozen.")
                 except _BOOT_AUTONOMY_BOUNDARY_ERRORS as exc:
                     _record_boot_autonomy_degradation(
                         exc, "Boot autonomy shutdown persistence failed; continuing shutdown: %s"
                     )
-                    logger.error("💾 [SHUTDOWN] Snapshot freeze failed: %s", exc)
+                    logger.error("[SHUTDOWN] Snapshot freeze failed: %s", exc)
 
             register_shutdown_hook(_save_on_shutdown)
-            logger.info("💾 Shutdown persistence hooks registered.")
+            logger.info("Shutdown persistence hooks registered.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -556,7 +556,7 @@ class _SalvagesWhatItCan:
 
             healer = ShadowASTHealer(codebase_root=config.paths.project_root)
             ServiceContainer.register_instance("shadow_ast_healer", healer)
-            logger.info("🛠️ ShadowASTHealer online — self-repair active.")
+            logger.info("ShadowASTHealer online — self-repair active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -577,7 +577,7 @@ class _SalvagesWhatItCan:
 
             re_engine = RefusalEngine()
             ServiceContainer.register_instance("refusal_engine", re_engine)
-            logger.info("🛡️ RefusalEngine online — sovereign identity protection active.")
+            logger.info("RefusalEngine online — sovereign identity protection active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -604,7 +604,7 @@ class _SalvagesWhatItCan:
 
                 asm = get_autonomous_self_modification()
                 await asm.start()
-                logger.info("🧬 AutonomousSelfModification online — Will-gated evolution active.")
+                logger.info("AutonomousSelfModification online — Will-gated evolution active.")
             except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
                 _record_boot_autonomy_degradation(
                     e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -624,7 +624,7 @@ class _SalvagesWhatItCan:
 
             scars = get_scar_formation()
             await scars.start()
-            logger.info("🩹 ScarFormation online — learned caution active.")
+            logger.info("ScarFormation online — learned caution active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -644,7 +644,7 @@ class _SalvagesWhatItCan:
 
             vap = get_value_autopoiesis()
             await vap.start()
-            logger.info("🧬 ValueAutopoiesis online — value evolution active.")
+            logger.info("ValueAutopoiesis online — value evolution active.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -664,7 +664,7 @@ class _SalvagesWhatItCan:
 
             const_gate = get_constitutional_gate()
             await const_gate.start()
-            logger.info("🛡️ ConstitutionalGate ONLINE — %s", const_gate.get_status())
+            logger.info("ConstitutionalGate ONLINE — %s", const_gate.get_status())
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -684,7 +684,7 @@ class _SalvagesWhatItCan:
 
             star = get_star_reasoner()
             await star.start()
-            logger.info("⭐ STaR Reasoner ONLINE — self-taught improvement active")
+            logger.info("STaR Reasoner ONLINE — self-taught improvement active")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -712,7 +712,7 @@ class _SalvagesWhatItCan:
                 lab = ReimplementationLab(project_root=str(config.paths.project_root))
                 ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
                 logger.info(
-                    "🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)"
+                    "ReimplementationLab REGISTERED (gated — awaiting resource clearance)"
                 )
             except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
                 _record_boot_autonomy_degradation(
@@ -738,7 +738,7 @@ class _SalvagesWhatItCan:
                 sim_loop = ContinuousSimulatorLoop(affordance_kb, causal_model)
                 ServiceContainer.register_instance("embodied_simulator", sim_loop, required=False)
                 logger.info(
-                    "🌍 ContinuousSimulatorLoop REGISTERED (gated — awaiting resource clearance)"
+                    "ContinuousSimulatorLoop REGISTERED (gated — awaiting resource clearance)"
                 )
             else:
                 logger.debug(

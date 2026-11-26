@@ -82,7 +82,7 @@ class SovereignSupervisor:
             logger.critical("Target script missing: %s", self.target_script)
             return
 
-        logger.info("🛡️  Sovereign Supervisor active. Guarding: %s", self.target_script.name)
+        logger.info(" Sovereign Supervisor active. Guarding: %s", self.target_script.name)
         
         while self.should_run:
             try:
@@ -117,7 +117,7 @@ class SovereignSupervisor:
     async def _launch_process(self):
         """Launches the target script as a subprocess."""
         cmd = [sys.executable, str(self.target_script)] + self.args
-        logger.info("🚀 Launching %s...", self.target_script.name)
+        logger.info("Launching %s...", self.target_script.name)
         
         self.process = await get_subprocess_gateway().spawn_async(
             cmd,

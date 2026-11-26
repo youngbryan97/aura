@@ -168,7 +168,7 @@ class ProactivePresence:
             name="proactive_presence",
         )
         logger.info(
-            "✨ [ProactivePresence] Online. Thresholds: idle=%.0fs, cooldown=%.0fs, checkin=%.0fs",
+            "[ProactivePresence] Online. Thresholds: idle=%.0fs, cooldown=%.0fs, checkin=%.0fs",
             IDLE_THRESHOLD_SECONDS,
             SOCIAL_COOLDOWN_SECONDS,
             CHECKIN_IDLE_SECONDS,
@@ -1100,7 +1100,7 @@ class ProactivePresence:
                         content=content,
                     )
                     logger.info(
-                        "✨ [ProactivePresence] Visible spontaneous expression (#%d): %s",
+                        "[ProactivePresence] Visible spontaneous expression (#%d): %s",
                         self._consecutive_unprompted,
                         content[:80],
                     )
@@ -1147,7 +1147,7 @@ class ProactivePresence:
             )
             self._record_output_delivery(visible_presence=False, content=content)
             logger.info(
-                "🧠 [ProactivePresence] Fallback thought → neural feed (#%d): %s",
+                "[ProactivePresence] Fallback thought → neural feed (#%d): %s",
                 self._consecutive_unprompted, content[:80],
             )
         except (ImportError, AttributeError, RuntimeError) as e:

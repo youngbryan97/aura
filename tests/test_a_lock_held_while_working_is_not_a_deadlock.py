@@ -2,7 +2,7 @@
 
 LIVE, 2026-09-21: twenty-nine of these in one evening.
 
-    🚨 DEADLOCK ALERT: Lock 'AuraKernel.StateLock' (ID: b78f35cc) held for 438.8s!
+    DEADLOCK ALERT: Lock 'AuraKernel.StateLock' (ID: b78f35cc) held for 438.8s!
     StabilityGuardian: DEGRADED — lock_watchdog:1 active lock(s)
 
 The lock was not deadlocked. `AuraKernel.tick` takes it, runs the phases,

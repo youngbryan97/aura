@@ -78,7 +78,7 @@ def _fit_prompt_to_what_the_turn_can_read(
     if not trimmed:
         return body
     logger.info(
-        "✂️ [CONTEXT] system prompt %d → %d chars for a %d-token answer.",
+        "[CONTEXT] system prompt %d → %d chars for a %d-token answer.",
         len(body),
         len(trimmed),
         int(max_tokens),
@@ -136,7 +136,7 @@ def _record_the_capability_inventory_miss(
                 # of reasoning about why a fix "did not work" when it had
                 # simply never run.
                 logger.info(
-                    "🧭 [GROUNDING] present moment (%d chars) reaches her as its own message before the person's "
+                    "[GROUNDING] present moment (%d chars) reaches her as its own message before the person's "
                     "turn, not in the system prompt (%d chars).",
                     len(present),
                     len(system_prompt),

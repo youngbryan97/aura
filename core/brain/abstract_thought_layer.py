@@ -50,7 +50,7 @@ class AbstractThoughtLayer:
         self.running = False
         self._ponder_task = None
         self._last_ponder_time = 0.0
-        logger.info("🧠 AbstractThoughtLayer initialized.")
+        logger.info("AbstractThoughtLayer initialized.")
 
     async def start(self):
         """Starts the background pondering loop (tracked via task_tracker)."""
@@ -74,7 +74,7 @@ class AbstractThoughtLayer:
                 severity="critical",
             )
             raise RuntimeError("AbstractThoughtLayer loop could not be scheduled") from exc
-        logger.info("✅ AbstractThoughtLayer ACTIVE - Continuous subconscious reflection online.")
+        logger.info("AbstractThoughtLayer ACTIVE - Continuous subconscious reflection online.")
 
     async def stop(self):
         """Stops the pondering loop."""
@@ -229,7 +229,7 @@ Format your response as a valid JSON object with the following fields:
                 return None
 
             logger.info(
-                "🌌 [Pondering Core] Formulated thought: '%s' -> Concept: '%s'",
+                "[Pondering Core] Formulated thought: '%s' -> Concept: '%s'",
                 thought[:100],
                 concept,
             )
@@ -263,7 +263,7 @@ Format your response as a valid JSON object with the following fields:
                         decoder = ServiceContainer.get("cryptolalia_decoder", default=None)
                         if decoder:
                             poetic_translation = decoder.approximate_translation(vector)
-                            logger.info("🌌 [Cryptolalia translation]: %s", poetic_translation)
+                            logger.info("[Cryptolalia translation]: %s", poetic_translation)
                 except (AttributeError, RuntimeError, TypeError, ValueError) as latent_err:
                     _record_abstract_thought_degradation(
                         latent_err,
@@ -283,7 +283,7 @@ Format your response as a valid JSON object with the following fields:
                     )
                     if initiative_loop and hasattr(initiative_loop, "trigger_gap_search"):
                         logger.info(
-                            "🔍 [Action Impulse] Contemplation triggered browser search gap task: '%s'",
+                            "[Action Impulse] Contemplation triggered browser search gap task: '%s'",
                             impulse_target,
                         )
                         impulse_coro = initiative_loop.trigger_gap_search(impulse_target)

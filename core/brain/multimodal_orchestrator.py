@@ -101,7 +101,7 @@ class MultimodalOrchestrator:
                 )
                 return False
             self._is_setup = True
-            logger.info("✨ Multimodal Rendering Engine Online (%s).",
+            logger.info("Multimodal Rendering Engine Online (%s).",
                         ", ".join(available))
             return True
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -253,7 +253,7 @@ class MultimodalOrchestrator:
 
         generated = []
         for concept in concepts:
-            logger.info("🎨 Multimodal Manifestation: Generating '%s'", concept)
+            logger.info("Multimodal Manifestation: Generating '%s'", concept)
             payload = {
                 "prompt": concept,
                 "source": "multimodal_orchestrator",

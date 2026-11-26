@@ -75,9 +75,9 @@ class IntentRouter:
         if context and context.get("intent_hint"):
             hint_origin = context.get("origin") or context.get("request_origin") or context.get("source")
             if allow_intent_hint_bypass(context, hint_origin):
-                logger.info("⚡ IntentRouter: Using sanctioned constitutional intent_hint")
+                logger.info("IntentRouter: Using sanctioned constitutional intent_hint")
                 return Intent.SKILL
-            logger.info("🧭 IntentRouter: Ignoring unsanctioned intent_hint for governed classification")
+            logger.info("IntentRouter: Ignoring unsanctioned intent_hint for governed classification")
 
         lower_input = user_input.lower().strip()
         matched_skills = False

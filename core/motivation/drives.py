@@ -41,7 +41,7 @@ class DriveSystem:
             if b:
                 b.tick()
                 b.level = min(b.capacity, b.level + amount)
-                logger.debug("❤️ Drive Satisfied (Legacy-Safe): %s +%.1f -> %.1f", drive, amount, b.level)
+                logger.debug("Drive Satisfied (Legacy-Safe): %s +%.1f -> %.1f", drive, amount, b.level)
 
     def punish(self, drive: str, amount: float):
         """Punish a drive (Sync wrapper)."""
@@ -50,7 +50,7 @@ class DriveSystem:
             if b:
                 b.tick()
                 b.level = max(0.0, b.level - amount)
-                logger.debug("💔 Drive Damaged (Legacy-Safe): %s -%.1f -> %.1f", drive, amount, b.level)
+                logger.debug("Drive Damaged (Legacy-Safe): %s -%.1f -> %.1f", drive, amount, b.level)
 
     def get_imperative(self) -> Optional[str]:
         return self.engine.get_imperative()

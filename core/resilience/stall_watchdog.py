@@ -327,7 +327,7 @@ class StallWatchdog(threading.Thread):
         self._last_runtime_service_source = str(source or "runtime")[:120]
 
     def run(self):
-        logger.info("🛡️ StallWatchdog: Monitoring loop (Threshold: %.1fs)", self.threshold)
+        logger.info("StallWatchdog: Monitoring loop (Threshold: %.1fs)", self.threshold)
         self._running = True
         now = time.time()
         self._started_at = now
@@ -440,7 +440,7 @@ class StallWatchdog(threading.Thread):
             self._recent_lateness.clear()
             return
         logger.error(
-            "🚨 [WATCHDOG] EVENT LOOP FALLING BEHIND! (%.1fs late across %d looks "
+            "[WATCHDOG] EVENT LOOP FALLING BEHIND! (%.1fs late across %d looks "
             "in %.0fs, none of them past the %.1fs line)",
             total,
             len(self._recent_lateness),
@@ -615,7 +615,7 @@ class StallWatchdog(threading.Thread):
                 # wedge ceiling is not booting slowly — it is wedged, and boot
                 # grace must not protect it.
                 logger.critical(
-                    "🛑 [WATCHDOG] Boot loop wedged: silent %.0fs and parked on %s for "
+                    "[WATCHDOG] Boot loop wedged: silent %.0fs and parked on %s for "
                     "%.0fs (≥ %.0fs ceiling) — boot grace no longer applies.",
                     loop_silence,
                     frame or "an unreadable frame",
@@ -668,7 +668,7 @@ class StallWatchdog(threading.Thread):
         lesson from the 115GB crash where the lethal path never reached exit).
         """
         logger.critical(
-            "🛑 [WATCHDOG] Event loop unresponsive %.0fs ≥ hard ceiling — wedged beyond "
+            "[WATCHDOG] Event loop unresponsive %.0fs ≥ hard ceiling — wedged beyond "
             "in-process recovery; forcing process exit %d for supervisor restart.",
             loop_silence,
             self._hard_exit_code(),
@@ -917,16 +917,16 @@ class StallWatchdog(threading.Thread):
 
     def _report_stall(self, elapsed: float, share: float | None = None):
         if share is None:
-            logger.error("🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)
+            logger.error("[WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)
         elif share < LOOP_BLOCKED_CEILING_FRACTION:
             logger.error(
-                "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs; the loop thread "
+                "[WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs; the loop thread "
                 "accrued no CPU: blocked)",
                 elapsed,
             )
         else:
             logger.error(
-                "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs on %.0f%% of a "
+                "[WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs on %.0f%% of a "
                 "core: on-loop work)",
                 elapsed,
                 100.0 * share,
@@ -978,7 +978,7 @@ class StallWatchdog(threading.Thread):
                 extra={"stage": "traceback_dump", "elapsed_s": elapsed},
             )
 
-        logger.info("💉 [IMMUNE] Stall traceback dumped to: %s", dump_file)
+        logger.info("[IMMUNE] Stall traceback dumped to: %s", dump_file)
 
         self._notify_diagnostics(elapsed)
 
@@ -1094,7 +1094,7 @@ class StallWatchdog(threading.Thread):
                     logger.debug("Stall recovery: failed to cancel %s: %s", name, exc)
         else:
             message = (
-                "💉 [IMMUNE] Stall recovery is diagnostic-only; not bulk-cancelling asyncio tasks. "
+                "[IMMUNE] Stall recovery is diagnostic-only; not bulk-cancelling asyncio tasks. "
                 "Set AURA_WATCHDOG_CANCEL_HUNG_TASKS=1 to enable aggressive cancellation."
             )
             if self._diagnostic_only_notice_logged:
@@ -1105,7 +1105,7 @@ class StallWatchdog(threading.Thread):
 
         if cancelled:
             logger.warning(
-                "💉 [IMMUNE] Stall recovery cancelled %d hung asyncio tasks (stall=%.0fs).",
+                "[IMMUNE] Stall recovery cancelled %d hung asyncio tasks (stall=%.0fs).",
                 cancelled,
                 elapsed,
             )
@@ -1145,7 +1145,7 @@ class StallWatchdog(threading.Thread):
                 state_repo = ServiceContainer.get("state_repository", default=None)
                 if state_repo and hasattr(state_repo, "request_flush"):
                     state_repo.request_flush()
-                    logger.info("💉 [IMMUNE] Requested state vault flush after %d consecutive stalls.", self._consecutive_long_stalls)
+                    logger.info("[IMMUNE] Requested state vault flush after %d consecutive stalls.", self._consecutive_long_stalls)
             except (ImportError, AttributeError, RuntimeError) as exc:
                 _record_watchdog_degradation(
                     exc,

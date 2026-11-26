@@ -99,7 +99,7 @@ class VoiceSessionManager:
         if self._current_session:
             self._current_session.narration.append(message)
 
-        logger.info("🗣️ %s", message)
+        logger.info("%s", message)
 
         # Try to speak via TTS
         try:

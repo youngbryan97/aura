@@ -156,7 +156,7 @@ class CognitiveEngineConnectionPool:
                 stats = self.stats.get(connection_id)
                 if stats and stats.current_health == ConnectionHealth.HEALTHY:
                     logger.debug(
-                        "🔌 Reusing existing CognitiveEngine connection (id=%s, uptime=%.1fs)",
+                        "Reusing existing CognitiveEngine connection (id=%s, uptime=%.1fs)",
                         connection_id,
                         stats.uptime_seconds(),
                     )
@@ -165,7 +165,7 @@ class CognitiveEngineConnectionPool:
             # Create new connection if needed
             if connection_id not in self.connections or force_refresh:
                 logger.info(
-                    "🔗 Establishing persistent CognitiveEngine connection (id=%s, force_refresh=%s)",
+                    "Establishing persistent CognitiveEngine connection (id=%s, force_refresh=%s)",
                     connection_id,
                     force_refresh,
                 )
@@ -224,7 +224,7 @@ class CognitiveEngineConnectionPool:
                 )
                 
                 logger.debug(
-                    "🔄 %s attempt %d/%d (timeout=%.1fs)",
+                    "%s attempt %d/%d (timeout=%.1fs)",
                     operation_name,
                     attempt + 1,
                     self.retry_config.max_retries,
@@ -238,7 +238,7 @@ class CognitiveEngineConnectionPool:
                 # Success
                 stats.record_success()
                 logger.debug(
-                    "✅ %s succeeded on attempt %d",
+                    "%s succeeded on attempt %d",
                     operation_name,
                     attempt + 1,
                 )
@@ -248,7 +248,7 @@ class CognitiveEngineConnectionPool:
                 stats.record_failure(is_timeout=True)
                 last_exception = e
                 logger.warning(
-                    "⏱️  %s timed out on attempt %d (%.1fs)",
+                    " %s timed out on attempt %d (%.1fs)",
                     operation_name,
                     attempt + 1,
                     attempt_timeout,
@@ -261,7 +261,7 @@ class CognitiveEngineConnectionPool:
                 stats.record_failure(is_timeout=False)
                 last_exception = e
                 logger.warning(
-                    "❌ %s failed on attempt %d: %s",
+                    "%s failed on attempt %d: %s",
                     operation_name,
                     attempt + 1,
                     str(e),
@@ -279,7 +279,7 @@ class CognitiveEngineConnectionPool:
                 if backoff_delay <= 0:
                     break
                 logger.info(
-                    "⏳ Waiting %.1fs before retry (attempt %d/%d)",
+                    "Waiting %.1fs before retry (attempt %d/%d)",
                     backoff_delay,
                     attempt + 1,
                     self.retry_config.max_retries,
@@ -288,7 +288,7 @@ class CognitiveEngineConnectionPool:
         
         # All retries exhausted
         logger.error(
-            "🔴 %s failed after %d attempts. Last error: %s",
+            "%s failed after %d attempts. Last error: %s",
             operation_name,
             self.retry_config.max_retries,
             str(last_exception),
@@ -303,7 +303,7 @@ class CognitiveEngineConnectionPool:
             if not task.done():
                 return  # Recovery already in progress
         
-        logger.info("🔧 Triggering connection recovery (id=%s)", connection_id)
+        logger.info("Triggering connection recovery (id=%s)", connection_id)
         
         async def recovery_task():
             try:
@@ -322,12 +322,12 @@ class CognitiveEngineConnectionPool:
                         connection_id=connection_id,
                         force_refresh=True,
                     )
-                    logger.info("✅ Connection recovery completed (id=%s)", connection_id)
+                    logger.info("Connection recovery completed (id=%s)", connection_id)
                     if stats:
                         stats.record_success()
             except _CONNECTION_POOL_RECOVERABLE_ERRORS as e:
                 record_degradation("engine_connection_pool.recovery", e)
-                logger.error("🛑 Connection recovery failed: %s", str(e))
+                logger.error("Connection recovery failed: %s", str(e))
         
         task = get_task_tracker().create_task(
             recovery_task(),
@@ -365,7 +365,7 @@ class CognitiveEngineConnectionPool:
                 task.cancel()
                 del self._recovery_tasks[connection_id]
             
-            logger.info("🔌 Closed CognitiveEngine connection (id=%s)", connection_id)
+            logger.info("Closed CognitiveEngine connection (id=%s)", connection_id)
 
 
 # Global instance

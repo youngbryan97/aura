@@ -96,7 +96,7 @@ def main() -> int:
         draft_model, draft_tokenizer = load(args.draft)
         probe = "Aura verifies every proposed token."
         if draft_tokenizer.encode(probe) != tokenizer.encode(probe):
-            print("❌ tokenizer mismatch between draft and target")
+            print("tokenizer mismatch between draft and target")
             return 2
 
         results = _bench(model, tokenizer, draft_model, args.max_tokens, args.runs)

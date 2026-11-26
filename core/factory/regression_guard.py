@@ -19,7 +19,7 @@ class RegressionGuard:
         self, repo_path: str, patches: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """Scans patches for common regressions (e.g. infinite loops, unclosed file descriptors, print statements)."""
-        logger.info("🛡️ RegressionGuard checking %d patches...", len(patches))
+        logger.info("RegressionGuard checking %d patches...", len(patches))
 
         regressions_found = 0
         issues: List[Dict[str, Any]] = []

@@ -26,7 +26,7 @@ class MemoryGuard:
             return
         self._running = True
         self._task = get_task_tracker().create_task(self._watch_loop())
-        logger.info("🛡️ MemoryGuard active (Threshold: %s%%)", self.threshold_percent)
+        logger.info("MemoryGuard active (Threshold: %s%%)", self.threshold_percent)
 
     async def stop(self):
         self._running = False
@@ -58,7 +58,7 @@ class MemoryGuard:
                     self.consecutive_strikes = self.consecutive_strikes + 1
                     critical.report(
                         True,
-                        "🔴 RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.",
+                        "RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.",
                         pressure,
                         self.consecutive_strikes,
                         level=float(pressure),
@@ -71,7 +71,7 @@ class MemoryGuard:
                     if pressure < 94:
                         gc.collect(generation=1) 
                     else:
-                        logger.warning("⚠️ RAM > 94%: Using minimal GC to avoid stall.")
+                        logger.warning("RAM > 94%: Using minimal GC to avoid stall.")
                         gc.collect(generation=0)
                     
                     # 2. Adaptive Throttling: Slightly lower threshold, but don't create a death spiral
@@ -149,7 +149,7 @@ class MemoryGuard:
                             logger.debug("MemoryGuard: Manual gc.collect() failed.")
                         
                         self.consecutive_strikes = 0
-                        logger.info("🟢 RAM Stabilized. Cooling down adaptive threshold.")
+                        logger.info("RAM Stabilized. Cooling down adaptive threshold.")
                     
                     # Slowly restore base threshold
                     if adaptive_threshold < base_threshold:
@@ -166,6 +166,6 @@ class MemoryGuard:
                 # to propagate and shut down the task cleanly.
                 if not self._running:
                     break
-                logger.critical("🛑 MemoryGuard SEIZURE: %s. Attempting auto-restart in 10s...", type(e).__name__)
+                logger.critical("MemoryGuard SEIZURE: %s. Attempting auto-restart in 10s...", type(e).__name__)
                 await asyncio.sleep(10)
                 # Loop continues

@@ -74,7 +74,7 @@ def _write_receipt_artifacts(will) -> Path:
 
 
 async def main() -> int:
-    print("🚀 Booting Leviathan Kernel for live proof run...")
+    print("Booting Leviathan Kernel for live proof run...")
     kernel = get_leviathan_kernel()
     
     # Register live subsystems
@@ -86,14 +86,14 @@ async def main() -> int:
     kernel.register_subsystem("cloud_body", CloudBody())
 
     await kernel.initialize()
-    print("✅ Subsystems online.")
+    print("Subsystems online.")
 
     # 1. Start the Unified Will
     will = get_will()
     await will.start()
 
     # 2. Execute actual, live governed transactions via ActionExecutor
-    print("⚡ Executing live actions to generate receipts...")
+    print("Executing live actions to generate receipts...")
     
     # File write transaction
     proof_file = Path(tempfile.gettempdir()) / "leviathan_live_proof_file.txt"
@@ -116,14 +116,14 @@ async def main() -> int:
 
     # 3. Export signed decision receipts to the canonical location
     receipts_file = await asyncio.to_thread(_write_receipt_artifacts, will)
-    print(f"📝 Wrote signed Will receipts to {receipts_file}.")
+    print(f"Wrote signed Will receipts to {receipts_file}.")
 
     # 4. Trigger the receipt coverage validator
-    print("🔍 Running receipt coverage validator...")
+    print("Running receipt coverage validator...")
     from tools import receipt_coverage_validator
     
     rc = receipt_coverage_validator.main(["--artifacts", "artifacts/current"])
-    print(f"📊 Validator exit code: {rc}")
+    print(f"Validator exit code: {rc}")
     return rc
 
 

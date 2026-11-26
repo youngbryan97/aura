@@ -59,7 +59,7 @@ class MacOSTTS(TTSEngine):
             )
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('voice_presence', e)
-            logger.debug("🔊 MacOSTTS: Speak exec failed: %s", e)
+            logger.debug("MacOSTTS: Speak exec failed: %s", e)
 
     async def stop(self) -> None:
         proc = self._speaking_proc
@@ -101,7 +101,7 @@ class LinuxTTS(TTSEngine):
                     continue
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('voice_presence', e)
-            logger.error("🔊 LinuxTTS: Speak failed: %s", e)
+            logger.error("LinuxTTS: Speak failed: %s", e)
 
 class WindowsTTS(TTSEngine):
     async def speak(self, text: str) -> None:
@@ -121,7 +121,7 @@ class WindowsTTS(TTSEngine):
             await proc.wait()
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('voice_presence', e)
-            logger.error("🔊 WindowsTTS: Speak failed: %s", e)
+            logger.error("WindowsTTS: Speak failed: %s", e)
 
 class DummyTTS(TTSEngine):
     """The platform has no TTS backend. Say so; do not pretend to speak.
@@ -147,7 +147,7 @@ class DummyTTS(TTSEngine):
                 RuntimeError(f"no TTS backend for platform {sys.platform!r}"),
                 action="text is written to the log instead of spoken",
             )
-        logger.info("🔊 [no TTS backend — text only]: %s", text)
+        logger.info("[no TTS backend — text only]: %s", text)
 
 class VoicePresence:
     def __init__(self, orchestrator: Any):
@@ -160,7 +160,7 @@ class VoicePresence:
         elif sys.platform == "win32":
             self._tts = WindowsTTS()
         else:
-            logger.warning("🔊 VoicePresence: Unsupported platform '%s'. Using DummyTTS.", sys.platform)
+            logger.warning("VoicePresence: Unsupported platform '%s'. Using DummyTTS.", sys.platform)
             self._tts = DummyTTS()
 
         #: Whether this process can actually produce sound. Readable so a
@@ -170,7 +170,7 @@ class VoicePresence:
         self._running = False
         self._voice_enabled = os.environ.get("AURA_VOICE_SILENT", "0") != "1"
         if not self._voice_enabled:
-            logger.info("🔊 VoicePresence: Muted (AURA_VOICE_SILENT=1)")
+            logger.info("VoicePresence: Muted (AURA_VOICE_SILENT=1)")
 
     async def start(self) -> None:
         self._running = True

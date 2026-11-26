@@ -55,12 +55,12 @@ def main() -> int:
     print(json.dumps(summary, indent=2, sort_keys=True, default=str))
 
     if not summary["chain_ok"]:
-        print(f"\n❌ Ledger chain INVALID: {summary['chain_detail']}")
+        print(f"\nLedger chain INVALID: {summary['chain_detail']}")
         return 1
     if not summary["held_out_integrity_ok"]:
-        print("\n❌ Held-out integrity broken: a sealed pack changed manifest.")
+        print("\nHeld-out integrity broken: a sealed pack changed manifest.")
         return 1
-    print(f"\n✅ Ledger verified: {summary['total_runs']} runs, chain intact.")
+    print(f"\nLedger verified: {summary['total_runs']} runs, chain intact.")
     return 0
 
 

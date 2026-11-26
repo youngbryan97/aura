@@ -941,7 +941,7 @@ def test_watchdog_mode_remains_supervision_only():
     assert "create_orchestrator" not in watchdog_slice
     assert "bootstrap_aura(orchestrator)" not in watchdog_slice
     assert "await orchestrator.start()" not in watchdog_slice
-    assert 'logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")' in watchdog_slice
+    assert 'logger.info("Watchdog supervisor active (supervision-only mode).")' in watchdog_slice
     assert "_watchdog_child_args(args)" in watchdog_slice
     assert "get_subprocess_gateway().spawn_async(" in watchdog_slice
     assert 'local_internal_governed_scope(' in watchdog_slice
@@ -953,7 +953,7 @@ def test_watchdog_mode_remains_supervision_only():
 def test_gui_reaper_spawn_is_governed_environment_action():
     main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
     gui_slice = main_py.split("async def _gui_reaper_loop():", 1)[1].split(
-        "logger.info(\"🎨 GUI Process Started",
+        "logger.info(\"GUI Process Started",
         1,
     )[0]
 

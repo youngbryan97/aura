@@ -89,18 +89,18 @@ def _record_sync(duration: float, fs: int = 16000) -> str:
         
         device = _get_default_input_device()
         if device is None:
-            logger.error("❌ No input device found!")
+            logger.error("No input device found!")
             raise RuntimeError("No input device available")
 
         device_info = sd.query_devices(device)
-        logger.info("🎙️ Selected Device: %s (Index: %s)", device_info['name'], device)
+        logger.info("Selected Device: %s (Index: %s)", device_info['name'], device)
         
         # Set explicitly for macOS stability
         sd.default.device = (device, None)
         sd.default.samplerate = fs
         sd.default.channels = 1
 
-        logger.info("🎙️ Recording from device %s at %sHz for %ss...", device, fs, duration)
+        logger.info("Recording from device %s at %sHz for %ss...", device, fs, duration)
         
         recording = record_sounddevice_array(
             sd,

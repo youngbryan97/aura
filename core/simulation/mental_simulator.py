@@ -125,7 +125,7 @@ class MentalSimulator:
         reason = simulation_result.get("risk_reason", "Unknown")
         
         if score > 0.8: # Adjusted threshold for AGI autonomy
-            logger.warning("🛑 HIGH RISK ACTION BLOCKED (%s): %s", score, reason)
+            logger.warning("HIGH RISK ACTION BLOCKED (%s): %s", score, reason)
             return False
             
         return True

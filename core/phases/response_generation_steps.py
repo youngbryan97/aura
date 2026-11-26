@@ -44,7 +44,7 @@ class _RunsTheGenerationSteps:
                 origin=origin,
             )
             logger.debug(
-                "🗣️ [SubstrateVoice] Profile: budget=%d, tone=%s, multi=%s, fu=%.2f",
+                "[SubstrateVoice] Profile: budget=%d, tone=%s, multi=%s, fu=%.2f",
                 _speech_profile.word_budget,
                 _speech_profile.tone_override or "default",
                 _speech_profile.multi_message,
@@ -156,7 +156,7 @@ class _RunsTheGenerationSteps:
             if causal_context:
                 messages.insert(1, {"role": "system", "content": causal_context})
                 logger.debug(
-                    "🧶 ResponseGeneration: Causal world cascades injected into prompt."
+                    "ResponseGeneration: Causal world cascades injected into prompt."
                 )
 
         # ISSUE-80: Context Fix (Identity Reinforcement)
@@ -164,7 +164,7 @@ class _RunsTheGenerationSteps:
             # Ensure the system prompt or first message reinforces identity if buried
             if len(messages) > 10:
                 logger.debug(
-                    "🛡️ ResponseGeneration: Reinforcing identity anchor for long context."
+                    "ResponseGeneration: Reinforcing identity anchor for long context."
                 )
                 identity_reminder = {
                     "role": "system",
@@ -494,7 +494,7 @@ class _RunsTheGenerationSteps:
 
                         if ext_content:
                             logger.info(
-                                "🛡️ [HARDENING] Proactively extracted content from accidental JSON block."
+                                "[HARDENING] Proactively extracted content from accidental JSON block."
                             )
                             content = ext_content
                             if not action:
@@ -525,7 +525,7 @@ class _RunsTheGenerationSteps:
 
                 is_json_like = response_text.strip().startswith("{") and response_text.strip().endswith("}")
                 if not is_json_like:
-                    logger.info("🛡️ [HARDENING] DELIBERATE mode validation failed, but output is not JSON-like. Reverting to plain text.")
+                    logger.info("[HARDENING] DELIBERATE mode validation failed, but output is not JSON-like. Reverting to plain text.")
                     content = response_text
                 else:
                     # It is JSON-like but parsing or validation failed. Let's see if we can extract "content" via regex
@@ -533,7 +533,7 @@ class _RunsTheGenerationSteps:
                     if content_match:
                         try:
                             content = json.loads(f'"{content_match.group(1)}"')
-                            logger.info("🛡️ [HARDENING] DELIBERATE mode validation recovered content from JSON-like response using regex.")
+                            logger.info("[HARDENING] DELIBERATE mode validation recovered content from JSON-like response using regex.")
                         except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
                             content = response_text
                     else:
@@ -603,7 +603,7 @@ class _RunsTheGenerationSteps:
                     deterministic=True,
                     authorship_effect="preserved",
                 )
-                logger.info("🛡️ [HARDENING] Auto-corrected and wrapped extracted answer '%s' in XML tags.", extracted_ans)
+                logger.info("[HARDENING] Auto-corrected and wrapped extracted answer '%s' in XML tags.", extracted_ans)
         return action, content
 
     @staticmethod
@@ -738,7 +738,7 @@ class _RunsTheGenerationSteps:
                         "reason": fu_decision.reason,
                     }
                     logger.info(
-                        "💬 [SubstrateVoice] Follow-up queued: %s in %.1fs",
+                        "[SubstrateVoice] Follow-up queued: %s in %.1fs",
                         fu_decision.followup_type,
                         fu_decision.delay_seconds,
                     )

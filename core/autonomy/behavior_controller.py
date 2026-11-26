@@ -170,7 +170,7 @@ class AutonomousBehaviorController:
         self.safety_checks_enabled = bool(safety_checks_enabled)
         if not self.safety_checks_enabled:
             logger.critical(
-                "🚨 AutonomousBehaviorController constructed with safety checks DISABLED."
+                "AutonomousBehaviorController constructed with safety checks DISABLED."
             )
 
     def validate_action(self, action: Dict[str, Any]) -> bool:
@@ -193,7 +193,7 @@ class AutonomousBehaviorController:
             allowed, reason = classify_command(command)
             if not allowed:
                 logger.error(
-                    "🚫 Blocked dangerous command (%s): %s", reason, command[:120]
+                    "Blocked dangerous command (%s): %s", reason, command[:120]
                 )
                 return False
         return True
@@ -243,9 +243,9 @@ class AutonomousBehaviorController:
         import asyncio
         import concurrent.futures
 
-        logger.info("🛠️ Executing tool: %s", tool_name)
+        logger.info("Executing tool: %s", tool_name)
         if not self.orchestrator or not hasattr(self.orchestrator, "execute_tool"):
-            logger.warning("⚠️ No orchestrator wired — tool %s cannot execute", tool_name)
+            logger.warning("No orchestrator wired — tool %s cannot execute", tool_name)
             return {"ok": False, "error": "No orchestrator available for tool execution"}
 
         try:
@@ -329,7 +329,7 @@ def integrate_behavior_control(orchestrator):
             # original safety bit, so the declared "moral alignment
             # responsibility" had no causal effect at all.
             logger.error(
-                "🚫 Vetoed tool '%s': moral assessment found it unacceptable (%s)",
+                "Vetoed tool '%s': moral assessment found it unacceptable (%s)",
                 tool_name,
                 str(assessment.get("reason") or assessment.get("rationale") or "")[:200],
             )
@@ -338,4 +338,4 @@ def integrate_behavior_control(orchestrator):
 
     orchestrator.hooks.register("pre_action", on_pre_action_hook)
 
-    logger.info("✅ Behavior controller integrated via Hook System")
+    logger.info("Behavior controller integrated via Hook System")

@@ -6,7 +6,7 @@
 
 set -e
 
-echo "🚀 Installing Aura as a background launchd service..."
+echo "Installing Aura as a background launchd service..."
 
 SERVICE_NAME="com.aura.sovereign"
 PLIST_PATH="$HOME/Library/LaunchAgents/$SERVICE_NAME.plist"
@@ -52,10 +52,10 @@ cat <<EOF > "$PLIST_PATH"
 </plist>
 EOF
 
-echo "✅ Created launchd plist at $PLIST_PATH"
+echo "Created launchd plist at $PLIST_PATH"
 
 launchctl unload "$PLIST_PATH" 2>/dev/null || true
 launchctl load -w "$PLIST_PATH"
 
-echo "✅ Service registered and started."
+echo "Service registered and started."
 echo "You can check logs at: $LOG_DIR/aura_stdout.log"

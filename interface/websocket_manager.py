@@ -432,7 +432,7 @@ class WebSocketManager:
         if not accepted:
             await websocket.accept()
         if os.environ.get("AURA_TRACE_MODE") == "1":
-            logger.info("📡 [TRACE] WebSocket connected (ID: %s)", id(websocket))
+            logger.info("[TRACE] WebSocket connected (ID: %s)", id(websocket))
         queue: ClientQueue = asyncio.PriorityQueue(maxsize=1000)
         async with self._lock:
             self.active_connections[websocket] = queue
@@ -545,7 +545,7 @@ class WebSocketManager:
                         timeout=5.0,
                     )
                 except _WEBSOCKET_HEARTBEAT_ERRORS:
-                    logger.warning("🧟 WS ZOMBIE: Reaping connection %s", id(websocket))
+                    logger.warning("WS ZOMBIE: Reaping connection %s", id(websocket))
                     await self.disconnect(websocket)
                     break
         # not a failure: the wait ran out or the work was cancelled, which are the two

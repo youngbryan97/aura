@@ -791,7 +791,7 @@ class ResearchCycle:
                     if not domain:
                         logger.debug("Autotelic intent deferred: no grounded topic is available yet.")
                         return None
-                    logger.info("⚡ [AUTOTELIC] Autotelic signal identified: %s", domain)
+                    logger.info("[AUTOTELIC] Autotelic signal identified: %s", domain)
                     
                     # LEASED, not consumed. The intent used to be removed
                     # here, before any search ran — so a failure in search,

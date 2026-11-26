@@ -35,14 +35,14 @@ class MLXExpertAdapterApplier:
             ok = bool(receipt.get("ok"))
             if ok:
                 logger.info(
-                    "🧩 [ExpertLoRA] '%s' live on %s (%d layers).",
+                    "[ExpertLoRA] '%s' live on %s (%d layers).",
                     adapter.name,
                     getattr(self._client, "model_path", "?").rsplit("/", 1)[-1],
                     int(receipt.get("wrapped_layers") or 0),
                 )
             else:
                 logger.info(
-                    "🧩 [ExpertLoRA] swap to '%s' refused: %s",
+                    "[ExpertLoRA] swap to '%s' refused: %s",
                     adapter.name,
                     receipt.get("reason"),
                 )

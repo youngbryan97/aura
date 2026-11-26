@@ -842,7 +842,7 @@ def looks_like_desktop_objective(user_message: str) -> bool:
             return True
     elif _learned_actuation_decision(user_message) is False:
         logger.info(
-            "🧭 [ROUTING] the patterns call this screen work and the learned "
+            "[ROUTING] the patterns call this screen work and the learned "
             "surface does not; keeping the patterns."
         )
     return by_pattern

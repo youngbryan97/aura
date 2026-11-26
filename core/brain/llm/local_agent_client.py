@@ -829,7 +829,7 @@ class LocalAgentClient(LocalBrain):
                     "reasoning": [f"Local model generation failed: {type(exc).__name__}"],
                     "error": str(exc),
                 }
-            # --- 🛑 CIRCUIT BREAKER INJECTION ---
+            # --- CIRCUIT BREAKER INJECTION ---
             try:
                 from core.resilience.circuit_breaker import loop_killer
 
@@ -892,7 +892,7 @@ class LocalAgentClient(LocalBrain):
                     )
                     continue
 
-                logger.info("🤖 Local Brain invoking tool: %s", tool_name)
+                logger.info("Local Brain invoking tool: %s", tool_name)
 
                 # ACTUAL EXECUTION
                 if not self.adapter:

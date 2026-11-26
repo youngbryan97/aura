@@ -345,7 +345,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     if malformed:
         print()
         print(
-            f"  ⚠️  {len(malformed)} ledger row(s) carry no recognised status and are "
+            f"   {len(malformed)} ledger row(s) carry no recognised status and are "
             "NOT counted as closed:"
         )
         for fid in sorted(malformed)[:20]:

@@ -124,7 +124,7 @@ class ContinuousSubstrate:
         # Reproducibility manifest
         w_checksum = hashlib.sha256(self._W.tobytes()).hexdigest()[:16]
         logger.info(
-            "🧠 [SUBSTRATE] Initializing real ODE substrate (%d neurons, %.0f Hz, "
+            "[SUBSTRATE] Initializing real ODE substrate (%d neurons, %.0f Hz, "
             "seed=913, W_checksum=%s)",
             NEURONS, STEP_HZ, w_checksum,
         )
@@ -137,7 +137,7 @@ class ContinuousSubstrate:
             await cancel_and_join(
                 self._task, owner="core.brain.llm.continuous_substrate", timeout=2.0
             )
-        logger.info("🧠 [SUBSTRATE] ODE substrate halted (real-mode).")
+        logger.info("[SUBSTRATE] ODE substrate halted (real-mode).")
 
     def inject_input(self, vector: np.ndarray) -> None:
         """Apply an external affect signal to the substrate's input bus.
@@ -361,7 +361,7 @@ class ContinuousSubstrate:
             raise
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('continuous_substrate', e)
-            logger.error("🛑 [SUBSTRATE] integration loop crashed: %s", e)
+            logger.error("[SUBSTRATE] integration loop crashed: %s", e)
             self.running = False
 
     def _step_once(self) -> None:
@@ -377,7 +377,7 @@ class ContinuousSubstrate:
         if not np.isfinite(new_state).all():
             self._nan_reset_count += 1
             logger.warning(
-                "🛑 [SUBSTRATE] NaN/Inf detected at step %d (reset #%d). "
+                "[SUBSTRATE] NaN/Inf detected at step %d (reset #%d). "
                 "Rolling back to last known-good state.",
                 self._step_count, self._nan_reset_count,
             )
@@ -385,12 +385,12 @@ class ContinuousSubstrate:
             if self._rollback_ring:
                 self._state = self._rollback_ring[-1].copy()
                 logger.info(
-                    "🔄 [SUBSTRATE] Rolled back to snapshot %d steps ago.",
+                    "[SUBSTRATE] Rolled back to snapshot %d steps ago.",
                     len(self._rollback_ring),
                 )
             else:
                 self._state = np.zeros(NEURONS, dtype=np.float32)
-                logger.warning("🔄 [SUBSTRATE] No rollback available. Reset to zero.")
+                logger.warning("[SUBSTRATE] No rollback available. Reset to zero.")
             # Zero the input signal that may have caused the divergence
             self._input_signal = np.zeros(NEURONS, dtype=np.float32)
             # Report to incident manager

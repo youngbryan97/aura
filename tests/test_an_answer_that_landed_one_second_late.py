@@ -4,15 +4,15 @@ LIVE, 2026-09-21. Asked to measure 4 litres with a 3-litre and a 5-litre
 jug, Aura answered "That answer took too long to finish cleanly." The log
 from the same turn:
 
-    🧠 [ANSWER CLOCK] 256 tokens ... decode in about 108s and the prompt
+    [ANSWER CLOCK] 256 tokens ... decode in about 108s and the prompt
        takes about 11s to read ... deadline 103s → 122s
-    ⏳ Kernel soft deadline missed but cortex is alive and generating.
+    Kernel soft deadline missed but cortex is alive and generating.
        Waiting 30s for kernel to finish (no competing request).
     KernelInterface chat timed out after its budget; the fallback ladder
        takes this turn (TimeoutError).
-    ⏱️ [WORKER] prefill=1422 tokens/32.53s (43.7 tok/s), decode=225
+    [WORKER] prefill=1422 tokens/32.53s (43.7 tok/s), decode=225
        tokens/39.90s
-    ✅ Brainstem response received (len=667)
+    Brainstem response received (len=667)
 
 The prompt took 32.5 seconds to read, not 11. Everything downstream was
 priced off that estimate, the wait ran out one second before the answer

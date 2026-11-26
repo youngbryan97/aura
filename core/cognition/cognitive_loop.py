@@ -107,7 +107,7 @@ class CognitiveLoop:
             return
         self.is_running = True
         self._task = get_task_tracker().create_task(self.run(), name="cognitive-loop")
-        logger.info("🧠 Cognitive Loop service started.")
+        logger.info("Cognitive Loop service started.")
 
     async def stop(self):
         """Stop the cognitive cycle."""
@@ -139,7 +139,7 @@ class CognitiveLoop:
                 )
             self._active_deliberation_task = None
         self.shutdown_deliberation_pool()
-        logger.info("🧠 Cognitive Loop service stopped.")
+        logger.info("Cognitive Loop service stopped.")
 
     async def run(self):
         """Main cognitive cycle."""
@@ -306,7 +306,7 @@ class CognitiveLoop:
         # no real damage backs it, hold this cycle instead of acting on the spike. This is the
         # maturity layer made causal — it decides whether to act, not just how to feel.
         if self._regulation_says_hold(fe_state):
-            logger.debug("🧘 [Regulation] holding autonomous action this cycle (impulse regulated).")
+            logger.debug("[Regulation] holding autonomous action this cycle (impulse regulated).")
             return
 
         if fe_state.dominant_action == "explore":
@@ -394,7 +394,7 @@ class CognitiveLoop:
             # Dispatch off the event loop — the tier handlers may touch SQLite / Will.
             result = await asyncio.to_thread(get_hierarchical_agency().dispatch, situation)
             logger.debug(
-                "🪜 [Agency] heartbeat appraisal: %s → %s (handled=%s)",
+                "[Agency] heartbeat appraisal: %s → %s (handled=%s)",
                 result.starting_tier.name, result.final_tier.name, result.handled,
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -503,7 +503,7 @@ class CognitiveLoop:
                             extra={"component": key},
                         )
                     logger.warning(
-                        "🚨 [RECOVERY] Critical component '%s' (%s) missing from container. Triggering Orchestrator repair...",
+                        "[RECOVERY] Critical component '%s' (%s) missing from container. Triggering Orchestrator repair...",
                         name,
                         key,
                     )
@@ -523,7 +523,7 @@ class CognitiveLoop:
         [DEPRECATED] v15: Autonomous thoughts are now driven by _tick's FE logic.
         Legacy boredom timers are disabled to prevent periodic 'cron' behavior.
         """
-        logger.debug("🧠 CognitiveLoop: Legacy autonomous thought trigger ignored (deprecated).")
+        logger.debug("CognitiveLoop: Legacy autonomous thought trigger ignored (deprecated).")
 
     async def _recover_from_stall(self):
         """Emergency recovery logic for cognitive stalls."""

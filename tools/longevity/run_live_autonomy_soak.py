@@ -103,7 +103,7 @@ async def async_main(argv: list[str] | None = None) -> int:
     from tools.agi.run_dnu_agi_proof_battery import shutdown_proof_runtime
     from tools.receipt_material import signed_will_receipt_entry
 
-    print("🚀 Booting Aura runtime for live autonomy soak...")
+    print("Booting Aura runtime for live autonomy soak...")
     orch = await boot_aura_runtime(
         profile=args.profile,
         ready_label="Live-Longevity",
@@ -148,7 +148,7 @@ async def async_main(argv: list[str] | None = None) -> int:
 
                 # 1. Model Call (Self-Reflection)
                 try:
-                    print("🧠 Making model query via llm_router...")
+                    print("Making model query via llm_router...")
                     response = await router.think(
                         prompt=f"Perform autonomy live soak heartbeat reflection index={index}.",
                         max_tokens=24,
@@ -163,7 +163,7 @@ async def async_main(argv: list[str] | None = None) -> int:
 
                 # 2. Governed Tool Attempt (Subprocess Echo/Uname via ActionExecutor)
                 try:
-                    print("🛠️ Executing governed subprocess action...")
+                    print("Executing governed subprocess action...")
                     tool_res = await ActionExecutor.execute(
                         domain=ActionDomain.TOOL_EXECUTION,
                         action_name="run_command",
@@ -183,7 +183,7 @@ async def async_main(argv: list[str] | None = None) -> int:
 
                 # 3. Governed Memory Write via ActionExecutor
                 try:
-                    print("💾 Performing governed memory write...")
+                    print("Performing governed memory write...")
                     mem_res = await ActionExecutor.execute(
                         domain=ActionDomain.MEMORY_WRITE,
                         action_name="write_memory",
@@ -241,7 +241,7 @@ async def async_main(argv: list[str] | None = None) -> int:
                 await asyncio.sleep(0.5)
 
     finally:
-        print("🔌 Shutting down live autonomy soak runtime...")
+        print("Shutting down live autonomy soak runtime...")
         await shutdown_proof_runtime(orch)
 
     actual_runtime = time.time() - start_time

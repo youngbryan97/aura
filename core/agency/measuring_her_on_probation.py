@@ -230,6 +230,6 @@ def start_a_comparison_when_due() -> dict[str, Any]:
         "run": name, "at": time.time(), "against": baseline["run"], "attempt": attempt, "rows": _rows_of(name),
         "source_head": _source_head(root), "her_process": _her_process()}}
     goals._write_now(standing)
-    logger.info("📏 an outside comparison %s for her change on probation '%s': run %s against %s",
+    logger.info("an outside comparison %s for her change on probation '%s': run %s against %s",
                 "started" if attempt == 1 else f"resumed (attempt {attempt})", standing.goal[:60], name, baseline["run"])
     return {"started": True, "run": name, "against": baseline["run"], "attempt": attempt}

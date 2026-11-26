@@ -77,7 +77,7 @@ class MetabolismEngine:
     def _scan_and_purge_sync(self) -> PurgeReport:
         report = PurgeReport()
         t0 = time.monotonic()
-        logger.info("🫀 Metabolism sweep starting at %s", self.root_dir)
+        logger.info("Metabolism sweep starting at %s", self.root_dir)
         try:
             self._purge_waste(report)
         except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
@@ -86,7 +86,7 @@ class MetabolismEngine:
             logger.error(msg, exc_info=True)
             report.errors.append(msg)
         report.duration_s = time.monotonic() - t0
-        logger.info("🫀 %s", report)
+        logger.info("%s", report)
         return report
 
     def _own_subdirectories(self, dp: Path, dirnames: list[str]) -> list[str]:

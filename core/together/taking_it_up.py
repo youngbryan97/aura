@@ -117,7 +117,7 @@ class TakingItUp:
         folded = sum(1 for text in dict.fromkeys(said) if reader.remember(text))
         self._seeded = True
         self._keep()
-        logger.info("👂 What an utterance asks of her is set against %d things people have said to her.", folded)
+        logger.info("What an utterance asks of her is set against %d things people have said to her.", folded)
 
     # ── an utterance of theirs ────────────────────────────────────────
 
@@ -168,7 +168,7 @@ class TakingItUp:
         }
         self._this = read
         logger.info(
-            "🤝 Read as %s (%.2f)%s%s, in %.1f s over %d characters%s.",
+            "Read as %s (%.2f)%s%s, in %.1f s over %d characters%s.",
             proposal.kind or "nothing",
             proposal.sure,
             "" if answer is None else f"; her answer: {'joins' if answer.joins else 'asks what it is' if answer.joins is None else 'not now'}",
@@ -222,7 +222,7 @@ class TakingItUp:
         if held is None:
             return False
         self._her_record().stopped(f"with:{held.what}", who)
-        logger.info("🤝 The with with %s in %s is over; %s left.", who, held.what, by)
+        logger.info("The with with %s in %s is over; %s left.", who, held.what, by)
         return True
 
     # ── her turn ──────────────────────────────────────────────────────

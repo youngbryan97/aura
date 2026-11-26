@@ -3120,7 +3120,7 @@ function handleWsEvent(data) {
     } else if (type === 'model_failover') {
         const from = data.from || 'Current Brain';
         const error = data.error || 'stalled';
-        appendMsg('aura', `⚠ _Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
+        appendMsg('aura', `_Shift in cognitive processing: ${from} was unresponsive. Switching to a different neural pathway (${error})._`, false, { diagnostic: true });
     } else if (type === 'heartbeat') {
         state.lastPong = Date.now();
         applyRuntimeHeartbeat(data);
@@ -4715,7 +4715,7 @@ function redactsMeasurements(text) {
 
 
 // Emoji are not this interface's iconography. The neural feed already draws
-// its channels as monoline sigils; memory kinds were still 🗂/🧠/🎯, which
+// its channels as monoline sigils; memory kinds were still//, which
 // renders as a different visual language — and, in fonts without them, as a
 // row of boxes. Same 24-grid, same stroke weight, same currentColor.
 const MEMORY_KIND_SIGILS = {
@@ -4862,7 +4862,7 @@ function neuralSigilSvg(chan) {
 }
 
 // The backend decorates ~40% of feed lines with pictographic emoji and
-// box-drawing banners ("🫀 ═══ UNIFIED HEALTH PULSE ═══"). The feed renders
+// box-drawing banners ("═══ UNIFIED HEALTH PULSE ═══"). The feed renders
 // them stripped; COPY still yields the raw payload. Typographic marks that
 // read as text (✓, →) are deliberately kept.
 function stripNeuralPictographs(text) {
@@ -6241,7 +6241,7 @@ async function runChatRequest(value, { messageAlreadyRendered = false } = {}) {
 
         if (!outcome.ok) {
             // A turn with no reply of hers carries the runtime's notice; it is drawn as the runtime's, never as hers.
-            const failureText = data.notice || data.response || '⚠ Communication error. Check connection.';
+            const failureText = data.notice || data.response || 'Communication error. Check connection.';
             appendMsg('system', failureText, false, { system: true, diagnostic: true });
             return;
         }
@@ -6975,7 +6975,7 @@ function showConnToast(mode) {
         }, 2500);
     } else {
         // Show disconnect toast
-        toast.textContent = '⚠ Connection lost — reconnecting…';
+        toast.textContent = 'Connection lost — reconnecting…';
         toast.setAttribute('aria-hidden', 'false');
         toast.classList.remove('reconnected');
         toast.classList.add('show');
@@ -9328,9 +9328,9 @@ if (brainBtn) brainBtn.addEventListener('click', async (e) => {
             headers: auraDesktopHeaders(),
         });
         const d = await res.json();
-        appendMsg('aura', d.status === 'retry_sent' ? 'Brain retry signal sent.' : '⚠ Orchestrator unavailable.');
+        appendMsg('aura', d.status === 'retry_sent' ? 'Brain retry signal sent.' : 'Orchestrator unavailable.');
     } catch (e) {
-        appendMsg('aura', '⚠ Failed to contact brain retry endpoint.');
+        appendMsg('aura', 'Failed to contact brain retry endpoint.');
     } finally {
         brainBtn.style.opacity = '1';
         brainBtn.textContent = '◇ BRAIN';
@@ -9362,10 +9362,10 @@ if (srcBtn) srcBtn.addEventListener('click', async (e) => {
             URL.revokeObjectURL(url);
             appendMsg('aura', 'Source bundle downloaded.');
         } else {
-            appendMsg('aura', '⚠ Source download failed: ' + res.status);
+            appendMsg('aura', 'Source download failed: ' + res.status);
         }
     } catch (e) {
-        appendMsg('aura', '⚠ Source download error.');
+        appendMsg('aura', 'Source download error.');
     } finally {
         srcBtn.style.opacity = '1';
         srcBtn.textContent = '↓ SRC';
@@ -9404,10 +9404,10 @@ if (updateBtn) updateBtn.addEventListener('click', async (e) => {
             appendMsg('aura', msg);
         } else {
             const text = await res.text();
-            appendMsg('aura', `⚠ Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
+            appendMsg('aura', `Hot-reload returned ${res.status}: ${text.slice(0, 200)}`);
         }
     } catch (e) {
-        appendMsg('aura', '⚠ Hot-reload request failed — is the server running?');
+        appendMsg('aura', 'Hot-reload request failed — is the server running?');
     } finally {
         updateBtn.style.opacity = '1';
         updateBtn.textContent = '↻ UPDATE';
@@ -9623,8 +9623,8 @@ if (rebootBtn) rebootBtn.addEventListener('click', async (e) => {
                 appendMsg(
                     'aura',
                     refused
-                        ? '⚠ Reboot refused — this window is not signed in as the owner.'
-                        : `⚠ Reboot was not accepted (${res.status}).`,
+                        ? 'Reboot refused — this window is not signed in as the owner.'
+                        : `Reboot was not accepted (${res.status}).`,
                     false,
                     { diagnostic: true },
                 );
@@ -9634,7 +9634,7 @@ if (rebootBtn) rebootBtn.addEventListener('click', async (e) => {
             // so a throw here is ambiguous. Say what is known rather than
             // asserting a failure that may have been a success.
             console.warn('[System] Reboot request failed:', e);
-            appendMsg('aura', '⚠ The reboot request did not complete — she may be restarting anyway.', false, { diagnostic: true });
+            appendMsg('aura', 'The reboot request did not complete — she may be restarting anyway.', false, { diagnostic: true });
         }
     }
 });
@@ -9664,7 +9664,7 @@ async function toggleVoice(desiredState = null, { quiet = false } = {}) {
     const targetState = typeof desiredState === 'boolean' ? desiredState : !active;
     if (targetState === active) return true;
     if (targetState && state.voiceSummary && state.voiceSummary.available === false) {
-        if (!quiet) appendMsg('aura', '⚠ Voice channel is currently unavailable.');
+        if (!quiet) appendMsg('aura', 'Voice channel is currently unavailable.');
         return false;
     }
     if (
@@ -9672,7 +9672,7 @@ async function toggleVoice(desiredState = null, { quiet = false } = {}) {
         && runtimeSettingsState.hydrated
         && runtimeSettingsState.values['voice.input_enabled'] !== true
     ) {
-        if (!quiet) appendMsg('aura', '⚠ Microphone input is disabled in Runtime Settings.');
+        if (!quiet) appendMsg('aura', 'Microphone input is disabled in Runtime Settings.');
         return false;
     }
     if (!duplex || typeof duplex.enter !== 'function' || typeof duplex.exit !== 'function') {
@@ -10455,7 +10455,7 @@ async function activateCheatCode() {
         settings.cheatStatus = 'ERROR';
         saveSettings(settings);
         applySettings(settings);
-        appendMsg('system', '⚠ Cheat code activation failed.', false, { system: true, cheat_code: true });
+        appendMsg('system', 'Cheat code activation failed.', false, { system: true, cheat_code: true });
         console.error('[CHEAT] Activation failed:', err);
     } finally {
         if (input) input.value = '';
@@ -10500,11 +10500,11 @@ if (exportBtn) exportBtn.addEventListener('click', async () => {
             URL.revokeObjectURL(url);
             appendMsg('aura', 'Export downloaded successfully.');
         } else {
-            appendMsg('aura', `⚠ Export failed (HTTP ${resp.status}). The server may still be initializing.`);
+            appendMsg('aura', `Export failed (HTTP ${resp.status}). The server may still be initializing.`);
         }
     } catch (err) {
         console.error('[Export] Failed to export data:', err);
-        appendMsg('aura', '⚠ Could not export data. Check your connection.');
+        appendMsg('aura', 'Could not export data. Check your connection.');
     }
 });
 

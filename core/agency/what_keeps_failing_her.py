@@ -116,7 +116,7 @@ async def set_what_keeps_failing_her() -> list[str]:
                                      "What they showed, last first:\n" + "\n".join(way.shown), "at": time.time()})
         await goals.save(record)
         await _offered_to_her_own_time(goal, way)
-        logger.info("🛠️ A way her work keeps failing is a goal of hers now: %s (%d goals)", way.how[:80], len(way.goals))
+        logger.info("A way her work keeps failing is a goal of hers now: %s (%d goals)", way.how[:80], len(way.goals))
         set_now.append(slug)
     return set_now
 

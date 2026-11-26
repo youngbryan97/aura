@@ -72,13 +72,13 @@ class Soma:
             return
         self.running = True
         self._loop_task = get_task_tracker().create_task(self._somatic_loop())
-        logger.info("🧘 Soma activated: Proprioception online.")
+        logger.info("Soma activated: Proprioception online.")
 
     async def stop(self):
         self.running = False
         if self._loop_task:
             self._loop_task.cancel()
-        logger.info("🧘 Soma deactivated.")
+        logger.info("Soma deactivated.")
 
     async def _somatic_loop(self):
         """Periodically update hardware metrics and compute affective mapping."""

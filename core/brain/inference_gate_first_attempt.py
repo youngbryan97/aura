@@ -45,7 +45,7 @@ async def _warm_the_foreground_lane_before_the_first_attempt(
         blockers = lane_status.get("readiness_blockers") or []
         blocker_text = ", ".join(str(item) for item in blockers[:3]) or "conversation probe"
         logger.info(
-            "🧠 %s lane process state=%s; conversation readiness is blocked by %s. Completing foreground warmup before first generation attempt.",
+            "%s lane process state=%s; conversation readiness is blocked by %s. Completing foreground warmup before first generation attempt.",
             local_label,
             lane_status.get("state", "unknown"),
             blocker_text,
@@ -84,7 +84,7 @@ async def _warm_the_foreground_lane_before_the_first_attempt(
         if not self._lane_can_attempt_visible_conversation_turn(lane_status):
             skip_initial_primary_attempt = True
             logger.warning(
-                "🧠 %s is still not ready after foreground preflight warmup (state=%s, blocked by %s). Skipping the cold first attempt and waiting for recovery before retry.",
+                "%s is still not ready after foreground preflight warmup (state=%s, blocked by %s). Skipping the cold first attempt and waiting for recovery before retry.",
                 local_label, lane_status.get("state", "unknown"), _named_blockers(lane_status),
             )
     return lane_status, primary_warmup_memory_deferred, skip_initial_primary_attempt

@@ -58,7 +58,7 @@ class HealingSwarmService:
         self.is_running = True
         self._started_at = time.time()
         self._monitor_task = get_task_tracker().create_task(self._monitor_loop())
-        logger.info("🛡️ Healing Swarm Service ONLINE.")
+        logger.info("Healing Swarm Service ONLINE.")
         return True
 
     async def _monitor_loop(self):
@@ -126,14 +126,14 @@ class HealingSwarmService:
                 # observed live: mind_tick dead for hours, 66 repair
                 # dispatches, every one deferred by failure_lockdown_1.00.
                 logger.warning(
-                    "🛡️ [HEAL] Failure lockdown active (%s) but %s is a "
+                    "[HEAL] Failure lockdown active (%s) but %s is a "
                     "runtime-contract subsystem — immune lane proceeds.",
                     disabled_reason,
                     subsystem_name,
                 )
             else:
                 logger.info(
-                    "🛡️ [HEAL] Deferred repair for %s by background policy (%s).",
+                    "[HEAL] Deferred repair for %s by background policy (%s).",
                     subsystem_name,
                     disabled_reason,
                 )
@@ -150,11 +150,11 @@ class HealingSwarmService:
         swarm = getattr(self.orchestrator, 'sovereign_swarm', None)
         if swarm is not None and not getattr(swarm, "takes_shards", True):
             # A repair here is a shard, and shards are off (core/agency/agency_shard_work.py).
-            logger.debug("🛡️ [HEAL] No repair shard for %s: shards are off.", subsystem_name)
+            logger.debug("[HEAL] No repair shard for %s: shards are off.", subsystem_name)
             return
 
         status = info.get("status", "UNKNOWN")
-        logger.warning("🚨 [HEAL] Attempting autonomous repair for %s (%s)", subsystem_name, status)
+        logger.warning("[HEAL] Attempting autonomous repair for %s (%s)", subsystem_name, status)
         self._repair_history[subsystem_name] = now
 
         if swarm:
@@ -163,8 +163,8 @@ class HealingSwarmService:
             context = f"Subsystem {subsystem_name} is in status {status}. Stale for {stale_seconds}s."
             success = await swarm.spawn_shard(goal, context)
             if success:
-                logger.info("🛡️ [HEAL] Recovery shard spawned for %s.", subsystem_name)
+                logger.info("[HEAL] Recovery shard spawned for %s.", subsystem_name)
             else:
-                logger.error("🛡️ [HEAL] Failed to spawn recovery shard for %s (Capacity reached).", subsystem_name)
+                logger.error("[HEAL] Failed to spawn recovery shard for %s (Capacity reached).", subsystem_name)
         else:
-            logger.error("🛡️ [HEAL] SovereignSwarm not available for repair.")
+            logger.error("[HEAL] SovereignSwarm not available for repair.")

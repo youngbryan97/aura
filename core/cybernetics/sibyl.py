@@ -28,7 +28,7 @@ class SibylSystem:
                 await self._event_bus.subscribe("core/security/executive_violation", self._on_violation)
         except ImportError as _exc:
             logger.debug("Suppressed ImportError: %s", _exc)
-        logger.info("🧠 [SIBYL] Behavioral Scoring System ONLINE. Hue is CLEAR.")
+        logger.info("[SIBYL] Behavioral Scoring System ONLINE. Hue is CLEAR.")
 
     async def _on_scan(self, payload: Dict[str, Any]):
         # Update volatility based on latency anomalies
@@ -62,7 +62,7 @@ class SibylSystem:
             })
         
         if self._hue_score > 200:
-            logger.critical("🌫️ [SIBYL] HUE IS %s (%s). Judgment imminent.", hue_label, f"{self._hue_score:.0f}")
+            logger.critical("[SIBYL] HUE IS %s (%s). Judgment imminent.", hue_label, f"{self._hue_score:.0f}")
 
     def get_status(self) -> Dict[str, Any]:
         return {

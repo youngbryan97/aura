@@ -26,7 +26,7 @@ os.environ["AURA_DEFERRED_CORTEX_PREWARM"] = "0"
 
 
 def run_command(args, desc):
-    print(f"🔄 Running {desc}...")
+    print(f"Running {desc}...")
     try:
         res = get_subprocess_gateway().run(
             args,
@@ -37,13 +37,13 @@ def run_command(args, desc):
             accelerator_capability="auto",
         )
         if res.returncode == 0:
-            print(f"✅ {desc} passed.")
+            print(f"ok {desc} passed.")
             return True, ""
         else:
-            print(f"❌ {desc} failed (exit code {res.returncode}).")
+            print(f"failed {desc} failed (exit code {res.returncode}).")
             return False, f"Exit code {res.returncode}"
     except (OSError, RuntimeError, TimeoutError, ValueError) as exc:
-        print(f"❌ {desc} raised exception: {exc}")
+        print(f"failed {desc} raised exception: {exc}")
         return False, str(exc)
 
 
@@ -119,7 +119,7 @@ def main():
     print("  Consciousness proven:            False")
     print("  Open-World Autonomy proven:      False")
     print("================================================================")
-    print("✨ CERTIFICATION BUNDLE SEALED SUCCESSFULLY ✨")
+    print("CERTIFICATION BUNDLE SEALED SUCCESSFULLY")
     print("")
 
     if not cert_passed:

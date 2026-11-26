@@ -234,7 +234,7 @@ def _gateway_heartbeat_state(response: dict[str, Any]) -> str:
 
 def gui_actor_entry(port: int, token: str = None):
     """Entry point for the GUI process."""
-    logger.info("🚀 Aura GUI Actor starting on port %d...", port)
+    logger.info("Aura GUI Actor starting on port %d...", port)
     # The intentional RuntimeError has been removed to allow boot.
 
     # 1. Standardize Environment for macOS/WebKit
@@ -252,7 +252,7 @@ def gui_actor_entry(port: int, token: str = None):
     from core.observability.logging_config import setup_logging
     setup_logging(log_dir=config.paths.log_dir)
     
-    logger.info(f"🎨 GUI Actor initiating Pure WebView (Port: {port})")
+    logger.info(f"GUI Actor initiating Pure WebView (Port: {port})")
 
     # 4. Launch webview
     try:
@@ -265,9 +265,9 @@ def gui_actor_entry(port: int, token: str = None):
         # Wait for the Kernel API to be ready
         # Increased to 60.0s for slow Silicon model loads
         if wait_for_port(port, timeout=60.0):
-            logger.info(f"📡 API Server (Kernel) detected online on port {port}. Launching WebView...")
+            logger.info(f"API Server (Kernel) detected online on port {port}. Launching WebView...")
         else:
-            logger.warning(f"⚠️ API Server (Kernel) NOT detected on port {port} after 60s. Attempting window creation anyway...")
+            logger.warning(f"API Server (Kernel) NOT detected on port {port} after 60s. Attempting window creation anyway...")
         
         # No URL in create_window to prevent race conditions during startup
         # The app is called Aura. "Zenith" is the release label — see LABEL in
@@ -283,7 +283,7 @@ def gui_actor_entry(port: int, token: str = None):
 
         # ISSUE #14 - window closure delay race condition
         def _on_closed():
-            logger.info("🎨 Window closed. Forcing GUI process termination.")
+            logger.info("Window closed. Forcing GUI process termination.")
             shutdown_event.set()
             _flush_logs_before_forced_exit()
             os._exit(0)
@@ -291,7 +291,7 @@ def gui_actor_entry(port: int, token: str = None):
         window.events.closed += _on_closed
 
         def _on_shown():
-            logger.info("🎨 WebView Window Shown. Loading boot screen...")
+            logger.info("WebView Window Shown. Loading boot screen...")
             _set_macos_accessory_activation_policy("window_shown")
             try:
                 window.load_html(_BOOT_WAITING_HTML)
@@ -357,7 +357,7 @@ def gui_actor_entry(port: int, token: str = None):
                             conversation_ready = False
                     if (0 < status_code < 500) or conversation_ready:
                         logger.info(
-                            "🔄 API ready (attempt %d, %.1fs, status=%s, conversation_ready=%s). Loading GUI: %s",
+                            "API ready (attempt %d, %.1fs, status=%s, conversation_ready=%s). Loading GUI: %s",
                             attempt, elapsed, status_code, conversation_ready, app_url,
                         )
                         try:
@@ -383,7 +383,7 @@ def gui_actor_entry(port: int, token: str = None):
                 backoff = min(backoff * 1.5, max_backoff)
 
             logger.warning(
-                "⚠️ API not confirmed after %.0fs / %d attempts. Loading URL as last resort.",
+                "API not confirmed after %.0fs / %d attempts. Loading URL as last resort.",
                 elapsed, attempt,
             )
             try:
@@ -397,7 +397,7 @@ def gui_actor_entry(port: int, token: str = None):
 
         def _watchdog():
             nonlocal _boot_completed
-            logger.info("🐕 GUI Watchdog active.")
+            logger.info("GUI Watchdog active.")
             consecutive_failures = 0
             start_time = time.monotonic()
             last_warming_log = 0.0
@@ -419,7 +419,7 @@ def gui_actor_entry(port: int, token: str = None):
                     if heartbeat_state == "healthy":
                         if not _boot_completed:
                             _boot_completed = True
-                            logger.info("✅ [GUI WATCHDOG] First healthy heartbeat received.")
+                            logger.info("[GUI WATCHDOG] First healthy heartbeat received.")
                         consecutive_failures = 0
                     elif heartbeat_state == "warming":
                         consecutive_failures = 0
@@ -461,7 +461,7 @@ def gui_actor_entry(port: int, token: str = None):
                     and (time.monotonic() - start_time) > DESKTOP_BOOT_WINDOW_S
                 ):
                     logger.warning(
-                        "🚨 [GUI WATCHDOG] Boot not completed after %.0fs. Forcing reload.",
+                        "[GUI WATCHDOG] Boot not completed after %.0fs. Forcing reload.",
                         DESKTOP_BOOT_WINDOW_S,
                     )
                     try:
@@ -510,7 +510,7 @@ def gui_actor_entry(port: int, token: str = None):
         
     except _GUI_RECOVERABLE_ERRORS as e:
         record_degradation('gui_actor', e)
-        logger.error(f"❌ WebView Failure: {e}")
+        logger.error(f"WebView Failure: {e}")
         time.sleep(5)
 
 if __name__ == "__main__":

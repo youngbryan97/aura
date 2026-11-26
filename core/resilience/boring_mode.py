@@ -90,7 +90,7 @@ class BoringMode:
         self._recovery_stable_since = 0.0
 
         logger.warning(
-            "🧊 BORING MODE ACTIVATED (reason: %s, entry #%d). "
+            "BORING MODE ACTIVATED (reason: %s, entry #%d). "
             "Autonomous initiatives suspended. External side-effects blocked.",
             reason,
             self._entry_count,
@@ -125,7 +125,7 @@ class BoringMode:
         duration = time.time() - self._entered_at if self._entered_at > 0 else 0.0
 
         logger.info(
-            "🌟 BORING MODE DEACTIVATED (reason: %s, duration: %.0fs). "
+            "BORING MODE DEACTIVATED (reason: %s, duration: %.0fs). "
             "Full cognitive operation resumed.",
             reason,
             duration,

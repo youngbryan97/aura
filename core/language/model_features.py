@@ -72,12 +72,12 @@ def model_hidden_features(sentences: Iterable[str]) -> list[list[float]]:
                 vectors.extend(got)
             if not vectors:
                 logging.getLogger("Aura.LanguageFeatures").info(
-                    "🔤 [FEATURES] the worker returned no vectors for %d sentence(s).",
+                    "[FEATURES] the worker returned no vectors for %d sentence(s).",
                     len(texts),
                 )
             return vectors
         logging.getLogger("Aura.LanguageFeatures").debug(
-            "🔤 [FEATURES] declined: a loop is running, so this is inside a turn."
+            "[FEATURES] declined: a loop is running, so this is inside a turn."
         )
         return []
     except _RECOVERABLE as exc:

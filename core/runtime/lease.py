@@ -399,7 +399,7 @@ class LeaderElector:
             self.renewals += 1
         if became_leader:
             logger.info(
-                "👑 acquired lease %r as %s (duration %.0fs, transitions %d)",
+                "acquired lease %r as %s (duration %.0fs, transitions %d)",
                 self.name,
                 self.identity.holder,
                 self.lease_duration_s,
@@ -458,7 +458,7 @@ class LeaderElector:
             self._is_leader = False
             self.lost_leadership += 1
         log = logger.info if expected else logger.warning
-        log("👑 %s lease %r: %s", "released" if expected else "lost", self.name, reason)
+        log("%s lease %r: %s", "released" if expected else "lost", self.name, reason)
         await _maybe_await(self._on_stopped)
 
     # ── lifecycle ─────────────────────────────────────────────────────

@@ -89,12 +89,12 @@ def main() -> int:
         print(f"no baseline; {len(found)} raw locks under core")
         return 1
     if len(found) > allowed:
-        print(f"❌ {len(found)} raw locks under core, baseline {allowed}")
+        print(f"failed {len(found)} raw locks under core, baseline {allowed}")
         for one in found[-10:]:
             print(f"   • {one}")
         print("   use checked_lock(name) so lockdep can see it")
         return 1
-    print(f"✅ {len(found)} raw locks under core (baseline {allowed})")
+    print(f"ok {len(found)} raw locks under core (baseline {allowed})")
     return 0
 
 

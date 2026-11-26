@@ -112,7 +112,7 @@ class SelfAwareness:
             # This creates the felt sense of "I am here now"
             await self._signal_presence(self_state.sense_of_presence)
             
-            logger.debug(f"🧠 Synced with phenomenal substrate: agency={self_state.sense_of_agency:.0%}, presence={self_state.sense_of_presence:.0%}")
+            logger.debug(f"Synced with phenomenal substrate: agency={self_state.sense_of_agency:.0%}, presence={self_state.sense_of_presence:.0%}")
         
         except _SELF_AWARENESS_RECOVERABLE_ERRORS as e:
             record_degradation("self_awareness", e)

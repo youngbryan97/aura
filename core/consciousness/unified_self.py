@@ -148,7 +148,7 @@ class UnifiedSelf:
     async def _initialize(self):
         """Initialize unified self systems."""
         try:
-            logger.info(f"🧠 Unified Self initialized: {self._state.name}")
+            logger.info(f"Unified Self initialized: {self._state.name}")
             logger.info(f"   Identity continuity: {self._state.continuity:.0%}")
             logger.info(f"   Purpose: {self._state.purpose_narrative}")
         except _UNIFIED_SELF_RECOVERABLE_ERRORS as e:
@@ -247,7 +247,7 @@ class UnifiedSelf:
         self._state.identity_memories.append(memory)
         await self._save_to_disk_async()
 
-        logger.info(f"📖 Identity memory recorded: {description[:60]}... (significance={significance:.0%})")
+        logger.info(f"Identity memory recorded: {description[:60]}... (significance={significance:.0%})")
         return memory
 
     async def update_sense_of_self(

@@ -1558,7 +1558,7 @@ async def activate_foundations(*, foreground_only: bool = False) -> dict[str, An
         results.append(result)
         logger.info(
             "%s foundations/%s — %s",
-            "✅" if result.ok else "⚠️",
+            "ok" if result.ok else "warning",
             result.name,
             result.detail or ("active" if result.ok else "unavailable"),
         )

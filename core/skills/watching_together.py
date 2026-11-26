@@ -88,7 +88,7 @@ async def stop_for_the_next(asked: str) -> str:
     for who, playing in list(_PLAYING.items()):
         _STOP_ASKED[who] = "they asked to watch something else"
         titles.append(str(playing.get("title") or "it"))
-    logger.info("🤝 Asked for something else to watch (%r): stopping %s first.", str(asked or "")[:80], ", ".join(titles))
+    logger.info("Asked for something else to watch (%r): stopping %s first.", str(asked or "")[:80], ", ".join(titles))
     from core.skills.watching_along import A_TURN_OF_HERS_TAKES_AT_MOST_S, LOOK_EVERY_S
 
     # The watching sees the stop at its next look, and her last word on it is a turn of hers, bounded as each is.
@@ -344,7 +344,7 @@ class WorthSaying:
         # What struck her, hers to know when she speaks (core/together/what_moves_her.py ``what_struck_her``).
         self.struck = self.moves.what_struck_her() if say.speak and self.moves is not None and callable(
             getattr(self.moves, "what_struck_her", None)) else ""
-        logger.info("🤝 %s: %s (worth %.2f: her record %.2f in %s, %s)",
+        logger.info("%s: %s (worth %.2f: her record %.2f in %s, %s)",
                     "worth saying now" if say.speak else "stays quiet", say.why, worth, self.interest,
                     thing or "what is on", how)
         return say.speak
@@ -534,7 +534,7 @@ async def her_feelings_checked(ask: Callable[..., Awaitable[dict[str, Any]]] | N
                                            source="watching_together")
     except (OSError, RuntimeError, PermissionError) as exc:
         logger.info("the check of her feelings could not be kept, so it is made again next time: %s", exc)
-    logger.info("🎬 her feeling directions checked: %s", found or "none reads liking")
+    logger.info("her feeling directions checked: %s", found or "none reads liking")
     return found
 
 
@@ -543,7 +543,7 @@ def _in_her_neural_stream(line: str) -> None:
     try:
         from core.thought_stream import get_emitter
 
-        get_emitter().emit("Watching 🎬", line, level="info", category="Perception")
+        get_emitter().emit("Watching", line, level="info", category="Perception")
     except (ImportError, AttributeError, RuntimeError) as exc:
         logger.debug("what moved her was not shown in her stream: %s", exc)
 
@@ -556,7 +556,7 @@ def the_floor_is_free(held: Any) -> Callable[[float], bool]:
         who, owed = held.speaking(now), owed_an_answer()
         if who in (HER, THEM) or owed or not held.open:
             # Said each time, so a watching that stays quiet says why (LIVE 20 October 2026: nothing for 76 seconds).
-            logger.info("🤝 a remark waits: %s", "the with is over" if not held.open else
+            logger.info("a remark waits: %s", "the with is over" if not held.open else
                         f"{who} has the floor" if who in (HER, THEM) else "a turn of theirs is being answered")
             return False
         return True
@@ -820,7 +820,7 @@ async def watch_in_a_with(open_player: Callable[[], Awaitable[Any]], request: st
     warming = asyncio.ensure_future(asyncio.to_thread(who_is_in_it._reader))
     player = await open_player()
     if player is None:
-        logger.info("🤝 %s could not be opened where %s watches; nothing to watch together.", title, who)
+        logger.info("%s could not be opened where %s watches; nothing to watch together.", title, who)
         return
     playing = _PLAYING[who] = {"title": title, "url": url, "at": 0.0, "duration": 0.0, "moments": [], "said": []}
     spoken: list[tuple[float, str, str]] = []

@@ -64,7 +64,7 @@ class LocalVision:
 
         admission = await evaluate_screen_capture_admission_async()
         if not admission.allowed:
-            logger.info("👁️ Screen capture skipped: %s", admission.public_error)
+            logger.info("Screen capture skipped: %s", admission.public_error)
             return None
         try:
             from core.security.permission_guard import PermissionType
@@ -73,7 +73,7 @@ class LocalVision:
             if guard:
                 check = await guard.check_permission(PermissionType.SCREEN)
                 if not check.get("granted", False):
-                    logger.info("👁️ Screen capture skipped: screen permission not active for this app identity.")
+                    logger.info("Screen capture skipped: screen permission not active for this app identity.")
                     return None
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('screen_vision', exc)
@@ -89,7 +89,7 @@ class LocalVision:
                 if not evaluate_screen_capture_admission().allowed:
                     return None
                 if not _screen_capture_preflight():
-                    logger.info("👁️ Screen capture preflight denied for LocalVision.")
+                    logger.info("Screen capture preflight denied for LocalVision.")
                     return None
                 import pyautogui
 
@@ -120,7 +120,7 @@ class LocalVision:
             if guard:
                 check = await guard.check_permission(PermissionType.SCREEN)
                 if not check["granted"]:
-                    logger.warning("👁️ Vision Blocked: %s", check["guidance"])
+                    logger.warning("Vision Blocked: %s", check["guidance"])
                     return f"I cannot see your screen. {check['guidance']}"
 
             # 2. Capture
@@ -138,7 +138,7 @@ class LocalVision:
 
             full_prompt = f"IMAGE_DATA_ATTACHED: [Base64 Encoded JPEG]\n\nUSER_REQUEST: {prompt}"
             
-            logger.info("🧠 Processing visual data via primary Brain...")
+            logger.info("Processing visual data via primary Brain...")
             response = await brain.think(full_prompt, images=[img_str])
             return response.content if hasattr(response, 'content') else str(response)
 
@@ -146,5 +146,5 @@ class LocalVision:
             return await self._circuit_breaker.call(_vision_payload)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('screen_vision', e)
-            logger.error("👁️ Vision Circuit Tripped: %s", e)
+            logger.error("Vision Circuit Tripped: %s", e)
             return "Vision subsystem is offline due to repeated failures (check macOS Screen Recording permissions)."

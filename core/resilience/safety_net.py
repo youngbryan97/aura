@@ -19,7 +19,7 @@ def panic_handler(exc_type, exc_value, exc_traceback):
         return
 
     # 1. Log the crash to console
-    logger.critical("🔥 UNHANDLED EXCEPTION. SYSTEM CRITICAL.", exc_info=(exc_type, exc_value, exc_traceback))
+    logger.critical("UNHANDLED EXCEPTION. SYSTEM CRITICAL.", exc_info=(exc_type, exc_value, exc_traceback))
     
     # 2. Write a Post-Mortem Report (for you to debug later)
     crash_dir = config.paths.data_dir / "crashes"

@@ -351,7 +351,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
             # A computed value is not a matter of opinion. It is served.
             shown = int(expected) if float(expected).is_integer() else expected
             logger.warning(
-                "🔢 Served the computed arithmetic result (%s) over the generated one.",
+                "Served the computed arithmetic result (%s) over the generated one.",
                 shown,
             )
             # The bare value. "What is 2 + 2? Just the number." is a request
@@ -421,7 +421,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
                     "supply a replacement figure you did not read.]"
                 )
                 logger.warning(
-                    "🧭 Reply accepted a self-attribution absent from her own turn; "
+                    "Reply accepted a self-attribution absent from her own turn; "
                     "re-answering against the record."
                 )
         except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -446,7 +446,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
                     authorship_effect="augmented_by_runtime",
                 )
             logger.info(
-                "📐 Her figure corrected in place from its instrument (%s).",
+                "Her figure corrected in place from its instrument (%s).",
                 "; ".join(f"{metric} {claimed} -> {value:g}" for metric, claimed, value in figures[:4]),
             )
             text = reply_text = corrected
@@ -467,7 +467,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
                 f"exist: {', '.join(f'{k} {v}' for k, v in measured_self_metrics().items())}.]"
             )
             logger.warning(
-                "📉 Reply quoted an uninstrumented self-specification (%r); re-answering.",
+                "Reply quoted an uninstrumented self-specification (%r); re-answering.",
                 specification[:80],
             )
 
@@ -483,7 +483,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
                 "measure.]"
             )
             logger.warning(
-                "📉 Reply invented %d internal metrics with no instrument behind "
+                "Reply invented %d internal metrics with no instrument behind "
                 "them (%s); re-answering with the real readings.",
                 len(invented),
                 ", ".join(invented[:5]),
@@ -539,7 +539,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
         + (["fresh-sensory-evidence"] if sensory_contradictions else [])
     )
     logger.warning(
-        "🧭 Reply denied capabilities the runtime measured as present (%s); "
+        "Reply denied capabilities the runtime measured as present (%s); "
         "re-answering with the measurements.",
         contradicted,
     )
@@ -590,7 +590,7 @@ async def _reanswer_when_the_runtime_contradicts_her(
         user_message=user_message,
         turn_sensory_evidence=turn_sensory_evidence,
     ):
-        logger.info("🧭 Re-answer no longer contradicts the runtime (%s).", contradicted)
+        logger.info("Re-answer no longer contradicts the runtime (%s).", contradicted)
         return revised_text
 
     return _what_the_measurements_leave(text, claims, capability_reconciler, sensory_contradictions,

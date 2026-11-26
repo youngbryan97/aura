@@ -172,7 +172,7 @@ class VectorMemory:
         # Phase 8 Migration: Check if legacy JSON file exists
         if not memories and self.fallback_file.exists():
             try:
-                logger.info("📦 Migrating '%s' memories from JSON to SQLite...", self.collection_name)
+                logger.info("Migrating '%s' memories from JSON to SQLite...", self.collection_name)
                 with open(self.fallback_file, encoding="utf-8") as f:
                     legacy_store = json.load(f)
                 
@@ -557,7 +557,7 @@ class VectorMemory:
         
         This implements 'Strategic Forgetting'.
         """
-        logger.info("🧹 Pruning low-salience memories (threshold=%s days)...", threshold_days)
+        logger.info("Pruning low-salience memories (threshold=%s days)...", threshold_days)
         now = time.time()
         expiry_seconds = threshold_days * 86400
         neutral_expiry_seconds = max(expiry_seconds, min(45 * 86400, expiry_seconds * 2))
@@ -635,7 +635,7 @@ class VectorMemory:
                     for i in range(0, len(ids_to_prune), 100):
                         self._collection.delete(ids=ids_to_prune[i:i+100])
             if ids_to_prune:
-                logger.info("✅ Pruned %s low-salience vectors.", len(ids_to_prune))
+                logger.info("Pruned %s low-salience vectors.", len(ids_to_prune))
             
             return len(ids_to_prune)
         except (OSError, ConnectionError, TimeoutError) as e:

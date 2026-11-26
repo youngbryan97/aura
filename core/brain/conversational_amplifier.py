@@ -265,7 +265,7 @@ async def _amplify_conversation_inner(
         record_degradation("conversational_amplifier_pending", exc)
 
     logger.info(
-        "🗣️ [ConvAmplify] n=%d revised=%s score=%.2f → %s",
+        "[ConvAmplify] n=%d revised=%s score=%.2f → %s",
         n_cand, revised, best_score, "adopted" if best != draft else "kept draft",
     )
     return ConversationResult(

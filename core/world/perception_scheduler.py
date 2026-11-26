@@ -39,13 +39,13 @@ class PerceptionScheduler:
             return
         self._running = True
         self._task = create_tracked_task(self._loop(), name="world.perception_scheduler")
-        logger.info("⏱️  Perception Scheduler started with interval %.1fs", self.interval)
+        logger.info(" Perception Scheduler started with interval %.1fs", self.interval)
 
     async def stop(self) -> None:
         self._running = False
         if self._task:
             await cancel_and_join(self._task, owner="core.world.perception_scheduler")
-        logger.info("⏱️  Perception Scheduler stopped.")
+        logger.info(" Perception Scheduler stopped.")
 
     async def _loop(self) -> None:
         while self._running:

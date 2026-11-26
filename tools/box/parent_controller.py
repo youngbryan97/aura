@@ -55,11 +55,11 @@ def reset_heartbeat_state():
         has_received_first_heartbeat = False
 
 def run_rollback_and_restart():
-    print("\n[Watchdog] 🚨 HEARTBEAT LOST! Recovery sequence triggered.")
+    print("\n[Watchdog] HEARTBEAT LOST! Recovery sequence triggered.")
     
     # 1. Stage a governed rollback request. The external watchdog must not
     # destructively reset the live repo behind Aura's self-repair governance.
-    print("[Watchdog] 🔄 Staging governed rollback request; no destructive git reset will be run.")
+    print("[Watchdog] Staging governed rollback request; no destructive git reset will be run.")
     try:
         request_path = Path(REPO_PATH) / "artifacts" / "current" / "watchdog_recovery_request.json"
         atomic_write_text(
@@ -80,7 +80,7 @@ def run_rollback_and_restart():
         print(f"[Watchdog] Failed to stage recovery request: {e}")
 
     # 2. Cleanup existing instances
-    print("[Watchdog] 🧹 Cleaning up stale Aura instances...")
+    print("[Watchdog] Cleaning up stale Aura instances...")
     python_cmd = os.path.join(REPO_PATH, ".venv", "bin", "python3")
     if not os.path.exists(python_cmd):
         python_cmd = "python3"
@@ -90,7 +90,7 @@ def run_rollback_and_restart():
         print(f"[Watchdog] Cleanup script failed: {e}")
 
     # 3. Restart Aura
-    print("[Watchdog] 🚀 Restarting Aura via launch_aura.sh...")
+    print("[Watchdog] Restarting Aura via launch_aura.sh...")
     try:
         subprocess.Popen(["./launch_aura.sh"], cwd=REPO_PATH, start_new_session=True)
         print("[Watchdog] Aura launch command spawned successfully.")
@@ -119,7 +119,7 @@ def monitor_loop():
         else:
             # Enforce boot grace timeout if no heartbeat is ever received
             if now - start_time > BOOT_GRACE_PERIOD_S:
-                print(f"[Watchdog] ⚠️ No heartbeat received within the boot grace period ({BOOT_GRACE_PERIOD_S}s).")
+                print(f"[Watchdog] No heartbeat received within the boot grace period ({BOOT_GRACE_PERIOD_S}s).")
                 # Try to clean launch again
                 print("[Watchdog] Re-attempting Aura start...")
                 try:
@@ -145,7 +145,7 @@ def main():
     try:
         sock.bind((HOST, PORT))
     except OSError as e:
-        print(f"❌ Failed to bind to UDP {HOST}:{PORT}: {e}")
+        print(f"Failed to bind to UDP {HOST}:{PORT}: {e}")
         sys.exit(1)
         
     while not shutdown_event.is_set():

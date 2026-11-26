@@ -41,11 +41,11 @@ def _launch_a_manim_render(
 
     if not _MANIM_RENDER_LOCK.acquire(blocking=False):
         logger.info(
-            "🎬 Manim render already in flight; skipping overlapping autonomous render."
+            "Manim render already in flight; skipping overlapping autonomous render."
         )
     else:
         logger.info(
-            "🎬 Math/Physics detected in response. Autonomously launching Manim generation..."
+            "Math/Physics detected in response. Autonomously launching Manim generation..."
         )
 
         try:

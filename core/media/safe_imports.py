@@ -130,7 +130,7 @@ def prevent_collisions() -> None:
     # Prevents CV2/AVFoundation deadlocks
     os.environ["OPENCV_VIDEOIO_PRIORITY_AVFOUNDATION"] = "1"
     
-    logger.info("🍎 macOS Media Collision Guards applied.")
+    logger.info("macOS Media Collision Guards applied.")
 
 # Auto-apply on import
 prevent_collisions()

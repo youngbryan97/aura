@@ -37,7 +37,7 @@ class _DeductionGovernance:
             self._last_contradictions = list(report.contradictions)
             for affirm, deny in report.contradictions:
                 logger.warning(
-                    "🧮 [Deduction] belief inconsistency: \"%s\" contradicts \"%s\" — "
+                    "[Deduction] belief inconsistency: \"%s\" contradicts \"%s\" — "
                     "constitutional concern, surfacing for revision.",
                     affirm,
                     deny,
@@ -61,7 +61,7 @@ class _DeductionGovernance:
             self._last_non_sequiturs = list(non_sequiturs)
             for ns in non_sequiturs:
                 logger.warning(
-                    "🧮 [Deduction] non-sequitur in reasoning: \"%s\" does not follow from %s",
+                    "[Deduction] non-sequitur in reasoning: \"%s\" does not follow from %s",
                     ns.get("conclusion"),
                     ns.get("premises"),
                 )
@@ -70,7 +70,7 @@ class _DeductionGovernance:
             self._last_arithmetic_errors = list(arithmetic_errors)
             for ae in arithmetic_errors:
                 logger.warning(
-                    "🧮 [Arithmetic] calculation error: \"%s\" (stated %s, correct %s)",
+                    "[Arithmetic] calculation error: \"%s\" (stated %s, correct %s)",
                     ae.get("claim"), ae.get("stated"), ae.get("correct"),
                 )
         if not non_sequiturs and not arithmetic_errors:

@@ -25,9 +25,9 @@ def test_sandbox():
     res1 = sandbox.verify_patch(Path("candidate_patch.py"), valid_code)
     print(f"Result: {res1}")
     if res1["syntax_valid"] and res1["static_check_passed"]:
-        print("✅ PASS: Valid code accepted")
+        print("PASS: Valid code accepted")
     else:
-        print("❌ FAIL: Valid code rejected")
+        print("FAIL: Valid code rejected")
 
     # Test 2: Syntax Error
     print("\n--- Test 2: Syntax Error ---")
@@ -35,9 +35,9 @@ def test_sandbox():
     res2 = sandbox.verify_patch(Path("candidate_patch.py"), invalid_code)
     print(f"Result: {res2}")
     if not res2["syntax_valid"]:
-        print("✅ PASS: Syntax error caught")
+        print("PASS: Syntax error caught")
     else:
-        print("❌ FAIL: Syntax error missed")
+        print("FAIL: Syntax error missed")
         
     print("\nSandbox Verification Complete.")
 

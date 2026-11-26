@@ -789,7 +789,7 @@ class StreamingTts:
         between two sentences, her voice waiting on her thought)."""
         if queued_s <= 0 and not self.behind:
             self.behind = True
-            logger.info("🗣️ her listener waited between sentences; the rest of this reply is made at her busy steps")
+            logger.info("her listener waited between sentences; the rest of this reply is made at her busy steps")
 
     def making_speech(self) -> int:
         """Clauses her voice is making now. Her thought holds while it is (core/brain/llm/speech_hold.py)."""

@@ -102,7 +102,7 @@ class VoiceStreamProcessor:
 
             if is_speech:
                 if not self.is_speaking:
-                    logger.info("🎤 Speech detected...")
+                    logger.info("Speech detected...")
                 self.is_speaking = True
                 self.silence_frames = 0
                 self.speech_buffer.append(frame)
@@ -110,7 +110,7 @@ class VoiceStreamProcessor:
                 self.speech_buffer.append(frame)
                 self.silence_frames += 1
                 if self.silence_frames >= self.max_silence:
-                    logger.info("🛑 End of speech detected.")
+                    logger.info("End of speech detected.")
                     return True
         return False
 
@@ -140,7 +140,7 @@ class VoiceStreamProcessor:
                 clean_t = re.sub(r'[^\w\s]', '', clean_t)
                 
                 if clean_t in ("STOP", "HALT", "ABORT", "CANCEL", "SHUT UP", "STOP TALKING", "QUIET"):
-                    logger.critical("🚨 [VOICE] Emergency Interrupt Detected: '%s'", text)
+                    logger.critical("[VOICE] Emergency Interrupt Detected: '%s'", text)
                     await orch.reflex_engine.process_emergency_interrupt(clean_t, context="audio_stream")
                     # If it's a STOP command, we might not even want to return the text to the main
                     # cognitive loop, or we return a specific token. For now, returning it is fine

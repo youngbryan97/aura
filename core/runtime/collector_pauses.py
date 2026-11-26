@@ -112,7 +112,7 @@ def _timed(phase: str, info: dict[str, Any]) -> None:
 def _say(measured: tuple[Any, ...]) -> None:
     generation, on_the_loop, took, collected, uncollectable, where = measured
     logger.info(
-        "🗑️ a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
+        "a generation-%d collection held %s %.0f ms (collected %s, uncollectable %s), %s",
         generation, "her event loop" if on_the_loop else "a thread", took * 1000.0, collected, uncollectable, where,
     )
 
@@ -226,5 +226,5 @@ def freeze_what_boot_made() -> int:
     gc.collect(1)
     gc.freeze()
     frozen = gc.get_freeze_count()
-    logger.info("🗑️ %d objects made during boot are frozen out of every later collection", frozen)
+    logger.info("%d objects made during boot are frozen out of every later collection", frozen)
     return frozen

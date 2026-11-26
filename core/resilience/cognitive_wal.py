@@ -94,7 +94,7 @@ class CognitiveWAL:
             return []
 
         if intents:
-            logger.info("💾 WAL: Recovered %s interrupted intents.", len(intents))
+            logger.info("WAL: Recovered %s interrupted intents.", len(intents))
         return list(intents.values())
 
     def clear(self):
@@ -109,7 +109,7 @@ class CognitiveWAL:
             if os.path.getsize(self.filepath) <= 1024 * 1024:  # 1MB
                 return
                 
-            logger.info("💾 WAL: Pruning committed entries (preserving %d pending).", len(self._pending_intents))
+            logger.info("WAL: Pruning committed entries (preserving %d pending).", len(self._pending_intents))
             
             # Collect only pending entries from file + in-memory
             pending_entries = []
@@ -135,7 +135,7 @@ class CognitiveWAL:
                 "".join(entry_line + "\n" for entry_line in pending_entries),
                 source="resilience.cognitive_wal.prune",
             )
-            logger.info("💾 WAL: Pruned successfully. %d pending intents preserved.", len(pending_entries))
+            logger.info("WAL: Pruned successfully. %d pending intents preserved.", len(pending_entries))
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('cognitive_wal', e)

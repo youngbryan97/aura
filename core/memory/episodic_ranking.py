@@ -223,7 +223,7 @@ class _RanksWhatToRecall:
             }
             if result.governance_breach:
                 logger.info(
-                    "🧠 [EngramPlasticity] recall homeostatic pressure high "
+                    "[EngramPlasticity] recall homeostatic pressure high "
                     "(%.2f) — one attractor dominating; competition damping it.",
                     result.pressure,
                 )

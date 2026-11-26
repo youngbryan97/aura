@@ -116,10 +116,10 @@ class AuditReport:
             status = "✓" if r.score >= 0.5 else "○"
             logger.info("  %s %s %s %s=%s", status, f"{r.short_name:<20}", f"{r.fraction_met:<6}", r.key_metric_name, f"{r.key_metric:.3f}")
             if r.error:
-                logger.warning("    ⚠ %s", r.error)
+                logger.warning("    %s", r.error)
         logger.info("%s", '─' * width)
         logger.info("  %s", self.summary)
-        logger.info("\n  ⚠  %s", self.disclaimer)
+        logger.info("\n   %s", self.disclaimer)
         logger.info("%s\n", '═' * width)
 
 

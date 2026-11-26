@@ -135,7 +135,7 @@ class _BuildsTheLivingContext:
                 )
             except TimeoutError:
                 logger.warning(
-                    "⚠️ [STABILITY] Full live context assembly exceeded %.0fs; "
+                    "[STABILITY] Full live context assembly exceeded %.0fs; "
                     "using compact live context without downgrading the turn.",
                     self._LIVE_CONTEXT_ASSEMBLY_TIMEOUT_S,
                 )
@@ -187,7 +187,7 @@ class _BuildsTheLivingContext:
         )
 
         logger.info(
-            "🔧 Tool handoff: wanted=%s offered=%s",
+            "Tool handoff: wanted=%s offered=%s",
             ",".join(required),
             ",".join(sorted(tools)),
         )
@@ -289,7 +289,7 @@ class _BuildsTheLivingContext:
         # minutes and come back mended was called twice more by a later pass
         # reading the same request.
         if one is not None and one in capabilities_run_this_turn():
-            logger.info("🔧 Tool handoff skipped: %s already ran this turn.", one)
+            logger.info("Tool handoff skipped: %s already ran this turn.", one)
             return None
         # Called on the request alone, so only when its own schema admits a
         # call with no arguments. LIVE 2026-10-28: file_operation, which needs
@@ -302,7 +302,7 @@ class _BuildsTheLivingContext:
 
             needs = _tool_arguments_schema_error(tools.get(one), {})
             if needs:
-                logger.info("🔧 Tool handoff: %s offered, not called on the request alone (%s).", one, needs)
+                logger.info("Tool handoff: %s offered, not called on the request alone (%s).", one, needs)
                 one = None
         if one is not None:
             return await _await_while_it_is_working(
@@ -507,7 +507,7 @@ class _BuildsTheLivingContext:
             # says neither.
             if not _recorded:
                 logger.info(
-                    "🧾 tool loop generation unrecorded: tokens=%d receipt_keys=%s",
+                    "tool loop generation unrecorded: tokens=%d receipt_keys=%s",
                     _tokens,
                     ",".join(sorted(receipt or {}))[:300] or "none",
                 )
@@ -554,14 +554,14 @@ class _BuildsTheLivingContext:
         # such as "code" or "build" inside a correction cannot open a tool
         # lane the caller explicitly closed.
         if not allow_tools:
-            logger.info("🔧 Tool handoff: not offered, this turn does not allow tools.")
+            logger.info("Tool handoff: not offered, this turn does not allow tools.")
             return None
         # Work the turn asked for has begun, or is being told of: a second way to do it would do it twice.
         from core.runtime.what_this_turn_asks import this_turn
 
         asked = this_turn()
         if asked is not None and asked.request_id:
-            logger.info("🔧 Tool handoff: not offered, the turn belongs to request %s.", asked.request_id)
+            logger.info("Tool handoff: not offered, the turn belongs to request %s.", asked.request_id)
             return None
 
         # The person's own words, not the assembled prompt. The scaffold runs
@@ -589,12 +589,12 @@ class _BuildsTheLivingContext:
                 # Said, so a request that should have reached a capability and
                 # was answered in words can be traced: LIVE 2026-10-05 a repair
                 # request became a conversation and nothing said why.
-                logger.info("🔧 Tool handoff: no capability derived for this request (ceiling %s).", ceiling)
+                logger.info("Tool handoff: no capability derived for this request (ceiling %s).", ceiling)
                 return None
             pending = remaining_capabilities(required, completed_capability_evidence)
             if required and not pending:
                 logger.info(
-                    "🔧 Tool handoff skipped: every required capability already "
+                    "Tool handoff skipped: every required capability already "
                     "has runtime-stamped evidence (%s).",
                     ",".join(sorted(required)),
                 )
@@ -609,14 +609,14 @@ class _BuildsTheLivingContext:
             if turn_world_evidence():
                 required = await asyncio.to_thread(what_is_left_once_the_world_was_read, required, text)
                 if not required:
-                    logger.info("🔧 Tool handoff skipped: this turn already read the world for its answer.")
+                    logger.info("Tool handoff skipped: this turn already read the world for its answer.")
                     return None
             tools = build_agentic_tool_map(
                 required, objective=text, max_tools=len(required)
             )
             if not tools:
                 logger.info(
-                    "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)",
+                    "Tool handoff: skill=%s offered=NONE (no tool definition)",
                     ",".join(required),
                 )
                 return None
@@ -634,13 +634,13 @@ class _BuildsTheLivingContext:
             tools, withheld = _tools_within_reach(tools, allowed_scopes)
             if withheld:
                 logger.info(
-                    "🔧 Tool handoff: withheld %s — above the %s ceiling for this turn.",
+                    "Tool handoff: withheld %s — above the %s ceiling for this turn.",
                     ",".join(sorted(withheld)),
                     ceiling,
                 )
             if not tools:
                 logger.info(
-                    "🔧 Tool handoff: skill=%s offered=NONE (all above the %s ceiling)",
+                    "Tool handoff: skill=%s offered=NONE (all above the %s ceiling)",
                     ",".join(required),
                     ceiling,
                 )
@@ -689,7 +689,7 @@ class _BuildsTheLivingContext:
             if not already:
                 return None
             logger.info(
-                "🔧 Tools offered and none called; the turn already holds a read "
+                "Tools offered and none called; the turn already holds a read "
                 "of %s and the answer stands on it.",
                 already,
             )
@@ -1210,7 +1210,7 @@ class _BuildsTheLivingContext:
         try:
             if not safe_to_self_report:
                 logger.info(
-                    "🧩 Grounded self-report suppressed: unity assessment marked "
+                    "Grounded self-report suppressed: unity assessment marked "
                     "self-report unsafe this turn, or could not be made."
                 )
                 segments.omit("self_report", "unity_verdict_unsafe_or_unavailable")

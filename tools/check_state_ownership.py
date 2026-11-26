@@ -197,12 +197,12 @@ def main() -> int:
         baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     limit = int(baseline.get("count", 0))
 
-    print(f"🧭 Private copies of canonical state: {len(findings)} (baseline {limit})")
+    print(f"Private copies of canonical state: {len(findings)} (baseline {limit})")
 
     if args.write_baseline:
         if len(findings) > limit and BASELINE.exists():
             print(
-                f"❌ refusing to raise the baseline from {limit} to {len(findings)}. "
+                f"refusing to raise the baseline from {limit} to {len(findings)}. "
                 "A baseline that goes up is debt laundered into a green gate."
             )
             return 1
@@ -223,12 +223,12 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        print(f"✅ baseline written at {len(findings)}")
+        print(f"baseline written at {len(findings)}")
         return 0
 
     if len(findings) > limit:
         new = sorted(set(findings) - set(baseline.get("owners", [])))
-        print(f"❌ {len(findings) - limit} new private copies:")
+        print(f"{len(findings) - limit} new private copies:")
         for item in new[:20]:
             print(f"   • {item}")
         print(
@@ -238,7 +238,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"✅ at or below baseline ({len(findings)} <= {limit})")
+    print(f"at or below baseline ({len(findings)} <= {limit})")
     return 0
 
 

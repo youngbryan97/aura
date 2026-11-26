@@ -17,7 +17,7 @@ def setup_module():
     
     router = IntelligentLLMRouter()
     ServiceContainer.register_instance("llm_router", router)
-    logger.info("✅ ServiceContainer bootstrapped with llm_router")
+    logger.info("ServiceContainer bootstrapped with llm_router")
 
 async def _semantic_divergence(response_a: str, response_b: str, router) -> float:
     """Measure semantic divergence between two responses using LLM evaluation."""

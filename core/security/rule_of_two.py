@@ -228,7 +228,7 @@ class RuleOfTwoRegistry:
 
         if final.violates:
             logger.warning(
-                "🔓 rule-of-two violation carried as accepted risk: %s — %s",
+                "rule-of-two violation carried as accepted risk: %s — %s",
                 final.name,
                 accepted,
             )

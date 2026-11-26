@@ -1057,7 +1057,7 @@ async def api_skill_execute(
     __: None = Depends(_verify_token)
 ):
     """Unified skill execution entry-point."""
-    logger.info("🎯 API Skill Request: %s", skill_name)
+    logger.info("API Skill Request: %s", skill_name)
 
     try:
         intent_router = ServiceContainer.get("intent_router", default=None)
@@ -1324,7 +1324,7 @@ async def api_voice_affect_modulate(
         state = _get_live_orchestrator_state()
 
         logger.info(
-            "🎭 [Voice Demo] Affect override '%s' held for %.1fs: %s",
+            "[Voice Demo] Affect override '%s' held for %.1fs: %s",
             mood,
             hold_seconds,
             preset,

@@ -290,7 +290,7 @@ class WakeWordDetector:
             voice_evidence = attribute_wake_audio(voice_evidence)
             if not voice_evidence.get("owner_attributed", True):
                 logger.info(
-                    "🔇 Wake phrase heard while other audio is playing and the "
+                    "Wake phrase heard while other audio is playing and the "
                     "speaker is unverified; not opening a command session (%s)",
                     voice_evidence.get("owner_attribution_reason", "unattributed"),
                 )
@@ -312,7 +312,7 @@ class WakeWordDetector:
             remainder = transcript[match.end():].lstrip(" ,.!?;:-—").strip()
             self._accumulated_transcript = remainder
 
-            logger.info("🎤 Wake word detected! Starting command session #%d", self._wake_count)
+            logger.info("Wake word detected! Starting command session #%d", self._wake_count)
 
             if voice_evidence.get("verified"):
                 try:
@@ -430,10 +430,10 @@ class WakeWordDetector:
         """
         self.state = WakeState.PROCESSING
         self._accumulated_transcript = ""
-        logger.info("🎤 Voice command received: '%s'", command[:100])
+        logger.info("Voice command received: '%s'", command[:100])
 
         if self._dispatch_task and not self._dispatch_task.done():
-            logger.info("🎤 Superseding still-running voice command")
+            logger.info("Superseding still-running voice command")
             self._dispatch_task.cancel()
 
         self.state = WakeState.EXECUTING
@@ -467,9 +467,9 @@ class WakeWordDetector:
                 )
             if ok and reply:
                 await self._speak_reply(reply)
-            logger.info("🎤 Voice command %s", "completed" if ok else "failed")
+            logger.info("Voice command %s", "completed" if ok else "failed")
         except asyncio.CancelledError:
-            logger.info("🎤 Voice command cancelled mid-execution")
+            logger.info("Voice command cancelled mid-execution")
             raise
         finally:
             self._accumulated_transcript = ""
@@ -563,7 +563,7 @@ class WakeWordDetector:
 
     async def _handle_interrupt(self) -> None:
         """Handle a spoken interrupt ("stop", "cancel", etc.)."""
-        logger.info("🎤 Voice interrupt received — cancelling current action")
+        logger.info("Voice interrupt received — cancelling current action")
         if self._dispatch_task and not self._dispatch_task.done():
             self._dispatch_task.cancel()
         self.state = WakeState.IDLE

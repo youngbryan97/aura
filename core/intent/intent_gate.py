@@ -600,10 +600,10 @@ def register_intent_gate() -> IntentGate:
             if kernel:
                 kernel.set_volition_level(level)
                 return f"✓ Volition Level set to {level}"
-            return "❌ Kernel not found in container."
+            return "Kernel not found in container."
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('intent_gate', e)
-            return f"❌ Volition error: {e}"
+            return f"Volition error: {e}"
 
     gate.admin.register(
         command_key="/volition*",

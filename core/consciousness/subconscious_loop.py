@@ -79,7 +79,7 @@ class SubconsciousLoop:
             self._run_loop(),
             name="aura.subconscious_loop",
         )
-        logger.info("🧠 Subconscious Loop activated")
+        logger.info("Subconscious Loop activated")
 
     async def stop(self):
         """Suspend subconscious activity."""
@@ -92,7 +92,7 @@ class SubconsciousLoop:
                 logger.debug('Ignored asyncio.CancelledError in subconscious_loop.py: %s', _e)
             finally:
                 self._task = None
-        logger.info("🛑 Subconscious Loop halted")
+        logger.info("Subconscious Loop halted")
 
     async def _run_loop(self):
         """The main continuous loop running in the background."""
@@ -143,7 +143,7 @@ class SubconsciousLoop:
             try:
                 from core.coordinators.dream_coordinator import get_dream_coordinator
                 coord = get_dream_coordinator()
-                logger.info("💭 Subconscious triggering Dream Cycle (DreamerV2)...")
+                logger.info("Subconscious triggering Dream Cycle (DreamerV2)...")
                 await coord.run_dreamer_v2()
                 self.last_dream_cycle = now
             except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
@@ -159,7 +159,7 @@ class SubconsciousLoop:
         # Runs under a narrowly bound autonomous child lease.
         if now - self.last_sandbox_experiment > 900.0:  # Every 15 minutes of idle
             try:
-                logger.info("🧪 Subconscious running proactive sandbox experiment...")
+                logger.info("Subconscious running proactive sandbox experiment...")
                 await self._run_proactive_sandbox()
                 self.last_sandbox_experiment = now
             except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
@@ -254,7 +254,7 @@ class SubconsciousLoop:
                     # --- PHASE 23.2: DECODER OBSERVER ---
                     # The human sees the approximated translation, not the 768-dim float array
                     translation = decoder.approximate_translation(vector_insight)
-                    logger.info("🌌 [Latent Transmission %s] %s", thought_id, translation)
+                    logger.info("[Latent Transmission %s] %s", thought_id, translation)
                 else:
                     logger.debug("Subconscious Sandbox Result: %s", result)
         except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:

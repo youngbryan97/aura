@@ -27,7 +27,7 @@ class HypothesisEngine:
     """Generates falsifiable hypotheses for research loops."""
 
     def generate_hypothesis(self, topic: str) -> Hypothesis:
-        logger.info("💡 Generating hypothesis for topic: '%s'", topic)
+        logger.info("Generating hypothesis for topic: '%s'", topic)
 
         # Build standard variables
         variables = {

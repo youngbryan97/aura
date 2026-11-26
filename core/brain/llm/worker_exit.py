@@ -50,7 +50,7 @@ def the_worker_has_not_ended(process: Any, model_path: Any = "") -> None:
     ended = how_it_ended(process)
     if ended:
         name = os.path.basename(str(model_path or ""))
-        logger.error("🛑 [MLX] %s worker ended during init: %s", name, ended)
+        logger.error("[MLX] %s worker ended during init: %s", name, ended)
         raise WorkerEndedDuringInit(f"{name} worker ended during init: {ended}")
 
 

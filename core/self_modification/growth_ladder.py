@@ -176,7 +176,7 @@ class GrowthLadder:
             self._current_level = next_level
             self._level_start_times[int(next_level)] = time.time()
             self._save()
-            logger.info("🌱 [GrowthLadder] Aura advanced to Level %d (%s)", next_level, next_level.name)
+            logger.info("[GrowthLadder] Aura advanced to Level %d (%s)", next_level, next_level.name)
             await self._notify_advancement(next_level)
             return next_level
         return None
@@ -213,7 +213,7 @@ class GrowthLadder:
         # proceed to the normal canary-gated path. (docs/SETTINGS_WIRING_AUDIT.md)
         if str(get_runtime_setting("autonomy.self_modification", "staged")).strip().lower() == "blocked":
             logger.warning(
-                "🚫 [GrowthLadder] Proposal %s refused: autonomy.self_modification=blocked (user setting)",
+                "[GrowthLadder] Proposal %s refused: autonomy.self_modification=blocked (user setting)",
                 proposal_id,
             )
             return False
@@ -243,7 +243,7 @@ class GrowthLadder:
         if proposal.predicted_stability_risk > 0.5 or proposal.predicted_welfare_cost > 0.6:
             proposal.status = "rejected_safety"
             proposal.aura_consent = False
-            logger.warning("🚫 [GrowthLadder] Proposal %s rejected: stability risk (%.2f) or welfare cost (%.2f) exceeds safety limits.",
+            logger.warning("[GrowthLadder] Proposal %s rejected: stability risk (%.2f) or welfare cost (%.2f) exceeds safety limits.",
                            proposal_id, proposal.predicted_stability_risk, proposal.predicted_welfare_cost)
             self._save()
             return False
@@ -251,7 +251,7 @@ class GrowthLadder:
         if proposal.predicted_capability_gain > 0.0 and proposal.predicted_stability_risk >= proposal.predicted_capability_gain:
             proposal.status = "rejected_risk_vs_gain"
             proposal.aura_consent = False
-            logger.warning("🚫 [GrowthLadder] Proposal %s rejected: stability risk (%.2f) >= predicted capability gain (%.2f).",
+            logger.warning("[GrowthLadder] Proposal %s rejected: stability risk (%.2f) >= predicted capability gain (%.2f).",
                            proposal_id, proposal.predicted_stability_risk, proposal.predicted_capability_gain)
             self._save()
             return False
@@ -261,7 +261,7 @@ class GrowthLadder:
         if int(proposal.level.governing_rung) > self._current_level:
             proposal.status = "rejected"
             proposal.aura_consent = False
-            logger.info("🚫 [GrowthLadder] Proposal %s rejected: Level %d > current %d",
+            logger.info("[GrowthLadder] Proposal %s rejected: Level %d > current %d",
                         proposal_id, int(proposal.level.governing_rung), self._current_level)
             self._save()
             return False
@@ -272,7 +272,7 @@ class GrowthLadder:
                 proposal.status = "rejected_user"
                 return False
             if proposal.user_consent is None:
-                logger.warning("⚠️ [GrowthLadder] Level %d modification requires EXPLICIT user consent.",
+                logger.warning("[GrowthLadder] Level %d modification requires EXPLICIT user consent.",
                                int(proposal.level.governing_rung))
                 proposal.status = "pending_user"
                 return False
@@ -337,9 +337,9 @@ Respond with JSON only:
             reasoning = data.get("reasoning", "")
             if not proposal.aura_consent:
                 proposal.status = "vetoed"
-                logger.info("❌ [GrowthLadder] Aura VETOED proposal %s: %s", proposal.id, reasoning[:100])
+                logger.info("[GrowthLadder] Aura VETOED proposal %s: %s", proposal.id, reasoning[:100])
             else:
-                logger.info("✅ [GrowthLadder] Aura CONSENTED to proposal %s: %s", proposal.id, reasoning[:100])
+                logger.info("[GrowthLadder] Aura CONSENTED to proposal %s: %s", proposal.id, reasoning[:100])
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('growth_ladder', e)
             logger.debug("[GrowthLadder] Consent request failed: %s", e)

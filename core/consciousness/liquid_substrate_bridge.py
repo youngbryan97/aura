@@ -124,7 +124,7 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
             logger.debug("Substrate formatting error: %s", e)
         return ctx
     orchestrator._gather_agentic_context = _gather_with_substrate
-    logger.info("✅ LiquidSubstrate bridged to orchestrator.")
+    logger.info("LiquidSubstrate bridged to orchestrator.")
 
 def format_substrate_for_prompt(substrate_ctx: dict[str, Any]) -> str:
     if not substrate_ctx:

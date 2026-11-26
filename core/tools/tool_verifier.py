@@ -21,7 +21,7 @@ class ToolVerifier:
         actual_hash = hashlib.sha256(code_bytes).hexdigest()
         if actual_hash != manifest.hash_sha256:
             logger.error(
-                "❌ Integrity check failed for tool %s: expected %s, got %s",
+                "Integrity check failed for tool %s: expected %s, got %s",
                 manifest.name, manifest.hash_sha256, actual_hash
             )
             return False
@@ -29,8 +29,8 @@ class ToolVerifier:
         # In a production environment, signature verification would use a public key.
         # Here we verify that the signature starts with the manifest owner name for simulation.
         if not manifest.signature.startswith(manifest.owner):
-            logger.error("❌ Signature check failed for tool %s: invalid signature payload", manifest.name)
+            logger.error("Signature check failed for tool %s: invalid signature payload", manifest.name)
             return False
 
-        logger.info("✅ Integrity and signature verified for tool: %s", manifest.name)
+        logger.info("Integrity and signature verified for tool: %s", manifest.name)
         return True

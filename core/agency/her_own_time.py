@@ -104,7 +104,7 @@ class HerOwnTime:
             assert option.does is not None
             if self.may is not None and not await self.may(option):
                 self.chooser.learn(chosen, CameOf(put_down=True, what="her Will refused it"), cost_s=option.cost_s)
-                logger.info("🧭 Her Will refused it: %s", option.what[:160])
+                logger.info("Her Will refused it: %s", option.what[:160])
                 return None
             self.doing = {"id": option.id, "kind": option.kind, "what": option.what, "why": option.why, "since": time.time()}
             await self.keep()
@@ -122,7 +122,7 @@ class HerOwnTime:
             if not came.seconds:
                 came = CameOf(came.got, came.worth, came.put_down, came.what, time.monotonic() - began)
             reward = await asyncio.to_thread(self.chooser.learn, chosen, came, cost_s=option.cost_s)
-            logger.info("🧭 What came of it (%s): %s; %s", "put down" if reward is None else f"{reward:+.2f}", came.what[:200] or "nothing that can be seen", option.what[:120])
+            logger.info("What came of it (%s): %s; %s", "put down" if reward is None else f"{reward:+.2f}", came.what[:200] or "nothing that can be seen", option.what[:120])
             self.before = {**self.doing, "came": came.what, "got": came.got, "ended": time.time()}
             self.doing = {}
             await self.keep()

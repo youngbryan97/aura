@@ -366,7 +366,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
     if log:
         if concerns and integrity_incident["warning_required"]:
             logger.warning(
-                "🩺 [Integrity] runtime concern incident opened or escalated "
+                "[Integrity] runtime concern incident opened or escalated "
                 "(%d active): %s",
                 len(concerns),
                 " | ".join(concerns),
@@ -382,14 +382,14 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
         if integrity_incident["resolved_subsystems"]:
             remaining = sorted(concern_counts)
             logger.info(
-                "🩺 [Integrity] runtime concern recovered for %s; remaining=%s",
+                "[Integrity] runtime concern recovered for %s; remaining=%s",
                 ", ".join(integrity_incident["resolved_subsystems"]),
                 ", ".join(remaining) if remaining else "none",
             )
         if advisory:
-            logger.info("🩺 [Integrity] advisory (non-blocking): %s", " | ".join(advisory))
+            logger.info("[Integrity] advisory (non-blocking): %s", " | ".join(advisory))
         if not concerns and not advisory and strict_mode():
-            logger.info("🩺 [Integrity] all subsystems nominal (strict mode).")
+            logger.info("[Integrity] all subsystems nominal (strict mode).")
     return report
 
 

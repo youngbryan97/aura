@@ -589,7 +589,7 @@ class DimensionalExpansionEngine:
                 self._expansion_history.append(event)
 
                 logger.info(
-                    "🧬 Dimension expanded: %s (eigenvalue=%.4f, ratio=%.3f, dim now=%d)",
+                    "Dimension expanded: %s (eigenvalue=%.4f, ratio=%.3f, dim now=%d)",
                     axis_id,
                     ev,
                     ratio,

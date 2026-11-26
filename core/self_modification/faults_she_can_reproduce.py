@@ -130,7 +130,7 @@ def hear(record: DegradationRecord) -> None:
             return
         _HEARD[call.fingerprint] = HeardFault(call, record.subsystem, record.timestamp, record.timestamp)
         _FIRST_HEARD[0] += 1
-    logger.info("🩹 A fault she can make again: %s.%s raised %s, from %s (%s:%d).", call.module, call.qualname,
+    logger.info("A fault she can make again: %s.%s raised %s, from %s (%s:%d).", call.module, call.qualname,
                 call.error_type.rsplit(".", 1)[-1], record.subsystem, call.file, call.line)
     with _LOCK:
         wakers = list(_WAKERS)
@@ -203,7 +203,7 @@ def _say_why_not_once(why: Any, record: DegradationRecord) -> None:
         if reason in _SAID_WHY_NOT or len(_SAID_WHY_NOT) >= _how_many_are_kept():
             return
         _SAID_WHY_NOT.add(reason)
-    logger.info("🩹 Not a fault she can make again: %s (%s from %s).", reason, record.error_type, record.subsystem)
+    logger.info("Not a fault she can make again: %s (%s from %s).", reason, record.error_type, record.subsystem)
 
 
 def listen() -> bool:
@@ -271,7 +271,7 @@ def recall() -> int:
                 added += 1
         _KEPT[0] = _FIRST_HEARD[0]
     if added:
-        logger.info("🩹 %d fault(s) she heard before this run are hers to mend in it.", added)
+        logger.info("%d fault(s) she heard before this run are hers to mend in it.", added)
     return added
 
 

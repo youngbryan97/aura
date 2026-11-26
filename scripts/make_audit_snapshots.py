@@ -117,7 +117,7 @@ def generate_snapshot(name, char_limit, filename):
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write("".join(buffer))
 
-    print(f"✅ Created {filename}: {current_chars:,} chars, {included_count} full files, {summarized_count} summaries.\n")
+    print(f"Created {filename}: {current_chars:,} chars, {included_count} full files, {summarized_count} summaries.\n")
 
 if __name__ == "__main__":
     # Claude: ~0.8 MB = 800,000 chars

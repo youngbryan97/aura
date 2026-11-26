@@ -177,7 +177,7 @@ async def _boot_aura(logger: logging.Logger):
     # internal paths also stays within RAM budget.
     if getattr(config.llm, "fast_model", None):
         config.llm.deep_model = config.llm.fast_model
-        logger.info("🔧 Config override: deep_model → fast_model (%s)", config.llm.fast_model)
+        logger.info("Config override: deep_model → fast_model (%s)", config.llm.fast_model)
 
     from core.observability.logging_config import setup_logging
     setup_logging()
@@ -206,7 +206,7 @@ async def run_crucible():
     )
     logger = logging.getLogger("CognitiveCrucible")
     logger.info("=" * 60)
-    logger.info("🧠 AURA COGNITIVE CRUCIBLE")
+    logger.info("AURA COGNITIVE CRUCIBLE")
     logger.info("Results: %s", RESULTS_PATH)
     logger.info("=" * 60)
 

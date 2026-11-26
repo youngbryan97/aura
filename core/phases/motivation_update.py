@@ -234,7 +234,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         warmth_return = 0.0
         if MotivationUpdatePhase._met_this_turn(state):
             warmth_return = MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, dt) or 0.0
-            logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
+            logger.debug("Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
 
         # The forces that moved the budgets this turn, kept rather than
         # discarded. Each is another domain acting on deliberation inside one
@@ -315,7 +315,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             intention = self._assess_needs(next_state)
             if intention:
                 intention = self._drained(next_state, intention)
-                logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
+                logger.info("Motivation Phase: Generated Intention -> %s", intention['goal'])
                 next_state, decision = await propose_governed_initiative_to_state(
                     next_state,
                     intention["goal"],
@@ -335,7 +335,7 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
                 # without being mentioned. See core/social/telling.py.
                 passing = self._worth_passing_on(next_state)
                 if passing:
-                    logger.info("✨ Motivation Phase: Something to pass on -> %s", passing["goal"])
+                    logger.info("Motivation Phase: Something to pass on -> %s", passing["goal"])
                     next_state, decision = await propose_governed_initiative_to_state(
                         next_state,
                         passing["goal"],

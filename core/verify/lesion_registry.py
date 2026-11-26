@@ -211,7 +211,7 @@ class LesionRegistry:
                     # is far worse than a failed measurement. Say so at CRITICAL
                     # and let the caller's degradation path see the raise.
                     logger.critical(
-                        "🚨 [LESION] restore FAILED for channel %s (owner %s): the "
+                        "[LESION] restore FAILED for channel %s (owner %s): the "
                         "faculty is still neutralized",
                         channel,
                         handle.owner,

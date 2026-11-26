@@ -26,7 +26,7 @@ class CellularSubstrate:
     async def initialize(self):
         self._is_active = True
         self._substrate_task = get_task_tracker().create_task(self._substrate_loop())
-        logger.info("♾️ [CELLULAR] Substrate loop active (%.1fHz).", 1/self._commit_interval)
+        logger.info("[CELLULAR] Substrate loop active (%.1fHz).", 1/self._commit_interval)
         
     async def shutdown(self):
         self._is_active = False
@@ -68,7 +68,7 @@ class CellularSubstrate:
                 
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('cellular_substrate', e)
-                logger.error("🛑 [CELLULAR] Substrate crash: %s", e)
+                logger.error("[CELLULAR] Substrate crash: %s", e)
                 await asyncio.sleep(1.0)
 
     def _apply_patch_recursive(self, target: Any, patch: Dict[str, Any]):

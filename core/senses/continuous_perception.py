@@ -61,7 +61,7 @@ class ContinuousPerceptionEngine:
 
         self.enable_proactive_vision = proactive_vision_enabled()
         if not self.enable_proactive_vision:
-            logger.info("👁️ Continuous vision monitoring is off (AURA_ENABLE_PROACTIVE_VISION=0).")
+            logger.info("Continuous vision monitoring is off (AURA_ENABLE_PROACTIVE_VISION=0).")
         
         # Wake word setup
         self.wake_words = ["aura"]
@@ -87,7 +87,7 @@ class ContinuousPerceptionEngine:
         if self.running:
             return
         self.running = True
-        logger.info("📡 Continuous Perception Engine: ONLINE")
+        logger.info("Continuous Perception Engine: ONLINE")
 
         tracker = get_task_tracker()
         self._audio_task = tracker.track_task(
@@ -112,7 +112,7 @@ class ContinuousPerceptionEngine:
             self._vision_task.cancel()
         if self._ambient_task:
             self._ambient_task.cancel()
-        logger.info("📡 Continuous Perception Engine: OFFLINE")
+        logger.info("Continuous Perception Engine: OFFLINE")
 
     async def _continuous_audio_loop(self):
         """Monitors the microphone stream continuously."""
@@ -150,7 +150,7 @@ class ContinuousPerceptionEngine:
                 key="continuous_perception",
                 candidate_safe=True,
             )
-            logger.info("📡 Continuous audio listener registered.")
+            logger.info("Continuous audio listener registered.")
 
         while self.running:
             try:
@@ -212,7 +212,7 @@ class ContinuousPerceptionEngine:
                     if self._last_image:
                         delta = await self._calculate_image_difference_async(self._last_image, current_thumb)
                         if delta > self.visual_delta_threshold:
-                            logger.info("👁️ Significant visual change detected (%.0f%%). Triggering analysis.", delta * 100)
+                            logger.info("Significant visual change detected (%.0f%%). Triggering analysis.", delta * 100)
                             
                             # Perform full analysis on the actual image
                             description = await vision.analyze_moment(
@@ -244,7 +244,7 @@ class ContinuousPerceptionEngine:
                 # Wait for system to settle and interval to pass
                 await asyncio.sleep(self.ambient_update_interval)
                 
-                logger.debug("📡 Ambient Context: Sampling environment...")
+                logger.debug("Ambient Context: Sampling environment...")
                 if self._computer_use_skill is None:
                     logger.debug("ComputerUseSkill unavailable; skipping ambient context.")
                     await asyncio.sleep(self.ambient_update_interval)
@@ -265,7 +265,7 @@ class ContinuousPerceptionEngine:
                             summary = res.content if hasattr(res, 'content') else str(res)
                             
                             self.current_ambient_context = summary
-                            logger.info("📡 Ambient Context Updated: %s", summary)
+                            logger.info("Ambient Context Updated: %s", summary)
                             if getattr(self, "daemon", None):
                                 self.daemon.register_moment("ambient_context", summary)
                             
@@ -347,7 +347,7 @@ class ContinuousPerceptionEngine:
                         )
                         return
 
-                logger.info("⚡ Routing spontaneous intent from %s", source)
+                logger.info("Routing spontaneous intent from %s", source)
                 if user_facing:
                     await self.orchestrator.process_user_input(text, origin="voice")
                     return

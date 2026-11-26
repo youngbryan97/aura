@@ -839,7 +839,7 @@ class PhantomBrowser(_ArrivesWhereItWasSent, _ReadsItsFrames, _ActsOnThePage):
             await self._start_browser()
             return
 
-        logger.info("🔄 Rotating User Agent...")
+        logger.info("Rotating User Agent...")
         ua = self._get_random_ua()
 
         async with self._lifecycle_lock:
@@ -931,7 +931,7 @@ class PhantomBrowser(_ArrivesWhereItWasSent, _ReadsItsFrames, _ActsOnThePage):
             # HTTP failure before a caller decides whether another route helps.
             self._last_navigation = {"ok": False, "reason": f"policy_refused:{verdict.reason}",
                                      "requested_url": _normalize_url(url), "final_url": ""}
-            logger.warning("🌐 Navigation refused: %s", verdict.reason)
+            logger.warning("Navigation refused: %s", verdict.reason)
             return False
         url = _normalize_url(url)
 
@@ -941,7 +941,7 @@ class PhantomBrowser(_ArrivesWhereItWasSent, _ReadsItsFrames, _ActsOnThePage):
                 logger.error("Browser failed to start.")
                 return False
 
-        logger.info("🌐 Navigating to: %s", url)
+        logger.info("Navigating to: %s", url)
         await show_activity(self, "navigating")
         self._document = None
         # A navigation the browser answers with a download raises from goto. LIVE 15-16 November 2026 that was
@@ -989,14 +989,14 @@ class PhantomBrowser(_ArrivesWhereItWasSent, _ReadsItsFrames, _ActsOnThePage):
         self._last_navigation = arrival
         await show_activity(self, "navigating", stage="completed" if arrival["ok"] else "failed")
         if not arrival["ok"]:
-            logger.warning("🌐 Navigation did not arrive: %s", arrival["reason"])
+            logger.warning("Navigation did not arrive: %s", arrival["reason"])
             # The archive's copy refused is the page itself to go to, as a page refused is its copy
             # (core/skills/sovereign_browser_going.py). LIVE 2026-10-06 a link followed from an archived
             # page to a game in the Internet Archive came wrapped in the archive's address, and the
             # archive does not serve copies of itself.
             original = re.match(r"^https?://web\.archive\.org/web/[0-9a-z_*]+/(https?://.+)$", url)
             if original:
-                logger.info("🌐 The archive's copy was refused; going to the page itself: %s", original.group(1))
+                logger.info("The archive's copy was refused; going to the page itself: %s", original.group(1))
                 return await self.browse(original.group(1), principal=principal)
         return bool(arrival["ok"])
 
@@ -1886,7 +1886,7 @@ async def integrate_phantom_browser(orchestrator) -> bool:
     """Attach the browser to the orchestrator. Returns whether it is usable.
 
     ``ensure_ready``'s boolean was ignored, the object was attached
-    regardless, and "✅ Phantom Browser integrated" was logged
+    regardless, and "Phantom Browser integrated" was logged
     unconditionally — so downstream code received a failed capability
     presented as an available one (CP126 ``5c9be33c``).
 
@@ -1898,7 +1898,7 @@ async def integrate_phantom_browser(orchestrator) -> bool:
     ready = await pb.ensure_ready()
     orchestrator.phantom_browser = pb
     if ready:
-        logger.info("✅ Phantom Browser integrated")
+        logger.info("Phantom Browser integrated")
         return True
     status = pb.get_status()
     _record_browser_degradation(
@@ -1908,7 +1908,7 @@ async def integrate_phantom_browser(orchestrator) -> bool:
         severity="warning",
     )
     logger.warning(
-        "⚠️ Phantom Browser attached but NOT ready (%s); callers must check get_status().",
+        "Phantom Browser attached but NOT ready (%s); callers must check get_status().",
         status.get("startup_error", "")[:160] or "unknown",
     )
     return False

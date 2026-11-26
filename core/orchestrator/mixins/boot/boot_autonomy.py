@@ -130,7 +130,7 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
     async def _init_autonomous_evolution(self):
         """Initialize the background evolution and Curiosity Engine with granular error boundaries."""
-        logger.info("🔎 Activating Autonomous Self-Modification...")
+        logger.info("Activating Autonomous Self-Modification...")
 
         boot_steps: tuple[tuple[str, Callable[[], Awaitable[None]]], ...] = (
             ("self_modification_engine", self._init_self_modification_engine),
@@ -166,7 +166,7 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
                     name,
                 )
 
-        logger.info("🛠️ _init_autonomous_evolution complete")
+        logger.info("_init_autonomous_evolution complete")
 
     async def _init_transcendence_layer(self):
         """Initialize the Transcendence Layer (Meta-Evolution)."""
@@ -175,12 +175,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             self.meta_evolution = MetaEvolutionEngine()
             ServiceContainer.register_instance("meta_evolution", self.meta_evolution)
-            logger.info("🌌 Transcendence Infrastructure online")
+            logger.info("Transcendence Infrastructure online")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🌌 Transcendence Infrastructure failed: %s", e)
+            logger.error("Transcendence Infrastructure failed: %s", e)
 
     async def _init_cognitive_modulators(self):
         """Initialize Cognitive Modulators (Humility, Causal Model, Skill Library)."""
@@ -205,12 +205,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
             from core.agency.skill_library import register_skill_library
 
             self.skill_library = register_skill_library(self)
-            logger.info("🧠 Cognitive Modulators online")
+            logger.info("Cognitive Modulators online")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🧠 Cognitive Modulators failed: %s", e)
+            logger.error("Cognitive Modulators failed: %s", e)
 
     async def _init_reflex_engine(self):
         """Initialize the Reflex System."""
@@ -236,7 +236,7 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
             net = MycelialNetwork()
             if hasattr(net, "reflex") and net.reflex:
                 net.reflex.orchestrator = self
-                logger.info("⚡ Hardened Reflex Core (SOMA) bridged to Orchestrator")
+                logger.info("Hardened Reflex Core (SOMA) bridged to Orchestrator")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -257,12 +257,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             evo = get_evolution_orchestrator()
             await evo.start()
-            logger.info("🧬 Evolution Orchestrator online — tracking 8 evolutionary axes")
+            logger.info("Evolution Orchestrator online — tracking 8 evolutionary axes")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🧬 Evolution Orchestrator failed: %s", e)
+            logger.error("Evolution Orchestrator failed: %s", e)
 
     async def _init_singularity_loops(self):
         """Initialize the closed-loop evolutionary wiring."""
@@ -275,12 +275,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
                 loops = get_singularity_loops()
                 await loops.start()
-                logger.info("🔗 Singularity Loops online — 6 feedback loops active")
+                logger.info("Singularity Loops online — 6 feedback loops active")
             except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
                 _record_boot_autonomy_degradation(
                     e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
                 )
-                logger.error("🔗 Singularity Loops failed: %s", e)
+                logger.error("Singularity Loops failed: %s", e)
         else:
             logger.info(
                 "Singularity loops disabled by configuration; continuing Tier 4 boot wiring."
@@ -297,12 +297,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             ws = get_world_state()
             await ws.start()
-            logger.info("🌍 WorldState ONLINE — live perceptual feed active")
+            logger.info("WorldState ONLINE — live perceptual feed active")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🌍 WorldState init failed: %s", e)
+            logger.error("WorldState init failed: %s", e)
 
         # InitiativeSynthesizer — single origin for all impulses
         try:
@@ -310,12 +310,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             synth = get_initiative_synthesizer()
             await synth.start()
-            logger.info("🔀 InitiativeSynthesizer ONLINE — single impulse funnel active")
+            logger.info("InitiativeSynthesizer ONLINE — single impulse funnel active")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🔀 InitiativeSynthesizer init failed: %s", e)
+            logger.error("InitiativeSynthesizer init failed: %s", e)
 
         # InternalSimulator — counterfactual action evaluation
         try:
@@ -323,12 +323,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             simulator = InternalSimulator()
             ServiceContainer.register_instance("internal_simulator", simulator)
-            logger.info("🔮 InternalSimulator ONLINE — counterfactual reasoning active")
+            logger.info("InternalSimulator ONLINE — counterfactual reasoning active")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🔮 InternalSimulator init failed: %s", e)
+            logger.error("InternalSimulator init failed: %s", e)
 
         # ContinuousCognitionLoop — non-LLM brainstem (exists between prompts)
         try:
@@ -336,12 +336,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
             ccl = get_continuous_cognition()
             await ccl.start()
-            logger.info("🧠 ContinuousCognitionLoop ONLINE — brainstem active at 2Hz")
+            logger.info("ContinuousCognitionLoop ONLINE — brainstem active at 2Hz")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🧠 ContinuousCognitionLoop init failed: %s", e)
+            logger.error("ContinuousCognitionLoop init failed: %s", e)
 
         # Goal Resumption — restore interrupted goals from SQLite
         try:
@@ -384,34 +384,34 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
                         resumed_count += 1
                     state.cognition.pending_initiatives = pending
                 if resumed_count > 0:
-                    logger.info("🔄 Goal Resumption: restored %d interrupted goals", resumed_count)
+                    logger.info("Goal Resumption: restored %d interrupted goals", resumed_count)
                 else:
                     logger.debug("Goal Resumption: no interrupted goals found")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🔄 Goal Resumption failed: %s", e)
+            logger.error("Goal Resumption failed: %s", e)
 
     async def _init_final_foundations(self):
         """Initialize World Model, Narrative Identity, and Metacognitive Calibrator."""
         if getattr(self, "_final_foundations_initialized", False):
-            logger.info("🏛️ Final Foundations already initialized; reusing canonical services.")
+            logger.info("Final Foundations already initialized; reusing canonical services.")
             return
         if getattr(self, "_final_foundations_initializing", False):
-            logger.info("🏛️ Final Foundations initialization already in progress.")
+            logger.info("Final Foundations initialization already in progress.")
             return
         self._final_foundations_initializing = True
         try:
             from core.final_engines import register_final_engines
 
             self.final_engines = register_final_engines(orchestrator=self)
-            logger.info("🏛️ Final Foundations registered (World/Identity/Meta)")
+            logger.info("Final Foundations registered (World/Identity/Meta)")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🏛️ Final Foundations failed: %s", e)
+            logger.error("Final Foundations failed: %s", e)
 
         try:
             await self._init_salvaged_subsystems()
@@ -521,12 +521,12 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
                 await mot.start()
                 ServiceContainer.register_instance("drive_engine", mot)
                 ServiceContainer.register_instance("drives", mot)
-            logger.info("✨ Motivation Engine Active: Aura is now self-directed.")
+            logger.info("Motivation Engine Active: Aura is now self-directed.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("✨ Motivation Engine failed: %s", e)
+            logger.error("Motivation Engine failed: %s", e)
 
     async def _init_autonomous_task_engine(self):
         """Initialize the Autonomous Task Engine for multi-step agency."""
@@ -542,11 +542,11 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
-            logger.error("🛑 Task Engine init failed: %s", e)
+            logger.error("Task Engine init failed: %s", e)
 
     async def _init_proactive_systems(self):
         """Initialize curiosity, proactive communication, and belief sync with granular error boundaries."""
-        logger.info("🛠️ _init_proactive_systems starting")
+        logger.info("_init_proactive_systems starting")
         background_start_blocker = ""
         try:
             from core.runtime.background_policy import background_loop_start_reason
@@ -603,19 +603,19 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
 
         ensure_reminders_are_delivered()
 
-        # 🚀 Phase 30: Unfettered Presence & Spontaneous Agency
+        # Phase 30: Unfettered Presence & Spontaneous Agency
         try:
             from core.social.presence_integration import apply_presence_patch
 
             apply_presence_patch(self)
-            logger.info("✨ Phase 30 Presence Patch applied.")
+            logger.info("Phase 30 Presence Patch applied.")
         except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
             _record_boot_autonomy_degradation(
                 e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
             )
             logger.error("Failed to apply Presence Patch: %s", e)
 
-        # 🔬 Research Cycle Daemon — autonomous knowledge pursuit during idle
+        # Research Cycle Daemon — autonomous knowledge pursuit during idle
         if (
             _foreground_only_runtime()
             or _proof_runtime_active()
@@ -628,7 +628,7 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
                 from core.autonomy.research_cycle import start_research_daemon
 
                 self.research_cycle = await start_research_daemon(self)
-                logger.info("🔬 Research Cycle daemon activated.")
+                logger.info("Research Cycle daemon activated.")
             except _BOOT_AUTONOMY_BOUNDARY_ERRORS as e:
                 _record_boot_autonomy_degradation(
                     e, "Boot autonomy optional subsystem failed; continuing degraded boot: %s"
@@ -636,7 +636,7 @@ class BootAutonomyMixin(_SalvagesWhatItCan):
                 logger.error("Research Cycle init failed: %s", e)
                 self.research_cycle = None
 
-        logger.info("🛠️ _init_proactive_systems complete")
+        logger.info("_init_proactive_systems complete")
 
     async def _init_proactive_comm_subsystem(self):
         """Initialize the proactive communication subsystem."""

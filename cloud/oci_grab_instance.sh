@@ -62,7 +62,7 @@ NC='\033[0m' # No Color
 
 log() { echo -e "${CYAN}[$(date '+%H:%M:%S')]${NC} $1"; }
 success() { echo -e "${GREEN}[$(date '+%H:%M:%S')] ✓ $1${NC}"; }
-warn() { echo -e "${YELLOW}[$(date '+%H:%M:%S')] ⚠ $1${NC}"; }
+warn() { echo -e "${YELLOW}[$(date '+%H:%M:%S')] $1${NC}"; }
 error() { echo -e "${RED}[$(date '+%H:%M:%S')] ✗ $1${NC}"; }
 
 echo ""

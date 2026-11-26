@@ -14,7 +14,7 @@ logger = logging.getLogger("Aura.EntropyAnchor")
 
 class PhysicalEntropyAnchor:
     def __init__(self) -> None:
-        logger.info("🌌 Physical Entropy Anchor online. System is now non-deterministic.")
+        logger.info("Physical Entropy Anchor online. System is now non-deterministic.")
 
     def get_raw_bytes(self, num_bytes: int = 4) -> bytes:
         """Read raw entropy directly from the OS hardware pool."""

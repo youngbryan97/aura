@@ -157,7 +157,7 @@ class IndividualPreferences:
             pref.stance = stance
             pref.formed = True
             logger.info(
-                "🌱 Preference formed: %s (after %d encounters)", pref.describe(), pref.encounters
+                "Preference formed: %s (after %d encounters)", pref.describe(), pref.encounters
             )
         self._evict()
         return pref
@@ -189,7 +189,7 @@ class IndividualPreferences:
         pref.revisions.append(
             Revision(at=time.time(), from_stance=pref.stance, to_stance=to_stance, because=because)
         )
-        logger.info("🔁 Preference revised: %s -> %s (%s)", pref.stance, to_stance, because)
+        logger.info("Preference revised: %s -> %s (%s)", pref.stance, to_stance, because)
         pref.stance = to_stance
         pref.contrary_encounters = 0
         pref.encounters = max(pref.encounters, formation_threshold())

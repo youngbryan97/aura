@@ -572,7 +572,7 @@ class FrontierDiscoveryEngine:
         report.finished_at = time.time()
         self._emit_metric("frontier_discovery_cycle_total")
         logger.info(
-            "🔭 [FrontierDiscovery] cycle examined=%d proven=%d supported=%d refuted=%d committed=%d in %.2fs",
+            "[FrontierDiscovery] cycle examined=%d proven=%d supported=%d refuted=%d committed=%d in %.2fs",
             examined, len(report.proven), len(report.supported), report.refuted, report.committed,
             report.finished_at - report.started_at,
         )
@@ -618,7 +618,7 @@ class FrontierDiscoveryEngine:
             record_degradation("frontier_will_decide", exc, severity="warning")
             return True  # a broken governor does not get to block discovery silently
         if isinstance(decision, dict) and decision.get("approved") is False:
-            logger.info("🔭 [FrontierDiscovery] governance vetoed commit of: %s", c.statement[:80])
+            logger.info("[FrontierDiscovery] governance vetoed commit of: %s", c.statement[:80])
             return False
         return True
 

@@ -308,7 +308,7 @@ class AutonomousOutputGate:
                     )
                 else:
                     logger.warning(
-                        "🛡️ OutputGate: Will engine unavailable — failing closed; routing autonomous %s off the primary channel.",
+                        "OutputGate: Will engine unavailable — failing closed; routing autonomous %s off the primary channel.",
                         origin,
                     )
                     record_degradation(
@@ -358,7 +358,7 @@ class AutonomousOutputGate:
                 valid, reason, score = self.identity_guard.validate_output(content)
                 if not valid:
                     # Log to standard logger
-                    logger.error("🛡️ IdentityGuard BLOCKED output: %s (reason=%s)", content[:50], reason)
+                    logger.error("IdentityGuard BLOCKED output: %s (reason=%s)", content[:50], reason)
                     
                     # Log to Enterprise Audit service
                     from core.container import ServiceContainer
@@ -451,7 +451,7 @@ class AutonomousOutputGate:
             metadata["authority_missing"] = True
             metadata["authority_rerouted"] = True
             logger.warning(
-                "🛡️ OutputGate: Rerouting unauthorized autonomous primary output from %s to secondary.",
+                "OutputGate: Rerouting unauthorized autonomous primary output from %s to secondary.",
                 origin,
             )
             try:
@@ -471,7 +471,7 @@ class AutonomousOutputGate:
 
         if is_autonomous and target == "primary" and not (is_spontaneous or force_user):
             target = "secondary"
-            logger.debug("🛡️ OutputGate: Redirecting autonomous output to secondary: %s...", content[:50])
+            logger.debug("OutputGate: Redirecting autonomous output to secondary: %s...", content[:50])
 
         primary_receipt_id: str | None = None
         if target in ["primary", "both"]:
@@ -509,7 +509,7 @@ class AutonomousOutputGate:
         timeout: float = 5.0,  # noqa: ASYNC109 - sink budget
     ) -> str | None:
         """Send to the primary user communication channel."""
-        # ★ NEW: Feed reply_queue for REST API waiters (per Architecture Audit)
+        # NEW: Feed reply_queue for REST API waiters (per Architecture Audit)
         from core.container import ServiceContainer
         from core.conversation.tagged_reply_queue import (
             current_reply_origin,
@@ -714,7 +714,7 @@ class AutonomousOutputGate:
             record_degradation('output_gate', e)
             logger.error("Failed to put in secondary_queue: %s", e)
             
-        logger.info("📡 [AUTONOMOUS] %s: %s", origin, content)
+        logger.info("[AUTONOMOUS] %s: %s", origin, content)
 
     async def get_secondary_stream(self) -> AsyncIterator[dict[str, Any]]:
         """Generator for secondary output stream."""

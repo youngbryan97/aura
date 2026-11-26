@@ -32,11 +32,11 @@ class DigitalTwin:
     def sync_state(self, state_dict: Dict[str, Any]) -> None:
         """Sync files or process snapshots into the environment state."""
         self.state.files.update(state_dict)
-        logger.info("📐 DigitalTwin: synchronized %d files in mode '%s'", len(state_dict), self.mode)
+        logger.info("DigitalTwin: synchronized %d files in mode '%s'", len(state_dict), self.mode)
 
     def simulate_impact(self, change_dict: Dict[str, Any]) -> Dict[str, Any]:
         """Check proposed modifications for compiling issues or errors."""
-        logger.info("📐 DigitalTwin: simulating impact check...")
+        logger.info("DigitalTwin: simulating impact check...")
 
         is_safe = True
         errors = []
@@ -63,7 +63,7 @@ class DigitalTwin:
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Model the effect of an action, predicting failures and reversibility."""
-        logger.info("📐 DigitalTwin: simulating impact for '%s'", change_type)
+        logger.info("DigitalTwin: simulating impact for '%s'", change_type)
 
         reversible = True
         breaks_compilation = False

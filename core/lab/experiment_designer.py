@@ -30,7 +30,7 @@ class ExperimentDesigner:
         falsifiable_claim = str(
             claim or getattr(hypothesis, "claim", None) or hypothesis.statement or ""
         ).strip()
-        logger.info("🧪 Designing falsification experiment for: '%s'", falsifiable_claim[:80])
+        logger.info("Designing falsification experiment for: '%s'", falsifiable_claim[:80])
 
         return {
             "name": f"exp_test_{hypothesis.hypothesis_id}",

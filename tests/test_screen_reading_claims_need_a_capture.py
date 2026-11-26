@@ -8,7 +8,7 @@ are visible behind or beside yours?" matched ``asks_about_occluded_view``, ran
 ``capture_blueprint()``, and answered:
 
     · System Settings ("Accessibility") — 37% visible
-    · Google Chrome ("Aura codebase analysis 🔊") — 33% visible
+    · Google Chrome ("Aura codebase analysis") — 33% visible
     · Contacts — completely covered
     · Finder ("Applications") — completely covered
     · TextEdit ("Untitled") — completely covered

@@ -73,7 +73,7 @@ class RepairPhase(Phase):
                 discovered.append(pattern)
 
         if discovered:
-            logger.warning("🤖 Roboticism detected in response: %s", discovered)
+            logger.warning("Roboticism detected in response: %s", discovered)
             
             # [STRATEGY 1] String-level 'Soft Repair'
             # Surgically remove or replace common offenders.
@@ -114,7 +114,7 @@ class RepairPhase(Phase):
             
             # If the repair significantly changed the string, update it
             if repaired != response:
-                logger.info("✨ Successfully performed soft-repair on response.")
+                logger.info("Successfully performed soft-repair on response.")
                 state.cognition.last_response = repaired.strip()
                 
                 # Add a 'repair' modifier so the pacer knows we fixed it

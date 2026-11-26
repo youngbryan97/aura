@@ -348,7 +348,7 @@ def _census(given: Any, system_prompt: Any, origin: str, persons_words: str) -> 
     counted[0] += 1
     counted[1] += sum(len(text) for text in told)
     if told:
-        logger.info("🧾 [INSTRUCTED] %s: %d characters tell her model who to be or what to do; the first: %r",
+        logger.info("[INSTRUCTED] %s: %d characters tell her model who to be or what to do; the first: %r",
                     origin, sum(len(text) for text in told), told[0][:160])
 
 
@@ -432,7 +432,7 @@ def for_her_model(
     if withheld:
         given = without_self_state(given)
     logger.info(
-        "🧵 [NO SYSTEM TEXT] %d characters the runtime wrote were not dispatched; "
+        "[NO SYSTEM TEXT] %d characters the runtime wrote were not dispatched; "
         "%d messages go to her model; readings: %s.",
         told,
         len(given) if isinstance(given, list) else 0,

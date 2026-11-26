@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"✅ claim lexicon: {len(report['compliant'])} of "
+        f"claim lexicon: {len(report['compliant'])} of "
         f"{report['scanned_files_with_loaded_names']} loaded-name files define what "
         f"they measure ({report['missing_count']} remaining, baseline {baseline})"
     )

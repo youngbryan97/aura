@@ -20,7 +20,7 @@ class GitHubConnector:
     """Tracks updates from software repositories and upstream dependencies."""
 
     async def check_releases(self, library_name: str) -> dict[str, Any] | None:
-        logger.info("📡 GitHubConnector: checking releases for '%s'", library_name)
+        logger.info("GitHubConnector: checking releases for '%s'", library_name)
 
         try:
             res = await ActionExecutor.execute(

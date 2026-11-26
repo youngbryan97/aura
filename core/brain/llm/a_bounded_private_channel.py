@@ -260,7 +260,7 @@ def close_the_channel_after(
         state["closed"] = True
         state["forced_at"] = _Lazy(lambda closed=closed, produced=produced: 0 if bool(closed) else produced)
         logger.info(
-            "🧠 [WORKER] Private channel at its %d-token budget; closed there unless it had closed itself.",
+            "[WORKER] Private channel at its %d-token budget; closed there unless it had closed itself.",
             produced,
         )
         return mx.where(closed, logits, forced)

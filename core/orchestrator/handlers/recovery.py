@@ -30,7 +30,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
     """Manually retry connecting to the cognitive brain (LLM).
     Forces a full re-wire of the Cognitive Engine AND resets the circuit breaker.
     """
-    logger.info("🧠 Manual Cognitive Retry Initiated...")
+    logger.info("Manual Cognitive Retry Initiated...")
 
     # Reset the Cognitive Circuit Breakers
     try:
@@ -38,7 +38,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
         router = get_runtime_service("llm_router", default=None)
         if router and hasattr(router, "clear_rate_limits"):
             router.clear_rate_limits()
-            logger.info("⚡ LLM Router health and rate limits RESET")
+            logger.info("LLM Router health and rate limits RESET")
 
         # 2. Reset specific Local MLX Client if it exists
         mlx = get_runtime_service("mlx_client", default=None)
@@ -46,7 +46,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
             try:
                 mlx._circuit_open = False
                 mlx._consecutive_failures = 0
-                logger.info("⚡ Local MLX Client circuit breaker RESET")
+                logger.info("Local MLX Client circuit breaker RESET")
             except AttributeError as _exc:
                 logger.debug("Suppressed AttributeError: %s", _exc)
 
@@ -56,7 +56,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
             ce.client._circuit_open = False
             ce.client._circuit_open_until = 0.0
             ce.client._consecutive_failures = 0
-            logger.info("⚡ Circuit breaker FORCE RESET on CognitiveEngine.client")
+            logger.info("Circuit breaker FORCE RESET on CognitiveEngine.client")
 
     except _RECOVERY_ERRORS as cb_err:
         _record_recovery_degradation(
@@ -84,7 +84,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
 
         if not ce.lobotomized:
             register_runtime_service("cognitive_engine", ce)
-            logger.info("✅ Cognitive Engine ONLINE — Safe Mode deactivated")
+            logger.info("Cognitive Engine ONLINE — Safe Mode deactivated")
 
             try:
                 from core.thought_stream import get_emitter
@@ -104,7 +104,7 @@ async def retry_cognitive_connection(orch: RobustOrchestrator) -> bool:
 
             return True
         else:
-            logger.error("❌ Cognitive Retry Failed: Engine still lobotomized after re-wire")
+            logger.error("Cognitive Retry Failed: Engine still lobotomized after re-wire")
             return False
 
     except _RECOVERY_ERRORS as exc:

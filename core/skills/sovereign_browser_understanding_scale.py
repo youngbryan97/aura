@@ -462,7 +462,7 @@ class _PlacesHerself:
             from core.skills.sovereign_browser_understanding import logger
 
             logger.info(
-                "🌐 A theme came back from %s; asking again.", lane or "nowhere"
+                "A theme came back from %s; asking again.", lane or "nowhere"
             )
             said, lane = await self._asked_of_her(
                 prompt, mind, shaped=False, most_tokens=room,

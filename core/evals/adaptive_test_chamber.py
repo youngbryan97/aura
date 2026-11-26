@@ -49,7 +49,7 @@ class AdaptiveTestChamber:
         self._difficulty: dict[str, int] = {}
         self._history: dict[str, deque] = {}
         self._issued = 0
-        logger.info("🧪 AdaptiveTestChamber initialized (GLaDOS lineage)")
+        logger.info("AdaptiveTestChamber initialized (GLaDOS lineage)")
 
     def _diff(self, capability: str) -> int:
         return self._difficulty.setdefault(capability, 3)

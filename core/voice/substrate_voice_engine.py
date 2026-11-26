@@ -193,7 +193,7 @@ class SubstrateVoiceEngine:
         if self._should_be_silent(profile, user_message, origin):
             profile.acknowledgment_only_probability = 0.95
             profile.word_budget = min(profile.word_budget, 8)
-            logger.debug("🤫 [SubstrateVoice] Silence-leaning profile compiled.")
+            logger.debug("[SubstrateVoice] Silence-leaning profile compiled.")
 
         self._current_profile = profile
         self._last_profile_compiled_at = time.monotonic()
@@ -770,10 +770,10 @@ def get_substrate_voice_engine() -> SubstrateVoiceEngine:
                     if not getattr(ServiceContainer, "_registration_locked", False):
                         ServiceContainer.register("substrate_voice_engine", _instance)
                     else:
-                        logger.warning("⚠️ [SubstrateVoiceEngine] Cannot register 'substrate_voice_engine' because ServiceContainer registration is locked.")
+                        logger.warning("[SubstrateVoiceEngine] Cannot register 'substrate_voice_engine' because ServiceContainer registration is locked.")
                 except (ImportError, AttributeError, RuntimeError, ContainerError) as exc:
-                    logger.warning("⚠️ [SubstrateVoiceEngine] Container registration failed: %s", exc)
-                logger.info("🗣️ [SubstrateVoiceEngine] Initialized — substrate controls the voice.")
+                    logger.warning("[SubstrateVoiceEngine] Container registration failed: %s", exc)
+                logger.info("[SubstrateVoiceEngine] Initialized — substrate controls the voice.")
     return _instance
 
 

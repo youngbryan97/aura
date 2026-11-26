@@ -53,7 +53,7 @@ class TestMarkApi:
             # _record reads the module constant at call time via the class —
             # patch the comparison threshold by calling _record directly.
             prof._record("model_load", SLOW_PHASE_WARN_S + 1.0, 0.0)
-        slow = [r for r in caplog.records if "🐢" in r.getMessage()]
+        slow = [r for r in caplog.records if "[BOOT] phase" in r.getMessage()]
         assert len(slow) == 1
         assert "model_load" in slow[0].getMessage()
 

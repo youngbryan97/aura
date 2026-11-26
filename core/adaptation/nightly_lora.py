@@ -108,10 +108,10 @@ class NightlyLoRATrainer:
         })
 
     async def run(self) -> None:
-        logger.info("🌙 Nightly LoRA: Collecting training data...")
+        logger.info("Nightly LoRA: Collecting training data...")
         examples = await self.collect_training_data()
         if len(examples) < 10:
-            logger.info("🌙 Nightly LoRA: Not enough data for meaningful update.")
+            logger.info("Nightly LoRA: Not enough data for meaningful update.")
             return 
         
         # Write to JSONL for training. This is internal maintenance work and
@@ -129,13 +129,13 @@ class NightlyLoRATrainer:
                 source="adaptation.nightly_lora.training_data",
             )
         
-        logger.info("🌙 Nightly LoRA: Generated %s training examples.", len(examples))
+        logger.info("Nightly LoRA: Generated %s training examples.", len(examples))
         # Trigger LoRA training
         await self._trigger_lora_training(output_file)
     
     async def _trigger_lora_training(self, data_path: Path) -> None:
         # Using mlx-lm for Apple Silicon (mac)
-        logger.info("🌙 Nightly LoRA: Triggering mlx_lm.lora fine-tune on %s", self.model_path)
+        logger.info("Nightly LoRA: Triggering mlx_lm.lora fine-tune on %s", self.model_path)
         adapter_path = f"data/lora_adapters/{datetime.now().date()}"
         try:
             proc = await get_subprocess_gateway().spawn_async(
@@ -158,10 +158,10 @@ class NightlyLoRATrainer:
                 accelerator_capability="model",
             )
             await proc.communicate()
-            logger.info("✅ Nightly LoRA: Fine-tuning pass complete.")
+            logger.info("Nightly LoRA: Fine-tuning pass complete.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('nightly_lora', e)
-            logger.error("❌ Nightly LoRA: Training failed: %s", e)
+            logger.error("Nightly LoRA: Training failed: %s", e)
             return
 
         # Post-training identity validation
@@ -171,7 +171,7 @@ class NightlyLoRATrainer:
         """Validate a newly trained adapter and promote or quarantine it."""
         from .post_training_validator import PostTrainingValidator
 
-        logger.info("🔍 Nightly LoRA: Running post-training identity validation...")
+        logger.info("Nightly LoRA: Running post-training identity validation...")
         validator = PostTrainingValidator(model_path=self.model_path)
 
         try:
@@ -179,14 +179,14 @@ class NightlyLoRATrainer:
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('nightly_lora', e)
             logger.error(
-                "❌ Nightly LoRA: Validation crashed — quarantining adapter as precaution: %s", e
+                "Nightly LoRA: Validation crashed — quarantining adapter as precaution: %s", e
             )
             await validator.quarantine_adapter(adapter_path, reason=f"Validation crash: {e}")
             return
 
         if result.passed:
             logger.info(
-                "✅ Nightly LoRA: Identity validation PASSED (%.1f%%). Promoting adapter.",
+                "Nightly LoRA: Identity validation PASSED (%.1f%%). Promoting adapter.",
                 result.pass_rate * 100,
             )
             # Promotion is bound to THIS validation result: the activation
@@ -194,10 +194,10 @@ class NightlyLoRATrainer:
             # live without the passing evidence that justified it.
             promoted = await validator.promote_adapter(adapter_path, validation=result)
             if not promoted:
-                logger.error("❌ Nightly LoRA: Adapter promotion failed after passing validation.")
+                logger.error("Nightly LoRA: Adapter promotion failed after passing validation.")
         else:
             logger.warning(
-                "🚫 Nightly LoRA: Identity validation FAILED (%.1f%%). "
+                "Nightly LoRA: Identity validation FAILED (%.1f%%). "
                 "Quarantining adapter. Critical failures: %s",
                 result.pass_rate * 100,
                 result.critical_failures or "none (pass rate below threshold)",

@@ -65,7 +65,7 @@ class Tricorder:
             z_score = abs(latency - mean) / std_dev
             
             if z_score > self._anomaly_threshold:
-                logger.warning("🚨 [PRECRIME] Latency Anomaly Detected: z=%s. Foreseeing system stall.", f"{z_score:.2f}")
+                logger.warning("[PRECRIME] Latency Anomaly Detected: z=%s. Foreseeing system stall.", f"{z_score:.2f}")
                 if self._event_bus:
                     self._event_bus.publish_threadsafe("core/cybernetics/precrime_alert", {
                         "z_score": z_score,
@@ -137,7 +137,7 @@ class Tricorder:
             )
             self._event_bus = None
         self._is_active = True
-        logger.info("📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.")
+        logger.info("[TRICORDER] Multi-modal Diagnostic Sensor ONLINE.")
 
     async def shutdown(self):
         """Stop background event-queue processing before kernel teardown completes."""
@@ -151,7 +151,7 @@ class Tricorder:
         self._violation_queue = None
         self._empathy_queue = None
         self._event_bus = None
-        logger.info("📡 [TRICORDER] Diagnostic Sensor OFFLINE.")
+        logger.info("[TRICORDER] Diagnostic Sensor OFFLINE.")
 
     async def _process_violations(self):
         """Process executive violations from the queue."""

@@ -342,7 +342,7 @@ class MemorySynthesizer:
             )
             logger.debug("MemorySynthesizer mycelium registration skipped: %s", _e)
 
-        logger.info("✅ MemorySynthesizer ONLINE — worldview synthesis active.")
+        logger.info("MemorySynthesizer ONLINE — worldview synthesis active.")
 
     async def stop(self):
         self.running = False
@@ -444,7 +444,7 @@ class MemorySynthesizer:
             getattr(brief, "domain", "general") if brief else "general", max_chars=80
         )
         logger.info(
-            "🧠 Turn Synthesized | Domain: %s | Msg: %s...",
+            "Turn Synthesized | Domain: %s | Msg: %s...",
             domain or "general",
             _safe_text(user_input, max_chars=40),
         )

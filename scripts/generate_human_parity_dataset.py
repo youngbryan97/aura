@@ -79,7 +79,7 @@ def main():
         for trace in dataset:
             f.write(json.dumps(trace) + "\n")
             
-    print(f"✅ Successfully wrote {len(dataset)} traces to {DATASET_PATH}")
+    print(f"Successfully wrote {len(dataset)} traces to {DATASET_PATH}")
     print("Dataset has been completely overhauled for personality and human parity.")
 
 if __name__ == "__main__":

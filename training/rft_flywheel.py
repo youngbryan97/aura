@@ -184,7 +184,7 @@ def main() -> int:
         print(json.dumps(manifest, indent=2))
         if manifest["total_rows"] < _MIN_ROWS:
             print(
-                f"\n⚠️  Only {manifest['total_rows']} verified rows "
+                f"\n Only {manifest['total_rows']} verified rows "
                 f"(need {_MIN_ROWS}); keep accumulating before training.",
                 file=sys.stderr,
             )

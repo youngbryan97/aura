@@ -30,7 +30,7 @@ def export_source():
                 if line and not line.startswith("#"):
                     ignored_patterns.add(line)
                     
-    print(f"📦 Exporting source from {project_root} to {output_file}...")
+    print(f"Exporting source from {project_root} to {output_file}...")
     
     count = 0
     with open(output_file, "w", encoding="utf-8") as out:
@@ -56,7 +56,7 @@ def export_source():
                 try:
                     # Skip files larger than 500KB to prevent bloat
                     if file_path.stat().st_size > 500 * 1024:
-                        print(f"⏩ Skipping large file: {rel_path} ({file_path.stat().st_size / 1024:.1f} KB)")
+                        print(f"Skipping large file: {rel_path} ({file_path.stat().st_size / 1024:.1f} KB)")
                         continue
 
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
@@ -69,11 +69,11 @@ def export_source():
                     out.write("\n")
                     count += 1
                 except (OSError, UnicodeError) as e:
-                    print(f"⚠️ Could not read {rel_path}: {e}")
+                    print(f"Could not read {rel_path}: {e}")
     
     final_size = output_file.stat().st_size / (1024 * 1024)
-    print(f"✅ Export complete! {count} files bundled into {output_file}")
-    print(f"📊 Total File Size: {final_size:.2f} MB")
+    print(f"Export complete! {count} files bundled into {output_file}")
+    print(f"Total File Size: {final_size:.2f} MB")
 
 if __name__ == "__main__":
     export_source()

@@ -138,7 +138,7 @@ def write_baseline(found: list[RawCall]) -> int:
     }
     if previous and grew:
         print(
-            "❌ refusing to write a baseline that grows; this ratchet only shrinks:",
+            "refusing to write a baseline that grows; this ratchet only shrinks:",
             file=sys.stderr,
         )
         for key, (now, before) in sorted(grew.items()):
@@ -160,7 +160,7 @@ def write_baseline(found: list[RawCall]) -> int:
         + "\n",
         encoding="utf-8",
     )
-    print(f"✅ baseline written: {sum(counts.values())} raw call site(s)")
+    print(f"baseline written: {sum(counts.values())} raw call site(s)")
     return 0
 
 
@@ -187,7 +187,7 @@ def main() -> int:
     ]
     if regressions:
         print(
-            f"❌ {len(regressions)} new raw skill execute() call site(s). "
+            f"{len(regressions)} new raw skill execute() call site(s). "
             "Enter skills through safe_execute:",
             file=sys.stderr,
         )
@@ -199,7 +199,7 @@ def main() -> int:
     stale = sorted(set(baseline) - set(counts))
     if stale:
         print(
-            "❌ baseline lists call sites that no longer exist. "
+            "baseline lists call sites that no longer exist. "
             "Refresh it so the ratchet keeps ratcheting:",
             file=sys.stderr,
         )
@@ -208,7 +208,7 @@ def main() -> int:
         return 1
 
     total = sum(counts.values())
-    print(f"✅ raw skill execute(): {total} call site(s), none new")
+    print(f"raw skill execute(): {total} call site(s), none new")
     return 0
 
 

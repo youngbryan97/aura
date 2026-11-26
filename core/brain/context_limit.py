@@ -21,7 +21,7 @@ async def compact_working_memory(chat_history: List[Dict[str, Any]], max_raw_tur
     if len(chat_history) <= max_messages:
         return chat_history
 
-    logger.info("🧠 CONTEXT LIMIT: Compacting memory (%s messages -> %s + summary)", len(chat_history), max_messages)
+    logger.info("CONTEXT LIMIT: Compacting memory (%s messages -> %s + summary)", len(chat_history), max_messages)
     
     # Split into messages to compress and messages to keep
     to_compress = chat_history[:-max_messages]

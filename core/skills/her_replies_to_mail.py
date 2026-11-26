@@ -132,7 +132,7 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     if isinstance(metadata, dict) and metadata.get("reply_generation_incomplete"):
         # Cut off, or asked to stand aside for a person at her desk: a reply that did not finish is not sent, and her
         # round takes the message up again.
-        logger.info("📧 Her reply to %s about %r did not finish; not held.", message.get("from"), message.get("subject"))
+        logger.info("Her reply to %s about %r did not finish; not held.", message.get("from"), message.get("subject"))
         return ""
     reply = str(getattr(thought, "content", "") or "").strip()
     reply = _written_as_the_send(message, reply) or reply
@@ -142,7 +142,7 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
 
     assessment = await asyncio.to_thread(assess_user_facing_reply, said, reply)
     if not assessment.ok:
-        logger.info("📧 What she wrote to %s about %r is not held as a reply (%s): %r", message.get("from"),
+        logger.info("What she wrote to %s about %r is not held as a reply (%s): %r", message.get("from"),
                     message.get("subject"), ", ".join(assessment.reasons), reply[:120])
         return ""
     return reply
@@ -163,7 +163,7 @@ async def hold_for_bryan(message: dict[str, Any], reply: str) -> str:
         gateway = get_file_write_gateway()
         await gateway.ensure_directory_async(path.parent, source="her_replies_to_mail.hold")
         await gateway.append_text_async(path, json.dumps(draft) + "\n", source="her_replies_to_mail.hold")
-    logger.info("📧 Her reply to %s about %r is %s (%s).", draft["to"], draft["subject"],
+    logger.info("Her reply to %s about %r is %s (%s).", draft["to"], draft["subject"],
                 "hers to send" if draft["to_send"] else "held for Bryan", draft["id"])
     return str(draft["id"])
 

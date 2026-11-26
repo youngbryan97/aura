@@ -54,21 +54,21 @@ class GroundingGuard:
         explanation = ""
 
         if eval_score > 0.7 and (result.get("ok") is False or error):
-            logger.warning("🚨 HALLUCINATION DETECTED: LLM claims success (%s) but tool reported failure.", eval_score)
+            logger.warning("HALLUCINATION DETECTED: LLM claims success (%s) but tool reported failure.", eval_score)
             refined_score = min(refined_score, 0.2)
             failure_reason = error or "tool_reported_failure"
             correction_intent, correction_parameters = self._correction_for_error(failure_reason)
             explanation = "tool failure outranks self-evaluation"
 
         if eval_score > 0.5 and not evidence_present:
-            logger.info("📉 Grounding: Zero evidence for mid-tier success. Penalizing and requesting observation.")
+            logger.info("Grounding: Zero evidence for mid-tier success. Penalizing and requesting observation.")
             refined_score = min(refined_score, eval_score - 0.2)
             correction_intent = correction_intent or "observe"
             explanation = explanation or "success claim lacked external evidence"
 
         snapshot = self.orchestrator.metabolic_monitor.get_current_metabolism() if hasattr(self.orchestrator, 'metabolic_monitor') else None
         if snapshot and snapshot.health_score < 0.4 and eval_score > 0.8:
-            logger.info("📉 Grounding: High score in low-health state. suspicious. Buffering.")
+            logger.info("Grounding: High score in low-health state. suspicious. Buffering.")
             refined_score *= 0.9
             explanation = explanation or "high-confidence claim under low runtime health"
 

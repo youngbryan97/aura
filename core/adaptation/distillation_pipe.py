@@ -94,7 +94,7 @@ class DistillationPipe:
         self._total_distilled = 0
         self._max_attempts = 3
         self.teacher_target = "local_deep"
-        logger.info("🧪 DistillationPipe initialized (dataset: %s)", self.dataset_path)
+        logger.info("DistillationPipe initialized (dataset: %s)", self.dataset_path)
 
     async def flag_for_distillation(
         self,
@@ -125,12 +125,12 @@ class DistillationPipe:
                 # drains it said so 1,564 times (21 October). Every drop after
                 # the first is counted in `stats["dropped_from_queue"]`.
                 (logger.warning if first else logger.debug)(
-                    "🧪 Distillation queue full (%d): dropped %d oldest item(s), %d total dropped; "
+                    "Distillation queue full (%d): dropped %d oldest item(s), %d total dropped; "
                     "later drops are counted in its stats.",
                     self._max_pending, overflow, self._dropped_pending,
                 )
         logger.info(
-            "🧪 Flagged response for distillation (confidence=%.2f, queue=%d)",
+            "Flagged response for distillation (confidence=%.2f, queue=%d)",
             confidence,
             len(self._pending),
         )
@@ -299,7 +299,7 @@ class DistillationPipe:
                     brain, teacher_prompt
                 )
                 if ideal_response:
-                    # 🛡️ ALIGNMENT AUDIT (Phase 11: Safety)
+                    # ALIGNMENT AUDIT (Phase 11: Safety)
                     from core.adaptation.auditor import AlignmentAuditor
 
                     auditor = AlignmentAuditor()
@@ -307,7 +307,7 @@ class DistillationPipe:
 
                     if not audit_result["safe"]:
                         logger.warning(
-                            "🧪 Distillation rejected by AlignmentAuditor: %s",
+                            "Distillation rejected by AlignmentAuditor: %s",
                             audit_result["reason"],
                         )
                         failed_count += 1
@@ -387,7 +387,7 @@ class DistillationPipe:
             self._pending[:0] = retry_items
         self._total_distilled += distilled_count
         logger.info(
-            "🧪 Distillation cycle complete: %d distilled, %d failed, %d remaining",
+            "Distillation cycle complete: %d distilled, %d failed, %d remaining",
             distilled_count,
             failed_count,
             len(self._pending),

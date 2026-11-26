@@ -423,7 +423,7 @@ def audit(**kwargs: Any) -> dict[str, Any]:
     report = verify_readiness(**kwargs)
     if report["below_design_capacity"]:
         logger.warning(
-            "🎚️ [CAA] steering BELOW design capacity (%.0f%%): readiness=%s — %s. "
+            "[CAA] steering BELOW design capacity (%.0f%%): readiness=%s — %s. "
             "Extract CAA vectors from the fused model to reach production steering.",
             report["steering_capacity_pct"],
             report["level"],

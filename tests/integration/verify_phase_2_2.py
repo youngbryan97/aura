@@ -42,7 +42,7 @@ def crashing_actor_entry(conn):
     sys.exit(1)
 
 async def test_circuit_breaker():
-    logger.info("🧪 Testing Circuit Breaker (Fork Bomb Protection)...")
+    logger.info("Testing Circuit Breaker (Fork Bomb Protection)...")
     from core.supervisor.tree import ActorSpec, SupervisionTree
     
     supervisor = SupervisionTree()
@@ -65,12 +65,12 @@ async def test_circuit_breaker():
             
     actor = supervisor._actors["bomb_actor"]
     if actor.is_circuit_broken:
-        logger.info("✅ SUCCESS: Circuit breaker engaged after 3 failures.")
+        logger.info("SUCCESS: Circuit breaker engaged after 3 failures.")
     else:
-        logger.error(f"❌ FAILURE: Circuit breaker did not engage. Consecutive Failures: {actor.consecutive_failures}")
+        logger.error(f"FAILURE: Circuit breaker did not engage. Consecutive Failures: {actor.consecutive_failures}")
 
 async def test_pipe_hotswap():
-    logger.info("🧪 Testing Pipe Hot-Swap (Ghost Pipe Fix)...")
+    logger.info("Testing Pipe Hot-Swap (Ghost Pipe Fix)...")
     from core.bus.actor_bus import ActorBus
     from core.container import ServiceContainer
     from core.supervisor.tree import ActorSpec, SupervisionTree
@@ -83,7 +83,7 @@ async def test_pipe_hotswap():
 
     # Restart callback used for re-binding verification
     async def on_restart_async(name, pipe):
-        logger.info(f"🔄 Callback: {name} restarted. Re-binding...")
+        logger.info(f"Callback: {name} restarted. Re-binding...")
         await actor_bus.update_actor(name, pipe)
         hotswap_done.set()
 
@@ -102,7 +102,7 @@ async def test_pipe_hotswap():
     logger.info(f"   Initial Ping: {resp}")
     
     # 2. Kill it
-    logger.info("   💀 Killing echo actor...")
+    logger.info("   Killing echo actor...")
     actor = supervisor._actors["echo"]
     os.kill(actor.process.pid, 9)
     
@@ -120,17 +120,17 @@ async def test_pipe_hotswap():
     # 4. Verify re-bound communication
     try:
         if not hotswap_done.is_set():
-             logger.warning("   ⚠️ Hotswap event never fired. Checking manual state...")
+             logger.warning("   Hotswap event never fired. Checking manual state...")
         
         resp = await actor_bus.request("echo", "ping", "post-restart")
         logger.info(f"   Post-Restart Ping: {resp}")
-        logger.info("✅ SUCCESS: Hot-swap re-bound the IPC pipe.")
+        logger.info("SUCCESS: Hot-swap re-bound the IPC pipe.")
     except (AssertionError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
-        logger.error(f"❌ FAILURE: Could not communicate after restart: {e}")
+        logger.error(f"FAILURE: Could not communicate after restart: {e}")
         raise
 
 async def test_shm_atomicity():
-    logger.info("🧪 Testing SHM Atomicity (Torn Read Prevention)...")
+    logger.info("Testing SHM Atomicity (Torn Read Prevention)...")
     from core.bus.shared_mem_bus import SharedMemoryTransport
     
     shm_name = "test_atomicity_shm"
@@ -174,15 +174,15 @@ async def test_shm_atomicity():
     errors += write_errors
     
     if errors == 0:
-        logger.info("✅ SUCCESS: No torn reads detected in 200 stress cycles.")
+        logger.info("SUCCESS: No torn reads detected in 200 stress cycles.")
     else:
-        logger.error(f"❌ FAILURE: {errors} torn reads detected.")
+        logger.error(f"FAILURE: {errors} torn reads detected.")
 
 async def main():
     await test_circuit_breaker()
     await test_pipe_hotswap()
     await test_shm_atomicity()
-    logger.info("🏁 Phase 2.2 Verification Complete.")
+    logger.info("Phase 2.2 Verification Complete.")
 
 if __name__ == "__main__":
     asyncio.run(main())

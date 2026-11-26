@@ -160,13 +160,13 @@ class _BuildsAndFitsThePrompt:
                 self._cached_identity_prompt = base
                 self._identity_prompt_time = now
                 self._identity_prompt_state_key = state_key
-                logger.debug("🧠 Built full identity system prompt (len=%d)", len(base))
+                logger.debug("Built full identity system prompt (len=%d)", len(base))
             except _INFERENCE_RECOVERABLE_ERRORS as e:
                 _record_inference_degradation(
                     e,
                     action="continued prompt assembly with base system prompt only",
                 )
-                logger.debug("🧠 ContextAssembler unavailable (%s), using static identity", e)
+                logger.debug("ContextAssembler unavailable (%s), using static identity", e)
                 # Fallback: Use the static identity prompt
                 try:
                     from core.brain.aura_persona import AURA_IDENTITY
@@ -388,7 +388,7 @@ class _BuildsAndFitsThePrompt:
 
                 if messages and len(messages) >= 2:
                     logger.debug(
-                        "🧠 Full cognitive message stack built (%d messages)", len(messages)
+                        "Full cognitive message stack built (%d messages)", len(messages)
                     )
                     return messages
         except _INFERENCE_RECOVERABLE_ERRORS as e:
@@ -397,7 +397,7 @@ class _BuildsAndFitsThePrompt:
                 action="fell back to available message assembly context",
             )
             logger.debug(
-                "🧠 ContextAssembler.build_messages() unavailable (%s), using manual build", e
+                "ContextAssembler.build_messages() unavailable (%s), using manual build", e
             )
 
         return self._manual_messages(prompt, system_prompt, history)
@@ -621,7 +621,7 @@ class _BuildsAndFitsThePrompt:
             return
         InferenceGate._unstamped_grounding_seen.add(shape)
         logger.warning(
-            "🔏 Grounding accepted without a runtime stamp (%s). Its producer "
+            "Grounding accepted without a runtime stamp (%s). Its producer "
             "should call injected_blocks.stamp_grounding().",
             shape,
         )

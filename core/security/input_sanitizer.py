@@ -95,7 +95,7 @@ class InputSanitizer:
         # 1. Jailbreak detection
         for pattern in self._JAILBREAK_COMPILED:
             if pattern.search(text):
-                logger.warning("🛡️ Jailbreak Attempt Detected")
+                logger.warning("Jailbreak Attempt Detected")
                 return "[REDACTED: SECURITY PLOY DETECTED]", False
 
         # 2. Shell injection detection (Context Aware)
@@ -103,19 +103,19 @@ class InputSanitizer:
         text_for_shell_check = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
         for pattern in self._SHELL_COMPILED:
             if pattern.search(text_for_shell_check):
-                logger.warning("🛡️ Shell Injection Attempt")
+                logger.warning("Shell Injection Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         # 3. SQL injection detection
         for pattern in self._SQL_COMPILED:
             if pattern.search(text):
-                logger.warning("🛡️ SQL Injection Attempt")
+                logger.warning("SQL Injection Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         # 4. Path traversal detection
         for pattern in self._PATH_COMPILED:
             if pattern.search(text):
-                logger.warning("🛡️ Path Traversal Attempt")
+                logger.warning("Path Traversal Attempt")
                 return "[REDACTED: INPUT REJECTED]", False
 
         return text, True
@@ -124,7 +124,7 @@ class InputSanitizer:
         """Check input for shell injection attempts."""
         for pattern in self._SHELL_COMPILED:
             if pattern.search(text):
-                logger.warning("🛡️ Shell Injection Attempt")
+                logger.warning("Shell Injection Attempt")
                 return "", False
         return text, True
 
@@ -149,20 +149,20 @@ class InputSanitizer:
             )
             
             if not is_valid:
-                logger.warning("🛡️ Path Traversal Blocked (SEC-05): %s -> %s", path, resolved)
+                logger.warning("Path Traversal Blocked (SEC-05): %s -> %s", path, resolved)
                 return "", False
                 
             return str(resolved), True
         except (OSError, IOError) as e:
             record_degradation('input_sanitizer', e)
-            logger.warning("🛡️ Path Resolution Failed: %s (%s)", path, e)
+            logger.warning("Path Resolution Failed: %s (%s)", path, e)
             return "", False
 
     def sanitize_for_sql(self, text: str) -> Tuple[str, bool]:
         """Check for SQL injection attempts."""
         for pattern in self.SQL_INJECTION:
             if re.search(pattern, text, re.IGNORECASE):
-                logger.warning("🛡️ SQL Injection Attempt: %s", pattern)
+                logger.warning("SQL Injection Attempt: %s", pattern)
                 return "", False
         return text, True
 

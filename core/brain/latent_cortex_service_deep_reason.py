@@ -633,7 +633,7 @@ class _ReasonsDeeply:
         )
         result.setdefault("refusal_receipt", refusal["refusal_receipt"])
         logger.info(
-            "🧠 Latent episode refused/failed: %s (%.1fs) stage=%s "
+            "Latent episode refused/failed: %s (%.1fs) stage=%s "
             "input_tokens=%s timings=%s progress=%s",
             self._last_refusal,
             elapsed,

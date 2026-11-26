@@ -179,7 +179,7 @@ async def _check_one_she_answered(router: Any) -> dict[str, Any]:
     )
     authority = str(getattr(result.receipt, "promotion_authority", "") or "unsettled")
     await mark_programs_checked(item["key"], authority)
-    logger.info("🧠 Checked what she answered by independent programs: %s (%s).", authority, objective[:80])
+    logger.info("Checked what she answered by independent programs: %s (%s).", authority, objective[:80])
     return {"status": "checked", "authority": authority}
 
 
@@ -221,7 +221,7 @@ async def _learn_one_step() -> dict[str, Any]:
                            action="left the examples she met for the next idle step")
         return {"status": "error", "error": type(exc).__name__}
     result = {**result, "programs": checked}
-    logger.info("🧠 Learning in use: %s", result)
+    logger.info("Learning in use: %s", result)
     return result
 
 
@@ -286,6 +286,6 @@ def register_reasoning_jobs(conductor: Any) -> bool:
         return False
     _registered.add(id(conductor))
     logger.info(
-        "🧠 Reasoning background loops registered (idle pre-compute + self-improve + non-parametric ingest)."
+        "Reasoning background loops registered (idle pre-compute + self-improve + non-parametric ingest)."
     )
     return True

@@ -9,7 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from skills.self_repair import SelfRepairSkill
 
 def test_missing_args():
-    print("🧪 Testing Self-Repair with missing args...")
+    print("Testing Self-Repair with missing args...")
     skill = SelfRepairSkill()
     
     # 1. Empty goal

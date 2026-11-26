@@ -92,7 +92,7 @@ class StateManager:
                         payload,
                         source="resilience.state_manager.existential_snapshot",
                     )
-                    logger.info("🛡️ Hardened Existential Snapshot secured.")
+                    logger.info("Hardened Existential Snapshot secured.")
 
                 # specific snapshot for history if it's significant
                 if reason in ["shutdown", "error", "manual"]:
@@ -120,7 +120,7 @@ class StateManager:
                         # Snapshot the Knowledge Graph if it exists
                         kg_path = Path(config.paths.data_dir) / "knowledge_graph.db"
                         recorder.create_snapshot(kg_path)
-                        logger.info("🏺 Eternal Record snapshot triggered via StateManager (%s)", reason)
+                        logger.info("Eternal Record snapshot triggered via StateManager (%s)", reason)
                     except (ImportError, AttributeError, RuntimeError) as er_err:
                         record_degradation('state_manager', er_err)
                         logger.error("Failed to trigger Eternal Record: %s", er_err)
@@ -159,7 +159,7 @@ class StateManager:
         target_path = autopsy_dir / f"corrupted_state_{timestamp}_{corrupted_file_path.name}"
         try:
             shutil.move(str(corrupted_file_path), str(target_path))
-            logger.critical("🚨 DATA CORRUPTION DETECTED: Snapshot quarantined to %s", target_path)
+            logger.critical("DATA CORRUPTION DETECTED: Snapshot quarantined to %s", target_path)
         except (OSError, IOError) as e:
             record_degradation('state_manager', e)
             logger.error("Failed to quarantine corrupted file %s: %s", corrupted_file_path, e)

@@ -384,7 +384,7 @@ async def main():
     
     # Honest Markdown summary — real probe results only, no fabricated scores.
     def _mark(ok: bool) -> str:
-        return "✅ PASS" if ok else "❌ FAIL"
+        return "PASS" if ok else "FAIL"
 
     cat_rows = "\n".join(
         f"| {cat['name']} | `{cat['metric']}` |" for cat in CATEGORIES.values()

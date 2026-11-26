@@ -184,7 +184,7 @@ class RobustLock:
                 if m > 0.8:
                     wait_time = max(wait_time, 180.0)
                     logger.debug(
-                        "🛡️ [ADAPTIVE] GPU Saturated (%s). Extending '%s' timeout to %ss",
+                        "[ADAPTIVE] GPU Saturated (%s). Extending '%s' timeout to %ss",
                         f"{m:.2f}",
                         self.name,
                         wait_time,
@@ -333,7 +333,7 @@ class RobustLock:
                 self.name,
             )
             return False
-        logger.critical("⚠️ FORCE RELEASING LOCK '%s' due to deadlock watchdog!", self.name)
+        logger.critical("FORCE RELEASING LOCK '%s' due to deadlock watchdog!", self.name)
         try:
             self._lock = threading.Lock()
         # not a failure: the comment below says it: release on an unlocked lock is
@@ -644,7 +644,7 @@ class EventLoopMonitor:
         except RuntimeError:
             self._owner_loop = None
         logger.info(
-            "🕒 EventLoopMonitor started (threshold=%.2fs, interval=%.1fs)",
+            "EventLoopMonitor started (threshold=%.2fs, interval=%.1fs)",
             self.threshold,
             self.interval,
         )
@@ -721,7 +721,7 @@ class EventLoopMonitor:
                 await self._task
             except asyncio.CancelledError as _exc:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-        logger.info("🕒 EventLoopMonitor stopped.")
+        logger.info("EventLoopMonitor stopped.")
 
     def is_alive(self) -> bool:
         """Return lifecycle and sampling liveness, independent of incident state.
@@ -918,7 +918,7 @@ class EventLoopMonitor:
                 severe = lag >= max(threshold * 3.0, 0.50)
                 if severe or self._consecutive_breaches >= 5:
                     logger.warning(
-                        "🚨 EVENT LOOP LAG DETECTED: %.4fs (context=%s threshold=%.2fs, streak=%d). "
+                        "EVENT LOOP LAG DETECTED: %.4fs (context=%s threshold=%.2fs, streak=%d). "
                         "Something is blocking the event loop!",
                         lag,
                         context,

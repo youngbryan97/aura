@@ -89,7 +89,7 @@ def build_meta_bundle():
                 continue
 
             summary = get_file_summary(filepath)
-            addition = f"\n📄 File: {rel}\n  {summary}\n"
+            addition = f"\nFile: {rel}\n  {summary}\n"
 
             if current_chars + len(addition) < char_limit:
                  bundle_content += addition
@@ -100,8 +100,8 @@ def build_meta_bundle():
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(bundle_content)
 
-    print(f"✅ Generated {output_file.name} successfully.")
-    print(f"📊 Final size: {len(bundle_content)} characters.")
+    print(f"Generated {output_file.name} successfully.")
+    print(f"Final size: {len(bundle_content)} characters.")
 
 if __name__ == '__main__':
     build_meta_bundle()

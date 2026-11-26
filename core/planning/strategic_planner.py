@@ -59,7 +59,7 @@ Return the response as a valid JSON object with the following structure:
             )
             self.active_project_id = project.id
                 
-            logger.info("🎯 Strategic Plan Accepted: '%s' (%d components)", project.name, len(tasks))
+            logger.info("Strategic Plan Accepted: '%s' (%d components)", project.name, len(tasks))
             
             # 4. Integrate with Neural Feed (Phase 17.1)
             feed = get_runtime_service("neural_feed", default=None)
@@ -71,7 +71,7 @@ Return the response as a valid JSON object with the following structure:
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('strategic_planner', e)
-            logger.error("🚫 Strategic scaling failure: %s", e)
+            logger.error("Strategic scaling failure: %s", e)
             return None
 
     def _persist_plan_sync(self, goal_text: str, plan_data: Dict[str, Any]) -> tuple[Project, List[Dict[str, Any]]]:
@@ -124,7 +124,7 @@ Return the response as a valid JSON object with the following structure:
         project = self.store.get_project(project_id)
         if not project: return False
         
-        logger.warning("🔄 Initiating Reflection Loop for project '%s': %s", project.name, reason)
+        logger.warning("Initiating Reflection Loop for project '%s': %s", project.name, reason)
         
         tasks = self.store.get_tasks_for_project(project_id)
         pending = [t for t in tasks if t.status == "pending"]
@@ -218,7 +218,6 @@ Return as JSON as before:
         report += f"Progress: {completed}/{total} tasks complete.\n\n"
         
         for task in tasks:
-            status_icon = "✅" if task.status == "completed" else "⏳" if task.status == "pending" else "❌" if task.status == "failed" else "⚙️"
-            report += f"- {status_icon} {task.description} ({task.status})\n"
+            report += f"- {task.description} ({task.status})\n"
             
         return report

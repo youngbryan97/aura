@@ -656,7 +656,7 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
         # Which controller decision has already had an outcome recorded.
         self._controller_outcome_recorded_for: str | None = None
         self._last_replay_sft_publication: dict[str, Any] = {}
-        logger.info("🧠 LatentCortexService initialized (Recursive Latent Cortex)")
+        logger.info("LatentCortexService initialized (Recursive Latent Cortex)")
 
     @staticmethod
     async def _capture_verified_replay(
@@ -3400,7 +3400,7 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
             self._last_receipt = result_receipt
             self._last_failure_receipt = {}
             logger.info(
-                "🧠 Latent episode ok: %d steps, %d branches, halt=%s, %.1fs",
+                "Latent episode ok: %d steps, %d branches, halt=%s, %.1fs",
                 int(self._last_receipt.get("steps_taken") or 0),
                 int(self._last_receipt.get("n_branches") or 0),
                 self._last_receipt.get("halting_reason"),

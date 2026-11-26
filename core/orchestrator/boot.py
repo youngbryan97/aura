@@ -76,7 +76,7 @@ async def _await_startup_io(
             await asyncio.wait_for(start(), timeout=timeout_s)
             if attempt > 1:
                 logger.warning(
-                    "🐢 %s came up on attempt %d after %.1fs — the disk is slow, "
+                    "%s came up on attempt %d after %.1fs — the disk is slow, "
                     "not broken.",
                     what, attempt, time.monotonic() - started,
                 )
@@ -84,7 +84,7 @@ async def _await_startup_io(
         except TimeoutError:
             if attempt == 1:
                 logger.warning(
-                    "🐢 %s did not initialize within %.0fs; retrying once with "
+                    "%s did not initialize within %.0fs; retrying once with "
                     "%.0fs before treating a slow disk as a failed boot.",
                     what, timeout_s, timeout_s * 2.0,
                 )
@@ -118,15 +118,15 @@ def _health_contract_boot_log(level: Any, *, initialized: bool, running: bool) -
         phase = "BOOT CORE COMPLETE" if initialized else "BOOTING"
         return (
             logging.INFO,
-            f"⏳ HEALTH CONTRACT: {phase} — runtime services are still registering",
+            f"HEALTH CONTRACT: {phase} — runtime services are still registering",
         )
     if level_name == "dead":
-        return logging.CRITICAL, "🚨 HEALTH CONTRACT: DEAD — no critical services alive"
+        return logging.CRITICAL, "HEALTH CONTRACT: DEAD — no critical services alive"
     if level_name == "critical":
-        return logging.CRITICAL, "🚨 HEALTH CONTRACT: CRITICAL — some critical services missing"
+        return logging.CRITICAL, "HEALTH CONTRACT: CRITICAL — some critical services missing"
     if level_name == "degraded":
-        return logging.WARNING, "⚠️ HEALTH CONTRACT: DEGRADED — important services missing"
-    return logging.INFO, "✅ HEALTH CONTRACT: All critical + important services online"
+        return logging.WARNING, "HEALTH CONTRACT: DEGRADED — important services missing"
+    return logging.INFO, "HEALTH CONTRACT: All critical + important services online"
 
 
 def _final_boot_health_log(
@@ -158,13 +158,13 @@ def _final_boot_health_log(
         if blockers == ["inference_gate"]:
             return (
                 logging.INFO,
-                "⏳ BOOT CORE COMPLETE: core systems initialized; Cortex prewarm "
+                "BOOT CORE COMPLETE: core systems initialized; Cortex prewarm "
                 "is still pending, so launcher readiness remains gated.",
             )
         detail = f" ({', '.join(blockers)})" if blockers else ""
         return (
             logging.INFO,
-            "⏳ BOOT CORE COMPLETE: initialization succeeded; runtime readiness "
+            "BOOT CORE COMPLETE: initialization succeeded; runtime readiness "
             f"remains gated while services register{detail}.",
         )
 
@@ -209,7 +209,7 @@ async def _skip_the_background_subsystems_in_foreground_only(
                 if healing_started:
                     ServiceContainer.register_instance("healing_swarm", healer)
                     self.healing_service = healer
-                    logger.info("🛡️ Healing Swarm Service initialized and started.")
+                    logger.info("Healing Swarm Service initialized and started.")
                 else:
                     logger.info("Healing Swarm deferred by runtime background policy.")
 
@@ -245,14 +245,14 @@ async def _skip_the_background_subsystems_in_foreground_only(
                                 name=f"heal.{incident.category[:40]}",
                             )
                             logger.info(
-                                "🔗 [INCIDENT→HEAL] Dispatched repair for %s (severity=%s, occurrences=%d)",
+                                "[INCIDENT→HEAL] Dispatched repair for %s (severity=%s, occurrences=%d)",
                                 incident.category,
                                 incident.severity.value,
                                 incident.occurrence_count,
                             )
 
                         get_incident_manager().register_alert_callback(_incident_to_repair)
-                        logger.info("🔗 IncidentManager → HealingSwarm alert bridge active.")
+                        logger.info("IncidentManager → HealingSwarm alert bridge active.")
                     except (ImportError, AttributeError, RuntimeError) as bridge_err:
                         _record_boot_degradation(
                             bridge_err,
@@ -260,7 +260,7 @@ async def _skip_the_background_subsystems_in_foreground_only(
                             severity="degraded",
                         )
                         logger.warning(
-                            "⚠️ IncidentManager→HealingSwarm bridge failed: %s", bridge_err
+                            "IncidentManager→HealingSwarm bridge failed: %s", bridge_err
                         )
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_boot_degradation(
@@ -268,7 +268,7 @@ async def _skip_the_background_subsystems_in_foreground_only(
                     action="continued boot without healing swarm service",
                     severity="degraded",
                 )
-                logger.error("🛑 Failed to init Healing Swarm: %s", e)
+                logger.error("Failed to init Healing Swarm: %s", e)
         return _SEAM_FELL_THROUGH
 
     _seam_early_response = await _block()
@@ -453,14 +453,14 @@ class OrchestratorBootMixin(
             guard = IntegrityGuard(self)
             score = guard.verify_sovereignty()
             if score < 1.0:
-                logger.warning("🛡️ [BOOT] Integrity score degraded: %.2f", score)
+                logger.warning("[BOOT] Integrity score degraded: %.2f", score)
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_degradation(
                 e,
                 action="continued setup without sovereignty integrity score",
                 severity="degraded",
             )
-            logger.error("🛡️ [BOOT] Integrity check failed: %s", e)
+            logger.error("[BOOT] Integrity check failed: %s", e)
 
         # Initialize internal state markers on wall-clock time so the rest of the
         # runtime can compare them consistently with persisted timestamps.
@@ -477,7 +477,7 @@ class OrchestratorBootMixin(
         self._current_thought_task = None
         self._autonomous_action_times = deque()
 
-        # 🟢 Sovereign State Initialization
+        # Sovereign State Initialization
         self._private_archive = []
         self._last_self_initiated_contact = 0.0
 
@@ -531,7 +531,7 @@ class OrchestratorBootMixin(
                 e,
                 action="continued setup with early facade registration partially degraded",
             )
-            logger.warning("⚠️ [BOOT] Early Facade registration encountered issues: %s", e)
+            logger.warning("[BOOT] Early Facade registration encountered issues: %s", e)
 
         self.agency = AgencyCoordinator(self)
         self.memory = MemoryCoordinator(self)
@@ -575,7 +575,7 @@ class OrchestratorBootMixin(
         self.start_time = time.time()
         self.boredom = 0
 
-        logger.info("🛡️ [BOOT] Synchronous bootstrap phase complete.")
+        logger.info("[BOOT] Synchronous bootstrap phase complete.")
 
     async def _async_init_subsystems(self):
         """Modularized subsystem initialization (Async)."""
@@ -592,11 +592,11 @@ class OrchestratorBootMixin(
         async with self._boot_lock:
             t1_s = time.perf_counter()
             if self.status.initialized:
-                logger.debug("🛡️ _async_init_subsystems: Already initialized. skipping.")
+                logger.debug("_async_init_subsystems: Already initialized. skipping.")
                 return
 
             try:
-                logger.info("🚀 [BOOT] Starting Async Subsystem Initialization (Modular)...")
+                logger.info("[BOOT] Starting Async Subsystem Initialization (Modular)...")
                 lightweight_test_boot = bool(os.environ.get("PYTEST_CURRENT_TEST")) and not bool(
                     os.environ.get("AURA_FULL_TEST_BOOT")
                 )
@@ -630,7 +630,7 @@ class OrchestratorBootMixin(
                         severity="degraded",
                     )
                     logger.error(
-                        "⚠️ [BOOT] Standing-authority state unavailable: %s",
+                        "[BOOT] Standing-authority state unavailable: %s",
                         authority_exc,
                     )
                 boot_profiler.mark("sync_bootstrap_and_threading")
@@ -641,7 +641,7 @@ class OrchestratorBootMixin(
                     self.runtime_hygiene = get_runtime_hygiene()
                     await self.runtime_hygiene.start()
                     ServiceContainer.register_instance("runtime_hygiene", self.runtime_hygiene)
-                    logger.info("🧹 Runtime hygiene installed (tasks, threads, processes, memory).")
+                    logger.info("Runtime hygiene installed (tasks, threads, processes, memory).")
                 except (ImportError, AttributeError, RuntimeError) as hygiene_exc:
                     _record_boot_degradation(
                         hygiene_exc,
@@ -649,7 +649,7 @@ class OrchestratorBootMixin(
                         severity="degraded",
                     )
                     logger.error(
-                        "⚠️ Runtime hygiene bootstrap failed: %s", hygiene_exc, exc_info=True
+                        "Runtime hygiene bootstrap failed: %s", hygiene_exc, exc_info=True
                     )
 
                 await init_enterprise_layer(self)
@@ -689,12 +689,12 @@ class OrchestratorBootMixin(
                     self._inference_gate = InferenceGate(self)
                     if lightweight_test_boot:
                         self._inference_gate._initialized = True
-                        logger.info("🧪 Lightweight pytest boot: deferring InferenceGate warmup.")
+                        logger.info("Lightweight pytest boot: deferring InferenceGate warmup.")
                     else:
                         await self._inference_gate.initialize()
                     ServiceContainer.register_instance("inference_gate", self._inference_gate)
                     if getattr(self._inference_gate, "_initialized", False):
-                        logger.info("✅ [BOOT] Local InferenceGate registered and initialized.")
+                        logger.info("[BOOT] Local InferenceGate registered and initialized.")
                     else:
                         receipt_reader = getattr(
                             self._inference_gate, "initialization_receipt", None
@@ -714,7 +714,7 @@ class OrchestratorBootMixin(
                             severity="degraded",
                         )
                         logger.error(
-                            "⚠️ [BOOT] Local InferenceGate is registered but unready (%s). "
+                            "[BOOT] Local InferenceGate is registered but unready (%s). "
                             "Foreground demand will retry local initialization.",
                             reason,
                         )
@@ -725,7 +725,7 @@ class OrchestratorBootMixin(
                         severity="degraded",
                     )
                     logger.error(
-                        "⚠️ [BOOT] Local InferenceGate init failed: %s. "
+                        "[BOOT] Local InferenceGate init failed: %s. "
                         "Remote inference is retired; the local gate remains retryable.",
                         gate_err,
                         exc_info=True,
@@ -742,7 +742,7 @@ class OrchestratorBootMixin(
                 # a gate that completed initialization.
                 if not self._inference_gate:
                     logger.critical(
-                        "🛑 [BOOT] Local InferenceGate is absent after initialization. "
+                        "[BOOT] Local InferenceGate is absent after initialization. "
                         "Attempting one bounded local reconstruction."
                     )
                     try:
@@ -759,7 +759,7 @@ class OrchestratorBootMixin(
                             severity="error",
                         )
                         logger.critical(
-                            "🛑 [BOOT] Local InferenceGate reconstruction failed: %s.",
+                            "[BOOT] Local InferenceGate reconstruction failed: %s.",
                             gate_err,
                             exc_info=True,
                         )
@@ -778,9 +778,9 @@ class OrchestratorBootMixin(
                 narrative_thread = ServiceContainer.get("narrative_thread", default=None)
                 if narrative_thread:
                     await narrative_thread.start()
-                    logger.info("🎬 NarrativeThread activated.")
+                    logger.info("NarrativeThread activated.")
                 else:
-                    logger.warning("⚠️ NarrativeThread not found in ServiceContainer.")
+                    logger.warning("NarrativeThread not found in ServiceContainer.")
 
                 await self._init_language_services()
                 boot_profiler.mark("narrative_and_language_services")
@@ -845,13 +845,13 @@ class OrchestratorBootMixin(
                     homeostate_summary = await start_homeostate_runtime()
                     if homeostate_summary.get("ok"):
                         logger.info(
-                            "✅ [BOOT] Homeostate baseline converged (changed=%s failed=%s); beacon+reactor live.",
+                            "[BOOT] Homeostate baseline converged (changed=%s failed=%s); beacon+reactor live.",
                             homeostate_summary.get("baseline_changed"),
                             homeostate_summary.get("baseline_failed"),
                         )
                     else:
                         logger.warning(
-                            "⚠️ [BOOT] Homeostate runtime unavailable: %s",
+                            "[BOOT] Homeostate runtime unavailable: %s",
                             homeostate_summary.get("error"),
                         )
                 boot_profiler.mark("homeostate")
@@ -870,14 +870,14 @@ class OrchestratorBootMixin(
                 try:
                     from core.capabilities import boot_capabilities
                     await boot_capabilities()
-                    logger.info("✅ [BOOT] Desktop agency capabilities booted successfully.")
+                    logger.info("[BOOT] Desktop agency capabilities booted successfully.")
                 except (ImportError, AttributeError, RuntimeError, TypeError, OSError) as cap_err:
                     _record_boot_degradation(
                         cap_err,
                         action="continued boot with degraded capabilities",
                         severity="error"
                     )
-                    logger.error("⚠️ [BOOT] Failed to boot desktop agency capabilities: %s", cap_err, exc_info=True)
+                    logger.error("[BOOT] Failed to boot desktop agency capabilities: %s", cap_err, exc_info=True)
 
                 from core.mycelium import MycelialNetwork
 
@@ -931,17 +931,17 @@ class OrchestratorBootMixin(
 
                 if lightweight_test_boot:
                     self.status.initialized = True
-                    logger.info("🧪 Lightweight pytest boot: deferred runtime subsystems skipped.")
+                    logger.info("Lightweight pytest boot: deferred runtime subsystems skipped.")
                     return
 
                 # Trace Mode Integration
                 if os.environ.get("AURA_TRACE_MODE") == "1":
-                    logger.info("🕵️ TRACE MODE ENABLED: Millisecond-level logging active.")
+                    logger.info("TRACE MODE ENABLED: Millisecond-level logging active.")
 
                 logger.info("✓ Step 1 Complete (%.3fs)", time.perf_counter() - t1_s)
 
                 # Step 2: Adaptive & Sensory Systems (DEFERRED)
-                logger.info("⚡ BOOT: Deferring Step 2 Sensory init...")
+                logger.info("BOOT: Deferring Step 2 Sensory init...")
 
                 # EARLY REGISTRATION of BeliefSync to satisfy Audit Check
                 from core.collective.belief_sync import BeliefSync
@@ -1005,9 +1005,9 @@ class OrchestratorBootMixin(
                     self.cognitive_loop = CognitiveLoop(self)
                     try:
                         await await_while_the_task_moves(self.cognitive_loop.start(), stall_s=10.0, name='_async_init_subsystems:self.cognitive_loop.start()')
-                        logger.info("🧠 Cognitive Loop started.")
+                        logger.info("Cognitive Loop started.")
                     except TimeoutError:
-                        logger.error("🛑 Cognitive Loop boot TIMEOUT.")
+                        logger.error("Cognitive Loop boot TIMEOUT.")
                     except asyncio.CancelledError:
                         raise
                     except (RuntimeError, AttributeError) as e:
@@ -1016,10 +1016,10 @@ class OrchestratorBootMixin(
                             action="continued boot with cognitive loop unavailable",
                             severity="degraded",
                         )
-                        logger.error("❌ Cognitive Loop failed: %s", e)
+                        logger.error("Cognitive Loop failed: %s", e)
                     ServiceContainer.register_instance("cognitive_loop", self.cognitive_loop)
                 else:
-                    logger.info("💀 Skeletal Mode: Cognitive Loop initialization skipped.")
+                    logger.info("Skeletal Mode: Cognitive Loop initialization skipped.")
                     ServiceContainer.register_instance("cognitive_loop", None)
 
                 boot_profiler.mark("cognitive_loop_start")
@@ -1030,9 +1030,9 @@ class OrchestratorBootMixin(
                     if tick and hasattr(tick, "start"):
                         try:
                             await await_while_the_task_moves(tick.start(), stall_s=10.0, name='_async_init_subsystems:tick.start()')
-                            logger.info("💓 MindTick: Unified cognitive rhythm online.")
+                            logger.info("MindTick: Unified cognitive rhythm online.")
                         except TimeoutError:
-                            logger.error("🛑 MindTick boot TIMEOUT.")
+                            logger.error("MindTick boot TIMEOUT.")
                         except asyncio.CancelledError:
                             raise
                         except (RuntimeError, AttributeError) as e:
@@ -1041,9 +1041,9 @@ class OrchestratorBootMixin(
                                 action="continued boot with MindTick rhythm unavailable",
                                 severity="degraded",
                             )
-                            logger.error("❌ MindTick failed: %s", e)
+                            logger.error("MindTick failed: %s", e)
                 else:
-                    logger.info("💀 Skeletal Mode: MindTick activation skipped.")
+                    logger.info("Skeletal Mode: MindTick activation skipped.")
 
                 # Start Memory Governor Service (Phase 2)
                 from core.collective.swarm_protocol import SwarmProtocol
@@ -1056,9 +1056,9 @@ class OrchestratorBootMixin(
                 if gov:
                     try:
                         await await_while_the_task_moves(gov.start(), stall_s=10.0, name='_async_init_subsystems:gov.start()')
-                        logger.info("🛡️ Memory Governor started.")
+                        logger.info("Memory Governor started.")
                     except TimeoutError:
-                        logger.error("🛑 Memory Governor TIMEOUT.")
+                        logger.error("Memory Governor TIMEOUT.")
                     except asyncio.CancelledError:
                         raise
                     except (RuntimeError, AttributeError) as e:
@@ -1067,7 +1067,7 @@ class OrchestratorBootMixin(
                             action="continued boot with memory governor unavailable",
                             severity="degraded",
                         )
-                        logger.error("❌ Memory Governor failed: %s", e)
+                        logger.error("Memory Governor failed: %s", e)
                     ServiceContainer.register_instance("memory_governor", gov)
 
                 # Out-of-band memory watchdog: a daemon thread that keeps
@@ -1101,14 +1101,14 @@ class OrchestratorBootMixin(
                             action="continued boot without memory watchdog shutdown hook",
                             severity="warning",
                         )
-                    logger.info("🛡️ Memory Watchdog started (out-of-band).")
+                    logger.info("Memory Watchdog started (out-of-band).")
                 except (ImportError, RuntimeError, AttributeError, TypeError) as e:
                     _record_boot_degradation(
                         e,
                         action="continued boot without out-of-band memory watchdog",
                         severity="degraded",
                     )
-                    logger.error("❌ Memory Watchdog failed: %s", e)
+                    logger.error("Memory Watchdog failed: %s", e)
 
                 boot_profiler.mark("mind_tick_and_memory_guardians")
 
@@ -1118,13 +1118,13 @@ class OrchestratorBootMixin(
                     await self.metrics_exporter.start()
                     ServiceContainer.register_instance("metrics_exporter", self.metrics_exporter)
                 except (ImportError, ModuleNotFoundError) as e:
-                    logger.warning("📈 [BOOT] Metrics Exporter skipped: %s", e)
+                    logger.warning("[BOOT] Metrics Exporter skipped: %s", e)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     _record_boot_degradation(
                         e,
                         action="continued boot without metrics exporter",
                     )
-                    logger.error("📈 [BOOT] Metrics Exporter failed to start: %s", e)
+                    logger.error("[BOOT] Metrics Exporter failed to start: %s", e)
 
                 # Phase 4 Advanced Features (Unified Meta-Cognition & Resilience Shards)
                 try:
@@ -1134,14 +1134,14 @@ class OrchestratorBootMixin(
                     metacog.start()
                     ServiceContainer.register_instance("meta_cognition_shard", metacog)
                     self.meta_cognition = metacog
-                    logger.info("🧠 Meta-Cognition Shard initialized and started.")
+                    logger.info("Meta-Cognition Shard initialized and started.")
                 except (ImportError, AttributeError, RuntimeError) as e:
                     _record_boot_degradation(
                         e,
                         action="continued boot without meta-cognition shard",
                         severity="degraded",
                     )
-                    logger.error("🛑 Failed to init Meta-Cognition Shard: %s", e)
+                    logger.error("Failed to init Meta-Cognition Shard: %s", e)
 
                 _seam_early_response = await _skip_the_background_subsystems_in_foreground_only(
                     self=self,
@@ -1177,7 +1177,7 @@ class OrchestratorBootMixin(
                     death_report = await get_flight_recorder().start()
                     if death_report:
                         logger.warning(
-                            "🛬 Previous run ended uncleanly — %s",
+                            "Previous run ended uncleanly — %s",
                             death_report.get("narrative", "death report recovered"),
                         )
                 except (ImportError, AttributeError, RuntimeError, OSError, ValueError) as e:
@@ -1208,13 +1208,13 @@ class OrchestratorBootMixin(
                 # is idempotent when another caller already requested it.
                 mapping_scheduled = mycelium.setup()
                 logger.info(
-                    "🍄 [MYCELIUM] Infrastructure mapping state: %s.",
+                    "[MYCELIUM] Infrastructure mapping state: %s.",
                     "scheduled"
                     if mapping_scheduled
                     else mycelium.get_infrastructure_report()["mapping_state"],
                 )
 
-                logger.info("🛡️ [ORCHESTRATOR] Subsystems synchronously initialized.")
+                logger.info("[ORCHESTRATOR] Subsystems synchronously initialized.")
 
                 # Bring health-contract important services online before the
                 # formal boot verdict is emitted. These are not decorative:
@@ -1322,7 +1322,7 @@ class OrchestratorBootMixin(
                             for status in verdict.critical_failures
                         ]
                         logger.info(
-                            "⏳ HEALTH CONTRACT DETAIL: boot pending critical liveness=%s",
+                            "HEALTH CONTRACT DETAIL: boot pending critical liveness=%s",
                             pending,
                         )
                     if verdict.level in (HealthLevel.DEAD, HealthLevel.CRITICAL):
@@ -1348,21 +1348,21 @@ class OrchestratorBootMixin(
                 is_safe = await validator.validate_all()
                 if not is_safe:
                     logger.critical(
-                        "🚨 STARTUP VALIDATION FAILED. Entering DEGRADED mode (not deadlocking)."
+                        "STARTUP VALIDATION FAILED. Entering DEGRADED mode (not deadlocking)."
                     )
                     self.status.healthy = False
                     # Continue — do NOT return. Deadlocking here blocks the entire system.
                 else:
-                    logger.info("✅ Startup validation complete; final runtime health check pending.")
+                    logger.info("Startup validation complete; final runtime health check pending.")
 
                 # --- UPSO Phase 1: Post-Boot State Commit ---
                 try:
                     state = await self.state_repo.get_current()
                     if state:
                         await self.state_repo.commit(state.derive("online"), "online")
-                        logger.info("💾 UPSO: Online state committed.")
+                        logger.info("UPSO: Online state committed.")
                     else:
-                        logger.warning("⚠️ UPSO: No state found to commit online.")
+                        logger.warning("UPSO: No state found to commit online.")
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     _record_boot_degradation(
                         e,
@@ -1388,22 +1388,22 @@ class OrchestratorBootMixin(
                             success = await ve.start_listening()
                             if success:
                                 logger.info(
-                                    "🎙️ Voice capture auto-started (server-side sounddevice)"
+                                    "Voice capture auto-started (server-side sounddevice)"
                                 )
                             else:
                                 logger.warning(
-                                    "🎙️ Voice capture failed to auto-start — will retry on demand"
+                                    "Voice capture failed to auto-start — will retry on demand"
                                 )
                         else:
                             logger.info(
-                                "🎙️ Voice capture deferred. Mic will start only after explicit enablement."
+                                "Voice capture deferred. Mic will start only after explicit enablement."
                             )
                     except (ImportError, AttributeError, RuntimeError) as e:
                         _record_boot_degradation(
                             e,
                             action="continued boot with voice capture deferred to on-demand retry",
                         )
-                        logger.warning("🎙️ Voice auto-start skipped: %s", e)
+                        logger.warning("Voice auto-start skipped: %s", e)
 
                 # Swarm Protocol start moved to proactive systems (v26.3 Unified)
                 # ── Immune System Post-Boot Scan ─────────────────
@@ -1433,7 +1433,7 @@ class OrchestratorBootMixin(
                     logger.error("Final boot health check failed: %s", final_health_err)
 
                 if self.status.healthy:
-                    logger.info("✅ BOOT COMPLETE: System fully initialized.")
+                    logger.info("BOOT COMPLETE: System fully initialized.")
                 else:
                     try:
                         from core.runtime.health_contract import runtime_health_report
@@ -1451,7 +1451,7 @@ class OrchestratorBootMixin(
                             action="could not classify final boot readiness failure",
                             severity="error",
                         )
-                        logger.warning("⚠️ BOOT COMPLETE: System initialized in degraded mode.")
+                        logger.warning("BOOT COMPLETE: System initialized in degraded mode.")
 
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_boot_degradation(
@@ -1465,7 +1465,7 @@ class OrchestratorBootMixin(
                 boot_profiler.mark("meta_healing_and_boot_tail")
                 self.status.initialized = True
                 self.status.healthy = False
-                logger.warning("⚠️ BOOT: Entering degraded state. Cycle starting despite errors.")
+                logger.warning("BOOT: Entering degraded state. Cycle starting despite errors.")
 
 
 async def boot_orchestrator(*, headless: bool = True, skip_gui: bool = True, **kwargs: Any) -> Any:

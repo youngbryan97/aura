@@ -1223,7 +1223,7 @@ class ConversationalSynthesizer:
             # cosmetic tone adjustment. An unreadable mood is now no mood.
             mood = _readable_mood(context)
             if mood is not None and mood < 0.3 and "wonderful" in response.lower():
-                logger.info("🛡️ Cognitive Honesty: Dampening excessive cheer in unstable state.")
+                logger.info("Cognitive Honesty: Dampening excessive cheer in unstable state.")
                 response = response.replace("wonderful", "interesting")
 
             self._remember_turn(user_message, response, tool_results)

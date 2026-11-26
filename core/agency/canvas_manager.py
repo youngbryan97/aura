@@ -180,7 +180,7 @@ CURRENT CANVAS:
                     return {"ok": False, "reason": "empty_generation"}
 
                 await self._write_text(file_path, updated_markdown)
-                logger.info("🎨 Canvas Updated: %s.md (Topic: %s)", safe_name, topic)
+                logger.info("Canvas Updated: %s.md (Topic: %s)", safe_name, topic)
 
                 pruned = await self._prune_if_needed(file_path)
                 return {

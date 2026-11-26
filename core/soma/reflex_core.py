@@ -23,7 +23,7 @@ class HardenedReflexCore:
     async def trigger_reflex(self, signal_type: str, metadata: Dict = None):
         """Execute a reflex action with high priority."""
         if signal_type in self.reflex_actions:
-            logger.critical("⚡ REFLEX TRIGGERED: %s", signal_type)
+            logger.critical("REFLEX TRIGGERED: %s", signal_type)
             self.active_reflexes.append(signal_type)
             
             # Execute reflex action immediately

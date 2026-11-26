@@ -36,7 +36,7 @@ INFO = "INFO"
 WARN = "WARN"
 FAIL = "FAIL"
 
-_STATUS_ICON = {OK: "✅", INFO: "ℹ️ ", WARN: "⚠️ ", FAIL: "❌"}
+_STATUS_ICON = {OK: "ok", INFO: "info ", WARN: "warning ", FAIL: "failed"}
 
 
 @dataclass

@@ -89,7 +89,7 @@ async def _mend_and_say() -> list[dict[str, Any]]:
         running = (f"; loaded into her running process: {', '.join(loaded['functions'])}"
                    if loaded.get("functions") else
                    f"; not loaded: {loaded['waits'][0]}" if loaded.get("waits") else "")
-        logger.info("🩹 Her own loop on %s: %s (%s)%s", outcome.get("slug"), outcome.get("status"),
+        logger.info("Her own loop on %s: %s (%s)%s", outcome.get("slug"), outcome.get("status"),
                     outcome.get("why") or outcome.get("commit") or "", running)
     return mended
 
@@ -462,7 +462,7 @@ class AutonomousSelfModificationEngine:
 
         # Issue 91: Shadow AST Wiring (Zero-token repair attempt)
         if "is not defined" in sample_event.error_message.lower():
-            logger.info("⚡ Drafting zero-token AST repair proposal...")
+            logger.info("Drafting zero-token AST repair proposal...")
             path = self.code_base / sample_event.file_path
             shadow_proposal = await self.shadow_healer.propose_repair(
                 path, sample_event.error_message
@@ -470,7 +470,7 @@ class AutonomousSelfModificationEngine:
             if shadow_proposal:
                 original = shadow_proposal["original_content"]
                 fixed = shadow_proposal["repaired_content"]
-                logger.info("✨ AST repair proposal created. Routing through safe modification.")
+                logger.info("AST repair proposal created. Routing through safe modification.")
                 return {
                     "bug": bug,
                     "fix": LogicTransplant(
@@ -511,7 +511,7 @@ class AutonomousSelfModificationEngine:
             # the pipeline IS broken has nowhere left to stand out.
             if "veto" in reason.lower():
                 logger.info(
-                    "🛡️ Autonomous repair declined by the Growth Ladder: %s", reason
+                    "Autonomous repair declined by the Growth Ladder: %s", reason
                 )
                 return None
             # Put off, not failed: no model was free to write it. A hundred
@@ -523,7 +523,7 @@ class AutonomousSelfModificationEngine:
             return None
 
         # Issue 96: Deep Validation via Branching Futures
-        logger.info("🔬 Initiating Branching Futures Validation for %s...", sample_event.file_path)
+        logger.info("Initiating Branching Futures Validation for %s...", sample_event.file_path)
         from core.skills.branching_futures import BranchingFuturesInput, BranchingFuturesSkill
 
         branching_skill = BranchingFuturesSkill()
@@ -539,14 +539,14 @@ class AutonomousSelfModificationEngine:
             branch_result = await branching_skill.safe_execute(branch_params)
             if not branch_result.get("ok"):
                 logger.error(
-                    "❌ Branching Futures Validation FAILED: %s", branch_result.get("error")
+                    "Branching Futures Validation FAILED: %s", branch_result.get("error")
                 )
                 return None
         except (OSError, ConnectionError, TimeoutError) as e:
-            logger.error("❌ Branching Futures Validation CRASHED: %s", e)
+            logger.error("Branching Futures Validation CRASHED: %s", e)
             return None
 
-        logger.info("✅ Branching Futures Validation PASSED.")
+        logger.info("Branching Futures Validation PASSED.")
 
         return {"bug": bug, "fix": fix, "test_results": test_results, "ready_to_apply": success}
 
@@ -611,7 +611,7 @@ class AutonomousSelfModificationEngine:
 
         # Phase 15: Swarm Review (Sovereign Decision)
         if not await self._swarm_review(fix_proposal, force=force):
-            logger.error("❌ Fix Rejected by Swarm Critic. Aborting modification.")
+            logger.error("Fix Rejected by Swarm Critic. Aborting modification.")
             return False
 
         # [Phase 30] Circuit Breaker Check (Metabolic Quarantine)
@@ -629,7 +629,7 @@ class AutonomousSelfModificationEngine:
                 cb = immunity.circuit_breakers[fix.target_file]
                 if cb.state == "OPEN":
                     logger.error(
-                        "🛑 [NEURO] Component %s is QUARANTINED. Modification blocked.",
+                        "[NEURO] Component %s is QUARANTINED. Modification blocked.",
                         fix.target_file,
                     )
                     return False
@@ -648,14 +648,14 @@ class AutonomousSelfModificationEngine:
         final_test_results = test_results or fix_proposal.get("test_results")
 
         if not final_test_results:
-            logger.error("❌ Refusing to apply fix: No sandboxed test results provided.")
+            logger.error("Refusing to apply fix: No sandboxed test results provided.")
             return False
 
         if not final_test_results.get("success", False):
-            logger.error("❌ Refusing to apply fix: Sandboxed tests failed.")
+            logger.error("Refusing to apply fix: Sandboxed tests failed.")
             return False
 
-        logger.info("🧬 [NEURO] Initiating permanent fix application for %s", fix.target_file)
+        logger.info("[NEURO] Initiating permanent fix application for %s", fix.target_file)
 
         # Phase 31: Permanent Persistence via SafeSelfModification
         async with self._fix_lock:
@@ -687,7 +687,7 @@ class AutonomousSelfModificationEngine:
 
                 if success:
                     self.session_stats["fixes_successful"] += 1
-                    logger.info("✅ [NEURO] Permanent fix applied: %s", message)
+                    logger.info("[NEURO] Permanent fix applied: %s", message)
 
                     # Resolve related incident and mark subsystem as healthy
                     try:
@@ -709,7 +709,7 @@ class AutonomousSelfModificationEngine:
                                         if health:
                                             health.mark_ok()
                                             logger.info(
-                                                "🏥 Subsystem %s marked as healthy after successful self-modification repair.",
+                                                "Subsystem %s marked as healthy after successful self-modification repair.",
                                                 subsystem,
                                             )
 
@@ -753,7 +753,7 @@ class AutonomousSelfModificationEngine:
                         logger.debug("Suppressed: %s", exc)
 
                 else:
-                    logger.error("❌ [NEURO] Permanent application FAILED: %s", message)
+                    logger.error("[NEURO] Permanent application FAILED: %s", message)
                     # Record failure in immunity for pattern analysis
                     try:
                         if immunity:
@@ -846,7 +846,7 @@ class AutonomousSelfModificationEngine:
             f"Proposed Change:\n{proposed_change}"
         )
 
-        logger.info("🐝 Initiating Sovereign Swarm Review for fix...")
+        logger.info("Initiating Sovereign Swarm Review for fix...")
         try:
             # Short timeout for internal swarm reviews to prevent stalls
             result = await swarm.delegate_debate(topic, roles=["architect", "critic"])
@@ -858,10 +858,10 @@ class AutonomousSelfModificationEngine:
                 or "UNSAFE" in result.upper()
                 or "ROLLBACK" in result.upper()
             ):
-                logger.warning("🚨 Sovereign Swarm Critic flagged this fix as UNSAFE.")
+                logger.warning("Sovereign Swarm Critic flagged this fix as UNSAFE.")
                 return False
 
-            logger.info("✅ Sovereign Swarm Consensus: Fix is safe to apply.")
+            logger.info("Sovereign Swarm Consensus: Fix is safe to apply.")
             return True
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _record_self_modification_degradation(
@@ -891,7 +891,7 @@ class AutonomousSelfModificationEngine:
             return False
 
         msg = issue.get("message", "No message provided")
-        logger.info("💎 Optimization reported: %s at %s:%d", msg, file_path, line_number)
+        logger.info("Optimization reported: %s at %s:%d", msg, file_path, line_number)
 
         # 1. Create a synthetic diagnosis for optimization
         diagnosis = {
@@ -1138,14 +1138,14 @@ class AutonomousSelfModificationEngine:
 
         Hunts for bottlenecks in core reasoning logic and optimizes them.
         """
-        logger.info("💎 [REFINE] Starting Kernel Refinement Cycle...")
+        logger.info("[REFINE] Starting Kernel Refinement Cycle...")
         cycle_start = time.time()
         try:
             # Step 1: Analyze kernel health
             refinements = await self.kernel_refiner.analyze_kernel_health()
 
             if not refinements:
-                logger.info("✨ Kernel is optimal. No refinements proposed.")
+                logger.info("Kernel is optimal. No refinements proposed.")
                 return {
                     "success": True,
                     "refinements_applied": 0,
@@ -1154,12 +1154,12 @@ class AutonomousSelfModificationEngine:
                 }
 
             top_refinement = refinements[0]
-            logger.info("🚀 Targeted Refinement: %s", top_refinement["message"])
+            logger.info("Targeted Refinement: %s", top_refinement["message"])
             try:
                 from ..thought_stream import get_emitter
 
                 get_emitter().emit(
-                    "Synthesis 🚀",
+                    "Synthesis",
                     f"Optimizing {top_refinement.get('file', 'system')}: {top_refinement.get('message', '')}",
                     level="info",
                     category="Self-Modification",
@@ -1412,7 +1412,7 @@ class AutonomousSelfModificationEngine:
                     result = {"success": bool(result), "fixes_applied": 1 if result else 0}
 
                 if result.get("fixes_applied", 0) > 0:
-                    logger.info("✅ Autonomous fixes applied in background")
+                    logger.info("Autonomous fixes applied in background")
                     _consecutive_failures = 0
                     _backoff = self.monitor_interval
                 elif not _autonomous_cycle_failed(result):
@@ -1425,7 +1425,7 @@ class AutonomousSelfModificationEngine:
                 # Circuit breaker: stop trying if we keep failing
                 if _consecutive_failures >= _max_failures:
                     logger.warning(
-                        "🛑 Self-modification circuit breaker tripped after %s consecutive failures. Cooling down 30min.",
+                        "Self-modification circuit breaker tripped after %s consecutive failures. Cooling down 30min.",
                         _max_failures,
                     )
                     await asyncio.sleep(1800)  # 30 minute cooldown
@@ -1540,7 +1540,7 @@ class AutonomousSelfModificationEngine:
 
     async def trigger_synthetic_test(self):
         """Generate a synthetic error to test the recovery pipeline (Issue 86)."""
-        logger.info("🧪 [TEST] Injecting synthetic test error...")
+        logger.info("[TEST] Injecting synthetic test error...")
         try:
             # This error is caught by on_error and should trigger a repair cycle
             # for a safe, non-critical file.
@@ -1693,7 +1693,7 @@ TOP FIX STRATEGIES:
             return False
         self._auto_fix_requested = True
         self.auto_fix_enabled = True
-        logger.warning("⚠️  AUTO-FIX ENABLED - System will modify its own code")
+        logger.warning(" AUTO-FIX ENABLED - System will modify its own code")
         return True
 
     def disable_auto_fix(self):

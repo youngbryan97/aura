@@ -544,7 +544,7 @@ class SubstrateEvolution:
             self._mesh_ref._inter_W = mutant.inter_weights.copy()
             self._micro_count = getattr(self, "_micro_count", 0) + 1
             logger.info(
-                "🧬 Micro-evolution #%d triggered by '%s' (intensity=%.2f): "
+                "Micro-evolution #%d triggered by '%s' (intensity=%.2f): "
                 "fitness %.4f → %.4f (applied)",
                 self._micro_count, trigger, intensity,
                 self._pre_apply_fitness, mutant.fitness,
@@ -552,7 +552,7 @@ class SubstrateEvolution:
             self._pre_apply_fitness = mutant.fitness
         else:
             logger.debug(
-                "🧬 Micro-evolution discarded (trigger=%s): mutant=%.4f < champion=%.4f",
+                "Micro-evolution discarded (trigger=%s): mutant=%.4f < champion=%.4f",
                 trigger, mutant.fitness, self._champion.fitness,
             )
 

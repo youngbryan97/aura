@@ -63,10 +63,10 @@ async def test_flow(tmp_path):
     report = await planner.get_project_status_report(project.id)
     print(report)
     assert "Test project" in report
-    assert "✅ Step 1" in report
+    assert "Step 1" in report
     print("✓ Status report generated correctly")
 
-    print("\n✅ STRATEGIC PLANNER VERIFICATION SUCCESSFUL")
+    print("\nSTRATEGIC PLANNER VERIFICATION SUCCESSFUL")
 
 if __name__ == "__main__":
     asyncio.run(test_flow())

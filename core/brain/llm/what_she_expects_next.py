@@ -395,7 +395,7 @@ class ExpectsNext:
             path = self._where()
             if not self._has_room(path):
                 self._refused = "the host has no room for it"
-                logger.info("👂 Her fast model is not loaded for scoring: %s.", self._refused)
+                logger.info("Her fast model is not loaded for scoring: %s.", self._refused)
                 return False
             import mlx.core as mx
 
@@ -405,7 +405,7 @@ class ExpectsNext:
                 # (core/runtime/desktop_boot_safety.py). Live, 13 October, this
                 # loaded there anyway and ground one core for minutes.
                 self._refused = "this process keeps MLX off the GPU"
-                logger.info("👂 Her fast model is not loaded for scoring: %s.", self._refused)
+                logger.info("Her fast model is not loaded for scoring: %s.", self._refused)
                 return False
             from mlx_lm import load
 
@@ -423,7 +423,7 @@ class ExpectsNext:
                 metadata={"engine": "expects_next", "model_role": "reflex_scoring"},
             )
             self._model, self._tokenizer = load(str(path))
-            logger.info("👂 Her fast model is loaded for scoring next turns (%s).", path.name)
+            logger.info("Her fast model is loaded for scoring next turns (%s).", path.name)
             return True
         except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._refused = f"{type(exc).__name__}: {exc}"
@@ -442,7 +442,7 @@ class ExpectsNext:
         release = getattr(lease, "release", None)
         if callable(release):
             await asyncio.to_thread(release, reason=f"expects_next_eviction:{reason}")
-        logger.info("👂 Her fast model for scoring was given back to the lane (%s).", reason)
+        logger.info("Her fast model for scoring was given back to the lane (%s).", reason)
         return True
 
     def _score(self, said: str, candidates: Sequence[str]) -> list[float]:

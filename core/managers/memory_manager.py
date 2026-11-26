@@ -170,7 +170,7 @@ class MemoryManager:
         """Trigger pruning and consolidation if the interval has passed."""
         now = time.time()
         if now - self.last_consolidation > self.consolidation_interval:
-            logger.info("🕒 Initiating scheduled memory consolidation...")
+            logger.info("Initiating scheduled memory consolidation...")
             await self.consolidate_memories()
             self.last_consolidation = now
 
@@ -202,7 +202,7 @@ class MemoryManager:
             if metadata:
                 tags.extend(metadata.get("tags", []))
             await self.store(content, importance=importance, tags=tags)
-            logger.info("📝 Event logged: %s (%d chars)", event_type, len(str(content)[:200]))
+            logger.info("Event logged: %s (%d chars)", event_type, len(str(content)[:200]))
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('memory_manager', e)
             logger.error("Failed to log event '%s': %s", event_type, e)

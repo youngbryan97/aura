@@ -495,7 +495,7 @@ def main() -> None:
         vectors = generator.generate_all()
         paths = generator.save_vectors(vectors)
 
-        print(f"\n✅ Generated {len(vectors)} steering vectors:")
+        print(f"\nGenerated {len(vectors)} steering vectors:")
         for dim, _path in paths.items():
             if dim != "manifest":
                 sv = vectors[dim]
@@ -503,7 +503,7 @@ def main() -> None:
                     f"   {dim}: magnitude={sv.magnitude:.4f} "
                     f"checksum={sv.checksum}"
                 )
-        print(f"\n📁 Manifest: {paths.get('manifest', 'N/A')}")
+        print(f"\nManifest: {paths.get('manifest', 'N/A')}")
 
 
 if __name__ == "__main__":

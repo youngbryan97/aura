@@ -38,7 +38,7 @@ class MinorityReportStore:
 
     def record_dissent(self, disagreement: MinorityDisagreement) -> None:
         """Appends a new dissent entry to the log file."""
-        logger.warning("📝 Minority Report filed by %s on %s!", disagreement.dissenting_role, disagreement.mission_id)
+        logger.warning("Minority Report filed by %s on %s!", disagreement.dissenting_role, disagreement.mission_id)
         try:
             existing = self.log_path.read_text(encoding="utf-8") if self.log_path.exists() else ""
             payload = existing + json.dumps(asdict(disagreement), sort_keys=True) + "\n"

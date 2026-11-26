@@ -854,7 +854,7 @@ def _finish(
 
     ast.parse(rewritten)
     path.write_text(rewritten, encoding="utf-8")
-    print(f"✅ wrote {path}")
+    print(f"wrote {path}")
     if replayed:
         # The caller may now import something nothing in it uses. Removing it
         # is a change to the caller rather than a move, so this says so and

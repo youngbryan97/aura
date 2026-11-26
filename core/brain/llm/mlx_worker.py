@@ -2172,7 +2172,7 @@ def _serving_lane_output_cap(model_path: str, lane_name: str, requested: int) ->
     capped = min(admitted, int(lane.max_output_tokens))
     if capped < admitted:
         logger.info(
-            "🧠 [WORKER] Qualified %s output ceiling reduced %d→%d (profile=%s).",
+            "[WORKER] Qualified %s output ceiling reduced %d→%d (profile=%s).",
             lane.name,
             admitted,
             capped,
@@ -2230,7 +2230,7 @@ def _runtime_prefill_step_size(model_path: str) -> int:
         profile_selected = min(selected, int(limits.prefill_chunk_tokens))
         if profile_selected < selected:
             logger.info(
-                "🧠 [WORKER] Qualified prefill ceiling reduced %d→%d (profile=%s).",
+                "[WORKER] Qualified prefill ceiling reduced %d→%d (profile=%s).",
                 selected,
                 profile_selected,
                 str(getattr(limits, "profile_sha256", ""))[:12],
@@ -2239,7 +2239,7 @@ def _runtime_prefill_step_size(model_path: str) -> int:
     base = _prefill_step_size_for_model(model_path)
     if pressure_selected < base and pressure_snapshot is not None:
         logger.info(
-            "🧠 [WORKER] Prefill chunk reduced %d→%d for host headroom "
+            "[WORKER] Prefill chunk reduced %d→%d for host headroom "
             "(level=%s available=%.1fGB).",
             base,
             pressure_selected,
@@ -2390,7 +2390,7 @@ def _a_prefix_worth_keeping(
         )
         if kept:
             logger.info(
-                "🧊 [PROMPT CACHE] kept a %d-token prefix mid-prefill; the next "
+                "[PROMPT CACHE] kept a %d-token prefix mid-prefill; the next "
                 "turn can reuse it without a trim.",
                 absolute,
             )
@@ -2923,7 +2923,7 @@ class IPCWriterThread(threading.Thread):
                 if self._consecutive_pipe_failures >= 3 and not self.broken.is_set():
                     self.broken.set()
                     logger.critical(
-                        "🛑 [MLX_IPC] Response pipe broken (%d consecutive failures); "
+                        "[MLX_IPC] Response pipe broken (%d consecutive failures); "
                         "flagging worker for shutdown so it cannot become a zombie.",
                         self._consecutive_pipe_failures,
                     )
@@ -2979,7 +2979,7 @@ class HeartbeatThread(threading.Thread):
             # [STABILITY v51] Self-terminate if parent died — prevents orphan workers
             if not self._parent_alive():
                 logger.critical(
-                    "🛑 [MLX_HEARTBEAT] Parent process %s is dead. Self-terminating orphaned worker.",
+                    "[MLX_HEARTBEAT] Parent process %s is dead. Self-terminating orphaned worker.",
                     self._parent_pid,
                 )
                 os._exit(1)
@@ -3150,7 +3150,7 @@ class WorkerMemorySentinel(threading.Thread):
                     continue
                 if blind_reported:
                     logger.warning(
-                        "🟢 [MLX_MEMORY] Memory sentinel probes recovered after %d blind cycles.",
+                        "[MLX_MEMORY] Memory sentinel probes recovered after %d blind cycles.",
                         consecutive_blind,
                     )
                     self.writer.put(
@@ -3178,7 +3178,7 @@ class WorkerMemorySentinel(threading.Thread):
 
                 if reason:
                     message = f"MLX worker memory fuse tripped for {os.path.basename(self.model_path)}: {reason}"
-                    logger.critical("🛑 [MLX_MEMORY] %s", message)
+                    logger.critical("[MLX_MEMORY] %s", message)
                     fuse_payload = {
                         "status": "error",
                         "action": "memory_fuse",
@@ -3760,7 +3760,7 @@ class JobWatchdog(threading.Thread):
             if self.active_job and (time.monotonic() - self.last_activity > self.timeout):
                 request_id = self.current_request_id
                 logger.critical(
-                    "🛑 [MLX_WATCHDOG] Job timeout triggered (%ss) for request %s. "
+                    "[MLX_WATCHDOG] Job timeout triggered (%ss) for request %s. "
                     "Self-terminating worker.",
                     self.timeout,
                     request_id or "<unknown>",
@@ -3786,7 +3786,7 @@ class JobWatchdog(threading.Thread):
                     )
                     if not delivered:
                         logger.critical(
-                            "🛑 [MLX_WATCHDOG] Terminal receipt could not be flushed; "
+                            "[MLX_WATCHDOG] Terminal receipt could not be flushed; "
                             "parent will see an unattributed worker death."
                         )
                 os._exit(2)
@@ -4131,7 +4131,7 @@ def _load_speculative_draft(model_path: str, target_tokenizer: Any, model: Any =
             )
             return None
         logger.info(
-            "🚀 Speculative decoding ONLINE: draft=%s (target verifies every token; "
+            "Speculative decoding ONLINE: draft=%s (target verifies every token; "
             "steering semantics preserved).",
             os.path.basename(draft_path),
         )
@@ -4159,7 +4159,7 @@ def _tokenizer_identity_mismatch(draft_tokenizer: Any, target_tokenizer: Any) ->
         "def f(x):\n\treturn {x: [1, 2.5e-3, 'mixed']}  # comment",
         "Numbers 1234567890 and unicode: naïve café — 日本語 テスト Ω≈ç√",
         "  leading spaces\nand\twindows\r\nline endings ",
-        "<|im_start|>assistant роль and emoji 🚀🧠",
+        "<|im_start|>assistant роль and emoji",
     )
     for probe in probes:
         if draft_tokenizer.encode(probe) != target_tokenizer.encode(probe):
@@ -4343,7 +4343,7 @@ def _self_certify_fusion(model: Any, tokenizer: Any, engine: Any) -> bool:
     write_certificate(chosen)
     if chosen.holds:
         logger.info(
-            "🔗 Fusion channel earned alpha %.3f for %s: answers change on %d of %d probes, "
+            "Fusion channel earned alpha %.3f for %s: answers change on %d of %d probes, "
             "opposing states separate by %.2f, accuracy moved %+.3f.",
             chosen.alpha,
             identity[:16],
@@ -4455,7 +4455,7 @@ def _attach_affective_steering(
 
         if active:
             logger.info(
-                "🎯 Affective Steering Engine ONLINE (alpha=%.1f, hooks=%d).",
+                "Affective Steering Engine ONLINE (alpha=%.1f, hooks=%d).",
                 engine._alpha,
                 len(getattr(engine, "_hooks", [])),
             )
@@ -4540,7 +4540,7 @@ def _attach_latent_bridge(model: Any, latent_readout_mem: Any) -> Any:
             return None
         bridge.start_substrate_sync(channel=latent_readout_mem)
         logger.info(
-            "🔁 LatentBridge ONLINE (%d readout hooks) — model representations "
+            "LatentBridge ONLINE (%d readout hooks) — model representations "
             "now reach the substrate.",
             len(getattr(bridge, "_readout_hooks", []) or []),
         )
@@ -4805,7 +4805,7 @@ def _mlx_worker_loop_part_3(_steering_active, engine, latent_bridge, latent_read
                 "reason": "",
                 "error": "",
             }
-            logger.info("🧠 Recurrent Depth ACTIVE — model now thinks before answering.")
+            logger.info("Recurrent Depth ACTIVE — model now thinks before answering.")
         else:
             recurrent_depth_status["reason"] = "patch_not_applied"
             # REQUIRED depth that failed to apply is a degradation, not a
@@ -4837,7 +4837,7 @@ def _mlx_worker_loop_part_3(_steering_active, engine, latent_bridge, latent_read
 def _mlx_worker_loop_part_4(logger, model, model_path, recurrent_adapter_activation, tokenizer):
     if recurrent_adapter_activation["active"]:
         logger.info(
-            "🧠 Certified recurrent adapter ACTIVE — campaign=%s projections=%d receipt=%s",
+            "Certified recurrent adapter ACTIVE — campaign=%s projections=%d receipt=%s",
             recurrent_adapter_activation["campaign_name"],
             recurrent_adapter_activation["loaded_projection_count"],
             recurrent_adapter_activation["receipt_sha256"],
@@ -4966,7 +4966,7 @@ def _mlx_worker_loop_part_7(logger, messages, prompt, tools):
         # something between the two was adding the
         # difference, and nothing recorded what.
         logger.info(
-            "🎯 [WORKER] Tool prompt: %d chars from %s | tail=%r",
+            "[WORKER] Tool prompt: %d chars from %s | tail=%r",
             len(prompt) if isinstance(prompt, str) else -1,
             [
                 (
@@ -5014,7 +5014,7 @@ def _mlx_worker_loop_tier_forward_pass(logger, logits_processors, tokenizer):
             if reasoning_procs:
                 logits_processors.extend(reasoning_procs)
                 logger.info(
-                    "🧠 [WORKER] Reasoning processors ACTIVE (%d: steer=%s cd=%s).",
+                    "[WORKER] Reasoning processors ACTIVE (%d: steer=%s cd=%s).",
                     len(reasoning_procs),
                     _steer_on,
                     bool(_cd_on and _amateur_path),
@@ -5076,7 +5076,7 @@ def _mlx_worker_loop_part_10(continuation_resume_applied, conversation_resume_ap
     # prefills is invisible without printing both.
     if len(tokens) > 4096:
         logger.info(
-            "📏 [WORKER] Prefill size: %d tokens from %d rendered "
+            "[WORKER] Prefill size: %d tokens from %d rendered "
             "chars (%d messages, %d tool schemas, %d schema chars) "
             "| per-message: %s",
             len(tokens),
@@ -5136,7 +5136,7 @@ def _mlx_worker_loop_refusing_response_nothing(_output_reserve, _request_context
             severity="warning",
         )
         logger.warning(
-            "✂️ [WORKER] Scaffold exceeded the context window "
+            "[WORKER] Scaffold exceeded the context window "
             "(%d tokens > %d - %d reserve); trimmed to %d tokens "
             "[%s]. The prompt builder should have bounded this.",
             _oversized_tokens,
@@ -5190,7 +5190,7 @@ def _mlx_worker_loop_reuse_pays_prompts(cache, job, logger, prompt, remaining_to
         ):
             _stable_head = "<undecodable>"
         logger.info(
-            "🔍 [PROMPT CACHE] prefix diverges at token %d "
+            "[PROMPT CACHE] prefix diverges at token %d "
             "(%.0f%% of %d reused) scope=%s; stable head: %r; "
             "divergent text begins: %r",
             _reused,
@@ -5219,7 +5219,7 @@ def _mlx_worker_loop_single_post_generation(disable_prompt_cache, final_prompt_c
             model_key, list(tokens), final_prompt_cache
         )
         logger.info(
-            "🧊 [PROMPT CACHE] retained %d tokens "
+            "[PROMPT CACHE] retained %d tokens "
             "scope=%s key=%s (cache %x)",
             len(tokens),
             _prompt_cache_scope_for_job(job),
@@ -5233,7 +5233,7 @@ def _mlx_worker_loop_single_post_generation(disable_prompt_cache, final_prompt_c
         # Name the condition here, where it is
         # still known.
         logger.info(
-            "🧊 [PROMPT CACHE] retained nothing: "
+            "[PROMPT CACHE] retained nothing: "
             "disabled=%s no_cache_object=%s no_tokens=%s "
             "sentinel_aborted=%s scope=%s purpose=%s origin=%s",
             ",".join(
@@ -5295,7 +5295,7 @@ def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_pa
         # and widening the budget would never
         # have fixed that one.
         logger.warning(
-            "🧠 [WORKER] Generation ended inside the private channel: "
+            "[WORKER] Generation ended inside the private channel: "
             "%d reasoning chars, no answer, %d of %d tokens spent%s. "
             "It ends: %r",
             len(native_channels.reasoning),
@@ -5492,12 +5492,12 @@ def _mlx_worker_loop_part_17(job, logger, rejection_reasons, response_text, surf
 
         if "internal_task_prompt_leak" in rejection_reasons:
             logger.warning(
-                "⚠️ [WORKER] The sentence read as a prompt leak: %r",
+                "[WORKER] The sentence read as a prompt leak: %r",
                 internal_task_prompt_leak_evidence(response_text, validation_resolution.prompt),
             )
         if "unfounded_tool_execution_claim" in rejection_reasons:
             logger.warning(
-                "⚠️ [WORKER] The sentence read as claiming work no receipt shows: %r",
+                "[WORKER] The sentence read as claiming work no receipt shows: %r",
                 unfounded_tool_execution_claim_evidence(
                     response_text, job.get("completed_capability_evidence")
                 ),
@@ -5505,7 +5505,7 @@ def _mlx_worker_loop_part_17(job, logger, rejection_reasons, response_text, surf
     except (ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("Rejection evidence unavailable: %s", exc)
     logger.warning(
-        "⚠️ [WORKER] Rejected live user-surface draft "
+        "[WORKER] Rejected live user-surface draft "
         "reasons=%s validation_source=%s "
         "validation_sha256=%s validation_chars=%d excerpt=%r",
         ",".join(rejection_reasons[:8]) or "unknown",
@@ -5552,7 +5552,7 @@ def _mlx_worker_loop_surface_wall_exceeded(internal_attempt, job, logger, max_in
             else "surface prompt provenance"
         )
         logger.error(
-            "🛑 [WORKER] %s contract failed; refusing "
+            "[WORKER] %s contract failed; refusing "
             "futile model retries.",
             failure_contract,
         )
@@ -5561,7 +5561,7 @@ def _mlx_worker_loop_surface_wall_exceeded(internal_attempt, job, logger, max_in
         and internal_attempt < max_internal_retries
     ):
         logger.warning(
-            "🛡️ [WORKER] Surface-gate retry wall (%.0fs) reached after "
+            "[WORKER] Surface-gate retry wall (%.0fs) reached after "
             "attempt %d; salvaging best draft instead of re-drafting.",
             surface_retry_wall_s,
             internal_attempt + 1,
@@ -5570,7 +5570,7 @@ def _mlx_worker_loop_surface_wall_exceeded(internal_attempt, job, logger, max_in
 
 def _mlx_worker_loop_part_19(job, logger, original_messages, original_prompt, rejection_reasons, response_text):
     logger.warning(
-        "🚨 [WORKER] Live user-surface quality gate exhausted retries."
+        "[WORKER] Live user-surface quality gate exhausted retries."
     )
     # Salvage over empty: an empty reply is the worst outcome
     # (it triggers the parent's inline-retry storm and sustained
@@ -5620,7 +5620,7 @@ def _mlx_worker_loop_part_19(job, logger, original_messages, original_prompt, re
 
 def _mlx_worker_loop_part_20(best_draft, logger, rejection_reasons, residual_reasons, response_text, salvage_repairs, surface_control_state):
     logger.info(
-        "🛡️ [WORKER] Delivering best honest draft after gate "
+        "[WORKER] Delivering best honest draft after gate "
         "exhaustion (residual=%s, repairs=%s) instead of a dead turn.",
         ",".join(residual_reasons) or "none",
         ",".join(salvage_repairs) or "none",
@@ -5675,7 +5675,7 @@ def _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_seq
         # immediately, which is a prompt or template
         # problem and nothing to do with the sampler.
         logger.warning(
-            "⚠️ [WORKER] Generation produced %d token(s) but no text "
+            "[WORKER] Generation produced %d token(s) but no text "
             "survived to the caller — discarded downstream, not a decode "
             "failure. Prompt length: %d, stop_sequences: %s, tokens: %s",
             token_count,
@@ -5689,7 +5689,7 @@ def _mlx_worker_loop_part_21(expected_empty_precompile, logger, prompt, stop_seq
         )
     else:
         logger.warning(
-            "⚠️ [WORKER] Generation yielded ZERO tokens. "
+            "[WORKER] Generation yielded ZERO tokens. "
             "Prompt length: %d, token_count: %d, stop_sequences: %s",
             len(prompt),
             token_count,
@@ -5899,7 +5899,7 @@ def _mlx_worker_loop_min_p(job, logger, make_sampler, max_tokens, temp, tokenize
             if guard is not None:
                 logits_processors.append(guard)
             logger.info(
-                "🎯 [WORKER] Non-empty start guard %s (stream path).",
+                "[WORKER] Non-empty start guard %s (stream path).",
                 "ACTIVE" if guard is not None else "UNAVAILABLE",
             )
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
@@ -5932,12 +5932,12 @@ def _mlx_worker_loop_shape_answer_held(_channel_budget, job, kwargs, logger, log
             if _bound is not None:
                 logits_processors.append(_bound)
                 logger.info(
-                    "🧠 [WORKER] Private channel bounded at %d tokens.",
+                    "[WORKER] Private channel bounded at %d tokens.",
                     getattr(_bound, "budget_tokens", 0),
                 )
             else:
                 logger.info(
-                    "🧠 [WORKER] Private channel NOT bounded; this "
+                    "[WORKER] Private channel NOT bounded; this "
                     "tokenizer has no single closing token."
                 )
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
@@ -6163,7 +6163,7 @@ def _mlx_worker_loop_last_guard_before(e, ipc_writer, logger, job=None, action=N
     # below says what that costs: the parent cannot resolve an id-less error.
     resolved_action = action or "unknown"
     logger.error(
-        "❌ [WORKER] Unhandled error during '%s': %s\n%s",
+        "[WORKER] Unhandled error during '%s': %s\n%s",
         resolved_action,
         e,
         tb,
@@ -6221,7 +6221,7 @@ def _mlx_worker_loop_part_2_2(job, logger, logits_processors, strict_answer_cont
             strict_guard = build_nonempty_start_processor(tokenizer, positions=3)
             if strict_guard is not None:
                 logits_processors.append(strict_guard)
-                logger.info("🎯 [WORKER] Strict contract non-empty start guard ACTIVE.")
+                logger.info("[WORKER] Strict contract non-empty start guard ACTIVE.")
         except (AttributeError, RuntimeError, TypeError, ValueError) as e:
             _record_mlx_degradation(
                 e,
@@ -6237,7 +6237,7 @@ def _mlx_worker_loop_part_2_2(job, logger, logits_processors, strict_answer_cont
             if guard is not None:
                 logits_processors.append(guard)
             logger.info(
-                "🎯 [WORKER] Non-empty start guard %s (generate path).",
+                "[WORKER] Non-empty start guard %s (generate path).",
                 "ACTIVE" if guard is not None else "UNAVAILABLE",
             )
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
@@ -6373,7 +6373,7 @@ def _mlx_worker_loop(
                 logger.debug("mlx_lm sampler unavailable, decoding without one: %s", exc)
                 make_sampler = None
 
-        logger.info("📡 [WORKER] Loading Core modules...")
+        logger.info("[WORKER] Loading Core modules...")
 
     except ImportError:
         logger.error("mlx-lm not installed in worker environment.")
@@ -6450,7 +6450,7 @@ def _mlx_worker_loop(
                     severity="critical",
                 )
                 logger.warning(
-                    "⚠️ [WORKER] LoRA adapter failed to load for %s: %s. Using base model + prompt hardening.",
+                    "[WORKER] LoRA adapter failed to load for %s: %s. Using base model + prompt hardening.",
                     os.path.basename(model_path),
                     adapter_exc,
                 )
@@ -6602,7 +6602,7 @@ def _mlx_worker_loop(
                 # would burn a full GPU lane into a void while the parent
                 # times out against a silent child — exit visibly instead.
                 logger.critical(
-                    "🛑 [WORKER] Response pipe is broken; exiting so the parent "
+                    "[WORKER] Response pipe is broken; exiting so the parent "
                     "can detect death and respawn instead of timing out."
                 )
                 break
@@ -6620,10 +6620,10 @@ def _mlx_worker_loop(
                     idle_ticks = 0
                 continue
             except KeyboardInterrupt:
-                logger.info("🛑 [WORKER] Shutdown signal received while idle; exiting quietly.")
+                logger.info("[WORKER] Shutdown signal received while idle; exiting quietly.")
                 break
             except (EOFError, BrokenPipeError, OSError) as queue_exc:
-                logger.info("🛑 [WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
+                logger.info("[WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
                 break
             idle_ticks = 0
             if job is None:
@@ -6638,7 +6638,7 @@ def _mlx_worker_loop(
                     severity="warning",
                 )
                 logger.error(
-                    "🛑 [WORKER] Rejected malformed IPC job envelope of type %s.",
+                    "[WORKER] Rejected malformed IPC job envelope of type %s.",
                     type(job).__name__,
                 )
                 continue
@@ -6723,7 +6723,7 @@ def _mlx_worker_loop(
                         severity="error",
                     )
                     logger.error(
-                        "🛑 [WORKER] Job %s refused: %s",
+                        "[WORKER] Job %s refused: %s",
                         job.get("id"),
                         _contract_refusal,
                     )
@@ -6766,7 +6766,7 @@ def _mlx_worker_loop(
                     strict_envelope_prefixed = True
                 elif strict_value_contract:
                     if expected_strict_value:
-                        logger.info("🎯 [WORKER] Rendering exact strict-value prompt.")
+                        logger.info("[WORKER] Rendering exact strict-value prompt.")
                         prompt = _build_exact_strict_value_prompt(expected_strict_value)
                     else:
                         prompt = _build_strict_answer_retry_prompt(messages, prompt)
@@ -6781,7 +6781,7 @@ def _mlx_worker_loop(
                     )
                 elif messages and hasattr(tokenizer, "apply_chat_template"):
                     try:
-                        logger.info("🎯 [WORKER] Rendering native chat/tool template.")
+                        logger.info("[WORKER] Rendering native chat/tool template.")
                         from core.brain.llm.chat_format import (
                             conversation_append_messages,
                             conversation_resume_context_digest,
@@ -6812,7 +6812,7 @@ def _mlx_worker_loop(
                         # between an answer and a page of working, and nothing
                         # recorded it.
                         logger.info(
-                            "🎯 [WORKER] Native thinking %s (surface=%s floor=%s mode=%s effort=%s).",
+                            "[WORKER] Native thinking %s (surface=%s floor=%s mode=%s effort=%s).",
                             native_thinking,
                             bool(job.get("clean_user_surface_contract", False)),
                             job.get("user_surface_completion_floor"),
@@ -6890,7 +6890,7 @@ def _mlx_worker_loop(
                             action="continued generation with role-labeled fallback after native chat template failed",
                             severity="degraded",
                         )
-                        logger.warning("❌ [WORKER] Native template compilation failed: %s", e)
+                        logger.warning("[WORKER] Native template compilation failed: %s", e)
                         # NEVER the stale prompt variable: render the actual
                         # transcript deterministically so the model answers
                         # the admitted task.
@@ -6958,7 +6958,7 @@ def _mlx_worker_loop(
                 # [v11.0 HARDENING] Structured Generation Overrides
                 if schema:
                     temp = 0.0  # Force determinism for JSON
-                    logger.info("🎯 [WORKER] Structured mode: temp=0.0 enforced.")
+                    logger.info("[WORKER] Structured mode: temp=0.0 enforced.")
 
                 # Intelligence boosters: min_p sampling improves quality on smaller
                 # models by filtering out low-probability tokens before top_p.
@@ -7009,7 +7009,7 @@ def _mlx_worker_loop(
 
                         logits_processors.append(json_start_processor)
                         logger.info(
-                            "🎯 [WORKER] JSON start enforcement ACTIVE (%d openings).",
+                            "[WORKER] JSON start enforcement ACTIVE (%d openings).",
                             len(start_ids),
                         )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
@@ -7030,7 +7030,7 @@ def _mlx_worker_loop(
                     if semantic_terminal_guard is not None:
                         logits_processors.append(semantic_terminal_guard)
                     logger.info(
-                        "🧩 [WORKER] Semantic terminal guard %s (generate path).",
+                        "[WORKER] Semantic terminal guard %s (generate path).",
                         "ACTIVE" if semantic_terminal_guard is not None else "INACTIVE",
                     )
                 except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
@@ -7121,7 +7121,7 @@ def _mlx_worker_loop(
                                         psutil.virtual_memory().percent > 90
                                     ):  # 64GB — don't panic at 85%
                                         logger.warning(
-                                            "⚠️ High memory pressure detected in worker. Clearing MLX cache."
+                                            "High memory pressure detected in worker. Clearing MLX cache."
                                         )
                                         mx.clear_cache()
                                 except (ImportError, OSError, AttributeError):
@@ -7557,13 +7557,13 @@ def _mlx_worker_loop(
                                     if bool(job.get("semantic_completion_contract", False)):
                                         if semantic_terminal_guard is not None:
                                             logger.info(
-                                                "🧩 [WORKER] Semantic completion observer ACTIVE; "
+                                                "[WORKER] Semantic completion observer ACTIVE; "
                                                 "append-only continuation terminal held until the "
                                                 "assembled contract is satisfied."
                                             )
                                         else:
                                             logger.info(
-                                                "🧩 [WORKER] Semantic completion observer ACTIVE; "
+                                                "[WORKER] Semantic completion observer ACTIVE; "
                                                 "natural initial-branch termination remains available "
                                                 "while the typed contract is measured."
                                             )
@@ -7900,7 +7900,7 @@ def _mlx_worker_loop(
                                                     "Soft-cancel acknowledge write failed; continuing."
                                                 )
                                             logger.info(
-                                                "✋ [WORKER] Soft-cancel observed at token %d "
+                                                "[WORKER] Soft-cancel observed at token %d "
                                                 "(job seq=%d).",
                                                 token_count,
                                                 job_seq,
@@ -7926,7 +7926,7 @@ def _mlx_worker_loop(
                                             sentinel_signal = sentinel.feed(response.text)
                                             if sentinel_signal.type == InterventionType.ABORT_LOOP:
                                                 logger.warning(
-                                                    "🚨 [SENTINEL] Aborting loop at token %d: %s",
+                                                    "[SENTINEL] Aborting loop at token %d: %s",
                                                     token_count,
                                                     sentinel_signal.reason,
                                                 )
@@ -7939,7 +7939,7 @@ def _mlx_worker_loop(
                                                 == InterventionType.ABORT_ONTOLOGY_VIOLATION
                                             ):
                                                 logger.warning(
-                                                    "🚨 [SENTINEL] Aborting due to ontological violation at token %d: %s",
+                                                    "[SENTINEL] Aborting due to ontological violation at token %d: %s",
                                                     token_count,
                                                     sentinel_signal.reason,
                                                 )
@@ -7953,7 +7953,7 @@ def _mlx_worker_loop(
                                                 # Mid-generation abort: the LLM started capitulating.
                                                 # Replace response with deterministic refusal.
                                                 logger.warning(
-                                                    "🚨 [SENTINEL] Aborting generation at token %d: %s",
+                                                    "[SENTINEL] Aborting generation at token %d: %s",
                                                     token_count,
                                                     sentinel_signal.reason,
                                                 )
@@ -8005,7 +8005,7 @@ def _mlx_worker_loop(
                                                     token_count + 24
                                                 )
                                                 logger.info(
-                                                    "🧩 [WORKER] Deadline reached with all "
+                                                    "[WORKER] Deadline reached with all "
                                                     "semantic obligations complete; granting "
                                                     "bounded terminal grace through token %d.",
                                                     semantic_terminal_grace_token_ceiling,
@@ -8054,7 +8054,7 @@ def _mlx_worker_loop(
                                                 if not deadline_passed_while_working:
                                                     deadline_passed_while_working = True
                                                     logger.info(
-                                                        "⏳ [WORKER] Past the deadline at token "
+                                                        "[WORKER] Past the deadline at token "
                                                         "%d and still producing; letting it "
                                                         "finish. Bounded by the token ceiling, "
                                                         "the loop sentinel and native EOS, "
@@ -8063,7 +8063,7 @@ def _mlx_worker_loop(
                                                     )
                                             else:
                                                 logger.warning(
-                                                    "⏱️ [WORKER] Request deadline reached at "
+                                                    "[WORKER] Request deadline reached at "
                                                     "token %d; stopping decode cooperatively.",
                                                     token_count,
                                                 )
@@ -8120,7 +8120,7 @@ def _mlx_worker_loop(
                                         # an 8193rd token past the documented limit).
                                         if token_count >= 8192:
                                             logger.warning(
-                                                "🏁 [WORKER] Hard token limit (8192) reached. Truncating."
+                                                "[WORKER] Hard token limit (8192) reached. Truncating."
                                             )
                                             hard_token_limit_hit = True
                                             break
@@ -8148,7 +8148,7 @@ def _mlx_worker_loop(
                                             == InterventionType.ABORT_ONTOLOGY_VIOLATION
                                         ):
                                             logger.warning(
-                                                "🚨 [SENTINEL] Completed response failed "
+                                                "[SENTINEL] Completed response failed "
                                                 "ontology grounding: %s",
                                                 terminal_signal.reason,
                                             )
@@ -8182,7 +8182,7 @@ def _mlx_worker_loop(
                                         diag = sentinel.get_diagnostics()
                                         if diag["interventions"] > 0 or diag["drift_warnings"] > 0:
                                             logger.info(
-                                                "🛡️ [SENTINEL] Generation complete: %d interventions, "
+                                                "[SENTINEL] Generation complete: %d interventions, "
                                                 "%d drift warnings, %d affect pulses over %d tokens",
                                                 diag["interventions"],
                                                 diag["drift_warnings"],
@@ -8216,7 +8216,7 @@ def _mlx_worker_loop(
                                         )
                                         if trimmed_response != response_text:
                                             logger.warning(
-                                                "⚠️ [WORKER] Trimmed clipped/meta operator-evidence tail "
+                                                "[WORKER] Trimmed clipped/meta operator-evidence tail "
                                                 "(chars %d -> %d).",
                                                 len(response_text or ""),
                                                 len(trimmed_response or ""),
@@ -8275,7 +8275,7 @@ def _mlx_worker_loop(
                                             )
                                             if cancel_refusal:
                                                 logger.warning(
-                                                    "🚫 [WORKER] Cancelled partial failed a terminal "
+                                                    "[WORKER] Cancelled partial failed a terminal "
                                                     "contract (%s); withholding it.",
                                                     cancel_refusal,
                                                 )
@@ -8285,7 +8285,7 @@ def _mlx_worker_loop(
                                                     proof_contract_incomplete = True
                                                 response_text = ""
                                         logger.info(
-                                            "✋ [WORKER] %s honored for job seq=%d after %d tokens.",
+                                            "[WORKER] %s honored for job seq=%d after %d tokens.",
                                             ("Deadline stop" if deadline_hit else "Soft-cancel"),
                                             job_seq,
                                             token_count,
@@ -8298,7 +8298,7 @@ def _mlx_worker_loop(
                                     ):
                                         if internal_attempt < max_internal_retries:
                                             logger.warning(
-                                                "⚠️ [WORKER] Incomplete proof/evaluation response on attempt %s "
+                                                "[WORKER] Incomplete proof/evaluation response on attempt %s "
                                                 "(tokens=%d, chars=%d, role_stop=%s). Retrying with stricter prompt.",
                                                 internal_attempt + 1,
                                                 token_count,
@@ -8316,7 +8316,7 @@ def _mlx_worker_loop(
                                             _prepare_clean_retry_kwargs(kwargs, structured=False)
                                             continue
                                         logger.warning(
-                                            "🚨 [WORKER] Proof/evaluation response remained incomplete after retries."
+                                            "[WORKER] Proof/evaluation response remained incomplete after retries."
                                         )
                                         # The draft is still delivered (a partial
                                         # proof may hold scoreable content), but the
@@ -8341,13 +8341,13 @@ def _mlx_worker_loop(
                                                 "model_contribution_insufficient"
                                             )
                                         logger.warning(
-                                            "⚠️ [WORKER] Rejected operator-evidence draft reasons=%s excerpt=%r",
+                                            "[WORKER] Rejected operator-evidence draft reasons=%s excerpt=%r",
                                             ",".join(rejection_reasons[:8]) or "unknown",
                                             str(response_text or "").strip()[:360],
                                         )
                                         if internal_attempt < max_internal_retries:
                                             logger.warning(
-                                                "⚠️ [WORKER] Incomplete operator-evidence response on attempt %s "
+                                                "[WORKER] Incomplete operator-evidence response on attempt %s "
                                                 "(tokens=%d, chars=%d, role_stop=%s). Retrying with stricter prompt.",
                                                 internal_attempt + 1,
                                                 token_count,
@@ -8367,7 +8367,7 @@ def _mlx_worker_loop(
                                             _prepare_clean_retry_kwargs(kwargs, structured=False)
                                             continue
                                         logger.warning(
-                                            "🚨 [WORKER] Operator-evidence response remained incomplete after retries."
+                                            "[WORKER] Operator-evidence response remained incomplete after retries."
                                         )
                                         response_text = ""
                                         break
@@ -8378,7 +8378,7 @@ def _mlx_worker_loop(
                                             response_text,
                                         ):
                                             logger.warning(
-                                                "🛡️ [WORKER] Preserving %d clean chars after "
+                                                "[WORKER] Preserving %d clean chars after "
                                                 "a late loop abort instead of restarting from token zero.",
                                                 len(str(response_text or "")),
                                             )
@@ -8388,7 +8388,7 @@ def _mlx_worker_loop(
                                             sentinel_loop_aborted = False
                                         elif internal_attempt < max_internal_retries:
                                             logger.warning(
-                                                "⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt %s)...",
+                                                "[WORKER] Retrying generation cleanly after loop abort (attempt %s)...",
                                                 internal_attempt + 1,
                                             )
                                             if prompt_cache_lru is not None:
@@ -8406,7 +8406,7 @@ def _mlx_worker_loop(
                                             continue
                                         else:
                                             logger.warning(
-                                                "🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix."
+                                                "[WORKER] Out of retries for loop abort. Returning truncated prefix."
                                             )
                                             break
 
@@ -8432,7 +8432,7 @@ def _mlx_worker_loop(
                                         if ontology_retry_allowed:
                                             ontology_retry_count += 1
                                             logger.warning(
-                                                "⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt %s)...",
+                                                "[WORKER] Retrying generation cleanly after ontological violation (attempt %s)...",
                                                 internal_attempt + 1,
                                             )
                                             if prompt_cache_lru is not None:
@@ -8446,7 +8446,7 @@ def _mlx_worker_loop(
                                             continue
                                         else:
                                             logger.warning(
-                                                "🚨 [WORKER] Ontology repair unavailable or exhausted "
+                                                "[WORKER] Ontology repair unavailable or exhausted "
                                                 "(attempts=%d deadline_open=%s wall_open=%s). "
                                                 "Returning bounded refusal.",
                                                 ontology_retry_count,
@@ -8470,7 +8470,7 @@ def _mlx_worker_loop(
                                         # Cut off by its own ceiling, a draft is written the same way again (LIVE 3 Oct 03:57).
                                         elif internal_attempt < max_internal_retries and token_count < max_tokens:
                                             logger.warning(
-                                                "⚠️ [WORKER] Structured output failed schema validation "
+                                                "[WORKER] Structured output failed schema validation "
                                                 "on attempt %s (%s). Retrying.",
                                                 internal_attempt + 1,
                                                 schema_fail,
@@ -8487,7 +8487,7 @@ def _mlx_worker_loop(
                                             # work — the parent decides.
                                             schema_validation_failed = schema_fail
                                             logger.warning(
-                                                "🚨 [WORKER] Structured output still schema-invalid "
+                                                "[WORKER] Structured output still schema-invalid "
                                                 "after retries (%s).",
                                                 schema_fail,
                                             )
@@ -8505,7 +8505,7 @@ def _mlx_worker_loop(
                                         )
                                         if sanitizer_reasons:
                                             logger.warning(
-                                                "🚨 [WORKER] Strict answer draft failed sanitizer "
+                                                "[WORKER] Strict answer draft failed sanitizer "
                                                 "reasons=%s.",
                                                 ",".join(sanitizer_reasons[:8]),
                                             )
@@ -8550,7 +8550,7 @@ def _mlx_worker_loop(
                                             )
                                             if sanitizer_reasons:
                                                 logger.warning(
-                                                    "🚨 [WORKER] Strict value draft failed sanitizer "
+                                                    "[WORKER] Strict value draft failed sanitizer "
                                                     "after normalization reasons=%s.",
                                                     ",".join(sanitizer_reasons[:8]),
                                                 )
@@ -8562,7 +8562,7 @@ def _mlx_worker_loop(
                                             and not response_text.strip()
                                         ):
                                             logger.warning(
-                                                "⚠️ [WORKER] Strict value draft rejected: %r",
+                                                "[WORKER] Strict value draft rejected: %r",
                                                 raw_strict_value_text.strip()[:160],
                                             )
                                     else:
@@ -8581,14 +8581,14 @@ def _mlx_worker_loop(
                                         if sanitizer_reasons:
                                             if response_text:
                                                 logger.warning(
-                                                    "⚠️ [WORKER] Live draft failed telemetry sanitizer "
+                                                    "[WORKER] Live draft failed telemetry sanitizer "
                                                     "reasons=%s; routing the intact draft through "
                                                     "bounded authored surface repair.",
                                                     ",".join(sanitizer_reasons[:8]),
                                                 )
                                             else:
                                                 logger.warning(
-                                                    "🚨 [WORKER] Draft failed telemetry sanitizer "
+                                                    "[WORKER] Draft failed telemetry sanitizer "
                                                     "reasons=%s; strict caller-side recovery required.",
                                                     ",".join(sanitizer_reasons[:8]),
                                                 )
@@ -8796,7 +8796,7 @@ def _mlx_worker_loop(
                                                 )
                                                 if inventory_grounded:
                                                     logger.warning(
-                                                        "🛡️ [WORKER] Waiving thin-response reasons for a "
+                                                        "[WORKER] Waiving thin-response reasons for a "
                                                         "grounded capability inventory draft; downstream "
                                                         "deterministic completion finishes the tail."
                                                     )
@@ -8831,7 +8831,7 @@ def _mlx_worker_loop(
                                                     ),
                                                 ):
                                                     logger.info(
-                                                        "🛡️ [WORKER] Expanded same-worker live reply budget to %s "
+                                                        "[WORKER] Expanded same-worker live reply budget to %s "
                                                         "after structural truncation.",
                                                         kwargs.get("max_tokens"),
                                                     )
@@ -8866,7 +8866,7 @@ def _mlx_worker_loop(
                                                 # a turn with none is worse. LIVE 25 November 2026, 02:00: asked how to keep
                                                 # basil alive, as she had been the evening before, she answered it twice in 70 s
                                                 # and the person was given nothing.
-                                                logger.info("🛡️ [WORKER] The same answer again, asked twice: it is hers, and it is served.")
+                                                logger.info("[WORKER] The same answer again, asked twice: it is hers, and it is served.")
                                                 surface_control_state["surface_quality_gate_passed"] = True
                                                 surface_control_state["surface_quality_gate_reasons"] = []
                                                 surface_control_state["surface_quality_gate_exemption"] = "the_same_answer_asked_twice"
@@ -8874,7 +8874,7 @@ def _mlx_worker_loop(
                                             salvaged = _mlx_worker_loop_part_19(job, logger, original_messages, original_prompt, rejection_reasons, response_text)
                                             if salvaged:
                                                 logger.info(
-                                                    "🛡️ [WORKER] Salvaged a clean brief reply after generic-language "
+                                                    "[WORKER] Salvaged a clean brief reply after generic-language "
                                                     "retries instead of yielding zero tokens."
                                                 )
                                                 append_text_mutation(
@@ -8920,7 +8920,7 @@ def _mlx_worker_loop(
                                     if strict_answer_contract or strict_value_contract:
                                         if internal_attempt < max_internal_retries:
                                             logger.warning(
-                                                "⚠️ [WORKER] Empty strict response on attempt %s. Retrying...",
+                                                "[WORKER] Empty strict response on attempt %s. Retrying...",
                                                 internal_attempt + 1,
                                             )
                                             if internal_attempt == 0 or strict_value_contract:
@@ -8943,12 +8943,12 @@ def _mlx_worker_loop(
                                             _prepare_clean_retry_kwargs(kwargs, structured=True)
                                             continue
                                         logger.warning(
-                                            "🚨 [WORKER] Strict contract exhausted internal retries."
+                                            "[WORKER] Strict contract exhausted internal retries."
                                         )
                                         break
 
                                     logger.warning(
-                                        "⚠️ [WORKER] Empty structured response on attempt %s. Retrying...",
+                                        "[WORKER] Empty structured response on attempt %s. Retrying...",
                                         internal_attempt + 1,
                                     )
                                 finally:
@@ -9356,7 +9356,7 @@ def _mlx_worker_loop(
                     if semantic_terminal_guard is not None:
                         logits_processors.append(semantic_terminal_guard)
                     logger.info(
-                        "🧩 [WORKER] Semantic terminal guard %s (stream path).",
+                        "[WORKER] Semantic terminal guard %s (stream path).",
                         "ACTIVE" if semantic_terminal_guard is not None else "INACTIVE",
                     )
                 except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
@@ -9498,7 +9498,7 @@ def _mlx_worker_loop(
                                             # the ontology hard stop had no
                                             # effect on this live path.
                                             logger.warning(
-                                                "🚨 [SENTINEL-STREAM] Aborting (%s) at token %d: %s",
+                                                "[SENTINEL-STREAM] Aborting (%s) at token %d: %s",
                                                 sentinel_signal.type,
                                                 token_count,
                                                 sentinel_signal.reason,
@@ -9523,7 +9523,7 @@ def _mlx_worker_loop(
                                             InterventionType.ABORT_BOUNDARY,
                                         ):
                                             logger.warning(
-                                                "🚨 [SENTINEL-STREAM] Aborting at token %d: %s",
+                                                "[SENTINEL-STREAM] Aborting at token %d: %s",
                                                 token_count,
                                                 sentinel_signal.reason,
                                             )
@@ -9561,7 +9561,7 @@ def _mlx_worker_loop(
                                     # 8193rd token is never visible.
                                     if token_count > 8192:
                                         logger.warning(
-                                            "🏁 [WORKER] Hard token limit (8192) reached. Truncating."
+                                            "[WORKER] Hard token limit (8192) reached. Truncating."
                                         )
                                         break
 
@@ -9890,7 +9890,7 @@ def _mlx_worker_loop(
                             }
                         )
                         logger.info(
-                            "🧩 [WORKER] Expert adapter %s (%d layers wrapped, %d restored).",
+                            "[WORKER] Expert adapter %s (%d layers wrapped, %d restored).",
                             expert_adapter_state["path"] or "DETACHED",
                             len(expert_adapter_state["wrapped"]),
                             detached,
@@ -10259,7 +10259,7 @@ def _mlx_worker_loop(
             )
             ipc_writer.put(cancelled.terminal_frame())
         except KeyboardInterrupt:
-            logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
+            logger.info("[WORKER] Shutdown signal received; exiting quietly.")
             break
         except Exception as e:  # noqa: BLE001 — a job without an answer is worse
             # `locals()` here, because this IS the frame that binds them and

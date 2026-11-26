@@ -123,13 +123,13 @@ def main(argv: list[str]) -> int:
         return written
 
     if not BASELINE.is_file():
-        print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
+        print(f"no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
         return 1
 
     baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     allowed = int(baseline.get("total_patterns", 0))
     if patterns > allowed:
-        print(f"\n❌ output-filter patterns rose: {allowed} -> {patterns}")
+        print(f"\noutput-filter patterns rose: {allowed} -> {patterns}")
         previous = baseline.get("by_file") or {}
         for name, stats in current["by_file"].items():
             was = int((previous.get(name) or {}).get("compiled_patterns", 0))
@@ -143,11 +143,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     if patterns < allowed:
-        print(f"\n⬇️  output-filter patterns fell: {allowed} -> {patterns}")
+        print(f"\n output-filter patterns fell: {allowed} -> {patterns}")
         print("    refresh with: python tools/lint_lexical_debt.py --write-baseline")
         return 1
 
-    print("\n✅ output-filter patterns held at baseline")
+    print("\noutput-filter patterns held at baseline")
     return 0
 
 

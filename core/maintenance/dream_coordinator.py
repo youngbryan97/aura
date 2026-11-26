@@ -113,7 +113,7 @@ class DreamCoordinator:
             self._run_count[name] = self._run_count.get(name, 0) + 1
             self._pending.pop(name, None)
             logger.info(
-                "🌙 DreamCoordinator: running '%s' (run #%d, priority=%d)",
+                "DreamCoordinator: running '%s' (run #%d, priority=%d)",
                 name, self._run_count[name], priority,
             )
             started = time.monotonic()
@@ -121,7 +121,7 @@ class DreamCoordinator:
                 await coro_factory()
                 elapsed = time.monotonic() - started
                 self._last_run[name] = time.monotonic()
-                logger.info("✅ DreamCoordinator: '%s' complete in %.1fs", name, elapsed)
+                logger.info("DreamCoordinator: '%s' complete in %.1fs", name, elapsed)
                 return True
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 elapsed = time.monotonic() - started

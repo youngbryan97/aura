@@ -55,18 +55,18 @@ class SwarmProtocol:
                 await self._close_listener()
                 raise
         except (PermissionError, OSError, TimeoutError) as exc:
-            logger.warning("🕸️ SwarmProtocol bind failed on %s:%d (%s). Running offline.", bind_host, self.port, exc)
+            logger.warning("SwarmProtocol bind failed on %s:%d (%s). Running offline.", bind_host, self.port, exc)
             self._server = None
             self.offline_only = True
         except (RuntimeError, asyncio.CancelledError, AttributeError) as exc:
-            logger.warning("🕸️ SwarmProtocol unexpected bind error: %s. Running offline.", exc)
+            logger.warning("SwarmProtocol unexpected bind error: %s. Running offline.", exc)
             self._server = None
             self.offline_only = True
         self.host = bind_host
         self._mood_broadcast_task = get_task_tracker().create_task(self._broadcast_loop())
         if self.offline_only:
-            logger.warning("🕸️ Mycelial Swarm running in offline-only mode; socket binding unavailable.")
-        logger.info(f"🕸️ Mycelial Swarm active on %s:%d (Node: {self.node_id})", self.host, self.port)
+            logger.warning("Mycelial Swarm running in offline-only mode; socket binding unavailable.")
+        logger.info(f"Mycelial Swarm active on %s:%d (Node: {self.node_id})", self.host, self.port)
 
     async def stop(self):
         self.running = False
@@ -145,7 +145,7 @@ class SwarmProtocol:
         elif msg_type == "skill_verification":
             # Consensus Gating: Verify a forged skill
             skill_id = message.get("skill_id")
-            logger.info("🤝 Swarm Consensus requested for skill: %s", skill_id)
+            logger.info("Swarm Consensus requested for skill: %s", skill_id)
             # Automatically approve for now (In real AGI, other nodes would run tests)
             await self.broadcast({"type": "skill_approved", "skill_id": skill_id, "node_id": self.node_id})
 

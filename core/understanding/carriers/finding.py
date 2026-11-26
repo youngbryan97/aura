@@ -162,7 +162,7 @@ async def wanted_by(request: Request, ask: Any) -> Wanted | None:
     source = request.whole + "\n" + "\n".join(text for _name, text in _materials(request))
     own = [need for need in read.needs if quoted_in(need.quote, source)]
     if len(own) < len(read.needs):
-        logger.info("🔎 %d of %d needs were not in the person's words and are not asked of anything.",
+        logger.info("%d of %d needs were not in the person's words and are not asked of anything.",
                     len(read.needs) - len(own), len(read.needs))
     read.needs = own
     read.queries = list(dict.fromkeys(q.strip() for q in read.queries if q.strip()))
@@ -223,7 +223,7 @@ async def _rendered(url: str) -> PageSays | None:
         says = page_says(await browser.page.content(), url)
         return says if says.things or len(says.text) >= 600 else None
     except Exception as exc:  # noqa: BLE001 - one page is optional, whatever its scripts raise
-        logger.info("🔎 %s could not be read in her browser: %s", url[:120], type(exc).__name__)
+        logger.info("%s could not be read in her browser: %s", url[:120], type(exc).__name__)
         return None
     finally:
         await browser.close()

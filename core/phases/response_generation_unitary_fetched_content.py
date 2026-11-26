@@ -94,7 +94,7 @@ def _bind_fetched_content_to_the_contract(
                 )
             )
             logger.info(
-                "📚 Background formalization task spawned for '%s'", page_title[:60]
+                "Background formalization task spawned for '%s'", page_title[:60]
             )
         except _RESPONSE_RECOVERABLE_ERRORS as formal_exc:
             _record_response_degradation(

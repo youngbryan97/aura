@@ -970,7 +970,7 @@ def _rebind_client_registry_key(previous: str, target: str, client: Any) -> bool
         occupant = _CLIENTS.get(new_key)
         if occupant is not None and occupant is not client:
             logger.warning(
-                "🧬 [MLX] Promotion target %s already has a distinct client; "
+                "[MLX] Promotion target %s already has a distinct client; "
                 "left the registry alone.",
                 os.path.basename(new_key),
             )
@@ -1388,7 +1388,7 @@ def _finite_env_float(
         return default
     if maximum is not None and value > maximum:
         logger.warning(
-            "⚙️ [MLX] %s=%s exceeds the %.0fs ceiling; using the default %.1fs.",
+            "[MLX] %s=%s exceeds the %.0fs ceiling; using the default %.1fs.",
             name,
             value,
             maximum,
@@ -1961,7 +1961,7 @@ def _note_lane_worker_death(client: Any, reason: str) -> None:
         )
         if reaped:
             logger.warning(
-                "🧹 Reaped %d orphaned model-load admission lease(s) for dead %s worker (%s).",
+                "Reaped %d orphaned model-load admission lease(s) for dead %s worker (%s).",
                 reaped,
                 lane,
                 reason,
@@ -2514,7 +2514,7 @@ def _shutdown_blocks_model_work(model_path: str, *, action: str) -> bool:
         detail="shutdown_latch",
     )
     logger.info(
-        "🛑 [MLX] %s skipped for %s: runtime shutdown is latched.",
+        "[MLX] %s skipped for %s: runtime shutdown is latched.",
         action,
         os.path.basename(str(model_path or "")) or "unknown-model",
     )
@@ -2950,7 +2950,7 @@ def _tool_call_budget(requested: Any, configured: Any, tools: Any) -> int:
     # declined to call look identical from everywhere downstream, and the
     # number that decides between them was never written anywhere.
     logger.info(
-        "🔧 Tool-call budget: asked=%d configured=%d carries_a_document=%s → %d",
+        "Tool-call budget: asked=%d configured=%d carries_a_document=%s → %d",
         asked,
         ceiling,
         carries,
@@ -3859,7 +3859,7 @@ def force_clear_foreground_owner(
         if _FOREGROUND_OWNER_NAME != holder or _FOREGROUND_OWNER_ACQUIRED_AT != acquired_at:
             current = _FOREGROUND_OWNER_NAME
             logger.info(
-                "♻️ [MLX] Foreground owner changed during cancel (%s → %s); "
+                "[MLX] Foreground owner changed during cancel (%s → %s); "
                 "leaving the new owner alone.",
                 holder,
                 current,
@@ -3879,7 +3879,7 @@ def force_clear_foreground_owner(
         _FOREGROUND_OWNER_HEARTBEAT_MONOTONIC = 0.0
 
     logger.warning(
-        "♻️ [MLX] Force-cleared foreground owner %s after %.1fs (%s).",
+        "[MLX] Force-cleared foreground owner %s after %.1fs (%s).",
         holder,
         age,
         reason,
@@ -3924,7 +3924,7 @@ def soft_cancel_active_generations(
     ]
     if wanted and not targeted:
         logger.info(
-            "🧹 [MLX] No client claims foreground owner %s; cancelling every active "
+            "[MLX] No client claims foreground owner %s; cancelling every active "
             "generation for %s.",
             wanted,
             reason,
@@ -4059,7 +4059,7 @@ async def _foreground_owner_context(
                 _FOREGROUND_OWNER_LOCK.release()
         if cleared_holder is not None and preempted_background:
             logger.info(
-                "⚡ [MLX] A person is waiting: took the lane from background "
+                "[MLX] A person is waiting: took the lane from background "
                 "holder %s (held %.1fs) for %s.",
                 cleared_holder,
                 cleared_holder_age,
@@ -4069,7 +4069,7 @@ async def _foreground_owner_context(
             continue
         if cleared_holder is not None:
             logger.warning(
-                "♻️ [MLX] Cleared stale foreground owner %s after %.1fs so %s can proceed.",
+                "[MLX] Cleared stale foreground owner %s after %.1fs so %s can proceed.",
                 cleared_holder,
                 cleared_holder_age,
                 owner_name,
@@ -4090,7 +4090,7 @@ async def _foreground_owner_context(
             holder = _FOREGROUND_OWNER_NAME or "foreground"
             holder_age = _foreground_owner_age()
             logger.info(
-                "⏳ [MLX] Waiting for foreground owner %s to release (held %.1fs).",
+                "[MLX] Waiting for foreground owner %s to release (held %.1fs).",
                 holder,
                 holder_age,
             )
@@ -4152,7 +4152,7 @@ async def _foreground_owner_context(
                 severity="error",
             )
             logger.warning(
-                "⚠️ [MLX] Timed out releasing foreground owner lock for %s — self-cleared.",
+                "[MLX] Timed out releasing foreground owner lock for %s — self-cleared.",
                 owner_name,
             )
 
@@ -4476,13 +4476,13 @@ def _run_probe_until_its_work_is_done(
         cpu = getattr(completed, "cpu_seconds", None)
         if cpu is not None:
             logger.info(
-                "🔬 [MLX] Runtime probe finished in %.1fs of wall on %.1fs of CPU (a %.0f%% share).",
+                "[MLX] Runtime probe finished in %.1fs of wall on %.1fs of CPU (a %.0f%% share).",
                 wall,
                 cpu,
                 100.0 * cpu / max(1e-6, wall),
             )
         else:
-            logger.info("🔬 [MLX] Runtime probe finished in %.1fs of wall.", wall)
+            logger.info("[MLX] Runtime probe finished in %.1fs of wall.", wall)
     return completed
 
 
@@ -4552,7 +4552,7 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
 
             # If it's a known enumeration crash, we might want to retry immediately
             if not ok and detail == "metal_device_enumeration_crash" and probe_attempt == 0:
-                logger.warning("⚠️ [MLX] Metal device enumeration crash during probe. Retrying...")
+                logger.warning("[MLX] Metal device enumeration crash during probe. Retrying...")
                 time.sleep(1.0)
                 continue
 
@@ -4611,7 +4611,7 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
                 severity="warning",
             )
             logger.warning(
-                "♻️ [MLX] Runtime probe hit an enumeration crash; bridging with a "
+                "[MLX] Runtime probe hit an enumeration crash; bridging with a "
                 "last-known-good status from %.0fs ago (use %d/%d).",
                 age_s,
                 lkg_uses + 1,
@@ -5675,7 +5675,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 setattr(self, attr, value + sleep_gap)
         if sleep_measured and clock_shift > max(1.0, threshold):
             logger.warning(
-                "🕐 [MLX] Wall clock moved %.1fs without host sleep (slept %.1fs); "
+                "[MLX] Wall clock moved %.1fs without host sleep (slept %.1fs); "
                 "rebased active inference clocks by %.1fs.",
                 clock_shift,
                 slept,
@@ -5683,7 +5683,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             )
         else:
             logger.info(
-                "🌙 [MLX] Host resume detected; rebased active inference clocks by %.1fs.",
+                "[MLX] Host resume detected; rebased active inference clocks by %.1fs.",
                 sleep_gap,
             )
         return sleep_gap
@@ -6125,7 +6125,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             classification="non_critical_fallback",
         )
         logger.warning(
-            "🛡️ [MLX] Optional deep Solver worker refused by memory guard for %s: %s. "
+            "[MLX] Optional deep Solver worker refused by memory guard for %s: %s. "
             "Keeping primary Cortex authoritative.",
             os.path.basename(self.model_path),
             detail,
@@ -6524,7 +6524,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     timer.start()
                     return
                 logger.error(
-                    "🛑 [MLX] Out-of-band first-token watchdog aborting %s "
+                    "[MLX] Out-of-band first-token watchdog aborting %s "
                     "(%.1fs elapsed, hard=%.1fs).",
                     model_name,
                     elapsed,
@@ -6595,7 +6595,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 return False
             if self._soft_cancel_ack_matches(target):
                 logger.info(
-                    "✋ [MLX] First-token overrun on %s ended cooperatively — "
+                    "[MLX] First-token overrun on %s ended cooperatively — "
                     "worker and model kept warm.",
                     os.path.basename(self.model_path),
                 )
@@ -6606,7 +6606,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 return True
             time.sleep(0.05)
         logger.warning(
-            "🛑 [MLX] Soft-cancel unacknowledged after %.1fs on %s — the worker "
+            "[MLX] Soft-cancel unacknowledged after %.1fs on %s — the worker "
             "is not decoding; escalating to abort.",
             _WATCHDOG_ENFORCEMENT_SLACK_S,
             os.path.basename(self.model_path),
@@ -6710,7 +6710,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             stale_owner = _clear_stale_foreground_owner()
             if stale_owner:
                 logger.warning(
-                    "♻️ [MLX] Cleared stale foreground owner %s during lane status check.",
+                    "[MLX] Cleared stale foreground owner %s during lane status check.",
                     stale_owner,
                 )
         self._check_lane_state_staleness()  # [STABILITY v54] Eagerly check and reset stuck/stale lane states
@@ -7031,12 +7031,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         recovered = bool(runtime_error) or (backoff_active and clears_backoff)
         if recovered:
             logger.info(
-                "♻️ [MLX] Runtime probe recovered for %s. Clearing failed lane/backoff state.",
+                "[MLX] Runtime probe recovered for %s. Clearing failed lane/backoff state.",
                 os.path.basename(self.model_path),
             )
         elif backoff_active:
             logger.info(
-                "⏳ [MLX] Runtime is healthy for %s but the spawn backoff came from "
+                "[MLX] Runtime is healthy for %s but the spawn backoff came from "
                 "%s, which a runtime probe cannot clear. Backoff stands.",
                 os.path.basename(self.model_path),
                 backoff_cause,
@@ -7111,7 +7111,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 maintenance_preempt_requested = bool(receipt.get("requested"))
                 if maintenance_preempt_requested:
                     logger.info(
-                        "⏭️ [MLX] Foreground request preempted bounded "
+                        "[MLX] Foreground request preempted bounded "
                         "non-parametric maintenance on %s.",
                         os.path.basename(self.model_path),
                     )
@@ -7123,7 +7123,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     else 0.0
                 )
                 logger.info(
-                    "⏳ [MLX] Waiting for in-flight request on %s (owner=%s, held %.1fs).",
+                    "[MLX] Waiting for in-flight request on %s (owner=%s, held %.1fs).",
                     os.path.basename(self.model_path),
                     holder,
                     holder_age,
@@ -7153,7 +7153,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             else 0.0
         )
         logger.warning(
-            "⏳ [MLX] Request queue timeout after %.1fs for %s while waiting on %s (held %.1fs).",
+            "[MLX] Request queue timeout after %.1fs for %s while waiting on %s (held %.1fs).",
             wait_budget,
             os.path.basename(self.model_path),
             holder,
@@ -7177,7 +7177,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 )
                 if heartbeat_age > 30.0:
                     logger.error(
-                        "🛑 [MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs, no heartbeat for %.1fs). "
+                        "[MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs, no heartbeat for %.1fs). "
                         "Cancelling in-flight future and scheduling worker reboot.",
                         holder,
                         holder_age,
@@ -7187,7 +7187,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
                 else:
                     logger.warning(
-                        "🛡️ [MLX] Holder %s slow (age=%.1fs > sla=%.1fs) but heartbeat fresh (%.1fs ago). "
+                        "[MLX] Holder %s slow (age=%.1fs > sla=%.1fs) but heartbeat fresh (%.1fs ago). "
                         "Cancelling generation and scheduling a clean recycle so stale text cannot bleed into the next turn.",
                         holder,
                         holder_age,
@@ -7206,14 +7206,14 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     )
                     if stuck_future is None or stuck_future is not victim_future:
                         logger.info(
-                            "🛡️ [MLX] Holder changed during preemption "
+                            "[MLX] Holder changed during preemption "
                             "(%s -> %s); leaving the new generation alone.",
                             victim_request_id or "unknown",
                             current_request_id or "none",
                         )
                     elif victim_request_id and current_request_id != victim_request_id:
                         logger.info(
-                            "🛡️ [MLX] Request id changed during preemption "
+                            "[MLX] Request id changed during preemption "
                             "(%s -> %s); leaving the new generation alone.",
                             victim_request_id,
                             current_request_id or "none",
@@ -7310,7 +7310,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             owner_label=detached_owner,
             owner_token=str(request_id),
         )
-        logger.info("🔤 [ENCODE] listener retired detached request %s (lane_released=%s).", str(request_id)[:12], released)
+        logger.info("[ENCODE] listener retired detached request %s (lane_released=%s).", str(request_id)[:12], released)
         return True
 
     def _release_request_lock_if_aborted(self, reason: str) -> None:
@@ -7341,7 +7341,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 self._release_request_lock_locked()
         if still_held_by:
             logger.warning(
-                "🛑 [MLX] Force-abort (%s) left the request lane held by %s — "
+                "[MLX] Force-abort (%s) left the request lane held by %s — "
                 "its own holder must release it.",
                 reason,
                 still_held_by,
@@ -7401,7 +7401,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         self._release_request_lock_if_aborted(str(reason))
         self._clear_detached_worker_requests()
         logger.warning(
-            "🧹 [MLX] Reconciled deferred force-abort state for %s (%s).",
+            "[MLX] Reconciled deferred force-abort state for %s (%s).",
             os.path.basename(self.model_path),
             reason,
         )
@@ -7434,7 +7434,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 held_ms = (time.perf_counter() - started) * 1000.0
                 if held_ms >= _LANE_STATE_HOLD_WORTH_NAMING_MS and site:
                     logger.info(
-                        "🔒 [MLX] lane-state guard held %.0fms by %s.", held_ms, site
+                        "[MLX] lane-state guard held %.0fms by %s.", held_ms, site
                     )
 
     def _release_request_lock_locked(self) -> None:
@@ -7639,7 +7639,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # The REQUEST is what is stuck, not the model. Cancel it and
                 # leave the weights loaded.
                 logger.warning(
-                    "🔧 [STABILITY] Lane '%s' stuck %.0fs but worker is %s — "
+                    "[STABILITY] Lane '%s' stuck %.0fs but worker is %s — "
                     "cancelling the request instead of killing the worker.",
                     self._lane_state, stuck_duration, verdict,
                 )
@@ -7649,7 +7649,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     logger.debug("soft cancel during stale-lane reset failed: %s", exc)
             else:
                 logger.warning(
-                    "🔧 [STABILITY] Lane '%s' stuck %.0fs but worker is %s — "
+                    "[STABILITY] Lane '%s' stuck %.0fs but worker is %s — "
                     "resetting lane bookkeeping WITHOUT killing the worker.",
                     self._lane_state, stuck_duration, verdict,
                 )
@@ -7660,7 +7660,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             return
 
         logger.warning(
-            "🔧 [STABILITY] Lane state '%s' of %s stuck for %.0fs with no activity "
+            "[STABILITY] Lane state '%s' of %s stuck for %.0fs with no activity "
             "(%s). Force-resetting to 'cold' for clean recovery.",
             self._lane_state, os.path.basename(str(getattr(self, "model_path", "") or "")) or "no model",
             stuck_duration,
@@ -7777,7 +7777,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             if not any(candidate is process for candidate in survivors):
                 survivors.append(process)
             logger.error(
-                "🧟 [MLX] Worker pid=%s survived kill during %s; keeping the handle "
+                "[MLX] Worker pid=%s survived kill during %s; keeping the handle "
                 "so it stays tracked instead of orphaned.",
                 getattr(process, "pid", "?"),
                 reason,
@@ -8188,7 +8188,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 "detail": f"cancel_write_failed:{type(exc).__name__}",
             }
         logger.info(
-            "✋ [MLX] Soft-cancel requested for job seq=%d on %s (%s).",
+            "[MLX] Soft-cancel requested for job seq=%d on %s (%s).",
             active_seq,
             os.path.basename(self.model_path),
             reason,
@@ -8327,7 +8327,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         if recoverable and reason in self._SOFT_CANCEL_PRESERVABLE_REASONS:
             if await self._soft_cancel_acknowledged():
                 logger.info(
-                    "♻️✅ [MLX] Worker acknowledged soft-cancel after %s — warm lane preserved, no reboot.",
+                    "[MLX] Worker acknowledged soft-cancel after %s — warm lane preserved, no reboot.",
                     reason,
                 )
                 self._record_degraded_event(
@@ -8338,7 +8338,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 )
                 return
             logger.warning(
-                "🛑 [MLX] No soft-cancel acknowledgement after %s — worker presumed wedged; rebooting.",
+                "[MLX] No soft-cancel acknowledgement after %s — worker presumed wedged; rebooting.",
                 reason,
             )
         # The reboot IS the remedy for a wedged or dead worker: the process
@@ -8392,7 +8392,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             active_id = str(getattr(self, "_current_request_id", "") or "")
             if active_id != str(expected_request_id):
                 logger.info(
-                    "🛈 [MLX] Abort for %s targets request %s but %s is running; "
+                    "[MLX] Abort for %s targets request %s but %s is running; "
                     "leaving the worker alone.",
                     os.path.basename(self.model_path),
                     str(expected_request_id)[:12],
@@ -8403,7 +8403,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             active_seq = int(getattr(self, "_current_request_seq", 0) or 0)
             if active_seq != int(expected_request_seq):
                 logger.info(
-                    "🛈 [MLX] Abort for %s targets generation seq %d but seq %d is "
+                    "[MLX] Abort for %s targets generation seq %d but seq %d is "
                     "running; leaving the worker alone.",
                     os.path.basename(self.model_path),
                     int(expected_request_seq),
@@ -8438,7 +8438,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 else logger.warning
             )
             level(
-                "🛈 [MLX] Abort for %s arrived with no active generation (%s); "
+                "[MLX] Abort for %s arrived with no active generation (%s); "
                 "nothing to abort, leaving the worker up.",
                 os.path.basename(self.model_path),
                 reason,
@@ -8454,7 +8454,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             return False
 
         logger.error(
-            "🛑 [MLX] Force-aborting active generation for %s (%s).",
+            "[MLX] Force-aborting active generation for %s (%s).",
             os.path.basename(self.model_path),
             reason,
         )
@@ -8496,7 +8496,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         worker_survived = False
         if process is not None:
             logger.error(
-                "🛑 [MLX] Stopping worker immediately for forced abort before lifecycle lock cleanup (%s).",
+                "[MLX] Stopping worker immediately for forced abort before lifecycle lock cleanup (%s).",
                 reason,
             )
             _note_lane_worker_death(self, reason)
@@ -8512,7 +8512,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             worker_survived = not termination_proven
             if worker_survived:
                 logger.critical(
-                    "🚨 [MLX] Worker for %s survived the forced-abort escalation; "
+                    "[MLX] Worker for %s survived the forced-abort escalation; "
                     "keeping its process and IPC ownership fenced.",
                     os.path.basename(self.model_path),
                 )
@@ -8548,7 +8548,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     severity="error",
                 )
                 logger.error(
-                    "🚨 [MLX] Force-abort could not take the lifecycle lock for %s "
+                    "[MLX] Force-abort could not take the lifecycle lock for %s "
                     "(attempt %d/%d); worker killed, reconciliation deferred to the owner.",
                     os.path.basename(self.model_path),
                     self._force_abort_lock_failures,
@@ -8908,7 +8908,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             action="worker memory fuse tripped; failing in-flight requests with attribution",
             severity="critical",
         )
-        logger.critical("🛑 [MLX] %s", fuse_message)
+        logger.critical("[MLX] %s", fuse_message)
         for pending_id, pending in list(self._pending_generations.items()):
             if pending is not None and not pending.done():
                 _set_shared_future_result(
@@ -8993,11 +8993,11 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # instead of spinning forever and consuming thread pool resources.
                 if _consecutive_errors >= 10:
                     logger.warning(
-                        "⚠️ [MLX] Response listener: %d consecutive errors. Queue likely broken. Exiting.",
+                        "[MLX] Response listener: %d consecutive errors. Queue likely broken. Exiting.",
                         _consecutive_errors,
                     )
                     break
-                logger.error("⚠️ [MLX] Response listener poll error: %s", e)
+                logger.error("[MLX] Response listener poll error: %s", e)
                 await asyncio.sleep(0.5)
                 continue
 
@@ -9107,7 +9107,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                         ),
                     )
                     logger.warning(
-                        "⚠️ [MLX] Worker degradation frame (%s): %s",
+                        "[MLX] Worker degradation frame (%s): %s",
                         action,
                         res.get("message"),
                     )
@@ -9159,7 +9159,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
                 # 3. Log errors if no future is waiting
                 if status == "error":
-                    logger.error("🛑 [MLX] Async worker error: %s", res.get("message"))
+                    logger.error("[MLX] Async worker error: %s", res.get("message"))
 
             except Exception as e:  # noqa: BLE001 - the listener is the sole response
                 # consumer: ANY escaping processing error (TypeError, ValueError,
@@ -9170,7 +9170,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     action="kept response listener alive after malformed worker message",
                     severity="error",
                 )
-                logger.error("⚠️ [MLX] Response listener message processing error: %s", e)
+                logger.error("[MLX] Response listener message processing error: %s", e)
                 # CP126 2ba6ea2e, second half: surviving is not enough. The
                 # message that failed belonged to a REQUEST, and leaving that
                 # waiter pending means the listener lives while one caller
@@ -9268,14 +9268,14 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             return 0.0
         if skip_swap_cooldown:
             logger.info(
-                "⚡ [MLX] Skipping %.1fs swap cooldown for %s.",
+                "[MLX] Skipping %.1fs swap cooldown for %s.",
                 remaining,
                 os.path.basename(target_path),
             )
             return 0.0
 
         logger.warning(
-            "⏳ [MLX] SWAP COOLDOWN: waiting %.1fs before spawning %s (%s lane).",
+            "[MLX] SWAP COOLDOWN: waiting %.1fs before spawning %s (%s lane).",
             remaining,
             os.path.basename(target_path),
             "foreground" if foreground_request else "background",
@@ -9284,7 +9284,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # Slice it so a shutdown does not have to outlast the whole cooldown.
         while waited < remaining:
             if _shutdown_blocks_model_work(self.model_path, action="swap cooldown"):
-                logger.info("🛑 [MLX] Swap cooldown cut short by shutdown.")
+                logger.info("[MLX] Swap cooldown cut short by shutdown.")
                 break
             slice_s = min(0.25, remaining - waited)
             await asyncio.sleep(slice_s)
@@ -9651,7 +9651,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             if call is not None:
                 return call
             logger.info(
-                "🔧 [TOOL CALL] refused a native envelope: %s (body %d chars)",
+                "[TOOL CALL] refused a native envelope: %s (body %d chars)",
                 why or "unknown",
                 len(body or ""),
             )
@@ -9785,7 +9785,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             neutral_requested = False
         if active is None:
             logger.debug(
-                "⏳ [STEERING] Liveness pending first worker receipt (origin=%s)",
+                "[STEERING] Liveness pending first worker receipt (origin=%s)",
                 origin,
             )
         elif active:
@@ -9793,13 +9793,13 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # flag set at some point since this worker started (CP126
             # 76cfcf09). Say what was measured.
             logger.debug(
-                "✅ [STEERING] Liveness flag set by this worker (origin=%s, gen=%s)",
+                "[STEERING] Liveness flag set by this worker (origin=%s, gen=%s)",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
             )
         elif neutral_requested:
             logger.debug(
-                "⏸️ [STEERING] Intentionally neutral for this generation "
+                "[STEERING] Intentionally neutral for this generation "
                 "(origin=%s, gen=%s, alpha=0).",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
@@ -9814,7 +9814,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # "Affective steering remains detached under signed migration
             # disposition: steering_generation_deferred."
             logger.info(
-                "⏸️ [STEERING] Detached under a signed disposition (origin=%s, "
+                "[STEERING] Detached under a signed disposition (origin=%s, "
                 "gen=%s, disposition=%s); substrate state is deliberately not "
                 "modulating inference.",
                 origin,
@@ -9823,7 +9823,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             )
         else:
             logger.warning(
-                "⚠️ [STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s, "
+                "[STEERING] Liveness flag CLEAR for this worker (origin=%s, gen=%s, "
                 "disposition=%s) — substrate state is not modulating inference.",
                 origin,
                 int(getattr(self, "_worker_generation", 0) or 0),
@@ -9902,7 +9902,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             background_deferral = _background_deferral_active(background_origin)
             if background_deferral:
                 logger.info(
-                    "⏸️ [MLX] Deferring background generation for %s (%s).",
+                    "[MLX] Deferring background generation for %s (%s).",
                     os.path.basename(self.model_path),
                     background_deferral,
                 )
@@ -10053,7 +10053,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             try:
                 await foreground_owner_cm.__aenter__()
             except TimeoutError as exc:
-                logger.warning("⏸️ [MLX] %s", exc)
+                logger.warning("[MLX] %s", exc)
                 self._record_degraded_event(
                     "foreground_owner_timeout",
                     detail=f"{os.path.basename(self.model_path)}:{exc}",
@@ -10430,7 +10430,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         if quality_rejection_reasons and text and kwargs.get("tools"):
             if _text_is_a_complete_tool_call(text):
                 logger.info(
-                    "🔧 [MLX] the draft the quality gate refused (%s) is a "
+                    "[MLX] the draft the quality gate refused (%s) is a "
                     "complete tool call, and tools were offered — handing "
                     "it to the loop that asked for it.",
                     ",".join(quality_rejection_reasons),
@@ -10472,7 +10472,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             or ""
         )
         logger.warning(
-            "🛡️ [MLX] Worker rejected the visible draft for semantic "
+            "[MLX] Worker rejected the visible draft for semantic "
             "quality (%s); preserving the resident lane. "
             "draft_chars=%d head=%r tail=%r",
             ",".join(quality_rejection_reasons),
@@ -10516,7 +10516,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         shutdown_cancel = _runtime_shutdown_requested()
         if expected_cancel_reason:
             logger.info(
-                "🧹 [MLX] Generation cancelled for %s during expected reboot (%s).",
+                "[MLX] Generation cancelled for %s during expected reboot (%s).",
                 os.path.basename(self.model_path),
                 expected_cancel_reason,
             )
@@ -10527,12 +10527,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             )
         elif benchmark_baseline_cancel:
             logger.info(
-                "🧪 [MLX] Baseline generation cancelled for %s by benchmark timeout.",
+                "[MLX] Baseline generation cancelled for %s by benchmark timeout.",
                 os.path.basename(self.model_path),
             )
         elif shutdown_cancel:
             logger.info(
-                "🛑 [MLX] Generation cancelled for %s during runtime shutdown.",
+                "[MLX] Generation cancelled for %s during runtime shutdown.",
                 os.path.basename(self.model_path),
             )
         else:
@@ -10541,7 +10541,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # request on a 3,500-character prompt (less than her model takes to
             # read it), and nothing said which caller gave up.
             logger.warning(
-                "🛑 [MLX] Generation cancelled for %s by its caller (origin=%s, purpose=%s). "
+                "[MLX] Generation cancelled for %s by its caller (origin=%s, purpose=%s). "
                 "Preserving worker unless it is unhealthy.",
                 os.path.basename(self.model_path),
                 origin_label or "unknown",
@@ -10577,7 +10577,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         # budget exists to apply, and the degraded event below records it.
         logger.log(
             logging.ERROR if foreground_request else logging.INFO,
-            "🛑 [MLX] Generation deadline reached for %s (%s).",
+            "[MLX] Generation deadline reached for %s (%s).",
             os.path.basename(self.model_path),
             "foreground" if foreground_request else "background",
         )
@@ -10597,12 +10597,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             )
         if foreground_request and self._deliberate_no_text_reason:
             logger.warning(
-                "⏳ [MLX] Deadline reached while worker still looks healthy; "
+                "[MLX] Deadline reached while worker still looks healthy; "
                 "soft-cancelling the abandoned generation and preserving the warm lane."
             )
         elif self._deliberate_no_text_reason:
             logger.warning(
-                "⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm."
+                "[MLX] Deadline reached but worker still looks healthy; leaving lane warm."
             )
 
     async def _generate_inner(
@@ -10644,7 +10644,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # has to say it was a skip.
                 self._deliberate_no_text_reason = "skipped_during_foreground_ownership"
                 logger.info(
-                    "⏸️ [MLX] Skipping queued background generation for %s during foreground ownership.",
+                    "[MLX] Skipping queued background generation for %s during foreground ownership.",
                     os.path.basename(self.model_path),
                 )
                 return None
@@ -10662,13 +10662,13 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                         f"stopped_before_worker_spawn:{background_deferral}"
                     )
                     logger.info(
-                        "⏸️ [MLX] Background generation for %s stopped before worker spawn (%s).",
+                        "[MLX] Background generation for %s stopped before worker spawn (%s).",
                         os.path.basename(self.model_path),
                         background_deferral,
                     )
                     return None
                 logger.info(
-                    "🩺 [MLX] Running bounded readiness probe on resident primary worker "
+                    "[MLX] Running bounded readiness probe on resident primary worker "
                     "despite background headroom reservation."
                 )
 
@@ -10836,12 +10836,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             )
             if _retry and ("Broken pipe" in str(exc) or isinstance(exc, BrokenPipeError)):
                 logger.warning(
-                    "🔄 [MLX] Broken pipe on %s — deferring reboot (lock held)",
+                    "[MLX] Broken pipe on %s — deferring reboot (lock held)",
                     os.path.basename(self.model_path),
                 )
                 self._deferred_reboot_reason = "broken_pipe_retry"
                 return None
-            logger.error("🛑 [MLX] Request queue blocked or failed: %s", exc)
+            logger.error("[MLX] Request queue blocked or failed: %s", exc)
             self._deferred_reboot_reason = f"request_queue_failed:{exc}"
             return None
 
@@ -10914,7 +10914,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                         refusal = self._inline_retry_refusal()
                         if refusal:
                             logger.info(
-                                "🔁 [MLX] Skipping inline retry for %s: %s.",
+                                "[MLX] Skipping inline retry for %s: %s.",
                                 os.path.basename(self.model_path),
                                 refusal,
                             )
@@ -10927,7 +10927,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                             )
                             return None
                         logger.info(
-                            "🔁 [MLX] Empty foreground generation — "
+                            "[MLX] Empty foreground generation — "
                             "inline retry after worker cache reset (%d/2).",
                             empty_count,
                         )
@@ -10953,7 +10953,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     # user-facing completion mark — the health machinery must
                     # not treat a requested cancel as a generation failure.
                     logger.info(
-                        "✋ [MLX] Generation for %s ended by %s after partial output (%d chars); resident lane preserved.",
+                        "[MLX] Generation for %s ended by %s after partial output (%d chars); resident lane preserved.",
                         os.path.basename(self.model_path),
                         generation_stop_reason or "soft_cancelled",
                         len(text),
@@ -11080,7 +11080,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         announced_without_acting = False
 
         logger.info(
-            "🔧 Tool loop payload: system=%d chars, objective=%d chars, "
+            "Tool loop payload: system=%d chars, objective=%d chars, "
             "evidence=%d blocks, tools=%d",
             len(augmented_system),
             len(str(objective or "")),
@@ -11154,7 +11154,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # call — and only one of them is about tool calling at all.
                 if tools:
                     logger.info(
-                        "🔧 Tools offered (%s) and the generation came back empty "
+                        "Tools offered (%s) and the generation came back empty "
                         "on turn %d.",
                         ",".join(sorted(tools)),
                         turn + 1,
@@ -11174,7 +11174,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     break
                 if native_tools and tools:
                     logger.info(
-                        "🔧 Native tool protocol produced nothing; retrying on the "
+                        "Native tool protocol produced nothing; retrying on the "
                         "JSON tool contract."
                     )
                     native_tools, native_on = None, False
@@ -11207,7 +11207,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # opposite fixes: a parser change versus a decoding one.
                 if tools and not tool_calls_made:
                     logger.info(
-                        "🔧 Tools offered (%s) and none called; model produced: %s",
+                        "Tools offered (%s) and none called; model produced: %s",
                         ",".join(sorted(tools)),
                         " ".join(response_text.split())[:200],
                     )
@@ -11233,7 +11233,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 ):
                     announced_without_acting = True
                     logger.info(
-                        "🔧 The model announced a tool it did not call; continuing the loop."
+                        "The model announced a tool it did not call; continuing the loop."
                     )
                     messages.append({"role": "assistant", "content": response_text})
                     continue
@@ -11663,7 +11663,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 return {"unloaded": False, "reason": blocker}
 
             logger.info(
-                "🧹 [MLX] Idle VRAM scavenge: unloading %s after %.0fs idle "
+                "[MLX] Idle VRAM scavenge: unloading %s after %.0fs idle "
                 "(pressure=%s, ~%.1fGB).",
                 os.path.basename(self.model_path),
                 age,
@@ -12208,7 +12208,7 @@ def _native_xml_tool_payload(
     # said nothing about it.
     if suffix and ("<function" in suffix or "tool_call" in suffix):
         logger.info(
-            "🔧 [TOOL CALL] took the first function and left %d chars of "
+            "[TOOL CALL] took the first function and left %d chars of "
             "markup behind it for the next turn: %r",
             len(suffix),
             suffix[:200],

@@ -229,7 +229,7 @@ class RateGroup:
             )
             say = logger.warning if sustained else logger.info
             say(
-                "⏱️ rate group %s slipped: cycle took %.0fms of a %.0fms period "
+                "rate group %s slipped: cycle took %.0fms of a %.0fms period "
                 "(slowest member: %s at %.0fms)%s",
                 self.name,
                 duration * 1000,
@@ -241,7 +241,7 @@ class RateGroup:
             self._announce_slip(record, slowest_s)
         elif streak_ended:
             logger.info(
-                "⏱️ rate group %s back on period after %d slipped cycle(s)",
+                "rate group %s back on period after %d slipped cycle(s)",
                 self.name,
                 streak_ended,
             )

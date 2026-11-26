@@ -49,7 +49,7 @@ class SandboxedWorker:
 
     async def execute_task(self, task_payload: dict[str, Any]) -> WorkerProposal:
         """Isolated sandbox task execution using actual subsystems and cloud tracking."""
-        logger.info("🔒 Worker [%s:%s] running sandbox job...", self.worker_type, self.worker_id)
+        logger.info("Worker [%s:%s] running sandbox job...", self.worker_type, self.worker_id)
 
         from core.container import ServiceContainer
 

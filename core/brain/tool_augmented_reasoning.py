@@ -112,6 +112,6 @@ def tool_augmented_answer(query: str) -> ToolResult | None:
         return None
     result = solve_exact(query)
     if result.ok:
-        logger.info("🔧 [ToolReasoning] '%s' solved exactly via %s → %s", query[:50], result.method, result.answer)
+        logger.info("[ToolReasoning] '%s' solved exactly via %s → %s", query[:50], result.method, result.answer)
         return result
     return None

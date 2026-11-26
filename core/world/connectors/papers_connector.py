@@ -20,7 +20,7 @@ class PapersConnector:
     """Ingests academic papers and literature abstracts."""
 
     async def fetch_papers(self, query: str) -> list[dict[str, Any]]:
-        logger.info("📡 PapersConnector: searching arXiv for '%s'", query)
+        logger.info("PapersConnector: searching arXiv for '%s'", query)
 
         try:
             res = await ActionExecutor.execute(

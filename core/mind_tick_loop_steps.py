@@ -25,7 +25,7 @@ class _RunsTheTickLoopSteps:
 
         if self._missing_state_streak:
             logger.info(
-                "💓 MindTick: State became available after %d deferred tick(s).",
+                "MindTick: State became available after %d deferred tick(s).",
                 self._missing_state_streak,
             )
             self._missing_state_streak = 0
@@ -191,7 +191,7 @@ class _RunsTheTickLoopSteps:
                 }), timeout=5.0)
                 # Reset on success
                 if self._bus_fail_count > 0:
-                    logger.info("⚠️ MindTick: EventBus publish recovered after %d failures.", self._bus_fail_count)
+                    logger.info("MindTick: EventBus publish recovered after %d failures.", self._bus_fail_count)
                     self._bus_fail_count = 0
                     self._bus_backoff_until_tick = 0
             except TimeoutError:
@@ -199,10 +199,10 @@ class _RunsTheTickLoopSteps:
                 if self._bus_fail_count <= 2:
                     # Suppress false-positive degradation logging for non-critical telemetry publishing during heavy LLM load
                     # _record_mind_degradation(TimeoutError("event_bus_publish_timeout"))
-                    logger.warning("⚠️ MindTick: EventBus publish stalled (timeout). Continuing tick.")
+                    logger.warning("MindTick: EventBus publish stalled (timeout). Continuing tick.")
                 elif self._bus_fail_count == 3:
                     logger.warning(
-                        "⚠️ MindTick: EventBus publish timing out repeatedly (%d). "
+                        "MindTick: EventBus publish timing out repeatedly (%d). "
                         "Backing off EventBus publish retries for runtime stability.",
                         self._bus_fail_count,
                     )
@@ -215,10 +215,10 @@ class _RunsTheTickLoopSteps:
                 if self._bus_fail_count <= 2:
                     # Suppress false-positive degradation logging for non-critical telemetry publishing during heavy LLM load
                     # _record_mind_degradation(e)
-                    logger.error("⚠️ MindTick: EventBus publish failed: %s", e)
+                    logger.error("MindTick: EventBus publish failed: %s", e)
                 elif self._bus_fail_count == 3:
                     logger.warning(
-                        "⚠️ MindTick: EventBus publish failing repeatedly (%d). "
+                        "MindTick: EventBus publish failing repeatedly (%d). "
                         "Backing off retries. Will retry every 30 ticks.",
                         self._bus_fail_count,
                     )
@@ -395,7 +395,7 @@ class _RunsTheTickLoopSteps:
                 if gov.is_throttled():
                     if self._tick_count % 30 == 0:
                         logger.info(
-                            "💓 MindTick: Resource governor throttled — "
+                            "MindTick: Resource governor throttled — "
                             "deferring heavy background work."
                         )
             except _MIND_BOUNDARY_ERRORS as exc:

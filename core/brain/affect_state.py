@@ -47,10 +47,10 @@ class AffectStateManager(AuraBaseModule):
             return
         self._running = True
         self._task = get_task_tracker().create_task(self._autonomic_cycle(), name="affect_autonomic_cycle")
-        self.logger.info("🫀 AffectStateManager autonomic cycle task spawned.")
+        self.logger.info("AffectStateManager autonomic cycle task spawned.")
 
     async def _autonomic_cycle(self):
-        self.logger.info("🫀 Affect autonomic cycle active.")
+        self.logger.info("Affect autonomic cycle active.")
         while self._running:
             try:
                 async with self._lock:
@@ -68,7 +68,7 @@ class AffectStateManager(AuraBaseModule):
         self._running = False
         if self._task:
             await cancel_and_join(self._task, owner="core.brain.affect_state")
-        self.logger.info("🫀 AffectStateManager stopped.")
+        self.logger.info("AffectStateManager stopped.")
 
     def _tick_emotional_decay(self):
         """Simulates emotional homeostasis (numbers naturally drifting back to baseline)."""

@@ -228,7 +228,7 @@ class DecisionPreferenceLearner:
             except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError) as exc:
                 record_degradation("decision_preference_learner", exc, severity="debug")
         logger.info(
-            "🧭 [DecisionPreference] resolved %s reward=%+.2f → multipliers updated (%d total)",
+            "[DecisionPreference] resolved %s reward=%+.2f → multipliers updated (%d total)",
             choice_id, reward, self._resolved_count,
         )
         return multipliers

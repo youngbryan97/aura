@@ -43,7 +43,7 @@ class PulseManager:
         # Phase 16: Hive Integration
         self.hive_node = HiveNode(self.orchestrator)
             
-        logger.info("💓 PulseManager initialized")
+        logger.info("PulseManager initialized")
 
     async def start(self):
         """Starts background sampling loops."""
@@ -55,7 +55,7 @@ class PulseManager:
         if self.enable_proactive_vision:
             self._sampling_tasks.append(get_task_tracker().create_task(self._vision_pulse_loop()))
         else:
-            logger.info("👁️ PulseManager vision sampling disabled by default. Set AURA_ENABLE_PROACTIVE_VISION=1 to enable it.")
+            logger.info("PulseManager vision sampling disabled by default. Set AURA_ENABLE_PROACTIVE_VISION=1 to enable it.")
         self._sampling_tasks.append(get_task_tracker().create_task(self._system_pulse_loop()))
         self._sampling_tasks.append(get_task_tracker().create_task(self._distributed_pulse_loop()))
         
@@ -65,7 +65,7 @@ class PulseManager:
         # Start Hive Node (Issue 22: Track task for clean shutdown)
         self._sampling_tasks.append(get_task_tracker().create_task(self.hive_node.start()))
             
-        logger.info("💓 Pulse loops started")
+        logger.info("Pulse loops started")
 
     async def stop(self):
         """Stops all background sampling."""
@@ -80,7 +80,7 @@ class PulseManager:
             
         await self.hive_node.stop()
             
-        logger.info("💓 Pulse loops stopped")
+        logger.info("Pulse loops stopped")
 
     async def _audio_pulse_loop(self):
         """Periodically check for environmental audio shifts or voice."""
@@ -115,7 +115,7 @@ class PulseManager:
                     from core.container import ServiceContainer
                     vision = ServiceContainer.get("vision_engine", default=None)
                     if vision:
-                        logger.debug("👁️ Pulse: Sampling vision...")
+                        logger.debug("Pulse: Sampling vision...")
                         try:
                             description = await asyncio.wait_for(
                                 vision.analyze_moment(
@@ -134,7 +134,7 @@ class PulseManager:
                             
                             await self._process_visual_stimulus(description)
                         except asyncio.TimeoutError:
-                            logger.warning("👁️ Pulse: Vision sampling timed out (45s). Skipping pulse.")
+                            logger.warning("Pulse: Vision sampling timed out (45s). Skipping pulse.")
 
             except asyncio.CancelledError:
                 break
@@ -191,7 +191,7 @@ class PulseManager:
             return
         listen_sock.setblocking(False)
 
-        logger.info("🌌 Cosmic Awareness: Pulse Listening on port %d (ID: %s)", port, instance_id)
+        logger.info("Cosmic Awareness: Pulse Listening on port %d (ID: %s)", port, instance_id)
 
         try:
             while self.running:
@@ -221,7 +221,7 @@ class PulseManager:
                                     self.orchestrator.peers = {}
 
                                 if peer_id not in self.orchestrator.peers:
-                                    logger.info("🌌 New Aura instance discovered: %s at %s", peer_id, addr[0])
+                                    logger.info("New Aura instance discovered: %s at %s", peer_id, addr[0])
                                 
                                 self.orchestrator.peers[peer_id] = {
                                     "address": addr[0],
@@ -240,7 +240,7 @@ class PulseManager:
                     now = time.time()
                     stale = [pid for pid, p in self.orchestrator.peers.items() if now - p['last_seen'] > 60]
                     for pid in stale:
-                        logger.info("🌌 Peer Aura instance lost: %s", pid)
+                        logger.info("Peer Aura instance lost: %s", pid)
                         del self.orchestrator.peers[pid]
 
                     await asyncio.sleep(10.0)  # Pulse every 10 seconds
@@ -276,7 +276,7 @@ class PulseManager:
         """Phase 18.1: Force an immediate sensory check due to peer attention spike."""
         vision = ServiceContainer.get("vision_engine", default=None)
         if vision:
-            logger.info("👁️ Pulse: Triggering Immediate Vision due to Resonance: %s", context)
+            logger.info("Pulse: Triggering Immediate Vision due to Resonance: %s", context)
             description = await vision.analyze_moment(
                 prompt=f"A peer node mentioned: '{context}'. Analyze the current screen state for relevant information."
             )

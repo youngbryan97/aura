@@ -86,7 +86,7 @@ class _TicksAndShutsDown:
             await asyncio.wait_for(self._process_storage_intents(), timeout=10.0)
         except TimeoutError:
             logger.warning(
-                "⚠️ [STABILITY] Storage intents timed out (10s) — skipping for this tick."
+                "[STABILITY] Storage intents timed out (10s) — skipping for this tick."
             )
 
         # ── CONSTITUTIONAL CLOSURE ──────────────────────────────────────
@@ -109,7 +109,7 @@ class _TicksAndShutsDown:
             await asyncio.wait_for(self._commit_vault(objective), timeout=10.0)
         except TimeoutError:
             logger.warning(
-                "⚠️ [STABILITY] Vault commit timed out (10s) — state not persisted this tick."
+                "[STABILITY] Vault commit timed out (10s) — state not persisted this tick."
             )
 
         # Cognitive Ledger: record this tick as a structured transition
@@ -209,7 +209,7 @@ class _TicksAndShutsDown:
                 self._user_priority_pending.clear()
 
             start_time = time.time()
-            logger.info("🌀 Unitary Tick Initiated: '%s' (priority=%s)", objective, priority)
+            logger.info("Unitary Tick Initiated: '%s' (priority=%s)", objective, priority)
 
             # 1. Feedback Loop: Begin
             entry = self.feedback_observer.begin_tick(
@@ -232,13 +232,13 @@ class _TicksAndShutsDown:
             tricorder = self.organs.get("tricorder")
             if tricorder and tricorder.instance:
                 casie = tricorder.instance.score_user_message(objective)
-                logger.info("🎭 [CASIE] Strategy: %s - %s", casie["strategy"], casie["description"])
+                logger.info("[CASIE] Strategy: %s - %s", casie["strategy"], casie["description"])
 
             # [SEVERANCE] Apply Persona Masking to Cognitive Cycle
             partition = state.context_partition
             if state.partition_mask:
                 logger.info(
-                    "🎭 [SEVERANCE] Executing in %s partition. Field masking ACTIVE.", partition
+                    "[SEVERANCE] Executing in %s partition. Field masking ACTIVE.", partition
                 )
 
             bound_objective = objective_to_bind(objective, turn_origin)
@@ -250,7 +250,7 @@ class _TicksAndShutsDown:
                 # kernel lock, yield immediately after the current phase completes.
                 if not priority and self._user_priority_pending.is_set():
                     logger.info(
-                        "⚡ Background tick yielding to priority user request — aborting remaining phases after %s.",
+                        "Background tick yielding to priority user request — aborting remaining phases after %s.",
                         phase_name,
                     )
                     await self._record_dream_fragment(objective, phase, phase_name)
@@ -333,7 +333,7 @@ class _TicksAndShutsDown:
                         self.state = result
                     except TimeoutError:
                         logger.error(
-                            "⏰ Phase '%s' timed out after %.0fs — skipping",
+                            "Phase '%s' timed out after %.0fs — skipping",
                             phase_name,
                             phase_timeout,
                         )
@@ -351,14 +351,14 @@ class _TicksAndShutsDown:
                             "ResponseGenerationPhase",
                         }:
                             logger.info(
-                                "⚡ Background tick ending early after %s timeout so stale response generation does not pin the foreground lane.",
+                                "Background tick ending early after %s timeout so stale response generation does not pin the foreground lane.",
                                 phase_name,
                             )
                             await self._record_dream_fragment(objective, phase, phase_name)
                             break
                         if not priority and self._user_priority_pending.is_set():
                             logger.info(
-                                "⚡ Background tick releasing kernel lock after timed-out %s for a waiting priority request.",
+                                "Background tick releasing kernel lock after timed-out %s for a waiting priority request.",
                                 phase_name,
                             )
                             await self._record_dream_fragment(objective, phase, phase_name)
@@ -378,7 +378,7 @@ class _TicksAndShutsDown:
                             logger.debug("Suppressed %s in core.kernel.aura_kernel: %s", type(_exc).__name__, _exc)
                         if priority or is_shutdown_requested():
                             logger.warning(
-                                "⏹️ Priority kernel tick cancelled during %s; propagating caller timeout/cancellation.",
+                                "Priority kernel tick cancelled during %s; propagating caller timeout/cancellation.",
                                 phase_name,
                             )
                         else:
@@ -406,7 +406,7 @@ class _TicksAndShutsDown:
                         severity="error",
                     )
                     logger.error(
-                        "🔥 Phase '%s' raised unexpected error: %s",
+                        "Phase '%s' raised unexpected error: %s",
                         phase_name,
                         phase_err,
                         exc_info=True,
@@ -464,7 +464,7 @@ class _TicksAndShutsDown:
                 action="continued kernel shutdown without setting global shutdown request",
             )
 
-        logger.info("🛑 [KERNEL] Initiating graceful shutdown...")
+        logger.info("[KERNEL] Initiating graceful shutdown...")
         self._running = False
         self.status.running = False
 
@@ -473,7 +473,7 @@ class _TicksAndShutsDown:
             from core.perception.perception_daemon import get_perception_daemon
             daemon = get_perception_daemon()
             await daemon.stop()
-            logger.info("📡 [PERCEPTION] PerceptionDaemon OFFLINE")
+            logger.info("[PERCEPTION] PerceptionDaemon OFFLINE")
         except _KERNEL_OPTIONAL_PERCEPTION_ERRORS as e:
             _record_kernel_degradation(
                 e,
@@ -495,7 +495,7 @@ class _TicksAndShutsDown:
             try:
                 if hasattr(organ, "shutdown"):
                     await organ.shutdown()
-                logger.info("🫀 Organ %s shut down.", name)
+                logger.info("Organ %s shut down.", name)
             except (RuntimeError, AttributeError, TypeError) as e:
                 _record_kernel_degradation(
                     e,
@@ -517,7 +517,7 @@ class _TicksAndShutsDown:
             finalize_process_runtime=finalize_process_runtime,
         )
 
-        logger.info("✅ [KERNEL] Shutdown complete.")
+        logger.info("[KERNEL] Shutdown complete.")
 
     async def _shutdown_rubicon_runtime(self) -> None:
         """Stop Rubicon singletons that are started from AuraKernel.boot()."""

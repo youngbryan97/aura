@@ -169,7 +169,7 @@ class _KnowsWhetherItIsStillAlive:
                     context={"repair_count": count},
                 )
                 logger.warning(
-                    "💓 MindTick: stale loop unwound; replacement started (repair %d).",
+                    "MindTick: stale loop unwound; replacement started (repair %d).",
                     count,
                 )
             except _MIND_BOUNDARY_ERRORS as exc:
@@ -272,7 +272,7 @@ class _KnowsWhetherItIsStillAlive:
                         int(getattr(self, "_liveness_repair_count", 0) or 0) + 1
                     )
                     self._repair_pending = False
-                    logger.warning("💓 MindTick: loop revived via owning-loop repair.")
+                    logger.warning("MindTick: loop revived via owning-loop repair.")
 
                 self._repair_pending = True
                 owner_loop.call_soon_threadsafe(_threadsafe_repair)
@@ -338,7 +338,7 @@ class _KnowsWhetherItIsStillAlive:
             if finished_error is not None
             else (reason or "liveness probe found MindTick loop missing, stopped, or stale")
         )
-        logger.warning("💓 MindTick: Repaired stalled cognitive rhythm (%s).", detail)
+        logger.warning("MindTick: Repaired stalled cognitive rhythm (%s).", detail)
         record_degraded_event(
             "mind_tick",
             "liveness_repair",

@@ -81,7 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         grace_s=args.grace,
         poll_interval_s=args.interval,
         max_restarts=args.max_restarts,
-        on_restart=lambda n: print(f"⚠️  DNU battery runtime WEDGED — supervised restart {n}", flush=True),
+        on_restart=lambda n: print(f" DNU battery runtime WEDGED — supervised restart {n}", flush=True),
     )
     outcome = supervisor.run()
     print(json.dumps(outcome.to_dict()))

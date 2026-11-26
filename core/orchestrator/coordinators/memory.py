@@ -280,7 +280,7 @@ class MemoryCoordinator:
 
                 if summary:
                     logger.info(
-                        "🌙 [SUBCONSCIOUS] Memory consolidated: %s",
+                        "[SUBCONSCIOUS] Memory consolidated: %s",
                         summary[:70].replace("\n", " ") + "...",
                     )
                     # Phase 48: UI Visibility
@@ -288,7 +288,7 @@ class MemoryCoordinator:
                         from core.thought_stream import get_emitter
 
                         get_emitter().emit(
-                            "Memory Consolidation 🌙",
+                            "Memory Consolidation",
                             summary,
                             level="info",
                             category="Subconscious",
@@ -306,7 +306,7 @@ class MemoryCoordinator:
 
                     # Truncate working memory (keep only the last 2 messages for immediate context)
                     logger.info(
-                        "🌙 [SUBCONSCIOUS] Truncating working memory from %d to 2 items.",
+                        "[SUBCONSCIOUS] Truncating working memory from %d to 2 items.",
                         len(state.cognition.working_memory),
                     )
                     state.cognition.working_memory = state.cognition.working_memory[-2:]
@@ -316,4 +316,4 @@ class MemoryCoordinator:
                 action="left working memory unchanged after consolidation failure",
                 severity="error",
             )
-            logger.error("❌ [SUBCONSCIOUS] Consolidation failed: %s", e)
+            logger.error("[SUBCONSCIOUS] Consolidation failed: %s", e)

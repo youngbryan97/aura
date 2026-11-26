@@ -22,7 +22,7 @@ class ResearchMemory:
             "conclusion": conclusion,
             "timestamp": time.time(),
         }
-        logger.info("💾 Saved research finding for cycle '%s'", cycle_id)
+        logger.info("Saved research finding for cycle '%s'", cycle_id)
 
     def list_findings(self) -> List[Dict[str, Any]]:
         return [{"cycle_id": k, **v} for k, v in self.findings.items()]

@@ -150,21 +150,21 @@ class ToolOutputDistillationService:
         for line in content.split("\n"):
             line_lower = line.lower().strip()
             if any(kw in line_lower for kw in ["error", "traceback", "exception", "failed", "fatal", "permission denied"]):
-                signals.append(f"  ⚠ {line.strip()}")
+                signals.append(f"  warning {line.strip()}")
             elif any(kw in line_lower for kw in ["warning", "deprecated"]):
-                signals.append(f"  ⚡ {line.strip()}")
+                signals.append(f"  {line.strip()}")
 
         # Extract file paths
         import re
         paths = re.findall(r'(?:/[\w./-]+)+', content)
         unique_paths = list(dict.fromkeys(paths))[:10]
         if unique_paths:
-            signals.append(f"  📁 Paths mentioned: {', '.join(unique_paths)}")
+            signals.append(f"  Paths mentioned: {', '.join(unique_paths)}")
 
         # Extract exit codes
         exit_matches = re.findall(r'(?:exit|return|status)\s*(?:code)?\s*[:=]?\s*(\d+)', content, re.IGNORECASE)
         if exit_matches:
-            signals.append(f"  🔢 Exit codes: {', '.join(exit_matches)}")
+            signals.append(f"  Exit codes: {', '.join(exit_matches)}")
 
         return "\n".join(signals[:20]) if signals else ""
 
@@ -221,11 +221,11 @@ class ToolOutputDistillationService:
 
                 if summary and len(summary) > 20:
                     header = (
-                        f"📋 {tool_name} output distilled ({len(content)} chars → {len(summary)} chars)\n"
-                        f"💾 Full output saved: {saved_path}\n"
+                        f"{tool_name} output distilled ({len(content)} chars → {len(summary)} chars)\n"
+                        f"Full output saved: {saved_path}\n"
                     )
                     if key_signals:
-                        header += f"🔍 Key signals:\n{key_signals}\n"
+                        header += f"Key signals:\n{key_signals}\n"
                     return f"{header}\n{summary}"
 
             except (OSError, ConnectionError, TimeoutError) as e:
@@ -235,11 +235,11 @@ class ToolOutputDistillationService:
         # Tier 3: Structural truncation fallback
         truncated = self.structural_truncate(content)
         header = (
-            f"📋 {tool_name} output truncated ({len(content)} chars → {len(truncated)} chars)\n"
-            f"💾 Full output saved: {saved_path}\n"
+            f"{tool_name} output truncated ({len(content)} chars → {len(truncated)} chars)\n"
+            f"Full output saved: {saved_path}\n"
         )
         if key_signals:
-            header += f"🔍 Key signals:\n{key_signals}\n"
+            header += f"Key signals:\n{key_signals}\n"
         return f"{header}\n{truncated}"
 
 

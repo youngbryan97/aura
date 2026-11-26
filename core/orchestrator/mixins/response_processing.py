@@ -266,12 +266,12 @@ class ResponseProcessingMixin:
             )
             energy_factor = max(0.3, 1.0 - energy * 0.5)  # high energy → shorter delay
             delay = 0.15 + length_factor * 0.8 * energy_factor + random.random() * 0.2
-            logger.debug("⏳ [PACER] delay=%.2fs (len=%d, energy=%.2f)", delay, resp_len, energy)
+            logger.debug("[PACER] delay=%.2fs (len=%d, energy=%.2f)", delay, resp_len, energy)
             await asyncio.sleep(delay)
 
         # UI & Drive updates
         safe_response = response or ""
-        logger.info("🤖 Aura Response: %s...", safe_response[:100])
+        logger.info("Aura Response: %s...", safe_response[:100])
 
         # NOTE: History and Queue handling moved to OutputGate.emit to prevent duplicates.
 
@@ -371,7 +371,7 @@ class ResponseProcessingMixin:
 
         # Trigger Speech Synthesis if originated from voice
         if origin == "voice" and self.ears and hasattr(self.ears, "_engine"):
-            logger.info("🎙️ Origin was voice: Triggering TTS synthesis...")
+            logger.info("Origin was voice: Triggering TTS synthesis...")
             self._fire_and_forget(
                 self.ears._engine.synthesize_speech(response),
                 name="voice_synthesis",
@@ -442,7 +442,7 @@ class ResponseProcessingMixin:
                     # Check if user spoke in the meantime (abort if so)
                     last_user = getattr(self, "_last_user_interaction_time", 0)
                     if time.time() - last_user < decision.delay_seconds:
-                        logger.debug("💬 [Followup] Aborted — user spoke during delay.")
+                        logger.debug("[Followup] Aborted — user spoke during delay.")
                         return
 
                     # Build and generate the follow-up
@@ -504,7 +504,7 @@ class ResponseProcessingMixin:
                                 followup_result = {"action": "released", "target": "secondary"}
                         sve.mark_followup_sent()
                         logger.info(
-                            "💬 [Followup] Routed %s via %s: %s",
+                            "[Followup] Routed %s via %s: %s",
                             decision.followup_type,
                             (followup_result or {}).get("target", "suppressed"),
                             followup_text[:60],
@@ -526,7 +526,7 @@ class ResponseProcessingMixin:
 
     async def _handle_thinking_timeout(self, origin: str):
         """Recovery logic for when a thinking task hangs and is killed by the watchdog."""
-        logger.warning("🚨 [RECOVERY] Thinking timeout recovery triggered for origin: %s", origin)
+        logger.warning("[RECOVERY] Thinking timeout recovery triggered for origin: %s", origin)
 
         # 1. Reset status silently (No meta-commentary fallback emitted to the UI)
         self.status.is_processing = False
@@ -534,7 +534,7 @@ class ResponseProcessingMixin:
 
         # 2. Trigger a lighter, reactive 'downshift' cycle if we have an objective
         if self._current_objective and origin != "motivation":
-            logger.info("🔄 [RECOVERY] Attempting reactive downshift silent retry...")
+            logger.info("[RECOVERY] Attempting reactive downshift silent retry...")
             try:
                 emergency_prompt = (
                     "System recovery: Provide a direct, concise answer to the user's last input. "
@@ -552,7 +552,7 @@ class ResponseProcessingMixin:
                     action="left timeout recovery silent after reactive downshift failed",
                     severity="error",
                 )
-                logger.error("❌ [RECOVERY] Reactive downshift failed: %s", e)
+                logger.error("[RECOVERY] Reactive downshift failed: %s", e)
 
     def _record_message_in_history(self, message: str, role_or_origin: str):
         """Record a message in the conversation history with deduplication and role mapping."""
@@ -560,10 +560,10 @@ class ResponseProcessingMixin:
             role = "assistant"
             prefix = ""
         elif role_or_origin == "autonomous_volition":
-            prefix = "⚡ AUTONOMOUS GOAL: "
+            prefix = "AUTONOMOUS GOAL: "
             role = "internal"
         elif role_or_origin == "impulse":
-            prefix = "⚡ IMPULSE (speak to user): "
+            prefix = "IMPULSE (speak to user): "
             role = "internal"
         elif role_or_origin in ("user", "voice", "admin"):
             prefix = ""
@@ -608,7 +608,7 @@ class ResponseProcessingMixin:
                 "QUIET",
                 "SAFEMODEENGAGE",
             ):
-                logger.critical("🚨 [TEXT] Emergency Reflex Triggered via chat: %s", clean_msg)
+                logger.critical("[TEXT] Emergency Reflex Triggered via chat: %s", clean_msg)
 
                 # Safemode has a specific literal
                 if clean_msg == "SAFEMODEENGAGE":
@@ -643,7 +643,7 @@ class ResponseProcessingMixin:
         if origin != "user" or not message:
             return None
         if not allow_direct_user_shortcut(origin):
-            logger.info("🧭 Mycelial shortcut yielded to governed user-facing path")
+            logger.info("Mycelial shortcut yielded to governed user-facing path")
             return None
 
         # Redundant local import removed
@@ -664,7 +664,7 @@ class ResponseProcessingMixin:
 
         # 2. Handle Direct Responses (e.g. Identity/Status reflexes)
         if pw.direct_response:
-            logger.info("🍄 [MYCELIUM] ⚡ Direct Reflex firing for: %s", pw.pathway_id)
+            logger.info("[MYCELIUM] Direct Reflex firing for: %s", pw.pathway_id)
             try:
                 from core.constitution import get_constitutional_core
 
@@ -678,7 +678,7 @@ class ResponseProcessingMixin:
                 )
                 if not approved:
                     logger.info(
-                        "🛡️ [AUTHORITY] Direct reflex '%s' blocked: %s",
+                        "[AUTHORITY] Direct reflex '%s' blocked: %s",
                         pw.pathway_id,
                         reason,
                     )
@@ -715,11 +715,11 @@ class ResponseProcessingMixin:
 
         # 3. Handle Tool/Skill execution
         logger.info(
-            "🍄 [MYCELIUM] ⚡ Routing to direct skill: %s (params: %s)", pw.skill_name, params
+            "[MYCELIUM] Routing to direct skill: %s (params: %s)", pw.skill_name, params
         )
         try:
             self._emit_telemetry(
-                f"Skill: {pw.skill_name} 🍄", pw.activity_label or f"Executing {pw.skill_name}..."
+                f"Skill: {pw.skill_name}", pw.activity_label or f"Executing {pw.skill_name}..."
             )
             result = await self.execute_tool(pw.skill_name, params, origin=origin)
             # CP126 2462d3c5: this passed success=True unconditionally, so a
@@ -777,10 +777,10 @@ class ResponseProcessingMixin:
             or contract.requires_identity_defense
             or contract.requires_self_preservation
         ):
-            logger.info("🏎️ FAST-PATH: yielding because governed contract requires richer handling.")
+            logger.info("FAST-PATH: yielding because governed contract requires richer handling.")
             return None
         if not shortcut_result and not analysis.everyday_chat_safe:
-            logger.info("🏎️ FAST-PATH: yielding because turn is not safe everyday chat.")
+            logger.info("FAST-PATH: yielding because turn is not safe everyday chat.")
             return None
 
         # ── MANDATORY AUTHORITY GATE ─────────────────────────────────
@@ -799,7 +799,7 @@ class ResponseProcessingMixin:
             )
             _fp_receipt_id = getattr(authority_decision, "substrate_receipt_id", None)
             if not approved:
-                logger.info("🛑 Fast-path BLOCKED by authority gateway: %s", reason)
+                logger.info("Fast-path BLOCKED by authority gateway: %s", reason)
                 return None  # Fall through to full agentic loop
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_response_processing_degradation(
@@ -810,7 +810,7 @@ class ResponseProcessingMixin:
             logger.debug("Authority gate check failed in fast-path (yielding): %s", e)
             return None
 
-        logger.info("🏎️ FAST-PATH: Authority-approved simple response.")
+        logger.info("FAST-PATH: Authority-approved simple response.")
         from core.brain.types import ThinkingMode
 
         context = self._get_cleaned_history_context(10)
@@ -901,7 +901,7 @@ class ResponseProcessingMixin:
             validation = validate_dialogue_response(response, contract)
             if not validation.ok and contract.requires_live_aura_voice():
                 logger.info(
-                    "🏎️ FAST-PATH: yielding to deeper pass because live Aura voice contract failed (%s).",
+                    "FAST-PATH: yielding to deeper pass because live Aura voice contract failed (%s).",
                     ", ".join(validation.violations) or "unspecified",
                 )
                 return None
@@ -945,7 +945,7 @@ class ResponseProcessingMixin:
             mem = psutil.virtual_memory()
             if mem.percent > 85 and len(message) < 100:
                 logger.info(
-                    "⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.",
+                    "VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.",
                     mem.percent,
                 )
                 return True

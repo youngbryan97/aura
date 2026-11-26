@@ -56,7 +56,7 @@ class SensoryLocalClient:
             if is_shutdown_requested():
                 return False
             if self.is_alive():
-                logger.debug("👀 Sensory Client: Worker already alive.")
+                logger.debug("Sensory Client: Worker already alive.")
                 return True
 
             ctx_name = "spawn" if sys.platform == "darwin" else "forkserver"
@@ -92,20 +92,20 @@ class SensoryLocalClient:
                 self._stop_blocking(lock_held=True)
                 return False
             self._running = True
-            logger.info("👀 Sensory Client: Worker started via %s (PID: %d)", ctx_name, process.pid)
+            logger.info("Sensory Client: Worker started via %s (PID: %d)", ctx_name, process.pid)
 
             if self._request_blocking("ping", None, 2.0).get("status") != "ok":
-                logger.error("🛑 Sensory Client: Worker failed initial ping.")
+                logger.error("Sensory Client: Worker failed initial ping.")
                 self._stop_blocking(lock_held=True)
                 return False
 
             success = self._request_blocking("init_vision", None, 5.0).get("status") == "ok"
             if success:
-                logger.info("   ✅ Vision isolated successfully")
+                logger.info("   Vision isolated successfully")
 
             success = self._request_blocking("init_audio", None, 5.0).get("status") == "ok"
             if success:
-                logger.info("   ✅ Audio isolated successfully")
+                logger.info("   Audio isolated successfully")
 
             return True
 
@@ -203,9 +203,9 @@ class SensoryLocalClient:
             return False
         if not self.is_alive():
             if not auto_restart:
-                logger.warning("👀 Sensory Client: Worker unavailable for command %s", cmd)
+                logger.warning("Sensory Client: Worker unavailable for command %s", cmd)
                 return False
-            logger.warning("♻️ Sensory Client: Worker offline before command %s. Restarting.", cmd)
+            logger.warning("Sensory Client: Worker offline before command %s. Restarting.", cmd)
             started = await self.start()
             if not started:
                 return False
@@ -251,7 +251,7 @@ class SensoryLocalClient:
                 reply = self._res_q.get(timeout=timeout)
             except (OSError, ConnectionError, TimeoutError, queue.Empty) as exc:
                 record_degradation("sensory_client", exc)
-                logger.error("🛑 Sensory Client request [%s] failed: %s", cmd, exc)
+                logger.error("Sensory Client request [%s] failed: %s", cmd, exc)
                 return {"status": "error", "msg": str(exc)}
         return reply if isinstance(reply, dict) else {"status": "error", "msg": "bad_reply"}
 
@@ -354,7 +354,7 @@ class SensoryLocalClient:
                 if process.is_alive():
                     process.kill()
                     process.join(timeout=1.0)
-                logger.info("👀 Sensory Client: Worker stopped")
+                logger.info("Sensory Client: Worker stopped")
                 self._drain_queues()
             self._close_queues()
 

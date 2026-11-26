@@ -2,7 +2,7 @@
 # Aura Zenith: Apple Silicon setup script
 set -e
 
-echo "🍏 Initializing Aura Zenith Environment (Apple Silicon)..."
+echo "Initializing Aura Zenith Environment (Apple Silicon)..."
 
 # Check for Brew
 if ! command -v brew &> /dev/null; then
@@ -11,7 +11,7 @@ if ! command -v brew &> /dev/null; then
 fi
 
 # Install dependencies
-echo "📦 Installing system dependencies..."
+echo "Installing system dependencies..."
 brew install python@3.12 prometheus redis
 
 # Setup Virtualenv
@@ -22,10 +22,10 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install numpy psutil rich pydantic pydantic-settings pytest pytest-asyncio RestrictedPython prometheus-client motor redis
 
-echo "📚 Installing Python requirements..."
+echo "Installing Python requirements..."
 pip install -r requirements_hardened.txt
 
-echo "🧠 Fetching Aura runtime models..."
+echo "Fetching Aura runtime models..."
 AURA_LOCAL_BACKEND=mlx python scripts/fetch_models.py
 
-echo "✅ Setup complete. Use 'source venv/bin/activate' to enter environment."
+echo "Setup complete. Use 'source venv/bin/activate' to enter environment."

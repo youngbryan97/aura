@@ -53,7 +53,7 @@ class _RunsItsAugmentors:
         self._augmentor_registry_receipt = [
             type(existing).__name__ for existing in self._augmentors
         ]
-        logger.info("🧠 CognitiveEngine: Registered augmentor %s", type(augmentor).__name__)
+        logger.info("CognitiveEngine: Registered augmentor %s", type(augmentor).__name__)
         return True
 
     def augmentor_registry_receipt(self) -> list[str]:
@@ -135,7 +135,7 @@ class _RunsItsAugmentors:
                     summary.get("effects", [])
                 )
                 logger.debug(
-                    "🧠 Entity memory: %d entity(ies) in play, %d effect(s).",
+                    "Entity memory: %d entity(ies) in play, %d effect(s).",
                     len(summary["entities"]), len(summary.get("effects", [])),
                 )
         except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:

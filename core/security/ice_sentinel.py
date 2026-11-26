@@ -75,7 +75,7 @@ class IntrusionSentinel:
         self._inbound = 0
         self._outbound = 0
         self._blocks = 0
-        logger.info("🧊 ICE IntrusionSentinel initialized (EDI/Netrunner defensive lineage)")
+        logger.info("ICE IntrusionSentinel initialized (EDI/Netrunner defensive lineage)")
 
     @staticmethod
     def _hits(text: str, markers: tuple[str, ...]) -> list[str]:

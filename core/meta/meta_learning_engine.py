@@ -60,7 +60,7 @@ class MetaLearningEngine:
                 # distance in ChromaDB is usually cosine distance, 0.0 is perfect match
                 distance = match.get("distance", 1.0)
                 if distance < 0.3: # Threshold for high relevance
-                    logger.info("🧠 Meta-Learning: Found relevant past experience (Dist: %.2f)", distance)
+                    logger.info("Meta-Learning: Found relevant past experience (Dist: %.2f)", distance)
                     return match
         
         return None
@@ -87,7 +87,7 @@ class MetaLearningEngine:
         res = self.vectors.add(content=text_rep, metadata=experience_data)
         if asyncio.iscoroutine(res):
             await res
-        logger.info("🧠 Meta-Learning: Indexed experience for '%s...'", task[:30])
+        logger.info("Meta-Learning: Indexed experience for '%s...'", task[:30])
         
         # ACTIVE LEARNING: Route to LoRA dataset generator if tools were successfully used
         if successful_tools:

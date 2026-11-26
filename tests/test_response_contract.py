@@ -658,7 +658,7 @@ def test_response_contract_detects_recent_tool_evidence():
     state.cognition.working_memory.append(
         {
             "role": "system",
-            "content": "[SKILL RESULT: web_search] ✅ grounded result",
+            "content": "[SKILL RESULT: web_search] grounded result",
             "metadata": {"type": "skill_result", "skill": "web_search", "ok": True},
         }
     )

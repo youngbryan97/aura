@@ -21,19 +21,19 @@ class ToolPermissionGuard:
         for allowed in manifest.allowed_directories:
             if path.startswith(allowed):
                 return True
-        logger.warning("🚫 Tool %s attempted unauthorized file access: %s", manifest.name, path)
+        logger.warning("Tool %s attempted unauthorized file access: %s", manifest.name, path)
         return False
 
     @staticmethod
     def is_domain_allowed(manifest: ToolManifest, domain: str) -> bool:
         """Checks if a network request is targetting an allowed domain."""
         if "network" not in manifest.permissions:
-            logger.warning("🚫 Tool %s does not have network permission", manifest.name)
+            logger.warning("Tool %s does not have network permission", manifest.name)
             return False
         if "*" in manifest.allowed_domains:
             return True
         for allowed in manifest.allowed_domains:
             if domain == allowed or domain.endswith("." + allowed):
                 return True
-        logger.warning("🚫 Tool %s attempted unauthorized network access: %s", manifest.name, domain)
+        logger.warning("Tool %s attempted unauthorized network access: %s", manifest.name, domain)
         return False

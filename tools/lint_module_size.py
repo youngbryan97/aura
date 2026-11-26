@@ -343,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if stale:
-        print(f"\n📉 {len(stale)} baseline entry/entries are stale — refresh with")
+        print(f"\n{len(stale)} baseline entry/entries are stale — refresh with")
         print("   python tools/lint_module_size.py --write-baseline")
         for entry in stale[:20]:
             print(f"   {entry}")
@@ -366,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
             head = entry.split()[1]
             return int(head) if head.lstrip("+").isdigit() else 0
 
-        print(f"\n❌ {len(failures)} size regression(s):")
+        print(f"\nfailed {len(failures)} size regression(s):")
         if new:
             print(
                 f"\n   NEW — over the ceiling and never baselined ({len(new)}). "
@@ -389,7 +389,7 @@ def main(argv: list[str] | None = None) -> int:
         # ratchet ratcheting rather than slowly becoming a record of history.
         return 1
 
-    print("✅ no module grew past its baseline")
+    print("no module grew past its baseline")
     return 0
 
 

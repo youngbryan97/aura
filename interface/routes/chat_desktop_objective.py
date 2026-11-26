@@ -819,7 +819,7 @@ def _the_page_goes_to_her_turn(result: dict[str, Any], objective: str) -> bool:
         return False
     record_turn_grounding(rendered)
     record_turn_world_source(source)
-    logger.info("🌐 The page she ended on (%s, %d chars) goes to her turn to answer from.", url, len(text))
+    logger.info("The page she ended on (%s, %d chars) goes to her turn to answer from.", url, len(text))
     return True
 
 
@@ -833,7 +833,7 @@ def _what_the_pointing_came_to_goes_to_her_turn(result: dict[str, Any]) -> bool:
     if not isinstance(result.get("highlight"), dict) or result.get("pointing") not in {"pointed_on_screen",
                                                                                          "pointing_refused"}:
         return False
-    logger.info("🖥️ Her pointing (%s) is hers to speak of; its receipt is in the turn's record.", result["pointing"])
+    logger.info("Her pointing (%s) is hers to speak of; its receipt is in the turn's record.", result["pointing"])
     return True
 
 
@@ -859,7 +859,7 @@ def _what_it_came_to_goes_to_her_turn(result: dict[str, Any], objective: str) ->
     # told her what she may claim (17 November 2026).
     record_turn_grounding(f"The desktop step for this question did not complete: {error}. {completed} of {requested} "
                           "step(s) completed.")
-    logger.info("🖥️ What the desktop step came to is hers to speak of: %s", error[:120])
+    logger.info("What the desktop step came to is hers to speak of: %s", error[:120])
     return True
 
 

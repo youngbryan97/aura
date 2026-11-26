@@ -42,7 +42,7 @@ class ConversationReflector:
     async def start(self):
         self._inquiry_engine = resolve_inquiry_engine(default=None)
         self._narrative = resolve_narrative_thread(default=None)
-        logger.info("✅ ConversationReflector ONLINE.")
+        logger.info("ConversationReflector ONLINE.")
 
     async def reflect_on_history(self, history: List[Dict[str, str]]):
         """Analyze conversation history for gaps and themes."""

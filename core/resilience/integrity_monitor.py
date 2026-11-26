@@ -100,7 +100,7 @@ class SystemIntegrityMonitor:
         """Start periodic integrity checks."""
         self._running = True
         self._task = get_task_tracker().create_task(self._monitor_loop())
-        logger.info("🔍 System Integrity Monitor started (interval=%ds)", self._interval)
+        logger.info("System Integrity Monitor started (interval=%ds)", self._interval)
 
     async def stop(self):
         self._running = False
@@ -140,21 +140,21 @@ class SystemIntegrityMonitor:
         self._last_findings = (errors, warnings)
         if errors:
             if errors != previous_errors:
-                logger.error("🔍 INTEGRITY ERRORS: %s", list(errors))
+                logger.error("INTEGRITY ERRORS: %s", list(errors))
             else:
-                logger.info("🔍 Integrity errors unchanged (%d): %s", len(errors), list(errors))
+                logger.info("Integrity errors unchanged (%d): %s", len(errors), list(errors))
             return
         if previous_errors:
-            logger.info("🔍 Integrity errors cleared: %s", list(previous_errors))
+            logger.info("Integrity errors cleared: %s", list(previous_errors))
         if warnings:
             if warnings != previous_warnings:
-                logger.warning("🔍 Integrity warnings: %s", list(warnings))
+                logger.warning("Integrity warnings: %s", list(warnings))
             else:
-                logger.info("🔍 Integrity warnings unchanged (%d): %s", len(warnings), list(warnings))
+                logger.info("Integrity warnings unchanged (%d): %s", len(warnings), list(warnings))
             return
         if previous_warnings:
-            logger.info("🔍 Integrity warnings cleared: %s", list(previous_warnings))
-        logger.info("🔍 Integrity check #%d passed", self._check_count)
+            logger.info("Integrity warnings cleared: %s", list(previous_warnings))
+        logger.info("Integrity check #%d passed", self._check_count)
 
     async def run_check(self, include_databases: bool | None = None) -> IntegrityReport:
         """Run a full integrity check.
@@ -303,7 +303,7 @@ class SystemIntegrityMonitor:
                     )
                     report.db_checks[db_name] = str(result)
                     report.errors.append(msg)
-                    logger.error("🔍 %s", msg)
+                    logger.error("%s", msg)
                     record_degradation(
                         'integrity_monitor',
                         RuntimeError(msg),

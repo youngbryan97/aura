@@ -47,7 +47,7 @@ class LifecycleCoordinator:
                 logger.error("Failed to auto-start in run loop.")
                 return
 
-        logger.info("🚀 Orchestrator Main Loop ACTIVE")
+        logger.info("Orchestrator Main Loop ACTIVE")
         orch.status.is_processing = False
 
         # Watchdog for Cycle Stalls
@@ -141,7 +141,7 @@ class LifecycleCoordinator:
                 orch.dream_cycle = DreamCycle(orch, dlq_path)
                 orch.dream_cycle.start()
 
-                logger.info("💤 Dreaming Systems Active (Semantic Defrag & DLQ Recycle)")
+                logger.info("Dreaming Systems Active (Semantic Defrag & DLQ Recycle)")
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_lifecycle_degradation(
                     e,
@@ -236,7 +236,7 @@ class LifecycleCoordinator:
             if orch.ears:
                 if hasattr(orch.ears, "should_auto_listen") and orch.ears.should_auto_listen():
                     def _hear_callback(text):
-                        logger.info("👂 Heard: %s", text)
+                        logger.info("Heard: %s", text)
                         if hasattr(orch, 'process_user_input'):
                              orch.process_user_input(f"[VOICE] {text}")
                     await orch.ears.start_listening(_hear_callback)
@@ -327,7 +327,7 @@ class LifecycleCoordinator:
     async def stop(self):
         """Signal the orchestrator to stop gracefully."""
         orch = self.orch
-        logger.info("🛑 Orchestrator stop requested.")
+        logger.info("Orchestrator stop requested.")
 
         # Save continuity record (session count, uptime, last exchange)
         try:
@@ -429,12 +429,12 @@ class LifecycleCoordinator:
         await get_task_tracker().shutdown(timeout=3.0)
 
         orch._publish_status({"event": "stopped", "message": "Orchestrator offline"})
-        logger.info("✅ Orchestrator stopped.")
+        logger.info("Orchestrator stopped.")
 
     async def retry_cognitive_connection(self) -> bool:
         """Manually retry connecting to the cognitive brain (LLM). Forces full re-wire."""
         orch = self.orch
-        logger.info("🧠 Manual Cognitive Retry Initiated...")
+        logger.info("Manual Cognitive Retry Initiated...")
         try:
             from core.brain.cognitive_engine import CognitiveEngine
             ce = orch.cognitive_engine
@@ -445,7 +445,7 @@ class LifecycleCoordinator:
                 from core.container import get_container
                 container = get_container()
                 engine = container.get("capability_engine", None)
-                logger.info("🔄 Re-wiring cognitive engine...")
+                logger.info("Re-wiring cognitive engine...")
                 ce.wire(engine, router=engine)
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_lifecycle_degradation(
@@ -459,7 +459,7 @@ class LifecycleCoordinator:
             if not getattr(ce, 'lobotomized', True):
                 from core.container import ServiceContainer
                 ServiceContainer.register_instance("cognitive_engine", ce)
-                logger.info("✅ Cognitive Engine ONLINE — Safe Mode deactivated")
+                logger.info("Cognitive Engine ONLINE — Safe Mode deactivated")
                 try:
                     from .thought_stream import get_emitter
                     get_emitter().emit("System", "Cognitive Connection Re-established", level="success")
@@ -473,7 +473,7 @@ class LifecycleCoordinator:
                     logger.debug("ThoughtStream emit failed during cognitive retry: %s", e)
                 return True
             else:
-                logger.error("❌ Cognitive Retry Failed: Engine still lobotomized after re-wire")
+                logger.error("Cognitive Retry Failed: Engine still lobotomized after re-wire")
                 logger.error("  client=%s, autonomous_brain=%s", getattr(ce, 'client', None), getattr(ce, 'autonomous_brain', None))
                 return False
         except (ImportError, AttributeError, RuntimeError) as e:

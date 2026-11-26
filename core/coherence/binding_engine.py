@@ -94,7 +94,7 @@ class BindingEngine:
         self._tension_engine = None
         self._intention_loop = None
 
-        logger.info("🧬 BindingEngine initialized — coherence law active.")
+        logger.info("BindingEngine initialized — coherence law active.")
 
     def _ensure_engines(self) -> None:
         """Lazy-resolve convergence engines from ServiceContainer."""
@@ -314,7 +314,7 @@ class BindingEngine:
         # ── Determine recommended action ─────────────────────────────────────
         if report.overall_coherence < COHERENCE_CRISIS_THRESHOLD:
             report.recommended_action = "rest"
-            logger.warning("🚨 COHERENCE CRISIS (%.2f) — recommending rest/consolidation", report.overall_coherence)
+            logger.warning("COHERENCE CRISIS (%.2f) — recommending rest/consolidation", report.overall_coherence)
             # Emit event if EventBus available
             try:
                 bus = ServiceContainer.get("event_bus", default=None)
@@ -342,7 +342,7 @@ class BindingEngine:
 
         if self._tick_count % 10 == 0:
             logger.info(
-                "🧬 Coherence: %.2f | self=%.1f phenom=%.1f align=%.1f tension=%.1f intent=%.1f | %s",
+                "Coherence: %.2f | self=%.1f phenom=%.1f align=%.1f tension=%.1f intent=%.1f | %s",
                 report.overall_coherence, report.self_continuity,
                 report.phenomenal_coherence, report.initiative_alignment,
                 report.tension_pressure, report.intention_integrity,

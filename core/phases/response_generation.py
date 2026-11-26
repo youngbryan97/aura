@@ -560,7 +560,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         skill_name: str,
         payload: dict[str, Any],
     ) -> str:
-        status = "✅" if payload.get("ok") else "⚠️"
+        status = "ok" if payload.get("ok") else "warning"
         parts: list[str] = []
         # "text" and "body" are where a fetched document actually lands.
         #
@@ -969,7 +969,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 }
             )
         )
-        logger.info("🧠 ResponseGeneration: kept procedure for %s answered before the draft (%s).", family, form)
+        logger.info("ResponseGeneration: kept procedure for %s answered before the draft (%s).", family, form)
         return True
 
     async def _maybe_amplify_response(
@@ -1017,7 +1017,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 "adopted": not stated,
                 "voice": voice,
             }
-            logger.info("🧠 ResponseGeneration: kept answer for %s, %s (known answers agreed: %s).",
+            logger.info("ResponseGeneration: kept answer for %s, %s (known answers agreed: %s).",
                         planted.get("family"), state.response_modifiers["reasoning_amplifier_v2_active_phase"]["voice"],
                         planted.get("agreed_known"))
             if stated:
@@ -1273,7 +1273,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         }
         authority = str(receipt.get("promotion_authority") or "none")
         logger.info(
-            "🧠 [AmplifyV2-active-phase] task=%s authority=%s conf=%.2f -> %s",
+            "[AmplifyV2-active-phase] task=%s authority=%s conf=%.2f -> %s",
             task_type,
             authority,
             result.confidence,
@@ -1399,7 +1399,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         )
 
         if not objective:
-            logger.debug("⏭️ ResponseGeneration: No active objective, skipping.")
+            logger.debug("ResponseGeneration: No active objective, skipping.")
             return state
 
         # PHASE 7 SUPPRESSION: If Advanced Cognition (CognitiveIntegrationLayer) is
@@ -1414,17 +1414,17 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             and background_policy.is_user_facing_origin(origin)
         ):
             logger.debug(
-                "🛡️ ResponseGeneration: Phase 7 owns this turn — Phase 5 SUPPRESSED for %s.",
+                "ResponseGeneration: Phase 7 owns this turn — Phase 5 SUPPRESSED for %s.",
                 origin,
             )
             return state
         # Also suppress if Phase 7 is currently mid-processing (race condition guard)
         if cog and getattr(cog, "_processing_turn", False):
-            logger.debug("🛡️ ResponseGeneration: Phase 7 mid-processing — Phase 5 SUPPRESSED.")
+            logger.debug("ResponseGeneration: Phase 7 mid-processing — Phase 5 SUPPRESSED.")
             return state
 
         logger.info(
-            "💭 ResponseGeneration: Generating response for objective: %s... (%s)",
+            "ResponseGeneration: Generating response for objective: %s... (%s)",
             str(objective)[:30],
             state.cognition.current_mode.value,
         )
@@ -1484,7 +1484,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     )
                     if reason:
                         logger.info(
-                            "🛡️ ResponseGeneration: suppressing background objective for origin=%s (%s).",
+                            "ResponseGeneration: suppressing background objective for origin=%s (%s).",
                             origin,
                             reason,
                         )
@@ -1744,7 +1744,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             # (32B model normally uses 85-90% of 64GB).
             if thermal_c >= 95.0:
                 logger.warning(
-                    "🌡️ ResponseGeneration: thermal guard active (temp=%.1fC cpu=%.1f%% mem=%.1f%%). Downshifting tier/tokens.",
+                    "ResponseGeneration: thermal guard active (temp=%.1fC cpu=%.1f%% mem=%.1f%%). Downshifting tier/tokens.",
                     thermal_c,
                     cpu_usage,
                     float(memory_pressure or 0.0),
@@ -2086,7 +2086,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                             authorship_effect="preserved",
                         )
                         logger.info(
-                            "🛡️ ResponseGeneration repaired instruction shape locally before critique (%s).",
+                            "ResponseGeneration repaired instruction shape locally before critique (%s).",
                             ",".join(shape_repair_reasons) or "unknown",
                         )
 
@@ -2193,10 +2193,10 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         and amplifier_promotion_authority == "none"
                         and strategies._is_logical_check(objective)
                     ):
-                        logger.info("⚡ [Critique] Running System 2 self-critique on response...")
+                        logger.info("[Critique] Running System 2 self-critique on response...")
                         critique_response = await strategies._self_critique(objective, response_text, origin=origin)
                         if critique_response and critique_response != response_text:
-                            logger.info("⚡ [Critique] Self-critique corrected the generated response!")
+                            logger.info("[Critique] Self-critique corrected the generated response!")
                             append_text_mutation(
                                 response_mutation_receipt,
                                 stage="response_generation.system2_critique",
@@ -2227,7 +2227,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     else self.container.get("composer_node", default=None)
                 )
                 if composer and hasattr(composer, "refine"):
-                    logger.debug("🎨 [Composer] Refining response structure...")
+                    logger.debug("[Composer] Refining response structure...")
                     pre_composer_text = response_text
                     response_text = await composer.refine(response_text, objective=objective)
                     append_text_mutation(
@@ -2254,7 +2254,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     }
                 )
                 logger.error(
-                    "🛑 ResponseGeneration Phase TIMEOUT (%.0fs). Logic took too long.",
+                    "ResponseGeneration Phase TIMEOUT (%.0fs). Logic took too long.",
                     request_timeout + 4.0,
                 )
                 if servable_incumbent is not None and str(servable_incumbent).strip():
@@ -2335,11 +2335,11 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         "method": "deterministic_grounded_evidence",
                     }
                     logger.warning(
-                        "🛡️ ResponseGeneration answered from successful %s evidence after empty Cortex result.",
+                        "ResponseGeneration answered from successful %s evidence after empty Cortex result.",
                         skill_name,
                     )
                 else:
-                    logger.debug("💭 ResponseGeneration: LLM returned None. Skipping this tick.")
+                    logger.debug("ResponseGeneration: LLM returned None. Skipping this tick.")
                     return state
             if not str(response_text or "").strip():
                 required_tool_hit = self._successful_required_search_payload(state, contract)
@@ -2364,11 +2364,11 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         "method": "deterministic_grounded_evidence",
                     }
                     logger.warning(
-                        "🛡️ ResponseGeneration answered from successful %s evidence after blank Cortex result.",
+                        "ResponseGeneration answered from successful %s evidence after blank Cortex result.",
                         skill_name,
                     )
                 else:
-                    logger.debug("💭 ResponseGeneration: LLM returned blank text. Skipping this tick.")
+                    logger.debug("ResponseGeneration: LLM returned blank text. Skipping this tick.")
                     return state
             if not is_background and not append_only_continuation_pending:
                 if (
@@ -2389,7 +2389,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         )
                         if repaired_shape:
                             logger.info(
-                                "🛡️ ResponseGeneration repaired instruction shape locally after refinement (%s).",
+                                "ResponseGeneration repaired instruction shape locally after refinement (%s).",
                                 ",".join(repair_reasons) or "unknown",
                             )
                             append_text_mutation(
@@ -2444,7 +2444,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
             )
             if was_corrected:
                 logger.info(
-                    "🛡️ ExecutiveGuard corrected %d violation(s) in LLM output.", len(violations)
+                    "ExecutiveGuard corrected %d violation(s) in LLM output.", len(violations)
                 )
 
             async def _retry_dialogue(repair_block: str) -> str:
@@ -2634,7 +2634,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     **self._generation_metadata_snapshot(router),
                     **latent_trace,
                 }
-                logger.info("🗣️ ResponseGeneration: retried draft to satisfy dialogue contract.")
+                logger.info("ResponseGeneration: retried draft to satisfy dialogue contract.")
 
             pre_tool_repair = cleaned_response
             if not append_only_continuation_pending:
@@ -2707,7 +2707,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         )
                         _shaped_messages = None
                         logger.debug(
-                            "🗣️ [SubstrateVoice] Rejoined %d shaped chunks into one complete response",
+                            "[SubstrateVoice] Rejoined %d shaped chunks into one complete response",
                             len(shaped_parts),
                         )
                     else:
@@ -2795,7 +2795,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 action="returned prior state unchanged after response generation phase failed",
                 severity="error",
             )
-            logger.error("❌ ResponseGeneration: LLM call failed: %s", e, exc_info=True)
+            logger.error("ResponseGeneration: LLM call failed: %s", e, exc_info=True)
             return state
 
     def _clean_response(
@@ -2847,7 +2847,7 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         text = re.sub(r"^Aura:\s*", "", text, flags=re.IGNORECASE)
         text = re.sub(r"^Assistant:\s*", "", text, flags=re.IGNORECASE)
 
-        # 🧠 COGNITIVE WIRING: Affect-Gated Prompt Hunting
+        # COGNITIVE WIRING: Affect-Gated Prompt Hunting
         # Instead of using a 'fake band-aid' system prompt to forbid questions,
         # we wire this behavior directly into her mind. If the LLM reflexively
         # appends a trailing question, she must ACTUALLY be curious to ask it.

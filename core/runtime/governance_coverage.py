@@ -61,7 +61,7 @@ def note_ungoverned_turn(origin: str, reason: str) -> None:
         count = _UNGOVERNED[key]
     if count == 1 or count % _LOG_EVERY == 0:
         logger.warning(
-            "🛡️ Ungoverned turn (%s) from %s — the Unified Will did not decide "
+            "Ungoverned turn (%s) from %s — the Unified Will did not decide "
             "this message. Occurrences: %d",
             reason,
             origin,

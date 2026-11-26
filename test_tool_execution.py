@@ -29,7 +29,7 @@ async def test_file_write_read(work_dir: Path):
     from core.capability_engine import execute_tool
     test_file = work_dir / "test_aura_write.txt"
     
-    print("🧪 Testing File Write Operation...")
+    print("Testing File Write Operation...")
     
     # Test write
     result = await execute_tool(
@@ -47,7 +47,7 @@ async def test_file_write_read(work_dir: Path):
         print(f"   ✗ File write failed: {result.get('error')}")
         return False
     
-    print("🧪 Testing File Read Operation...")
+    print("Testing File Read Operation...")
     
     # Test read
     result = await execute_tool(
@@ -72,7 +72,7 @@ async def test_multiple_tools_sequential(work_dir: Path):
     """Test multiple tool calls in sequence"""
     from core.capability_engine import execute_tool
     
-    print("\n🧪 Testing 10 Sequential Tool Calls...")
+    print("\nTesting 10 Sequential Tool Calls...")
     
     for i in range(10):
         result = await execute_tool(
@@ -105,16 +105,16 @@ async def main():
         
         print("\n" + "=" * 60)
         if test1 and test2:
-            print("✅ ALL TOOL TESTS PASSED")
+            print("ALL TOOL TESTS PASSED")
             print("   - File operations work cleanly")
             print("   - Sequential tool calls stable")
             print("   - No crashes or hangs observed")
             return 0
         else:
-            print("❌ SOME TESTS FAILED")
+            print("SOME TESTS FAILED")
             return 1
     except SCRIPT_RECOVERABLE_ERRORS as e:
-        print(f"\n❌ ERROR: {e}")
+        print(f"\nERROR: {e}")
         import traceback
         traceback.print_exc()
         return 1

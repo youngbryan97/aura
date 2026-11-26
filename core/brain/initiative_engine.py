@@ -120,7 +120,7 @@ class ProactiveInitiativeEngine:
     async def start_proactive_loop(self):
         """The background heartbeat that decides when Aura should speak up."""
         self._running = True
-        logger.info("🧠 Proactive Initiative Engine ONLINE.")
+        logger.info("Proactive Initiative Engine ONLINE.")
 
         while self._running:
             try:
@@ -315,12 +315,12 @@ class ProactiveInitiativeEngine:
 
                 # Scrub "null" or empty responses
                 if not spoken_text or spoken_text.lower() in ["null", "none", "...", "."]:
-                    logger.debug("🌱 [Initiative] Scrubbed empty or null proactive thought.")
+                    logger.debug("[Initiative] Scrubbed empty or null proactive thought.")
                     return
 
             spoken_text = str(spoken_text or "").strip()
             if not spoken_text or spoken_text.lower() in ["null", "none", "...", "."]:
-                logger.debug("🌱 [Initiative] Scrubbed empty or null proactive thought.")
+                logger.debug("[Initiative] Scrubbed empty or null proactive thought.")
                 return
 
             delivered = False

@@ -235,7 +235,7 @@ class ContextPruner:
             return messages
 
         logger.info(
-            "🛡️ MemoryGuard: Pruning context for tier %s (Est: %d tokens, Limit: %d)",
+            "MemoryGuard: Pruning context for tier %s (Est: %d tokens, Limit: %d)",
             tier, current, limit,
         )
         system_prompt = messages[0] if message_role(messages[0]) == "system" else None
@@ -268,7 +268,7 @@ class ContextPruner:
             # Honest: we could not get under the limit without discarding the
             # newest turn. Say so instead of returning a false "pruned" result.
             logger.warning(
-                "🛡️ MemoryGuard: context still over budget after pruning "
+                "MemoryGuard: context still over budget after pruning "
                 "(%d > %d) — the newest turn alone exceeds the tier.",
                 final_tokens, limit,
             )

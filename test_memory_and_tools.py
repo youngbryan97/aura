@@ -25,7 +25,7 @@ async def test_task_tracker_memory():
     """Test that TaskTracker cleanup works"""
     tracker = get_task_tracker()
     
-    print("🧪 Testing TaskTracker Memory Bounds...")
+    print("Testing TaskTracker Memory Bounds...")
     print(f"   Initial: {len(tracker._records)} records")
     
     # Simulate many task completions
@@ -55,7 +55,7 @@ async def test_process_memory():
     """Check process memory is stable"""
     observer = get_resource_observer()
     
-    print("\n🧪 Testing Process Memory Stability...")
+    print("\nTesting Process Memory Stability...")
     
     mem_before = observer.memory(root_pid=os.getpid()).process_rss_bytes / 1024 / 1024
     print(f"   Memory before: {mem_before:.1f} MB")
@@ -89,13 +89,13 @@ async def main():
     
     print("\n" + "=" * 60)
     if test1 and test2:
-        print("✅ ALL TESTS PASSED")
+        print("ALL TESTS PASSED")
         print("   - TaskTracker memory bounded to 256 records")
         print("   - Process memory growth <50MB with heavy task creation")
         print("   - Ready for production use")
         return 0
     else:
-        print("❌ TESTS FAILED")
+        print("TESTS FAILED")
         return 1
 
 if __name__ == '__main__':

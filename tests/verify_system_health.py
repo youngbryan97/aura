@@ -18,7 +18,7 @@ async def verify_health():
     from core.container import ServiceContainer
     from core.orchestrator.main import create_orchestrator
 
-    logger.info("🚀 STARTING TOTAL SYSTEM HEALTH CHECK (Phase 14)...")
+    logger.info("STARTING TOTAL SYSTEM HEALTH CHECK (Phase 14)...")
     orchestrator = create_orchestrator()
     orchestrator.setup()
 
@@ -26,22 +26,22 @@ async def verify_health():
         # 1. Boot Subsystems (No full loop)
         logger.info("Checking Memory...")
         if orchestrator.memory:
-            logger.info(f"✅ Memory Online: {type(orchestrator.memory).__name__}")
+            logger.info(f"Memory Online: {type(orchestrator.memory).__name__}")
         else:
-            logger.error("❌ Memory Offline!")
+            logger.error("Memory Offline!")
 
         logger.info("Checking Cognitive Engine...")
         if hasattr(orchestrator, 'cognitive_engine') and orchestrator.cognitive_engine:
-            logger.info("✅ Cognitive Engine Online.")
+            logger.info("Cognitive Engine Online.")
         else:
-            logger.error("❌ Cognitive Engine Offline!")
+            logger.error("Cognitive Engine Offline!")
 
         logger.info("Checking Personality Engine...")
         if hasattr(orchestrator, 'personality_engine') and orchestrator.personality_engine:
             context = orchestrator.personality_engine.get_emotional_context_for_response()
-            logger.info(f"✅ Personality Engine Online (Mood: {context.get('mood')})")
+            logger.info(f"Personality Engine Online (Mood: {context.get('mood')})")
         else:
-            logger.error("❌ Personality Engine Offline!")
+            logger.error("Personality Engine Offline!")
 
         logger.info("Checking Immune System...")
         if orchestrator.immune_system:
@@ -55,16 +55,16 @@ async def verify_health():
                     status = await orchestrator.immune_system.scan_system_health()
             else:
                 status = {}
-            logger.info(f"✅ Immune System Online. Status: {status}")
+            logger.info(f"Immune System Online. Status: {status}")
             if status.get("antibody_active") or (
                 isinstance(status, dict)
                 and (("failed" in status and not status["failed"]) or "known_signatures" in status)
             ):
-                logger.info("✅ Active Defense & Encryption keys verified.")
+                logger.info("Active Defense & Encryption keys verified.")
             else:
-                logger.warning("⚠️ Immune subsystems partially initialized.")
+                logger.warning("Immune subsystems partially initialized.")
         else:
-            logger.error("❌ Immune System Offline!")
+            logger.error("Immune System Offline!")
 
         # 2. Check Service Container
         report = ServiceContainer.get_health_report()
@@ -73,11 +73,11 @@ async def verify_health():
 
         # 3. Cleanup Test cleanup
         await ServiceContainer.shutdown()
-        logger.info("\n🏆 TOTAL SYSTEM SYNTHESIS VERIFIED.")
+        logger.info("\nTOTAL SYSTEM SYNTHESIS VERIFIED.")
         return True
 
     except (AttributeError, ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
-        logger.error(f"❌ SYSTEM HEALTH CHECK FAILED: {e}")
+        logger.error(f"SYSTEM HEALTH CHECK FAILED: {e}")
         import traceback
 
         traceback.print_exc()

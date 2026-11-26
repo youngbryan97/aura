@@ -159,7 +159,7 @@ class KnowledgeExtractor:
                                 source="conversation_extraction",
                                 confidence=float(item.get("confidence", 0.6)),
                             )
-                            logger.info("📚 Learned: %s", (item.get("content") or "")[:80])
+                            logger.info("Learned: %s", (item.get("content") or "")[:80])
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('knowledge_extractor', e)
             logger.debug("Knowledge extraction failed: %s", e)

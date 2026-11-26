@@ -122,7 +122,7 @@ class ParallelExecutor:
                         timeout=self.per_task_timeout_s,
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("⏱️ [Parallel] task '%s' timed out after %.0fs", task.goal, self.per_task_timeout_s)
+                    logger.warning("[Parallel] task '%s' timed out after %.0fs", task.goal, self.per_task_timeout_s)
                     return ExecutionReceipt(goal=task.goal, completed=False, stalled=True, elapsed_s=self.per_task_timeout_s)
                 except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
                     record_degradation("parallel_executor", exc)
@@ -171,7 +171,7 @@ class ParallelExecutor:
         tasks, receipt.refused = await self._partition(tasks)
         if receipt.refused:
             logger.info(
-                "🚫 [Parallel] %d of %d refused before launch: %s",
+                "[Parallel] %d of %d refused before launch: %s",
                 len(receipt.refused),
                 len(tasks) + len(receipt.refused),
                 ", ".join(one.goal for one in receipt.refused),
@@ -196,7 +196,7 @@ class ParallelExecutor:
         receipt.peak_concurrency = self._peak
         receipt.elapsed_s = time.monotonic() - started
         logger.info(
-            "🍴 [Parallel] %d tasks → %d completed, %d stalled, %d failed, %d refused "
+            "[Parallel] %d tasks → %d completed, %d stalled, %d failed, %d refused "
             "(peak concurrency %d)",
             len(tasks), receipt.completed_count, receipt.stalled_count,
             receipt.failed_count, receipt.refused_count, receipt.peak_concurrency,

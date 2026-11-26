@@ -402,7 +402,7 @@ class CustodySet:
                 del self._breaks[_MAX_BREAKS:]
         if emit_log:
             for item in found:
-                logger.warning("🔗 [CUSTODY] %s", item.describe())
+                logger.warning("[CUSTODY] %s", item.describe())
         return tuple(found)
 
     def breaks(self) -> tuple[CustodyBreak, ...]:
@@ -470,7 +470,7 @@ class CustodySet:
             restored.append(item)
         if restored and emit_log:
             logger.warning(
-                "🔗 [CUSTODY] restored %d fact(s) the pipeline lost: %s",
+                "[CUSTODY] restored %d fact(s) the pipeline lost: %s",
                 len(restored),
                 "; ".join(item.describe() for item in restored)[:400],
             )

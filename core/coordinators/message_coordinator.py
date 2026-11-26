@@ -178,9 +178,9 @@ class MessageCoordinator:
             from core.thought_stream import get_emitter
 
             if message.startswith("Impulse:"):
-                label = "Impulse ⚡"
+                label = "Impulse"
             elif message.startswith("Thought:"):
-                label = "Thought 💭"
+                label = "Thought"
             else:
                 label = "User"
             get_emitter().emit(f"Input ({label})", message[:120], level="info")
@@ -333,7 +333,7 @@ class MessageCoordinator:
             await orch.hooks.trigger("on_message", message=message, origin=origin)
             if orch._current_thought_task is not None and not orch._current_thought_task.done():
                 if origin == "user":
-                    logger.info("🛑 Interrupting previous task for user...")
+                    logger.info("Interrupting previous task for user...")
                     await cancel_and_join(orch._current_thought_task, owner="core.coordinators.message_coordinator")
 
             async def _execute_and_reply():

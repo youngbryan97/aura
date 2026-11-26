@@ -26,4 +26,4 @@ def apply_response_patches(orchestrator: Any | None = None) -> None:
         return
 
     _applied = True
-    logger.info("🧠 Response pipeline is running on native modules; legacy patch hook is a no-op.")
+    logger.info("Response pipeline is running on native modules; legacy patch hook is a no-op.")

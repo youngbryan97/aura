@@ -35,7 +35,7 @@ def watch_a_typed_exchange(who: str, said: str, she_replied: str) -> bool:
         her_act = engine._classify_speech_act(her_last)[0] if her_last else ""
         their_act, topic = str(dynamics.last_speech_act or ""), str(dynamics.current_topic or "")
         watch_the_turn(who, their_act=their_act, her_act=her_act, topic=topic)
-        logger.info("👁️ Her model of %s saw a %s about %s, facing her %s.", who, their_act or "turn",
+        logger.info("Her model of %s saw a %s about %s, facing her %s.", who, their_act or "turn",
                     topic or "nothing named", her_act or "opening")
         if she_replied:
             engine.update(message=she_replied, role="assistant",

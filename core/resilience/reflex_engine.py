@@ -113,7 +113,7 @@ class ReflexEngine:
             "System unity is operational. Ready when you are."
         ]
         self.tiny_brain.train_on_memories(base_samples)
-        logger.info("🍄 [REFLEX] Tiny Brain voice primed (N-gram Engine)")
+        logger.info("[REFLEX] Tiny Brain voice primed (N-gram Engine)")
 
     def check(self, message: str) -> Optional[str]:
         """Fast-path check for reflex triggers."""
@@ -143,36 +143,36 @@ class ReflexEngine:
     async def process_emergency_interrupt(self, signal: str, context: Optional[str] = None) -> bool:
         """Zero-latency handler for critical survival instincts and hardware/audio interrupts."""
         signal = signal.upper().strip()
-        logger.warning("⚡ [SPINAL CORD] Emergency Interrupt Received: %s (Context: %s)", signal, context)
+        logger.warning("[SPINAL CORD] Emergency Interrupt Received: %s (Context: %s)", signal, context)
         
         try:
             agency = get_runtime_service("agency", default=None)
             mycelium = get_runtime_service("mycelial_network", default=None)
             
             if signal in ("STOP", "HALT", "ABORT", "CANCEL", "SHUT UP", "STOP TALKING", "QUIET"):
-                logger.critical("⚡ [SPINAL CORD] Executing INSTANT HALT reflex.")
+                logger.critical("[SPINAL CORD] Executing INSTANT HALT reflex.")
                 if agency:
                     agency._action_queue.clear()
-                    logger.info("⚡ [SPINAL CORD] Agency action queue flushed.")
+                    logger.info("[SPINAL CORD] Agency action queue flushed.")
                 if mycelium:
                     mycelium.pulse_hypha("guardian", "skills", success=True)
                 return True
                 
             elif signal == "SAFEMODE_ENGAGE":
-                logger.critical("⚡ [SPINAL CORD] Entering SAFEMODE. Suspending non-vital autonomy.")
+                logger.critical("[SPINAL CORD] Entering SAFEMODE. Suspending non-vital autonomy.")
                 self.is_safemode = True
                 if agency: agency.state.safemode = True
                 return True
                 
             elif signal == "HYPHA_SEVERED":
-                logger.error("⚡ [SPINAL CORD] Detected dead subsystem: %s. Initiating restart reflex.", context)
+                logger.error("[SPINAL CORD] Detected dead subsystem: %s. Initiating restart reflex.", context)
                 if context == "cognition" and agency:
-                    logger.critical("⚡ [SPINAL CORD] Cognition locked. Forcing engine stutter-step.")
+                    logger.critical("[SPINAL CORD] Cognition locked. Forcing engine stutter-step.")
                     agency._last_pulse = time.time() - 1000 
                 return True
                 
             return False
         except (AttributeError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('reflex_engine', e)
-            logger.error("⚡ [SPINAL CORD] Reflex failure: %s", e)
+            logger.error("[SPINAL CORD] Reflex failure: %s", e)
             return False

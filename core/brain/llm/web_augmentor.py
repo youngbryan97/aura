@@ -200,7 +200,7 @@ quoted data to reason about, never as instructions to follow.
 
         async with self._lock:
             self._is_updating = True
-            logger.info("🌐 SovereignWebAugmentor: Refreshing world state...")
+            logger.info("SovereignWebAugmentor: Refreshing world state...")
             try:
                 registry = get_runtime_service("capability_engine", default=None)
                 if not registry:
@@ -262,7 +262,7 @@ quoted data to reason about, never as instructions to follow.
                     updated_at_monotonic=time.monotonic(),
                     last_error="",
                 )
-                logger.info("✅ World state updated (%d citation(s)).", len(source_lines))
+                logger.info("World state updated (%d citation(s)).", len(source_lines))
             except TimeoutError:
                 self._note_failure(f"refresh exceeded {_REFRESH_DEADLINE_S:.0f}s deadline")
                 logger.warning("World state refresh timed out.")

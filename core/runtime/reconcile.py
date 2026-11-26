@@ -415,7 +415,7 @@ class Controller:
                 )
             )
         logger.info(
-            "🔁 controller %s started (%d worker(s), resync %.0fs)",
+            "controller %s started (%d worker(s), resync %.0fs)",
             self.name,
             self._workers,
             self._resync_s,
@@ -458,7 +458,7 @@ class Controller:
                 self.last_error = f"{type(exc).__name__}: {exc}"
                 delay = self.queue.add_rate_limited(request)
                 logger.warning(
-                    "🔁 %s reconcile(%s) failed (%s); retrying in %.1fs (attempt %d)",
+                    "%s reconcile(%s) failed (%s); retrying in %.1fs (attempt %d)",
                     self.name,
                     request.key,
                     self.last_error,

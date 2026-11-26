@@ -229,7 +229,7 @@ async def _init_bare_git_repo(path: Path) -> None:
 
 
 async def main() -> int:
-    print("🔬 Aura Registered Skill Harness")
+    print("Aura Registered Skill Harness")
     ServiceContainer.clear()
 
     with tempfile.TemporaryDirectory(prefix="aura_skill_harness_") as temp_dir:

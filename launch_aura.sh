@@ -57,7 +57,7 @@ while [[ $# -gt 0 ]]; do
                 AURA_PORT="$2"
                 shift 2
             else
-                echo "❌ Missing value for --port"
+                echo "Missing value for --port"
                 exit 1
             fi
             ;;
@@ -75,7 +75,7 @@ done
 set -- "${PASSTHROUGH_ARGS[@]}"
 
 if ! [[ "$AURA_PORT" =~ ^[0-9]+$ ]] || [ "$AURA_PORT" -lt 1 ] || [ "$AURA_PORT" -gt 65535 ]; then
-    echo "❌ Invalid --port value: $AURA_PORT (expected 1-65535)"
+    echo "Invalid --port value: $AURA_PORT (expected 1-65535)"
     exit 1
 fi
 
@@ -88,12 +88,12 @@ echo -e "  \033[1;34m    ███    ███    ███    ███   █�
 echo -e "  \033[1;34m    ███    ███    ███    ███   ███    ███    ███    ███\033[0m"
 echo -e "  \033[1;34m    ███    ███    ▀████████▀   ███    ███    ███    ███\033[0m"
 echo -e "  \033[1;30m┌─────────────────────────────────────────────────────────────┐\033[0m"
-echo -e "  \033[1;30m│\033[0m  \033[1;35m✨ A U R A   L U N A   C O G N I T I V E   R U N T I M E ✨\033[0m  \033[1;30m│\033[0m"
+echo -e "  \033[1;30m│\033[0m     \033[1;35mA U R A   L U N A   C O G N I T I V E   R U N T I M E\033[0m     \033[1;30m│\033[0m"
 echo -e "  \033[1;30m├─────────────────────────────────────────────────────────────┤\033[0m"
-echo -e "  \033[1;30m│\033[0m  🧠 \033[1;36mStateful Mind\033[0m | 🛡️ \033[1;32mSealed Governance\033[0m | 🧬 \033[1;34mLive Morphogenesis\033[0m \033[1;30m│\033[0m"
+echo -e "  \033[1;30m│\033[0m    \033[1;36mStateful Mind\033[0m | \033[1;32mSealed Governance\033[0m | \033[1;34mLive Morphogenesis\033[0m     \033[1;30m│\033[0m"
 echo -e "  \033[1;30m└─────────────────────────────────────────────────────────────┘\033[0m"
 echo ""
-echo -e "🌸 \033[1;32mInitializing Aura\033[0m (Live Source Mode)..."
+echo -e "\033[1;32mInitializing Aura\033[0m (Live Source Mode)..."
 
 # Version Lock: Aura requires Python 3.12 for binary compatibility with its native extensions (grpc, mlx).
 # A linked worktree intentionally shares the primary checkout's ignored venv.
@@ -104,15 +104,15 @@ if [ -f "$AURA_ROOT/.venv/bin/python3" ] && "$AURA_ROOT/.venv/bin/python3" --ver
 elif [ -f "$AURA_PRIMARY_ROOT/.venv/bin/python3" ] && "$AURA_PRIMARY_ROOT/.venv/bin/python3" --version | grep -q "3.12"; then
     PYTHON_CMD="$AURA_PRIMARY_ROOT/.venv/bin/python3"
 elif command -v python3.12 &>/dev/null; then
-    echo "⚠️  Venv mismatch or missing. Using system python3.12 directly."
+    echo " Venv mismatch or missing. Using system python3.12 directly."
     PYTHON_CMD="python3.12"
 else
-    echo "❌ CRITICAL: Python 3.12 not found. Aura's native AI cores will fail on higher versions."
+    echo "CRITICAL: Python 3.12 not found. Aura's native AI cores will fail on higher versions."
     echo "Please install python 3.12 or fix your .venv."
     exit 1
 fi
 
-echo "📍 Using Interpreter: $($PYTHON_CMD --version) at $PYTHON_CMD"
+echo "Using Interpreter: $($PYTHON_CMD --version) at $PYTHON_CMD"
 
 # A signed Aura.app launch is pinned to the workspace it belongs to. Verify
 # that contract before cleanup so an app from a DIFFERENT checkout can never
@@ -126,9 +126,9 @@ echo "📍 Using Interpreter: $($PYTHON_CMD --version) at $PYTHON_CMD"
 # is a fact to report, not a reason to refuse to start. The runtime measures
 # and publishes it as source_drift / source_current.
 if [ "${AURA_LAUNCHED_FROM_APP:-0}" = "1" ]; then
-    echo "🔏 Verifying signed app source identity..."
+    echo "Verifying signed app source identity..."
     if ! "$PYTHON_CMD" -m core.runtime.launch_provenance preflight --root "$AURA_ROOT"; then
-        echo "❌ Aura.app does not belong to this workspace (root, bundle identity, or signature)."
+        echo "Aura.app does not belong to this workspace (root, bundle identity, or signature)."
         echo "   This is an identity failure, not staleness — rebuild from THIS checkout."
         exit 1
     fi
@@ -192,10 +192,10 @@ backup_env_file() {
 check_env_file() {
     local env_file="${AURA_ENV_FILE:-${AURA_ROOT}/.env}"
     if [ ! -e "$env_file" ]; then
-        echo "⚠️  No .env at ${env_file} — GUI and server share AURA_API_TOKEN via this file."
+        echo " No .env at ${env_file} — GUI and server share AURA_API_TOKEN via this file."
         echo "   Recovery ring (if any): ${HOME}/.aura/backups/env/"
     elif ! grep -q '^AURA_API_TOKEN=' "$env_file" 2>/dev/null; then
-        echo "⚠️  .env present but AURA_API_TOKEN is missing — the desktop GUI may fail to authenticate."
+        echo " .env present but AURA_API_TOKEN is missing — the desktop GUI may fail to authenticate."
     fi
 }
 
@@ -221,7 +221,7 @@ resolve_launch_log() {
 ACTIVE_LAUNCH_LOG="$(resolve_launch_log)"
 
 if [ "$OPEN_GUI_WINDOW" = "1" ]; then
-    echo "🪟 Opening Aura desktop window..."
+    echo "Opening Aura desktop window..."
     export PYTHONUNBUFFERED=1
     export OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES
     export OBJC_PRINT_LOAD_METHODS=NO
@@ -232,8 +232,8 @@ if [ "$OPEN_GUI_WINDOW" = "1" ]; then
         GUI_PID=$!
         disown "$GUI_PID" 2>/dev/null || true
         echo ""
-        echo "✨ Aura desktop window opening (PID: $GUI_PID)"
-        echo "📜 Logs: $ACTIVE_LAUNCH_LOG"
+        echo "Aura desktop window opening (PID: $GUI_PID)"
+        echo "Logs: $ACTIVE_LAUNCH_LOG"
         exit 0
     fi
 fi
@@ -254,13 +254,13 @@ fi
 if [ "$REBOOT_MODE" = "1" ]; then
     export AURA_CLEANUP_FORCE=1
 fi
-echo "🧹 Cleaning up existing instances..."
+echo "Cleaning up existing instances..."
 if ! "$PYTHON_CMD" aura_cleanup.py; then
-    echo "⚠️  Cleanup reported an issue; continuing with launch."
+    echo " Cleanup reported an issue; continuing with launch."
 fi
 
 # 2. Launch Phase
-echo "🚀 Starting Aura Desktop..."
+echo "Starting Aura Desktop..."
 export MLX_METAL_SYNC=1
 : "${AURA_FORCE_CAMERA:=0}"             # Camera stays off by default on macOS boot
 : "${AURA_ENABLE_UVLOOP:=0}"            # macOS desktop path prefers stock asyncio
@@ -336,7 +336,7 @@ if [ "${AURA_DESKTOP_RESOURCE_GUARD:-0}" = "1" ] || [ "${AURA_SAFE_BOOT_DESKTOP:
     : "${AURA_MLX_72B_PROJECTED_FOOTPRINT_GB:=auto}"
     : "${AURA_MLX_72B_PROCESS_RESERVE_GB:=5}"
     : "${AURA_FOREGROUND_CHAT_MAX_TOKENS:=2048}"
-    echo "🛡️ Full desktop runtime enabled with RAM-aware Cortex and process guards."
+    echo "Full desktop runtime enabled with RAM-aware Cortex and process guards."
 else
     : "${AURA_ENABLE_PERMANENT_SWARM:=1}"   # Multi-agent internal debate
 fi
@@ -405,13 +405,13 @@ cleanup_attached_launcher() {
 }
 
 echo ""
-echo "✨ Aura Luna launching (PID: $AURA_PID)"
+echo "Aura Luna launching (PID: $AURA_PID)"
 echo ""
-echo "💡 PRO-TIP: Add this alias to your ~/.zshrc to launch Aura from anywhere:"
+echo "PRO-TIP: Add this alias to your ~/.zshrc to launch Aura from anywhere:"
 echo "   alias aura=\"$AURA_ROOT/launch_aura.sh\""
 echo ""
 if [ "$AURA_ATTACH_LAUNCHER" = "1" ]; then
-    echo "📜 Attached launcher mode active. Press Ctrl+C to stop following the process."
+    echo "Attached launcher mode active. Press Ctrl+C to stop following the process."
     trap 'cleanup_attached_launcher 130' INT
     trap 'cleanup_attached_launcher 143' TERM
     trap 'cleanup_attached_launcher $?' EXIT
@@ -420,5 +420,5 @@ if [ "$AURA_ATTACH_LAUNCHER" = "1" ]; then
     cleanup_attached_launcher "$LAUNCH_STATUS"
 else
     disown "$AURA_PID" 2>/dev/null || true
-    echo "📜 Logs: $ACTIVE_LAUNCH_LOG"
+    echo "Logs: $ACTIVE_LAUNCH_LOG"
 fi

@@ -185,7 +185,7 @@ class TaintRegister:
             # First occurrence is the interesting one; repeats are counted
             # but must not become a log flood.
             logger.warning(
-                "🩸 runtime tainted [%s] %s — %s (subsystem=%s)",
+                "runtime tainted [%s] %s — %s (subsystem=%s)",
                 str(flag),
                 _FLAG_MEANING.get(flag, ""),
                 reason,

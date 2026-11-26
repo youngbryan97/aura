@@ -138,7 +138,7 @@ class Scheduler:
             name="aura.scheduler.main_loop",
         )
         mark_task_protected(self._main_loop_task, owner="scheduler")
-        logger.info("🚀 Scheduler started.")
+        logger.info("Scheduler started.")
 
     async def _main_loop(self):
         """The heartbeat of the scheduler."""

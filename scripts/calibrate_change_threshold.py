@@ -186,7 +186,7 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(name)s | %(message)s")
 
-    print("🔬 Running calibration procedure...")
+    print("Running calibration procedure...")
     print(f"   Percentile: {args.percentile}")
     print(f"   Seed: {args.seed}")
     print()
@@ -201,15 +201,15 @@ def main() -> None:
     )
 
     # Display results
-    print(f"📊 Calibration Results:")
+    print(f"Calibration Results:")
     print(f"   Calibrated threshold: {results['threshold']}")
     print(f"   Simple prompts: mean={results['simple_stats']['mean']:.4f}, "
           f"median={results['simple_stats']['median']:.4f}")
     print(f"   Complex prompts: mean={results['complex_stats']['mean']:.4f}, "
           f"median={results['complex_stats']['median']:.4f}")
     print(f"   Separation accuracy: {results['separation']['accuracy']:.1%}")
-    print(f"\n💾 Results saved to: {_OUTPUT_PATH}")
-    print(f"\n💡 To apply: export AURA_SUBSTRATE_PREDICTION_THRESHOLD={results['threshold']}")
+    print(f"\nResults saved to: {_OUTPUT_PATH}")
+    print(f"\nTo apply: export AURA_SUBSTRATE_PREDICTION_THRESHOLD={results['threshold']}")
 
 
 if __name__ == "__main__":

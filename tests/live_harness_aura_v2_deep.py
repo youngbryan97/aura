@@ -472,7 +472,7 @@ async def section_K_volition_agency() -> Section:
 # ---------------------------------------------------------------------------
 
 async def main() -> int:
-    print("🔬 Aura Live Integration Harness v2 (deep)")
+    print("Aura Live Integration Harness v2 (deep)")
     print(f"   project_root: {PROJECT_ROOT}")
     print(f"   python:       {sys.version.split()[0]}")
     print("")

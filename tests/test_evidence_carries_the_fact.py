@@ -4,7 +4,7 @@ LIVE, 2026-08-20. http_request returned {ok, url, status, text, ...}. The
 grounding sanitizer kept `url` and dropped `text`, and the renderer showed
 what it had been given, so the evidence block read
 
-    [SKILL RESULT: http_request] ✅ Url: https://api.open-meteo.com/…
+    [SKILL RESULT: http_request] Url: https://api.open-meteo.com/…
 
 and nothing else. She was handed proof that a fetch had happened with no
 trace of what it said, and answered 10.5 in the tool loop and 12.4 in the

@@ -802,7 +802,7 @@ class DuplexVoiceSession:
         if verdict is OverlapVerdict.PENDING:
             return
         overlap, earlier = self._overlap.state, self._unheard_burst
-        logger.info("🎙️ over her speech: %s after %.0f ms of speech, %.0f ms quiet at the decision", verdict.name,
+        logger.info("over her speech: %s after %.0f ms of speech, %.0f ms quiet at the decision", verdict.name,
                     overlap.speech_ms, overlap.silence_ms)
         if earlier is not None and time.monotonic() - earlier[0] < SECOND_BURST_S:
             verdict = OverlapVerdict.BARGE_IN  # a second burst before the first was heard as "mhm": she is cut off
@@ -855,7 +855,7 @@ class DuplexVoiceSession:
                 severity="debug",
             )
             text = ""
-        logger.info("🎙️ what was said over her: %r, read in %.2f s", text[:50], time.monotonic() - asked)
+        logger.info("what was said over her: %r, read in %.2f s", text[:50], time.monotonic() - asked)
         if (
             self._speaking is not track
             or self._closed
@@ -1721,7 +1721,7 @@ class DuplexVoiceSession:
             # with her feels like one rather than like a series of commands.
             self._last_reply_ended_at = time.monotonic()
             await self._send_json({"type": protocol.EVT_METRICS, **self._metrics.as_dict()})
-            logger.info("🗣️ voice turn spoken: %s", self._metrics.as_dict())  # the split, readable in her log (U02)
+            logger.info("voice turn spoken: %s", self._metrics.as_dict())  # the split, readable in her log (U02)
             await self._mind.publish(
                 "spoke",
                 {

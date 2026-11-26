@@ -236,7 +236,7 @@ class TestGeneratorSkill(BaseSkill):
 
             await _write_text(test_file, test_code)
 
-            logger.info("✨ Tests generated and saved to %s", test_file)
+            logger.info("Tests generated and saved to %s", test_file)
 
             # 4. Run tests — try sandbox first, fall back to subprocess
             sandbox = None

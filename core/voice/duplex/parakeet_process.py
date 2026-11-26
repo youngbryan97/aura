@@ -63,7 +63,7 @@ class ParakeetProcess:
             self.close()
             raise
         held = ready.get("memory") or {}
-        logger.info("👂 her recognizer runs in its own process (pid %s): %s; it holds %s GB (%s cached), %s GB at its "
+        logger.info("her recognizer runs in its own process (pid %s): %s; it holds %s GB (%s cached), %s GB at its "
                     "peak", self.process.pid, ", ".join(self.repos), held.get("active_gb", "?"),
                     held.get("cached_gb", "?"), held.get("peak_gb", "?"))
 

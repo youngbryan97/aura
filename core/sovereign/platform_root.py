@@ -62,7 +62,7 @@ class PlatformRoot:
         self._pulse_interval = 15.0
         self._metal_allowed, self._metal_reason = _METAL_ALLOWED, _METAL_REASON
         
-        logger.info("🌿 [PLATFORM ROOT] Sovereign Root initialized. Building direct hardware connection...")
+        logger.info("[PLATFORM ROOT] Sovereign Root initialized. Building direct hardware connection...")
         self._connect_hardware()
 
     def _connect_hardware(self):
@@ -71,24 +71,24 @@ class PlatformRoot:
         # way round this said "MLX not found" at error on every boot (day run 4, 10 November 2026).
         if not self._metal_allowed:
             logger.info(
-                "🛡️ [PLATFORM ROOT] Skipping Metal hardware binding (%s).",
+                "[PLATFORM ROOT] Skipping Metal hardware binding (%s).",
                 self._metal_reason,
             )
             self.device_active = False
             return
         if mx is None:
-            logger.error("❌ [PLATFORM ROOT] MLX not found. Hardware binding impossible.")
+            logger.error("[PLATFORM ROOT] MLX not found. Hardware binding impossible.")
             return
 
         try:
             # Force device selection and basic allocation
             mx.set_default_device(mx.gpu)
-            logger.info("✅ [PLATFORM ROOT] Hardware Bound: %s", mx.default_device())
+            logger.info("[PLATFORM ROOT] Hardware Bound: %s", mx.default_device())
             self.device_active = True
             self.pulse() # Initial pulse
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('platform_root', e)
-            logger.error("❌ [PLATFORM ROOT] Fatal Hardware Binding Error: %s", e)
+            logger.error("[PLATFORM ROOT] Fatal Hardware Binding Error: %s", e)
             self.device_active = False
 
     def pulse(self, force_wake: bool = False):
@@ -111,7 +111,7 @@ class PlatformRoot:
                 b = mx.random.normal((100, 100))
                 c = mx.matmul(a, b)
                 mx.eval(c)
-                logger.info("🔥 [PLATFORM ROOT] Force wake pulse executed.")
+                logger.info("[PLATFORM ROOT] Force wake pulse executed.")
             else:
                 a = mx.array([1.0, 2.0, 3.0])
                 b = mx.array([4.0, 5.0, 6.0])
@@ -120,13 +120,13 @@ class PlatformRoot:
             self._last_pulse = time.monotonic()
             latency = (self._last_pulse - start) * 1000
             if not force_wake:
-                logger.debug("⚡ [PLATFORM ROOT] Sub-conductive pulse: %.2fms", latency)
+                logger.debug("[PLATFORM ROOT] Sub-conductive pulse: %.2fms", latency)
             return True
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('platform_root', e)
             msg = str(e)
             if "MTLCompilerService" in msg or "error 3" in msg:
-                logger.critical("🚨 [PLATFORM ROOT] COMPILER DISCONNECT DETECTED: %s", msg)
+                logger.critical("[PLATFORM ROOT] COMPILER DISCONNECT DETECTED: %s", msg)
                 self.device_active = False
                 # Trigger emergency re-build
                 self._connect_hardware()
@@ -136,7 +136,7 @@ class PlatformRoot:
 
     def force_compiler_wake(self):
         """Explicitly pull the MTLCompilerService back into memory."""
-        logger.info("💉 [PLATFORM ROOT] Triggering FORCE compiler wake...")
+        logger.info("[PLATFORM ROOT] Triggering FORCE compiler wake...")
         return self.pulse(force_wake=True)
 
     async def start_monitor(self):
@@ -145,7 +145,7 @@ class PlatformRoot:
             return
             
         self.running = True
-        logger.info("🌿 [PLATFORM ROOT] Persistence Monitor Active.")
+        logger.info("[PLATFORM ROOT] Persistence Monitor Active.")
         
         while self.running:
             try:
@@ -156,7 +156,7 @@ class PlatformRoot:
                 
                 if mem_percent > 85.0:
                     self._pulse_interval = 2.0
-                    logger.warning("📉 [PLATFORM ROOT] High RAM (%s%%): Increasing pulse frequency to 2s.", mem_percent)
+                    logger.warning("[PLATFORM ROOT] High RAM (%s%%): Increasing pulse frequency to 2s.", mem_percent)
                 else:
                     self._pulse_interval = 15.0
 
@@ -195,7 +195,7 @@ class PlatformRoot:
             )
             out = result.stdout
             if "MTLCompilerService" not in out:
-                logger.warning("⚠️ [PLATFORM ROOT] MTLCompilerService not visible in process list.")
+                logger.warning("[PLATFORM ROOT] MTLCompilerService not visible in process list.")
                 # We can't 'start' it directly easily as it's an XPC service,
                 # but a high-level MLX op usually triggers a lookup.
                 self.force_compiler_wake()

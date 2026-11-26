@@ -2,8 +2,8 @@
 
 LIVE 2026-09-17, asked "Aura, what is it like to be you":
 
-    📏 Prefill size: 10414 tokens from 44192 rendered chars (83 messages)
-    ⏱️ prefill=10414 tokens/83.44s, decode=457 tokens/71.27s
+    Prefill size: 10414 tokens from 44192 rendered chars (83 messages)
+    prefill=10414 tokens/83.44s, decode=457 tokens/71.27s
 
 Eighty-three of the hundred and fifty-five seconds went into reading a
 conversation, for a question thirty-one characters long. Forty exchanges

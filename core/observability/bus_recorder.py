@@ -196,7 +196,7 @@ class BusRecorder:
             return None
         with self._lock:
             self.dumps += 1
-        logger.info("📼 bus bag written: %s (%d messages, %s)", target, len(messages), reason)
+        logger.info("bus bag written: %s (%d messages, %s)", target, len(messages), reason)
         return target
 
     # ── file recording ────────────────────────────────────────────────

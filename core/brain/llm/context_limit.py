@@ -55,5 +55,5 @@ async def compact_working_memory(history: list[dict[str, Any]], max_raw_turns: i
     start_point = max(0, len(history) - recent_count)
     recent = list(history[start_point:])
 
-    logger.info("📦 Memory compacted from %d to %d turns.", len(history), len(genesis) + len(recent))
+    logger.info("Memory compacted from %d to %d turns.", len(history), len(genesis) + len(recent))
     return genesis + recent

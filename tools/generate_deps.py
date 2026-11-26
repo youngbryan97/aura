@@ -507,12 +507,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         stale.extend(_unpublished(sorted(_generated_paths())))
         if stale:
-            print(f"❌ {len(stale)} DEPS file(s) do not match the import graph")
+            print(f"{len(stale)} DEPS file(s) do not match the import graph")
             for name in stale[:20]:
                 print(f"   • {name}")
             print("\nRun `make deps-generate` in the commit that changed the imports.")
             return 1
-        print(f"✅ every generated DEPS matches the graph ({len(packages())} packages)")
+        print(f"every generated DEPS matches the graph ({len(packages())} packages)")
         return 0
 
     if args.write:

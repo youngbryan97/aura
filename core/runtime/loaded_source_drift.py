@@ -4,7 +4,7 @@ MEASURED live 2026-08-10. Three source files were edited and committed while
 the runtime was up. The user clicked "Hot-reload Aura code from disk" and the
 log said:
 
-    ✅ [HOT-RELOAD] Hot reboot complete. 0 modules reloaded.
+    [HOT-RELOAD] Hot reboot complete. 0 modules reloaded.
 
 A success tick for doing nothing. Two things were wrong under it, and the
 second is the interesting one.

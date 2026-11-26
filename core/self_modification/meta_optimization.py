@@ -38,7 +38,7 @@ class MetaOptimizationLoop:
             memory_usage_mb=self.process.memory_info().rss / (1024 * 1024)
         )
         self.baseline = metrics
-        logger.info("🚀 Dynamic baseline captured: %s", metrics)
+        logger.info("Dynamic baseline captured: %s", metrics)
         return metrics
         
     def evaluate_modification(self, proposal_id: str, before: PerformanceMetrics, after: PerformanceMetrics) -> Dict[str, Any]:
@@ -60,7 +60,7 @@ class MetaOptimizationLoop:
         self.history.append(result)
         
         if should_rollback:
-            logger.warning("⚠️ Performance degradation detected (%.2fx). Triggering rollback for %s.", delta_latency, proposal_id)
+            logger.warning("Performance degradation detected (%.2fx). Triggering rollback for %s.", delta_latency, proposal_id)
             # Issue 69: Wire to orchestrator check
             if self.orchestrator:
                 def _task_err_cb(t):
@@ -72,7 +72,7 @@ class MetaOptimizationLoop:
                 task = get_task_tracker().create_task(self.orchestrator.handle_performance_degradation(proposal_id, delta_latency))
                 task.add_done_callback(_task_err_cb)
         else:
-            logger.info("✅ Modification %s passed validation (%s).", proposal_id, status)
+            logger.info("Modification %s passed validation (%s).", proposal_id, status)
             
         return result
 

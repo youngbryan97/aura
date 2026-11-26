@@ -293,7 +293,7 @@ def run_compiler_free_experiment(
             f"{transfer_size} unseen instances, and both lesions collapse to "
             f"{best_lesion:.3f}"
         ]
-        logger.info("🧩 procedure acquired: %s", frozen.describe())
+        logger.info("procedure acquired: %s", frozen.describe())
 
     induced = frozen.to_dict()
     induced["frozen_sha"] = frozen_sha

@@ -110,12 +110,12 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": not problems, "problems": problems}, indent=2))
         return 1 if problems else 0
     if problems:
-        print(f"❌ threat model: {len(problems)} problem(s)")
+        print(f"failed threat model: {len(problems)} problem(s)")
         for problem in problems:
             print(f"   • {problem}")
         return 1
     rows = len(_ROW_RE.findall(DOCUMENT.read_text("utf-8")))
-    print(f"✅ threat model: {rows} attack classes, each with a test that exists")
+    print(f"ok threat model: {rows} attack classes, each with a test that exists")
     return 0
 
 

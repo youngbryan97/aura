@@ -18,7 +18,7 @@ async def test_local_generation():
     # Test model loading
     print("Loading model (this may take time on first run)...")
     if not skill._load_model():
-        print("❌ Model failed to load. Check PyTorch/Diffusers installation.")
+        print("Model failed to load. Check PyTorch/Diffusers installation.")
         return
 
     print("✓ Model loaded successfully.")
@@ -34,7 +34,7 @@ async def test_local_generation():
         print(f"  URL: {result['url']}")
         print(f"  Path: {result['path']}")
     else:
-        print(f"❌ Generation failed: {result.get('error')}")
+        print(f"Generation failed: {result.get('error')}")
 
 if __name__ == "__main__":
     asyncio.run(test_local_generation())

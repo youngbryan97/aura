@@ -473,7 +473,7 @@ async def _apply_recorded_answer(user_message: object, response: Any) -> Any:
 
             _whole = complete_truncated_tail(corrected)
             if _whole.strip() and _whole != corrected:
-                logger.info("✂️ Trimmed a reply that stopped mid-clause.")
+                logger.info("Trimmed a reply that stopped mid-clause.")
                 corrected = _whole
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation(

@@ -248,7 +248,7 @@ class FunctionCallingAdapter:
         deadline_s: float = _TOOL_DEADLINE_S,
     ) -> str:
         """Executes a tool via CapabilityEngine, after validating its arguments."""
-        logger.info("⚙️ Mind using: %s", tool_name)
+        logger.info("Mind using: %s", tool_name)
 
         # The strict validator is no longer dead code — nothing dispatches
         # unvalidated caller arguments (820e9983).

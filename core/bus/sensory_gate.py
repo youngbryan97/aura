@@ -120,7 +120,7 @@ class SensoryGateActor:
     def _request_shutdown(self, reason: str = "") -> None:
         if reason and not self._shutdown_reason:
             self._shutdown_reason = reason
-            logger.info("👁️ SensoryGate shutdown requested: %s", reason)
+            logger.info("SensoryGate shutdown requested: %s", reason)
         self._is_active = False
         if self._shutdown_event is not None:
             self._shutdown_event.set()
@@ -149,12 +149,12 @@ class SensoryGateActor:
                 severity="warning",
                 extra={"tasks": stuck},
             )
-            logger.error("❌ SensoryGate tasks did not cancel in time: %s", stuck)
+            logger.error("SensoryGate tasks did not cancel in time: %s", stuck)
         self._background_tasks.clear()
 
     async def run(self) -> None:
         """Main actor loop."""
-        logger.info("👁️ SensoryGate Actor starting...")
+        logger.info("SensoryGate Actor starting...")
         self._shutdown_event = asyncio.Event()
         try:
             try:
@@ -178,7 +178,7 @@ class SensoryGateActor:
             self._track_task(self._heartbeat_loop(), name="sensory_gate.heartbeat")
             self._track_task(self._liveness_loop(), name="sensory_gate.liveness")
 
-            logger.info("👁️ SensoryGate Actor ready.")
+            logger.info("SensoryGate Actor ready.")
             await self._shutdown_event.wait()
         finally:
             self._request_shutdown("run_loop_exited")
@@ -191,7 +191,7 @@ class SensoryGateActor:
                     action="continued sensory gate shutdown after bus stop failed",
                     severity="degraded",
                 )
-                logger.error("❌ SensoryGate bus shutdown failed: %s", exc)
+                logger.error("SensoryGate bus shutdown failed: %s", exc)
             if self.browser is not None:
                 try:
                     # CP126 1fb6515c: an unbounded close could hang teardown
@@ -203,15 +203,15 @@ class SensoryGateActor:
                         action="abandoned a browser close that exceeded the shutdown budget",
                         severity="degraded",
                     )
-                    logger.error("❌ SensoryGate browser close exceeded its budget")
+                    logger.error("SensoryGate browser close exceeded its budget")
                 except SENSORY_RECOVERABLE_ERRORS as exc:
                     _record_sensory_degradation(
                         exc,
                         action="continued sensory gate shutdown after browser close failed",
                         severity="degraded",
                     )
-                    logger.error("❌ SensoryGate browser shutdown failed: %s", exc)
-            logger.info("👁️ SensoryGate Actor stopped.")
+                    logger.error("SensoryGate browser shutdown failed: %s", exc)
+            logger.info("SensoryGate Actor stopped.")
 
     def _health_snapshot(self) -> dict[str, Any]:
         """What the actor can actually attest to right now.
@@ -264,7 +264,7 @@ class SensoryGateActor:
                     severity="warning",
                     extra={"consecutive_heartbeat_failures": self._heartbeat_failures},
                 )
-                logger.error("❌ Heartbeat failed: %s", exc)
+                logger.error("Heartbeat failed: %s", exc)
                 if self._heartbeat_failures >= MAX_HEARTBEAT_FAILURES:
                     # CP126 b25cb82b: retrying forever is how an orphan is born.
                     self._request_shutdown(
@@ -382,7 +382,7 @@ class SensoryGateActor:
                 extra={"trace_id": trace_id, "host": decision["host"]},
             )
             logger.warning(
-                "🚫 [%s] Browse refused: %s", trace_id[:8], decision["reason"]
+                "[%s] Browse refused: %s", trace_id[:8], decision["reason"]
             )
             return self._refusal("browse", decision["reason"], trace_id, policy=decision)
 
@@ -398,7 +398,7 @@ class SensoryGateActor:
             return self._refusal("browse", "browser_unavailable", trace_id, policy=decision)
 
         deadline_s = self._deadline(payload, DEFAULT_BROWSE_DEADLINE_S)
-        logger.info("🌐 [%s] Browsing: %s", trace_id[:8], url)
+        logger.info("[%s] Browsing: %s", trace_id[:8], url)
         started = time.monotonic()
         try:
             # CP126 1fb6515c: dependency start, navigation, delay and
@@ -430,7 +430,7 @@ class SensoryGateActor:
                 severity="warning",
                 extra={"trace_id": trace_id, "url": url},
             )
-            logger.error("❌ [%s] Browse failed: %s", trace_id[:8], exc)
+            logger.error("[%s] Browse failed: %s", trace_id[:8], exc)
             return self._refusal("browse", str(exc), trace_id, url=url, policy=decision)
 
     async def _observe(
@@ -524,7 +524,7 @@ class SensoryGateActor:
 
         deadline_s = self._deadline(payload if isinstance(payload, dict) else {}, DEFAULT_SEARCH_DEADLINE_S)
         started = time.monotonic()
-        logger.info("🔍 [%s] Wikipedia search: %s", trace_id[:8], query)
+        logger.info("[%s] Wikipedia search: %s", trace_id[:8], query)
         try:
             url = (
                 "https://en.wikipedia.org/w/api.php?action=opensearch"
@@ -581,7 +581,7 @@ class SensoryGateActor:
                 severity="warning",
                 extra={"trace_id": trace_id, "query": query},
             )
-            logger.error("❌ [%s] Wikipedia search failed: %s", trace_id[:8], exc)
+            logger.error("[%s] Wikipedia search failed: %s", trace_id[:8], exc)
             return self._refusal("search", str(exc), trace_id, query=query)
 
     @staticmethod
@@ -617,7 +617,7 @@ class SensoryGateActor:
                     severity="critical",
                     extra={"trace_id": trace_id},
                 )
-                logger.critical("🚫 [%s] Shutdown refused: bad token", trace_id[:8])
+                logger.critical("[%s] Shutdown refused: bad token", trace_id[:8])
                 return {"ok": False, "error": "shutdown_token_mismatch", "trace_id": trace_id}
             if not nonce:
                 return {"ok": False, "error": "shutdown_nonce_required", "trace_id": trace_id}
@@ -674,7 +674,7 @@ def start_sensory_gate(connection: Any, *args: Any, **kwargs: Any) -> None:
     asyncio.set_event_loop(loop)
 
     def _on_sigterm(signum: int, _frame: Any) -> None:
-        logger.info("👁️ SensoryGate received signal %s; requesting shutdown", signum)
+        logger.info("SensoryGate received signal %s; requesting shutdown", signum)
         loop.call_soon_threadsafe(actor._request_shutdown, f"signal_{signum}")
 
     for signum in (signal.SIGTERM, getattr(signal, "SIGHUP", signal.SIGTERM)):

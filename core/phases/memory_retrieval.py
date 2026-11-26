@@ -965,7 +965,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if extra:
                     query = f"{query} {' '.join(extra)}".strip()[:2000]
                     logger.debug(
-                        "🧠 MemoryRetrieval: entity memory added %d retrieval cue(s).",
+                        "MemoryRetrieval: entity memory added %d retrieval cue(s).",
                         len(extra),
                     )
         except _MEMORY_RECOVERABLE_ERRORS as exc:
@@ -1002,7 +1002,7 @@ class MemoryRetrievalPhase(BasePhase):
         if recall_key == getattr(state.cognition, "last_retrieval_query", None):
             return state
 
-        logger.info("🧠 MemoryRetrieval: Searching for context: %s...", query[:50])
+        logger.info("MemoryRetrieval: Searching for context: %s...", query[:50])
 
         async def _get_dual():
             try:
@@ -1356,7 +1356,7 @@ class MemoryRetrievalPhase(BasePhase):
                         arousal_shift = (total_arousal_hit / memory_hits) * 0.3
 
                         logger.debug(
-                            "💥 Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
+                            "Memory retrieval triggered affective hit: val_shift=%.2f, arousal_shift=%.2f",
                             val_shift,
                             arousal_shift,
                         )

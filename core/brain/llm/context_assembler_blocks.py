@@ -1218,7 +1218,7 @@ class _BuildsThePromptBlocks:
             record_degradation('context_assembler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
-        logger.debug("🧠 ContextAssembler: Built strictly budgeted message array (len=%d, chars=%d)", len(messages), current_chars + input_chars + history_chars)
+        logger.debug("ContextAssembler: Built strictly budgeted message array (len=%d, chars=%d)", len(messages), current_chars + input_chars + history_chars)
 
         # ── CAUSAL ATTENTION GATE ─────────────────────────────────────────
         # The attention gate actively prunes context based on attentional focus.
@@ -1240,7 +1240,7 @@ class _BuildsThePromptBlocks:
                 ):
                     messages = gated
                     logger.debug(
-                        "🔍 AttentionGate applied: %d messages after gating",
+                        "AttentionGate applied: %d messages after gating",
                         len(messages),
                     )
                 else:

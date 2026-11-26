@@ -260,7 +260,7 @@ def _apply_surface_generation_controls(
         state["surface_steering_engine_absent"] = True
         if requested > 0.0:
             logger.info(
-                "🎚️ [WORKER] No steering engine; α=0.0 serves the requested "
+                "[WORKER] No steering engine; α=0.0 serves the requested "
                 "ceiling of %.3f, which is a floor nothing can exceed.",
                 requested,
             )
@@ -293,7 +293,7 @@ def _apply_surface_generation_controls(
     # applied" and "the clamp silently no-opped" looked identical from outside.
     if bool(job.get("clean_user_surface_contract", False)):
         logger.info(
-            "🎚️ [WORKER] Surface decode: steering α=%s, asked %s of %s earned (engine α=%s), "
+            "[WORKER] Surface decode: steering α=%s, asked %s of %s earned (engine α=%s), "
             "recurrent loops=%s (was %s, depth_present=%s)%s",
             state.get("surface_alpha_applied"),
             job.get("clean_user_surface_steering_alpha"),

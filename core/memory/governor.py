@@ -23,7 +23,7 @@ class MemoryBudget:
         used_mb = psutil.virtual_memory().used / (1024**2)
         
         if used_mb > self.soft_limit_mb:
-            logger.warning("🚨 Memory pressure high: %.1fMB used. Enforcing budget.", used_mb)
+            logger.warning("Memory pressure high: %.1fMB used. Enforcing budget.", used_mb)
             
             # 1. Clear MLX Cache safely
             try:
@@ -79,7 +79,7 @@ class MemoryGovernor:
         self.budget = budget or MemoryBudget()
         
     async def start(self):
-        logger.info("🧠 MemoryGovernor active.")
+        logger.info("MemoryGovernor active.")
         
     def check(self):
         self.budget.enforce()

@@ -192,13 +192,13 @@ class MetabolicCoordinator(_TriggersTheImpulses):
         try:
             lock_dir = config.paths.home_dir / "locks"
             if lock_dir.exists():
-                logger.info("🧹 Inspecting PID locks in %s", lock_dir)
+                logger.info("Inspecting PID locks in %s", lock_dir)
                 for lock_file in lock_dir.glob("*.lock"):
                     if not lock_file_is_stale(lock_file):
                         continue
                     try:
                         lock_file.unlink()
-                        logger.info("🧹 Removed stale lock: %s", lock_file.name)
+                        logger.info("Removed stale lock: %s", lock_file.name)
                     except _METABOLIC_BOUNDARY_ERRORS as _exc:
                         _record_metabolic_degradation(
                             _exc,
@@ -697,7 +697,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                                 f"auto_trigger: {critical_count} critical incidents active"
                             )
                             logger.warning(
-                                "🧊 Boring Mode ENTERED: %d critical incidents detected.",
+                                "Boring Mode ENTERED: %d critical incidents detected.",
                                 critical_count,
                             )
                 except _METABOLIC_BOUNDARY_ERRORS as exc:
@@ -713,7 +713,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                     maint_result = await maint.run_maintenance_async()
                     if maint_result.total_rows_deleted > 0:
                         logger.info(
-                            "🗄️ DB Maintenance: deleted %d expired rows.",
+                            "DB Maintenance: deleted %d expired rows.",
                             maint_result.total_rows_deleted,
                         )
                 except _METABOLIC_BOUNDARY_ERRORS as exc:
@@ -789,7 +789,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
         if cycle_count < _BOOT_WARMUP_CYCLES:
             if cycle_count > 0:
                 logger.debug(
-                    "🍼 Metabolic: Grace period active (Cycle %s/%s). Skipping background tasks.",
+                    "Metabolic: Grace period active (Cycle %s/%s). Skipping background tasks.",
                     cycle_count,
                     _BOOT_WARMUP_CYCLES,
                 )
@@ -927,7 +927,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 )
                 if scheduled:
                     orch._emit_thought_stream(
-                        "🌀 Initiating Recursive Narrative Reflection..."
+                        "Initiating Recursive Narrative Reflection..."
                     )
             else:
                 self._maybe_schedule_autonomous_reflection(
@@ -1004,7 +1004,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 high_priority = any(getattr(m, 'priority', 0) >= 50 for m in list(getattr(orch.message_queue, '_queue', [])))
 
             if high_priority and orch.status.is_processing:
-                logger.debug("⚠️ [HARDENING] High-priority user thought detected. Yielding...")
+                logger.debug("[HARDENING] High-priority user thought detected. Yielding...")
                 await asyncio.sleep(0.05) # Subtle yield
 
             # Drain Neural Events into Percepts
@@ -1023,7 +1023,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                         "intensity": conf,
                         "timestamp": now
                     })
-                    logger.debug("🧠 [METABOLIC] Injected neural percept: %s", cmd)
+                    logger.debug("[METABOLIC] Injected neural percept: %s", cmd)
 
             message = await orch._acquire_next_message()
             # 3. Dispatch Work
@@ -1197,7 +1197,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             kg_path = config.paths.data_dir / "knowledge.db"
             snapshot_dir = archivist.create_snapshot(kg_path)
             if snapshot_dir:
-                self.orch._emit_thought_stream(f"🏺 Eternal Record Snapshot secured: {snapshot_dir.name}")
+                self.orch._emit_thought_stream(f"Eternal Record Snapshot secured: {snapshot_dir.name}")
         except _METABOLIC_BOUNDARY_ERRORS as e:
             _record_metabolic_degradation(e, action="eternal record snapshot skipped")
             logger.debug("Eternal record snapshot failed: %s", e)
@@ -1327,7 +1327,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
         if not orch:
             return
         orch._recovery_attempts += 1
-        logger.warning("🚑 RECOVERY ATTEMPT #%s initiated...", orch._recovery_attempts)
+        logger.warning("RECOVERY ATTEMPT #%s initiated...", orch._recovery_attempts)
         try:
             dlq = ServiceContainer.get("dead_letter_queue", default=None)
             if dlq:
@@ -1384,15 +1384,15 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                         logger.error("Failed to dump dropped messages to DLQ file: %s", e)
             await orch.retry_cognitive_connection()
             if orch._recovery_attempts >= 2 and hasattr(orch, 'lazarus') and orch.lazarus:
-                logger.warning("🚨 [RECOVERY] Escalating to Lazarus Brainstem...")
+                logger.warning("[RECOVERY] Escalating to Lazarus Brainstem...")
                 await orch.lazarus.attempt_recovery()
             if orch._recovery_attempts >= 3:
-                logger.critical("🚨 STALL PERSISTS: Escalating to full orchestrator restart.")
+                logger.critical("STALL PERSISTS: Escalating to full orchestrator restart.")
                 orch.status.running = False
                 await asyncio.sleep(_RECOVERY_RESTART_PAUSE_SECONDS)
                 await orch.start()
                 orch._recovery_attempts = 0
-            logger.info("✅ Recovery logic applied.")
+            logger.info("Recovery logic applied.")
         except _METABOLIC_BOUNDARY_ERRORS as e:
             _record_metabolic_degradation(e, action="stall recovery sequence failed")
             logger.error("Recovery sequence failed: %s", e)
@@ -1424,7 +1424,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 try:
                     from core.resilience.database_coordinator import get_db_coordinator
                     db_coord = get_db_coordinator()
-                    logger.info("🧹 Enqueueing deep database hygiene (VACUUM)...")
+                    logger.info("Enqueueing deep database hygiene (VACUUM)...")
                     # ZENITH: Wrap glob in thread
                     db_files = await asyncio.to_thread(lambda: list(config.paths.data_dir.glob("*.db")))
                     for db_file in db_files:
@@ -1474,7 +1474,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                 mem_percent = psutil.virtual_memory().percent
                 # Proactive GC if RAM > 85% or every 30s-ish
                 if mem_percent > 85 or (time.time() - self._last_gc_time > 30):
-                    logger.debug("♻️ Metabolic RAM-aware GC Triggered (RAM: %s%%).", mem_percent)
+                    logger.debug("Metabolic RAM-aware GC Triggered (RAM: %s%%).", mem_percent)
                     gc.collect()
                     self._last_gc_time = time.time()
             except ImportError:
@@ -1521,7 +1521,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
         try:
             if len(orch.conversation_history) % 15 != 0:
                 return
-            logger.info("🧠 Consolidating session highlights to long-term memory...")
+            logger.info("Consolidating session highlights to long-term memory...")
             recent = orch.conversation_history[-20:] if isinstance(orch.conversation_history, list) else []
             if not recent:
                 return
@@ -1541,7 +1541,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             )
             if summary_thought and summary_thought.content:
                 highlights = summary_thought.content
-                logger.info("✨ Key Highlights Extracted: %s", (highlights or "")[:100])
+                logger.info("Key Highlights Extracted: %s", (highlights or "")[:100])
                 if orch.memory_manager:
                     await orch.memory_manager.log_event(
                         "session_consolidation",
@@ -1551,7 +1551,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                     orch._emit_telemetry("Memory", "Session highlights consolidated to long-term storage.")
                 archive_eng = ServiceContainer.get("archive_engine", default=None)
                 if archive_eng and hasattr(archive_eng, 'archive_vital_logs'):
-                    logger.info("📦 Deep Sleep Cycle: Triggering Metabolic Archival Compression...")
+                    logger.info("Deep Sleep Cycle: Triggering Metabolic Archival Compression...")
                     await archive_eng.archive_vital_logs()
         except _METABOLIC_BOUNDARY_ERRORS as e:
             _record_metabolic_degradation(e, action="long-term memory consolidation failed")
@@ -1588,7 +1588,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
                     if health < 0.2:
                         archive_eng = ServiceContainer.get("archive_engine", default=None)
                         if archive_eng:
-                            logger.info("📦 Metabolic Pressure Detected (Health: %.2f). Triggering Emergency Archival.", health)
+                            logger.info("Metabolic Pressure Detected (Health: %.2f). Triggering Emergency Archival.", health)
                             self.track_metabolic_task(
                                 "metabolic.emergency_archive",
                                 archive_eng.archive_vital_logs(),
@@ -1644,7 +1644,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             if monitor:
                 error_goal = await monitor.check_for_errors()
                 if error_goal and not (orch._current_thought_task is not None and not orch._current_thought_task.done()):
-                    logger.info("🔧 Terminal Monitor: Auto-fix triggered")
+                    logger.info("Terminal Monitor: Auto-fix triggered")
                     if orch.self_modifier:
                         error_text = error_goal.get("error", "Unknown")
                         orch.self_modifier.on_error(
@@ -1700,7 +1700,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             outcome = await scavenge_idle_model_vram()
             if outcome.get("unloaded"):
                 logger.info(
-                    "🧹 Metabolism: idle VRAM scavenge unloaded %d model lane(s).",
+                    "Metabolism: idle VRAM scavenge unloaded %d model lane(s).",
                     outcome["unloaded"],
                 )
         except _METABOLIC_BOUNDARY_ERRORS as exc:
@@ -1709,7 +1709,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
 
     async def run_rl_training(self):
         """Trigger autonomous RL training."""
-        logger.info("🧠 RL: Triggering policy optimization...")
+        logger.info("RL: Triggering policy optimization...")
         try:
             from core.tasks import dispatch_background
             dispatch_background("core.tasks.run_rl_training")
@@ -1719,7 +1719,7 @@ class MetabolicCoordinator(_TriggersTheImpulses):
 
     async def run_self_update(self):
         """Trigger autonomous self-update (Fine-tuning)."""
-        logger.info("🧬 EVO: Triggering self-update (GPU low-load window)...")
+        logger.info("EVO: Triggering self-update (GPU low-load window)...")
         try:
             from core.tasks import dispatch_background
             dispatch_background("core.tasks.run_self_update")

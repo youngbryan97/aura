@@ -2,7 +2,7 @@
 
 Live, 2026-07-27, at 88% memory:
 
-    Message: '⚠️ High memory pressure (%s%). Triggering emergency eviction.'
+    Message: 'High memory pressure (%s%). Triggering emergency eviction.'
     Arguments: (88.1,)
     TypeError: not enough arguments for format string
 
@@ -161,7 +161,7 @@ def test_the_checker_counts_correctly(template: str, expected: int) -> None:
 @pytest.mark.parametrize(
     "template",
     [
-        "⚠️ High memory pressure (%s%). Triggering emergency eviction.",  # the live one
+        "High memory pressure (%s%). Triggering emergency eviction.",  # the live one
         "trailing bare %",
         "bad spec %q here",
     ],

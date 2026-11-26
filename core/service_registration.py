@@ -164,7 +164,7 @@ def _register_all_services_body(container, is_proxy: bool):
         register_sensory_services(container)
         register_consciousness_services(container)
     else:
-        logger.info("📡 Proxy Mode: Skipping Memory, Sensory, and Consciousness providers.")
+        logger.info("Proxy Mode: Skipping Memory, Sensory, and Consciousness providers.")
     register_ops_services(container, is_proxy=is_proxy)
     if not is_proxy:
         # Her self-maintenance and artificial-life organs. The kernel reads them by
@@ -182,7 +182,7 @@ def _register_all_services_body(container, is_proxy: bool):
     from core.startup.boot_validator import BootValidator
     v_result = BootValidator.validate_boot(container)
     if not v_result.passed:
-        logger.error("🛡️ Boot Validation FAILED: %s", v_result.failures)
+        logger.error("Boot Validation FAILED: %s", v_result.failures)
         # Defer lock to aura_main.py
         return container
 

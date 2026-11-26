@@ -102,7 +102,7 @@ class UnifiedFeltState:
     def compact_prompt_block(self) -> str:
         """A read-out of the reconciled state. The mechanism is the reconciliation
         and the gates; this block is only an honest surface for it."""
-        flag = "" if self.coherent else "  ⚠ self-incoherent (felt tracks diverge)"
+        flag = "" if self.coherent else "  self-incoherent (felt tracks diverge)"
         return (
             "## UNIFIED FELT STATE (reconciled, state-grounded)\n"
             f"- valence={self.valence:+.2f} arousal={self.arousal:.2f} distress={self.distress:.2f} "
@@ -268,7 +268,7 @@ class UnifiedFeltStateEngine:
     def _raise_governance_signal(self, unified: UnifiedFeltState) -> None:
         """Surface internal felt-incoherence the way belief-inconsistency is surfaced."""
         logger.warning(
-            "🫀 [UnifiedFelt] self-incoherent: felt tracks diverge %s (coherence=%.2f) — "
+            "[UnifiedFelt] self-incoherent: felt tracks diverge %s (coherence=%.2f) — "
             "internal model mismatch, surfacing for resolution.",
             {k: round(v, 3) for k, v in unified.divergence.items()},
             unified.coherence,

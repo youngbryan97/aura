@@ -737,7 +737,7 @@ class SpeechProfileCompiler:
         profile.substrate_snapshot = snapshot
 
         logger.debug(
-            "📋 [SpeechProfile] Compiled: budget=%d, fragments=%.2f, multi=%s, "
+            "[SpeechProfile] Compiled: budget=%d, fragments=%.2f, multi=%s, "
             "tone=%s, q_prob=%.2f, fu_prob=%.2f, sources=[%s]",
             profile.word_budget, profile.fragment_ratio, profile.multi_message,
             profile.tone_override or "default", profile.question_probability,

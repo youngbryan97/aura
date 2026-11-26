@@ -239,7 +239,7 @@ class CognitiveRoutingPhase(BasePhase):
     ) -> None:
         if proof_turn or strict_proof_answer_request:
             logger.info(
-                "🧭 Routing: skipping parallel branch for proof/evaluation turn to keep the foreground model lane exclusive."
+                "Routing: skipping parallel branch for proof/evaluation turn to keep the foreground model lane exclusive."
             )
             return
 
@@ -337,7 +337,7 @@ class CognitiveRoutingPhase(BasePhase):
             else CognitiveMode.REACTIVE
         )
         logger.info(
-            "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+            "Routing: inline dialogue kept on CHAT lane with %s cognition "
             "(%d typed obligations, floor=%d).",
             selected_mode.name,
             semantic_work.obligation_count,
@@ -384,7 +384,7 @@ class CognitiveRoutingPhase(BasePhase):
         )
         new_state.response_modifiers["temporal_scope"] = analysis.temporal_scope
         logger.info(
-            "🧭 CognitiveRouting: deterministic intent=%s semantic=%s live_voice=%s",
+            "CognitiveRouting: deterministic intent=%s semantic=%s live_voice=%s",
             analysis.intent_type,
             analysis.semantic_mode,
             analysis.requires_live_aura_voice,
@@ -418,13 +418,13 @@ class CognitiveRoutingPhase(BasePhase):
             any(kw in lower_input for kw in _CASUAL_KEYWORDS)
             and not deterministic_task
         ):
-            logger.info("🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
+            logger.info("Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
             cognitive_mode = CognitiveMode.REACTIVE
         elif deterministic_task and any(
             kw in lower_input for kw in _CASUAL_KEYWORDS
         ):
             logger.info(
-                "🧭 Routing: casual keyword present but a task was detected "
+                "Routing: casual keyword present but a task was detected "
                 "(%s, skills=%s) — keeping the task lane.",
                 analysis.intent_type,
                 list(matched_skills or ())[:4],
@@ -456,7 +456,7 @@ class CognitiveRoutingPhase(BasePhase):
                     severity="warning",
                     stage="detect_intent.cache",
                 )
-                logger.debug("🧭 Routing: matched_skills cache skipped: %s", exc)
+                logger.debug("Routing: matched_skills cache skipped: %s", exc)
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
@@ -547,7 +547,7 @@ class CognitiveRoutingPhase(BasePhase):
             new_state.response_modifiers["deep_handoff"] = False
             new_state.response_modifiers.pop("matched_skills", None)
             logger.info(
-                "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
+                "Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
             )
             return new_state
 
@@ -561,7 +561,7 @@ class CognitiveRoutingPhase(BasePhase):
                 and (now - self._last_non_user_route_at) < 5.0
             ):
                 logger.debug(
-                    "🧭 Routing: Suppressing duplicate non-user objective within cooldown."
+                    "Routing: Suppressing duplicate non-user objective within cooldown."
                 )
                 return state
             self._last_non_user_fingerprint = fingerprint
@@ -581,7 +581,7 @@ class CognitiveRoutingPhase(BasePhase):
         ):
             is_control_contract = "[embodied control contract]" in lower_input
             routing_msg = "CONTROL (Contracted)" if is_control_contract else "SENSORY FEED"
-            logger.info("🧭 Routing: %s detected. Enforcing action-oriented mindset.", routing_msg)
+            logger.info("Routing: %s detected. Enforcing action-oriented mindset.", routing_msg)
 
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             new_state.cognition.current_origin = routing_origin
@@ -607,7 +607,7 @@ class CognitiveRoutingPhase(BasePhase):
 
         if str(routing_origin or "").strip().lower() == "benchmark":
             analysis = analyze_turn(input_text)
-            logger.info("🧭 Routing: benchmark/proof artifact turn kept out of TASK/SKILL dispatch.")
+            logger.info("Routing: benchmark/proof artifact turn kept out of TASK/SKILL dispatch.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             new_state.cognition.current_objective = input_text
             new_state.cognition.current_origin = routing_origin
@@ -621,7 +621,7 @@ class CognitiveRoutingPhase(BasePhase):
         if proof_run_active(origin=routing_origin):
             analysis = analyze_turn(input_text)
             logger.info(
-                "🧭 Routing: proof/evaluation turn kept on exclusive DELIBERATE foreground lane."
+                "Routing: proof/evaluation turn kept on exclusive DELIBERATE foreground lane."
             )
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             new_state.cognition.current_objective = input_text
@@ -678,25 +678,25 @@ class CognitiveRoutingPhase(BasePhase):
                 if matched_skills:
                     if is_execution_report:
                         logger.info(
-                            "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
+                            "Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched_skills[:3],
                         )
                     elif (
                         "memory_ops" in matched_skills
                         and _looks_like_conversational_memory_question(skill_input_text)
                     ):
-                        logger.info("🧭 Routing: conversational memory question kept in chat lane.")
+                        logger.info("Routing: conversational memory question kept in chat lane.")
                         matched_skills = []
                     elif looks_like_multi_step_skill_request(skill_input_text, matched_skills):
                         new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info(
-                            "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
+                            "Routing: multi-step skill-backed task detected → TASK via %s",
                             matched_skills[:3],
                         )
                     else:
                         new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info(
-                            "🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3]
+                            "Routing: SKILL detected via patterns → %s", matched_skills[:3]
                         )
                         new_state.cognition.current_mode = CognitiveMode.REACTIVE
                         new_state.cognition.current_objective = input_text
@@ -718,7 +718,7 @@ class CognitiveRoutingPhase(BasePhase):
                 severity="warning",
                 stage="detect_intent.fast_path",
             )
-            logger.debug("🧭 Routing: detect_intent fast path failed: %s", exc)
+            logger.debug("Routing: detect_intent fast path failed: %s", exc)
 
         # ── URL Auto-Detection ────────────────────────────────────────
         # When the user pastes a URL, auto-invoke sovereign_browser to FETCH
@@ -733,7 +733,7 @@ class CognitiveRoutingPhase(BasePhase):
             url_matches = _URL_PATTERN.findall(skill_input_text)
             if url_matches:
                 logger.info(
-                    "🧭 Routing: URL detected in user input → auto-matching sovereign_browser: %s",
+                    "Routing: URL detected in user input → auto-matching sovereign_browser: %s",
                     url_matches[0][:80],
                 )
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
@@ -765,12 +765,12 @@ class CognitiveRoutingPhase(BasePhase):
 
         # Force DELIBERATE mode for AGI test battery runs (origin "test" or battery env vars active)
         if proof_run_active(origin=routing_origin):
-            logger.info("🧭 Routing: AGI Battery/Test mode detected. Forcing DELIBERATE mode.")
+            logger.info("Routing: AGI Battery/Test mode detected. Forcing DELIBERATE mode.")
             cognitive_mode = CognitiveMode.DELIBERATE
 
         # 2. Heuristic fast-path
         if analysis.intent_type == "SYSTEM":
-            logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
+            logger.info("Routing: SYSTEM intent detected via heuristics.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             new_state.cognition.current_objective = input_text
             new_state.cognition.current_origin = routing_origin
@@ -794,7 +794,7 @@ class CognitiveRoutingPhase(BasePhase):
             and cognitive_mode is not CognitiveMode.DELIBERATE
         ):
             if not self._has_deliberate_keywords(input_text):
-                logger.info("🧭 Routing: Casual 'think' detected. Defaulting to REACTIVE.")
+                logger.info("Routing: Casual 'think' detected. Defaulting to REACTIVE.")
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
                 new_state.cognition.current_objective = input_text
                 new_state.cognition.current_origin = routing_origin
@@ -834,7 +834,7 @@ class CognitiveRoutingPhase(BasePhase):
                 mode=str(getattr(cognitive_mode, "value", cognitive_mode)),
             )
         logger.info(
-            "🧠 CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s",
+            "CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s",
             cognitive_mode.name,
             model_tier,
             deep_handoff,
@@ -983,7 +983,7 @@ class CognitiveRoutingPhase(BasePhase):
                 explicit_deep_request or (looks_technical and word_count >= 60)
             ):
                 logger.info(
-                    "🧠 CognitiveRouting: SUBSTRATE approves deep handoff (score=%.2f, "
+                    "CognitiveRouting: SUBSTRATE approves deep handoff (score=%.2f, "
                     "coherence=%.2f, phi=%.2f, complexity=%.2f)",
                     substrate_score,
                     coherence,

@@ -323,7 +323,7 @@ def _patched_pathway_self_development(
         self.state.last_skill_use = now
 
         logger.info(
-            "🧠 SelfDevPatch: targeted initiative '%s' (theory=%s, metric=%s)",
+            "SelfDevPatch: targeted initiative '%s' (theory=%s, metric=%s)",
             chosen["skill"],
             chosen.get("theory", "?"),
             chosen.get("metric", "?"),
@@ -373,4 +373,4 @@ def patch_agency_core(agency_core: "AgencyCore") -> None:
         _patched_pathway_self_development, agency_core
     )
     agency_core._self_dev_patch_applied = True
-    logger.info("✅ SelfDevPatch applied to AgencyCore._pathway_self_development")
+    logger.info("SelfDevPatch applied to AgencyCore._pathway_self_development")

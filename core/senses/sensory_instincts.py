@@ -19,7 +19,7 @@ class SensoryInstincts:
             return
         self.running = True
         self._task = get_task_tracker().create_task(self._monitoring_loop())
-        logger.info("⚡ Sensory Instincts (Gut Reactions) online")
+        logger.info("Sensory Instincts (Gut Reactions) online")
 
     async def stop(self):
         self.running = False
@@ -63,7 +63,7 @@ class SensoryInstincts:
                     is_critical=False,
                 )
                 if verdict.decision == AuthorizationDecision.BLOCK:
-                    logger.info("⚡ Gut Reaction blocked by substrate authority (%s)", verdict.reason)
+                    logger.info("Gut Reaction blocked by substrate authority (%s)", verdict.reason)
                     return False
                 if verdict.decision == AuthorizationDecision.CONSTRAIN:
                     applied_intensity *= 0.5
@@ -81,6 +81,6 @@ class SensoryInstincts:
             ls.update(delta_frustration=applied_intensity)
         
         from core.thought_stream import get_emitter
-        get_emitter().emit("Gut Reaction ⚡", f"Detected {modality} stimulus (intensity: {applied_intensity:.2f})", level="warning")
-        logger.info("⚡ Gut Reaction: %s spike via %s (%.2f)", emotion, modality, applied_intensity)
+        get_emitter().emit("Gut Reaction", f"Detected {modality} stimulus (intensity: {applied_intensity:.2f})", level="warning")
+        logger.info("Gut Reaction: %s spike via %s (%.2f)", emotion, modality, applied_intensity)
         return True

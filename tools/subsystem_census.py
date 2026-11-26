@@ -182,7 +182,7 @@ def write_markdown(census: dict, path: Path) -> None:
     for name, e in rows:
         lines.append(
             f"| {name} | {e['files']} | {e['lines']} | {e['fan_in']} | {e['fan_out']} "
-            f"| {'✅' if e['tested'] else '❌'} | {e['degradation_sites']} ({e['degradation_actionless']}) "
+            f"| {'ok' if e['tested'] else 'failed'} | {e['degradation_sites']} ({e['degradation_actionless']}) "
             f"| {', '.join(e['verdicts']) or '—'} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")

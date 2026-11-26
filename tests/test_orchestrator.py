@@ -688,7 +688,7 @@ async def test_trigger_background_learning(orchestrator):
 def test_get_cleaned_history_context(orchestrator):
     orchestrator.conversation_history = [
         {"role": "user", "content": "Hello"},
-        {"role": "internal", "content": "⚡ AUTONOMOUS GOAL: look around"},
+        {"role": "internal", "content": "AUTONOMOUS GOAL: look around"},
         {"role": "assistant", "content": "Hi"},
     ]
 
@@ -849,7 +849,7 @@ def test_record_message_in_history(orchestrator):
 
     orchestrator._record_message_in_history("Goal", "autonomous_volition")
     assert orchestrator.conversation_history[-1]["role"] == "internal"
-    assert "⚡ AUTONOMOUS GOAL" in orchestrator.conversation_history[-1]["content"]
+    assert "AUTONOMOUS GOAL" in orchestrator.conversation_history[-1]["content"]
 
 
 @pytest.mark.asyncio

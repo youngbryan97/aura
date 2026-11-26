@@ -267,7 +267,7 @@ class IdentityDriver:
                     category="significant_interaction",
                     significance=0.8,
                 )
-                logger.debug(f"📖 Significant interaction recorded: {interaction_summary[:60]}...")
+                logger.debug(f"Significant interaction recorded: {interaction_summary[:60]}...")
         
         except _IDENTITY_DRIVER_RECOVERABLE_ERRORS as e:
             record_degradation("identity_driver", e)

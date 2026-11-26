@@ -119,7 +119,7 @@ class DevMode:
         """Change transparency level at runtime."""
         async with await self._get_lock():
             self.level = level
-            logger.info("🔍 DevMode: Transparency level changed to %s", level)
+            logger.info("DevMode: Transparency level changed to %s", level)
     
     async def record_thought(self, objective: str, reasoning: str, 
                             confidence: float = 0.5, decision: str = "",
@@ -142,7 +142,7 @@ class DevMode:
                 self.thought_traces = self.thought_traces[-100:]
         
         if self.level in {TransparencyLevel.DEBUG, TransparencyLevel.VERBOSE}:
-            logger.debug("💭 Thought: %s | Decision: %s | Conf: %.2f", 
+            logger.debug("Thought: %s | Decision: %s | Conf: %.2f", 
                         objective[:60], decision[:40], confidence)
             await self._emit_event("thought_recorded", trace.to_dict())
         
@@ -183,7 +183,7 @@ class DevMode:
                 self.tool_traces = self.tool_traces[-50:]
         
         if self.level != TransparencyLevel.SILENT:
-            logger.info("🔧 Tool Dispatch: %s (origin=%s)", tool_name, origin)
+            logger.info("Tool Dispatch: %s (origin=%s)", tool_name, origin)
             if self.level in {TransparencyLevel.DEBUG, TransparencyLevel.VERBOSE}:
                 logger.debug("   Params: %s", {k: "***" if k in {"password", "token"} else v 
                                               for k, v in params.items()})
@@ -274,13 +274,13 @@ class DevMode:
         if self.level != TransparencyLevel.SILENT:
             if deferred:
                 logger.info(
-                    "⏸️ Tool Deferred: %s in %.0fms (%s)",
+                    "Tool Deferred: %s in %.0fms (%s)",
                     trace.tool_name,
                     execution_time_ms,
                     str(result.get("reason") or "policy_deferred")[:120],
                 )
             else:
-                status_emoji = "✅" if result.get("ok") else "❌"
+                status_emoji = "ok" if result.get("ok") else "failed"
                 logger.info("%s Tool Result: %s in %.0fms",
                            status_emoji, trace.tool_name, execution_time_ms)
             if self.level in {TransparencyLevel.DEBUG}:
@@ -307,11 +307,10 @@ class DevMode:
                 self.consent_requests = self.consent_requests[-25:]
         
         if self.level != TransparencyLevel.SILENT:
-            marker = "🔐" if requires_user else "✓"
-            logger.info("%s Consent: %s — %s", marker, request_type, description)
+            logger.info("Consent %s: %s — %s", "asked of the user" if requires_user else "given", request_type, description)
         
         if requires_user and self.level != TransparencyLevel.SILENT:
-            logger.warning("⚠️  User input required for: %s", description)
+            logger.warning(" User input required for: %s", description)
         
         await self._emit_event("consent_requested", request.to_dict())
         return request
@@ -323,7 +322,7 @@ class DevMode:
         request.approval_reason = reason
         
         if self.level != TransparencyLevel.SILENT:
-            logger.info("✅ Approved: %s (%s)", request.request_type, reason)
+            logger.info("Approved: %s (%s)", request.request_type, reason)
         
         await self._emit_event("consent_approved", request.to_dict())
     
@@ -334,7 +333,7 @@ class DevMode:
         request.approval_reason = reason
         
         if self.level != TransparencyLevel.SILENT:
-            logger.warning("❌ Denied: %s (%s)", request.request_type, reason)
+            logger.warning("Denied: %s (%s)", request.request_type, reason)
         
         await self._emit_event("consent_denied", request.to_dict())
     

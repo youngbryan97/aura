@@ -59,7 +59,7 @@ class ThreatWatch:
     def __init__(self):
         self._scans = 0
         self._elevated = 0
-        logger.info("🛟 ThreatWatch initialized (Safe Surf lineage)")
+        logger.info("ThreatWatch initialized (Safe Surf lineage)")
 
     @staticmethod
     def _hits(text: str, markers: tuple[str, ...]) -> list[str]:

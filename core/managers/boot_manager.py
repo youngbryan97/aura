@@ -141,7 +141,7 @@ class BootManager:
         if self.orchestrator.status.initialized:
             return True
             
-        self.logger.info("🧠 BOOT: Starting Subsystem Initialization...")
+        self.logger.info("BOOT: Starting Subsystem Initialization...")
         try:
             self._async_init_threading()
             self._init_resilience()
@@ -160,7 +160,7 @@ class BootManager:
             from core.memory.semantic_defrag import start_defrag_scheduler
             get_task_tracker().create_task(start_defrag_scheduler())
             
-            self.logger.info("✅ BOOT COMPLETE: Orchestrator architecture online")
+            self.logger.info("BOOT COMPLETE: Orchestrator architecture online")
             self.orchestrator.status.initialized = True
             degraded = self.orchestrator.status.health_metrics.get("boot_degraded_components", [])
             self.orchestrator.status.dependencies_ok = not bool(degraded)
@@ -359,7 +359,7 @@ class BootManager:
         try:
             pending = cognitive_wal.recover_state()
             if pending:
-                self.logger.info("💾 WAL: Found %d interrupted thoughts", len(pending))
+                self.logger.info("WAL: Found %d interrupted thoughts", len(pending))
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             self._record_degradation(
                 e,

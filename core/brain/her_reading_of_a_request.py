@@ -71,7 +71,7 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
         meant = await asyncio.to_thread(meant_capability, text, skills)
         if not meant or meant == required[0]:
             return required, ceiling, scopes
-        logger.info("🔧 Tool handoff: the words named %s, and the request means %s.", required[0], meant)
+        logger.info("Tool handoff: the words named %s, and the request means %s.", required[0], meant)
     else:
         # A capability is for something she was asked to do. Live, 13 October,
         # "There is a wren nesting in the old boot by my back door" spent ten
@@ -100,7 +100,7 @@ async def her_reading(text: str, required: list[str], ceiling: str, scopes: Any,
     read = [name for name in read if not answers_in_words(skills.get(name))]
     if not read:
         return required, ceiling, scopes
-    logger.info("🔧 Tool handoff: the words left it open; %s needs %s.", "its meaning" if meant else "her reading", ", ".join(read))
+    logger.info("Tool handoff: the words left it open; %s needs %s.", "its meaning" if meant else "her reading", ", ".join(read))
     first = (getattr(engine, "skills", None) or {}).get(read[0])
     # The capability that does most of it is called with the request when it
     # needs nothing else to begin (no required arguments): it reads what it
@@ -148,7 +148,7 @@ async def _the_runner_work_on_code_keeps(text: str, chosen: str, required: list[
         return []
     if await asyncio.to_thread(asks_for_code_work, text) is not True:
         return []
-    logger.info("🔧 Tool handoff: work on code keeps %s beside %s.", ", ".join(runners), chosen)
+    logger.info("Tool handoff: work on code keeps %s beside %s.", ", ".join(runners), chosen)
     return runners
 
 

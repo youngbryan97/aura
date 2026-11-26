@@ -59,7 +59,7 @@ class ProjectManager:
         """Create and start tracking a new project."""
         project = Project(project_id, name, limits)
         self._projects[project_id] = project
-        logger.info("⚡ [PROJECT] Started project '%s' (ID: %s)", name, project_id)
+        logger.info("[PROJECT] Started project '%s' (ID: %s)", name, project_id)
         return project
 
     def get_project(self, project_id: str) -> Optional[Project]:
@@ -97,7 +97,7 @@ class ProjectManager:
             record_degradation("project_manager", e, severity="warning", action="kept project checkpoint in memory after receipt emission failure")
             logger.debug("Failed to record project checkpoint to ReceiptStore: %s", e)
 
-        logger.info("⚡ [PROJECT] Saved checkpoint for '%s' (keys: %s)", project.name, list(state.keys()))
+        logger.info("[PROJECT] Saved checkpoint for '%s' (keys: %s)", project.name, list(state.keys()))
         return True
 
     def track_tool_call(self, project_id: str) -> bool:

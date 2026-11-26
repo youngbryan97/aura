@@ -61,7 +61,7 @@ class TemporalDilationScheduler:
         if self._is_running:
             return
         self._is_running = True
-        logger.info("⏳ MIST TemporalDilation active. Watching for idle states...")
+        logger.info("MIST TemporalDilation active. Watching for idle states...")
 
         consecutive_failures = 0
         while self._is_running:
@@ -186,7 +186,7 @@ class TemporalDilationScheduler:
 
         if idle_time >= self.MIN_IDLE_FOR_SYNTHESIS_S:
             self._synthesis_count += 1
-            logger.info("⏳ MIST: System idle (%.0fs). Initiating background synthesis cycle #%d...",
+            logger.info("MIST: System idle (%.0fs). Initiating background synthesis cycle #%d...",
                         idle_time, self._synthesis_count)
                 
             try:
@@ -199,7 +199,7 @@ class TemporalDilationScheduler:
                         timeout=10.0,
                     )
                     if cold_context:
-                        logger.info("⏳ MIST: Consolidated background context: %d chars.", len(cold_context))
+                        logger.info("MIST: Consolidated background context: %d chars.", len(cold_context))
                         synth_prompt = f"Background synthesis: Refine the following context into a proactive insight: {cold_context[:500]}"
                         # We use FAST mode for background synthesis to conserve resources
                         from core.brain.types import ThinkingMode
@@ -222,7 +222,7 @@ class TemporalDilationScheduler:
                         self._last_synthesis_time = time.time()
                         self._last_insight = insight_text
                         logger.info(
-                            "⏳ MIST: Synthesis cycle complete (%d chars of insight).",
+                            "MIST: Synthesis cycle complete (%d chars of insight).",
                             len(insight_text),
                         )
 
@@ -244,7 +244,7 @@ class TemporalDilationScheduler:
                                     brainiac.bottle("idle-consolidation", bottled),
                                     timeout=20.0,
                                 )
-                                logger.debug("🫙 Brainiac bottled the idle insight.")
+                                logger.debug("Brainiac bottled the idle insight.")
                         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as _bx:
                             record_fictional_degradation(
                                 _bx,
@@ -272,7 +272,7 @@ class TemporalDilationScheduler:
                                     timeout=20.0,
                                 )
                                 refined = _delib.refined_question
-                                logger.debug("🪐 Deep Thought deliberated an idle thread.")
+                                logger.debug("Deep Thought deliberated an idle thread.")
                             caine = ServiceContainer.get("caine", default=None)
                             if caine is not None and hasattr(caine, "forge_fast"):
                                 # Synchronous scenario forging, off the loop.
@@ -280,12 +280,12 @@ class TemporalDilationScheduler:
                                     asyncio.to_thread(caine.forge_fast, refined[:120]),
                                     timeout=15.0,
                                 )
-                                logger.debug("🎪 Caine rehearsed an idle what-if scenario.")
+                                logger.debug("Caine rehearsed an idle what-if scenario.")
                             hal = ServiceContainer.get("hal", default=None)
                             if hal is not None and hasattr(hal, "scan_semantic"):
                                 _sem = await hal.scan_semantic(timeout=8.0)
                                 if any(getattr(c, "kind", "") == "semantic" for c in _sem):
-                                    logger.info("🔴 HAL semantic scan flagged a directive tension.")
+                                    logger.info("HAL semantic scan flagged a directive tension.")
                         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as _idle_exc:
                             record_fictional_degradation(
                                 _idle_exc,

@@ -312,7 +312,7 @@ class LearningPhase(Phase):
             if "self_modification" in state.cognition.modifiers:
                 has_mod = True
                 logger.info(
-                    "🧠 SelfModification: Awareness triggered. Preserving modification context."
+                    "SelfModification: Awareness triggered. Preserving modification context."
                 )
 
         # Memory Consolidation Logic
@@ -457,7 +457,7 @@ class LearningPhase(Phase):
                 return state
             if not allowed:
                 return state
-            logger.info("🔭 [AGI] High curiosity: Generating cross-domain synthesis...")
+            logger.info("[AGI] High curiosity: Generating cross-domain synthesis...")
             state.cognition.pending_intents.append(
                 {
                     "type": "cross_domain_synthesis",
@@ -469,7 +469,7 @@ class LearningPhase(Phase):
 
     async def _trigger_autotelic_curiosity(self, state: AuraState) -> AuraState:
         """[AGI Seed] Generates a new internal objective based on idle curiosity."""
-        logger.info("🧩 [AGI] Idle detected. Triggering autotelic exploration.")
+        logger.info("[AGI] Idle detected. Triggering autotelic exploration.")
         state.cognition.pending_intents.append(
             {
                 "type": "autotelic_objective",

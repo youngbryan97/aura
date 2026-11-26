@@ -98,7 +98,7 @@ class SanitizerLog:
                 )
         if not first:
             return False
-        logger.error("🧪 %s: %s", sanitizer, message)
+        logger.error("%s: %s", sanitizer, message)
         taint(TaintFlag.SANITIZER, f"{sanitizer}: {message[:200]}", subsystem="sanitizers")
         try:
             from core.runtime.errors import record_degradation

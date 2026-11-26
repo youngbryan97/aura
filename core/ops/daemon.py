@@ -73,7 +73,7 @@ class CognitiveDaemon:
 
         from core.container import ServiceContainer
 
-        logger.info("🧠 [DAEMON] Cognitive engine booting...")
+        logger.info("[DAEMON] Cognitive engine booting...")
         await async_atomic_write_text(DAEMON_PID_FILE, str(os.getpid()))
         if is_shutdown_requested():
             await self.stop()
@@ -108,7 +108,7 @@ class CognitiveDaemon:
             await self.stop()
             raise RuntimeError("runtime_shutdown")
 
-        logger.info("🧠 [DAEMON] Online. PID: %d | Socket: %s", os.getpid(), DAEMON_SOCKET)
+        logger.info("[DAEMON] Online. PID: %d | Socket: %s", os.getpid(), DAEMON_SOCKET)
 
     async def run(self) -> None:
         """Block until SIGTERM/SIGINT."""
@@ -117,7 +117,7 @@ class CognitiveDaemon:
     async def stop(self) -> None:
         request_shutdown("cognitive_daemon.stop")
         async with self._stop_lock:
-            logger.info("🧠 [DAEMON] Graceful shutdown initiated.")
+            logger.info("[DAEMON] Graceful shutdown initiated.")
             self._stop_event.set()
 
             world_feed, self._world_feed = self._world_feed, None
@@ -163,7 +163,7 @@ class CognitiveDaemon:
                 logger.debug("Daemon endpoint cleanup failed: %s", exc)
 
             self._stopped = True
-            logger.info("🧠 [DAEMON] Shutdown complete.")
+            logger.info("[DAEMON] Shutdown complete.")
 
     async def _start_socket_server(self) -> None:
         """Accept connections from the API layer."""
@@ -315,7 +315,7 @@ class WorldFeed:
             f"Headline: {safe_title}\n"
             f"Summary: {safe_summary}"
         )
-        logger.info("🌍 [WorldFeed] Injecting: %s", safe_title[:60])
+        logger.info("[WorldFeed] Injecting: %s", safe_title[:60])
         await self.orchestrator.process_unprompted_stimulus(
             modality="world_feed",
             data={"title": safe_title, "link": entry.link},

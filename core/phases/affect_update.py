@@ -1370,7 +1370,7 @@ class AffectUpdatePhase(Phase):
                 impacts = command_impacts.get(cmd, {})
                 for emotion, boost in impacts.items():
                     self._bump_emotion(affect, emotion, float(boost) * float(intensity))
-                    logger.debug("🧠 [AFFECT] Neural command '%s' boosted %s by %.2f", cmd, emotion, boost * intensity)
+                    logger.debug("[AFFECT] Neural command '%s' boosted %s by %.2f", cmd, emotion, boost * intensity)
 
     def _update_physiology(self, affect: AffectVector, state: AuraState):
         """Unified PAD/Somatic coupling."""
@@ -1386,7 +1386,7 @@ class AffectUpdatePhase(Phase):
                     correction = prober.instance.get_correction_payload()
                     for emo, boost in correction.items():
                         bump_emotion(state.affect.emotions, emo, float(boost))
-                    logger.info("🛡️ [VK] Corrective surge applied to stabilize persona.")
+                    logger.info("[VK] Corrective surge applied to stabilize persona.")
             except _AFFECT_UPDATE_ERRORS as exc:
                 self._record_phase_degradation(
                     state,
@@ -1697,7 +1697,7 @@ class AffectUpdatePhase(Phase):
         """Detects despair spirals and injects adrenaline (Immune surge)."""
         e = affect.emotions
         if e.get("sadness", 0) > 0.85 and e.get("fear", 0) > 0.7 and e.get("joy", 0) < 0.1:
-            logger.warning("💉 [PHASE] Despair Spiral detected. Injecting adrenaline surge.")
+            logger.warning("[PHASE] Despair Spiral detected. Injecting adrenaline surge.")
             # Half of full mobilization, on the 0-10 scale the channel is read
             # on. `_apply_decay` brings it down from here.
             affect.physiology["adrenaline"] = (

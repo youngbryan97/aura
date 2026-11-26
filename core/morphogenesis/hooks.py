@@ -48,7 +48,7 @@ def register_stability_guardian_check() -> bool:
         if guardian is None or not hasattr(guardian, "add_check"):
             return False
         guardian.add_check(_morphogenesis_health_check)
-        logger.info("🧬 Morphogenesis health check registered with StabilityGuardian.")
+        logger.info("Morphogenesis health check registered with StabilityGuardian.")
         return True
     except (ImportError, AttributeError, RuntimeError) as exc:
         record_degradation('hooks', exc)
@@ -170,7 +170,7 @@ def register_self_healing_watch() -> bool:
             rt = ServiceContainer.get("morphogenetic_runtime", default=None)
             if rt is None:
                 raise RuntimeError("morphogenesis runtime is not registered")
-            logger.warning("🧬 SelfHealing restarting morphogenesis runtime...")
+            logger.warning("SelfHealing restarting morphogenesis runtime...")
             restart = getattr(rt, "restart_async", None)
             if callable(restart):
                 result = restart()
@@ -182,7 +182,7 @@ def register_self_healing_watch() -> bool:
             status = rt.status()
             if bool(getattr(rt.config, "enabled", True)) and not status.get("running", False):
                 raise RuntimeError("morphogenesis restart completed without a live runtime task")
-            logger.info("🧬 Morphogenesis runtime restarted by SelfHealing.")
+            logger.info("Morphogenesis runtime restarted by SelfHealing.")
 
         runtime = ServiceContainer.get("morphogenetic_runtime", default=None)
         tick_interval_s = float(
@@ -197,7 +197,7 @@ def register_self_healing_watch() -> bool:
             restart_async=_restart_morphogenesis,
             container_key="morphogenetic_runtime",
         )
-        logger.info("🧬 Morphogenesis registered with SelfHealing watchdog.")
+        logger.info("Morphogenesis registered with SelfHealing watchdog.")
         return True
     except (ImportError, AttributeError, RuntimeError) as exc:
         record_degradation('hooks', exc)
@@ -466,7 +466,7 @@ async def record_organ_formation_episode(organ_data: dict[str, Any]) -> None:
                 "event_type": "organ_formation",
             },
         )
-        logger.debug("🧬 Organ formation episode recorded: %s", organ_name)
+        logger.debug("Organ formation episode recorded: %s", organ_name)
     except (ImportError, AttributeError, RuntimeError) as exc:
         record_degradation('hooks', exc)
         logger.debug("Organ formation episode recording failed: %s", exc)
@@ -579,7 +579,7 @@ async def wire_all_hooks() -> dict[str, bool]:
     results["organ_episodes"] = True
 
     logger.info(
-        "🧬 Morphogenesis hooks wired: %s",
+        "Morphogenesis hooks wired: %s",
         ", ".join(f"{k}={'✓' if v else '✗'}" for k, v in results.items()),
     )
     return results

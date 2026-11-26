@@ -25,7 +25,7 @@ class ToolSandbox:
     """Screens forged tool code before it is offered to the registry."""
 
     def validate_tool_code(self, code_str: str) -> Dict[str, Any]:
-        logger.info("🔒 ToolSandbox: screening candidate tool code...")
+        logger.info("ToolSandbox: screening candidate tool code...")
 
         try:
             ast.parse(code_str)

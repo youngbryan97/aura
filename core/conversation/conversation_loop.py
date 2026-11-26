@@ -162,7 +162,7 @@ class AutonomousConversationLoop:
             Response dictionary with conversation and actions
 
         """
-        logger.info("📥 User input: %s...", user_message[:100])
+        logger.info("User input: %s...", user_message[:100])
 
         # Add to conversation history
         await self._add_to_history("user", user_message)
@@ -243,7 +243,7 @@ class AutonomousConversationLoop:
         # Force every response through the full cognitive stack.
         # Instead of the 'planner' shortcut, we enter the unitary pipeline directly.
         # This ensures every turn gets full perception, planning, and self-correction.
-        logger.info("🧠 ConversationLoop: Routing through full cognitive stack...")
+        logger.info("ConversationLoop: Routing through full cognitive stack...")
         try:
             response = await self.brain.generate(user_message, priority=True)
             await self._add_to_history(self.AI_ROLE, response)
@@ -260,7 +260,7 @@ class AutonomousConversationLoop:
                 action="fell back to direct conversational generation after unitary stack failed",
                 severity="degraded",
             )
-            logger.error("❌ ConversationLoop: Full cognitive stack failed: %s", e)
+            logger.error("ConversationLoop: Full cognitive stack failed: %s", e)
             # Fallback to direct generate if phase loop fails
             response = await self._generate_conversational_response(user_message)
             await self._add_to_history(self.AI_ROLE, response)
@@ -318,7 +318,7 @@ class AutonomousConversationLoop:
                             logger.debug("Idle monologue emit failed: %s", e)
 
                     if imperative:
-                        logger.info("🧠 Autonomous imperative: %s", imperative)
+                        logger.info("Autonomous imperative: %s", imperative)
                         # EMIT THOUGHT
                         try:
                             from core.thought_stream import get_emitter
@@ -391,7 +391,7 @@ class AutonomousConversationLoop:
 
         """
         try:
-            logger.info("⚡ Executing autonomous goal: %s", goal_text)
+            logger.info("Executing autonomous goal: %s", goal_text)
 
             # Decompose into plan
             plan = await self.planner.decompose(goal_text)

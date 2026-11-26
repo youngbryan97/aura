@@ -102,7 +102,7 @@ async def search_in_her_browser(queries: Sequence[str], *, at_most: int = 10, pr
                     await browser.page.wait_for_timeout(1200)
                     rows = await get_page_gateway().read(browser.page, _LINKS, source="search.engines_in_her_browser")
                 except Exception as exc:  # noqa: BLE001 - one engine is optional, whatever its page raises
-                    logger.info("🔎 %s did not answer: %s: %s", urllib.parse.urlsplit(engine).netloc, type(exc).__name__,
+                    logger.info("%s did not answer: %s: %s", urllib.parse.urlsplit(engine).netloc, type(exc).__name__,
                                 str(exc)[:120])
                     refused.add(engine)
                     continue

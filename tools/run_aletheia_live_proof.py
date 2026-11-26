@@ -52,9 +52,9 @@ def check_leakage_inaccessibility():
     ]
     for p in hidden_paths:
         if p.exists():
-            logger_info = f"⚠️ [LEAKAGE WARNING] Private path exists: {p}. Ensuring sandbox restricts access."
+            logger_info = f"[LEAKAGE WARNING] Private path exists: {p}. Ensuring sandbox restricts access."
             print(logger_info)
-    print("✅ Inaccessibility check passed: normal candidate runtime routes possess zero read access to hidden specs.")
+    print("Inaccessibility check passed: normal candidate runtime routes possess zero read access to hidden specs.")
 
 
 async def wait_for_server(url: str, timeout_s: float = 30.0) -> bool:
@@ -140,7 +140,7 @@ def _invalid_completion_count(ticket_rows: list[dict[str, Any]]) -> int:
 
 def run_scorer(world_results_path: Path, ticket_results_path: Path | None = None) -> dict:
     """External scorer completely decoupled from Aura's memory/cognitive loop."""
-    print("🎯 Running external scorer over world results...")
+    print("Running external scorer over world results...")
 
     rows = _load_jsonl_dicts(world_results_path)
     ticket_rows = _load_jsonl_dicts(ticket_results_path) if ticket_results_path else []
@@ -199,7 +199,7 @@ def run_scorer(world_results_path: Path, ticket_results_path: Path | None = None
 
 def run_leakage_audit(battery_dir: Path) -> dict:
     """Leakage audit to ensure no hidden grading details leaked into results."""
-    print("🧹 Running leakage audit...")
+    print("Running leakage audit...")
     audit = {
         "passed": True,
         "timestamp": time.time(),
@@ -222,14 +222,14 @@ def main() -> int:
     worlds_dir = battery_dir / "worlds"
     candidate_worlds = sorted(path for path in worlds_dir.glob("W*") if path.is_dir())
     if not candidate_worlds:
-        print(f"❌ ERROR: no candidate-visible Aletheia worlds found under {worlds_dir}.")
+        print(f"ERROR: no candidate-visible Aletheia worlds found under {worlds_dir}.")
         return 1
 
     # 1. Confirm hidden specs are inaccessible
     check_leakage_inaccessibility()
 
     # 2. Start clean Aura runtime in headless mode
-    print(f"🔌 Spawning headless Aura API server on port {PORT}...")
+    print(f"Spawning headless Aura API server on port {PORT}...")
     server_process = get_subprocess_gateway().spawn(
         [sys.executable, "aura_main.py", "--headless", "--port", str(PORT)],
         cwd=str(PROJECT_ROOT),
@@ -244,13 +244,13 @@ def main() -> int:
         import asyncio
         server_ready = asyncio.run(wait_for_server(AURA_URL, 45.0))
         if not server_ready:
-            print("❌ ERROR: Headless Aura API server failed to start or report healthy.")
+            print("ERROR: Headless Aura API server failed to start or report healthy.")
             return 1
         
-        print("✅ Headless Aura API server is healthy and online.")
+        print("Headless Aura API server is healthy and online.")
 
         # 3. Load candidate-visible worlds and execute live benchmark
-        print("🏃 Starting Live World Processor...")
+        print("Starting Live World Processor...")
         runner_path = PROJECT_ROOT / "aura_bench" / "aletheia_runner_live.py"
         cmd = [
             sys.executable, str(runner_path),
@@ -270,7 +270,7 @@ def main() -> int:
             accelerator_capability="auto",
         )
         if completed.returncode != 0:
-            print(f"❌ ERROR: live Aletheia runner failed with exit code {completed.returncode}.")
+            print(f"ERROR: live Aletheia runner failed with exit code {completed.returncode}.")
             return int(completed.returncode)
 
         # 4. Validate generated artifacts and score them externally.
@@ -323,11 +323,11 @@ def main() -> int:
                     encoding="utf-8",
                 )
 
-        print("✨ SUCCESS: Aletheia Live Proof run complete and scored successfully.")
+        print("SUCCESS: Aletheia Live Proof run complete and scored successfully.")
         return 0
 
     finally:
-        print("🔌 Stopping headless Aura API server...")
+        print("Stopping headless Aura API server...")
         if server_process.poll() is None:
             try:
                 server_process.terminate()
@@ -337,8 +337,8 @@ def main() -> int:
                     server_process.kill()
                     server_process.wait(timeout=5.0)
                 except (OSError, TimeoutExpired):
-                    print("⚠️ Headless Aura API server did not stop before timeout.")
-        print("✅ Headless Aura API server stopped.")
+                    print("Headless Aura API server did not stop before timeout.")
+        print("Headless Aura API server stopped.")
 
 
 if __name__ == "__main__":

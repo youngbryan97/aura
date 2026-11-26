@@ -54,7 +54,7 @@ class AlignmentEngine(AuraBaseModule):
         # Phase 8 Migration: Check if legacy file exists
         if self.values_path.exists():
             try:
-                self.logger.info("📦 Migrating values graph from JSON to SQLite...")
+                self.logger.info("Migrating values graph from JSON to SQLite...")
                 with open(self.values_path, 'r') as f:
                     legacy_graph = json.load(f)
                 # Success? Save to DB and keep it
@@ -115,7 +115,7 @@ class AlignmentEngine(AuraBaseModule):
                 self.logger.debug("Command normalization failed: %s", e)
                 return str(cmd)
 
-        self.logger.info("⚖️ Conscience Check: %s", action_name)
+        self.logger.info("Conscience Check: %s", action_name)
         
         # 1. Constitutional Vetting
         # Explicit Veto List and Metacharacter Block for critical safety
@@ -192,7 +192,7 @@ class AlignmentEngine(AuraBaseModule):
             if len(data["feedback"]) > 5:
                 data["feedback"].pop(0)
                 
-        self.logger.info("🧠 Ethical Learning: '%s' score updated to %.2f", action_name, data['score'])
+        self.logger.info("Ethical Learning: '%s' score updated to %.2f", action_name, data['score'])
         
         # Throttle expensive synchronous disk writes to prevent O(N) degradation
         if time.time() - self._last_save_time > self._save_interval:

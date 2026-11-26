@@ -21,7 +21,7 @@ async def audit_consciousness():
     from core.consciousness.conscious_core import ConsciousnessCore
     from core.consciousness.contract import AlwaysHomeContract
 
-    print(colored("\n🧠 Starting Consciousness Contract Audit...", "cyan", attrs=["bold"]))
+    print(colored("\nStarting Consciousness Contract Audit...", "cyan", attrs=["bold"]))
 
     # 1. Dependency Check
     print(colored("1. Checking Dependencies...", "yellow"))
@@ -100,7 +100,7 @@ async def audit_consciousness():
     except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Identity check failed: {e}", "red"))
 
-    print(colored("\n✨ Audit Complete.", "cyan", attrs=["bold"]))
+    print(colored("\nAudit Complete.", "cyan", attrs=["bold"]))
 
 
 if __name__ == "__main__":

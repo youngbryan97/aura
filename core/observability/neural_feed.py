@@ -14,7 +14,7 @@ class NeuralFeed:
     
     def __init__(self):
         self.emitter = get_emitter()
-        logger.info("📡 Neural Feed Online")
+        logger.info("Neural Feed Online")
 
     def push(self, content: str, title: str = "NEURAL_FEED", category: str = "INFO", **kwargs):
         """Broadcast an event to the feed."""

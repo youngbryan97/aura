@@ -124,7 +124,7 @@ class CriticEngine:
         self.cel = ServiceContainer.get("constitutive_expression_layer", default=None)
         self.running = True
         self._critic_task = None
-        logger.info("✅ Critic Engine ONLINE — on-demand recursive self-correction active.")
+        logger.info("Critic Engine ONLINE — on-demand recursive self-correction active.")
 
         # Mycelium hook so the rest of Aura can see us
         try:
@@ -304,7 +304,7 @@ Be concise. No extra text."""
         )
         
         logger.info(
-            "⚖️ Spawning Critical Shard for: %s...",
+            "Spawning Critical Shard for: %s...",
             _safe_text(research_insight, max_chars=50),
         )
         try:

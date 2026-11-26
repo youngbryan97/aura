@@ -608,7 +608,7 @@ class ServiceContainer(_SealsItsKeys):
         """Standard locking interface."""
         with cls._lock:
             cls._registration_locked = True
-            logger.info("🔒 ServiceContainer registration LOCKED")
+            logger.info("ServiceContainer registration LOCKED")
 
     @classmethod
     def register_instance(
@@ -678,14 +678,14 @@ class ServiceContainer(_SealsItsKeys):
                 _offer_to_the_shed_order(resolved_name, instance)
                 return
         if cls._registration_locked:
-            logger.debug("⚠️ Late instance registration (post-lock): '%s' — allowed for pre-built instances.", name)
+            logger.debug("Late instance registration (post-lock): '%s' — allowed for pre-built instances.", name)
             if (
                 existing
                 and resolved_name in _PROTECTED_CORE_SERVICES
                 and existing_instance is not instance
             ):
                 logger.error(
-                    "🚫 Protected core service overwrite blocked after lock: '%s'%s",
+                    "Protected core service overwrite blocked after lock: '%s'%s",
                     resolved_name,
                     f" (via alias '{name}')" if resolved_name != name else "",
                 )
@@ -699,7 +699,7 @@ class ServiceContainer(_SealsItsKeys):
                 )
                 return
             if not existing and name in _LATE_CAUSAL_SERVICES:
-                logger.warning("⚠️ Late CAUSAL instance registration after lock: '%s'", name)
+                logger.warning("Late CAUSAL instance registration after lock: '%s'", name)
                 record_degraded_event(
                     "service_container",
                     "late_causal_registration",
@@ -982,7 +982,7 @@ class ServiceContainer(_SealsItsKeys):
         # Recursion Guard
         resolving = cls._resolving_var.get()
         if resolved_name in resolving:
-            logger.warning("🔄 Circular check hit for '%s' in static registry. Returning None/Default.", resolved_name)
+            logger.warning("Circular check hit for '%s' in static registry. Returning None/Default.", resolved_name)
             if default != "_SENTINEL":
                 return default
             raise CircularDependencyError(f"Circular dependency detected while resolving '{resolved_name}'")
@@ -1125,7 +1125,7 @@ class ServiceContainer(_SealsItsKeys):
         try:
             cls._registration_locked = True
             cls._start_time = time.monotonic()
-            logger.info("🔒 ServiceContainer registration LOCKED (Zenith static mode)")
+            logger.info("ServiceContainer registration LOCKED (Zenith static mode)")
             
             for name, desc in cls._services.items():
                 if desc.lifetime == ServiceLifetime.SINGLETON:
@@ -1151,7 +1151,7 @@ class ServiceContainer(_SealsItsKeys):
 
             try:
                 seal = cls.write_sovereignty_seal()
-                logger.info("🔒 ServiceContainer sovereignty seal written — %s", seal.get("hash", "")[:12])
+                logger.info("ServiceContainer sovereignty seal written — %s", seal.get("hash", "")[:12])
             except _SEAL_IO_ERRORS as seal_exc:
                 record_degradation('container', seal_exc)
                 logger.warning("ServiceContainer sovereignty seal write failed: %s", seal_exc)

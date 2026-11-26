@@ -90,7 +90,7 @@ class _AmplifiesTheDraft:
             self._last_reasoning_receipt = receipt
             if hasattr(state, "metadata") and isinstance(state.metadata, dict):
                 state.metadata["reasoning_receipt"] = receipt
-            logger.info("🧠 [AmplifyV2-live/phase] kept answer for %s, %s (known answers agreed: %s)",
+            logger.info("[AmplifyV2-live/phase] kept answer for %s, %s (known answers agreed: %s)",
                         planted.get("family"), voice, planted.get("agreed_known"))
             return draft if stated else str(planted["answer"])
         # Otherwise a kept procedure answers before any search when the request is worded like its kind.
@@ -100,7 +100,7 @@ class _AmplifiesTheDraft:
             self._last_reasoning_receipt = receipt
             if hasattr(state, "metadata") and isinstance(state.metadata, dict):
                 state.metadata["reasoning_receipt"] = receipt
-            logger.info("🧠 [AmplifyV2-live/phase] kept procedure answered (%s)",
+            logger.info("[AmplifyV2-live/phase] kept procedure answered (%s)",
                         (receipt.get("cognitive_operations") or [{}])[0].get("family"))
             return kept.answer
         task_type = await asyncio.to_thread(is_amplifiable, objective)
@@ -203,7 +203,7 @@ class _AmplifiesTheDraft:
                 exc,
             )
         logger.info(
-            "🧠 [AmplifyV2-live/phase] task=%s mode=%s verified=%s conf=%.2f → %s",
+            "[AmplifyV2-live/phase] task=%s mode=%s verified=%s conf=%.2f → %s",
             task_type, receipt.get("mode"), result.verified, result.confidence,
             (
                 "adopted"

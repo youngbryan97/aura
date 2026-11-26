@@ -670,7 +670,7 @@ def test_health_pulse_reports_booting_during_boot_grace(monkeypatch, lane_state)
     assert "Runtime: BOOTING" in pulse
     assert "Required probes: WARMING" in pulse
     assert "Runtime: CRITICAL" not in pulse
-    assert "❌ contract/critical" not in pulse
+    assert "contract/critical" not in pulse
 
 
 def test_health_pulse_reports_conversation_warmup_as_booting_not_failure(monkeypatch):
@@ -726,7 +726,7 @@ def test_health_pulse_reports_conversation_warmup_as_booting_not_failure(monkeyp
     assert "Conversation: WARMING" in pulse
     assert "Runtime: DEGRADED" not in pulse
     assert "Conversation: FAIL" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 def test_health_pulse_reports_cold_conversation_standby_as_booting_not_degraded(monkeypatch):
@@ -778,7 +778,7 @@ def test_health_pulse_reports_cold_conversation_standby_as_booting_not_degraded(
     assert "Conversation: STANDBY" in pulse
     assert "Runtime: DEGRADED" not in pulse
     assert "Conversation: FAIL" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 def test_health_pulse_reports_chat_dependency_materialization_as_booting(monkeypatch):
@@ -830,7 +830,7 @@ def test_health_pulse_reports_chat_dependency_materialization_as_booting(monkeyp
     assert "Conversation: WARMING" in pulse
     assert "Runtime: DEGRADED" not in pulse
     assert "Conversation: FAIL" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 def test_health_pulse_reports_loaded_lane_awaiting_first_visible_turn_as_standby(monkeypatch):
@@ -886,7 +886,7 @@ def test_health_pulse_reports_loaded_lane_awaiting_first_visible_turn_as_standby
     assert "Conversation: STANDBY" in pulse
     assert "Runtime: DEGRADED" not in pulse
     assert "Conversation: FAIL" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 @pytest.mark.parametrize(
@@ -970,7 +970,7 @@ def test_health_pulse_reports_active_generation_as_working_not_failure(monkeypat
     assert "Runtime: WORKING" in pulse
     assert "Runtime: DEGRADED" not in pulse
     assert "Conversation: FAIL" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 def test_health_pulse_reports_shutdown_without_failure_noise(monkeypatch):
@@ -1020,8 +1020,8 @@ def test_health_pulse_reports_shutdown_without_failure_noise(monkeypatch):
     assert "Runtime: SHUTTING_DOWN" in pulse
     assert "Required probes: SHUTDOWN" in pulse
     assert "Conversation: STOPPING" in pulse
-    assert "❌ contract/critical" not in pulse
-    assert "❌ conversation_lane" not in pulse
+    assert "contract/critical" not in pulse
+    assert "conversation_lane" not in pulse
 
 
 def test_joy_social_background_tick_does_not_start_during_proof(monkeypatch):
@@ -2341,7 +2341,7 @@ def test_terminal_monitor_ignores_background_phase_timeouts():
 
     monitor = TerminalMonitor.__new__(TerminalMonitor)
     entry = ErrorEntry(
-        message="⏰ Phase 'EternalMemoryPhase' timed out after 10s — skipping",
+        message="Phase 'EternalMemoryPhase' timed out after 10s — skipping",
         level="ERROR",
         source="Aura.Core.Kernel",
     )

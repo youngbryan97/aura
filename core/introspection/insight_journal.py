@@ -107,7 +107,7 @@ class InsightJournal:
                 extra={"component": "insight_journal"},
             )
             logger.debug("InsightJournal mycelium registration failed: %s", exc)
-        logger.info("✅ InsightJournal ONLINE — chronicling the journey.")
+        logger.info("InsightJournal ONLINE — chronicling the journey.")
 
     async def stop(self):
         await off_the_loop(self._save)
@@ -136,7 +136,7 @@ class InsightJournal:
             self._insights = self._insights[-500:]
             
         self._save()
-        logger.info("📓 Recorded Insight: %s", title)
+        logger.info("Recorded Insight: %s", title)
 
         # Broadcast to event bus
         try:

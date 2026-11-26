@@ -190,7 +190,7 @@ class StemCellRegistry:
                 signature=sig,
             )
             self._write(record)
-            logger.info("🧬 stem cell captured: organ=%s schema=%s bytes=%d", organ, schema_version, len(payload))
+            logger.info("stem cell captured: organ=%s schema=%s bytes=%d", organ, schema_version, len(payload))
             return record
 
     # -------- restore --------
@@ -205,7 +205,7 @@ class StemCellRegistry:
                     continue
                 if _verify(rec.payload, rec.signature):
                     return rec
-                logger.warning("🧬 stem cell signature mismatch on %s — skipping", path.name)
+                logger.warning("stem cell signature mismatch on %s — skipping", path.name)
             return None
 
     def revert(self, organ: str, *, schema_version: str | None = None) -> Any:
@@ -217,7 +217,7 @@ class StemCellRegistry:
             raise FileNotFoundError(f"no valid stem cell for organ={organ}")
         if schema_version is not None and rec.schema_version != schema_version:
             logger.warning(
-                "🧬 stem cell schema mismatch organ=%s have=%s want=%s",
+                "stem cell schema mismatch organ=%s have=%s want=%s",
                 organ, rec.schema_version, schema_version,
             )
         des = self._deserializers.get(organ) or _json_deserialize
@@ -225,7 +225,7 @@ class StemCellRegistry:
         instantiator = self._instantiators.get(organ)
         if instantiator is not None:
             instance = instantiator(instance)
-        logger.warning("🧬 stem cell reverted: organ=%s captured_at=%s", organ, rec.captured_at)
+        logger.warning("stem cell reverted: organ=%s captured_at=%s", organ, rec.captured_at)
         return instance
 
     # -------- io --------

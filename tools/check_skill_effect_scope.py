@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
 
     new = sorted(keys - previous)
     if new:
-        print(f"❌ {len(new)} skill(s) reach further than they declare:")
+        print(f"{len(new)} skill(s) reach further than they declare:")
         for entry in found:
             key = f"{entry['skill']}:{entry['declared']}->{entry['reaches']}"
             if key in new:
@@ -157,14 +157,14 @@ def main(argv: list[str] | None = None) -> int:
 
     stale = sorted(previous - keys)
     if stale:
-        print(f"❌ {len(stale)} baseline entries no longer describe the code:")
+        print(f"{len(stale)} baseline entries no longer describe the code:")
         for key in stale:
             print(f"   • {key}")
         print("\nRemove them in the commit that fixed them: --write-baseline")
         return 1
 
     print(
-        f"✅ every skill declares a scope that covers its reach "
+        f"every skill declares a scope that covers its reach "
         f"({len(skill_modules())} mapped, {len(previous)} grandfathered)"
     )
     return 0

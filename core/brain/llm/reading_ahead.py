@@ -115,7 +115,7 @@ def as_a_job_of_the_worker(
                 tokens, lru=lru, model_key=model_key, make_cache=lambda: make_prompt_cache(model), forward=forward,
                 step=step, stopped=stopped, can_trim=can_trim_prompt_cache, trim=trim_prompt_cache,
             )
-        logger.info("📖 [WORKER] Read %d tokens of the talk so far for the turn to come; %d were read already.", read, held)
+        logger.info("[WORKER] Read %d tokens of the talk so far for the turn to come; %d were read already.", read, held)
         response["text"] = json.dumps([read, held])
     except (ImportError, AttributeError, IndexError, KeyError, RuntimeError, TypeError, ValueError) as exc:
         response.update({"status": "error", "message": f"{type(exc).__name__}: {exc}"})

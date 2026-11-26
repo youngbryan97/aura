@@ -58,7 +58,7 @@ class RayBackend:
                         logging_level=logging.WARNING,
                     )
                 self.active = True
-                logger.info("⚡ Ray distributed backend connected successfully.")
+                logger.info("Ray distributed backend connected successfully.")
             except _RAY_RECOVERABLE_ERRORS as e:
                 record_degradation(
                     "ray_backend",
@@ -83,7 +83,7 @@ class RayBackend:
         def ray_task_runner(fn: Callable[[], Any]) -> Any:
             return fn()
 
-        logger.info("⚡ Swarm Ray: dispatching %d tasks to cluster...", len(tasks))
+        logger.info("Swarm Ray: dispatching %d tasks to cluster...", len(tasks))
         ray_refs = [ray_task_runner.remote(t) for t in tasks]
         # A worker exception propagates here as a RayTaskError (which
         # subclasses the original error type). The cluster and this driver

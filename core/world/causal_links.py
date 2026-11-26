@@ -25,7 +25,7 @@ class CausalEngine:
 
     def record_link(self, link: CausalLink) -> None:
         self.links.append(link)
-        logger.info("🔗 Causal link recorded: %s -> %s (conf: %.2f)", 
+        logger.info("Causal link recorded: %s -> %s (conf: %.2f)", 
                     link.cause_event_id, link.effect_event_id, link.confidence)
 
     def get_effects(self, cause_event_id: str) -> List[CausalLink]:

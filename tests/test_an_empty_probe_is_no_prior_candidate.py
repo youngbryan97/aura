@@ -14,7 +14,7 @@ resident for.
 LIVE, 2026-09-07, one turn: `ValueError: post-adaptation prior candidate is
 invalid` then `receipt_contract_failed:kv_state_tree_unproven,
 decode_incumbent_unproven, terminal_disposition_unproven,
-causal_receipt_unproven, branch_isolation_unproven` then `🪜 Fallback ladder
+causal_receipt_unproven, branch_isolation_unproven` then `Fallback ladder
 answered while the cortex was unavailable`.
 """
 

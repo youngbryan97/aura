@@ -68,7 +68,7 @@ class SovereignWatchdog:
             self._watch_loop(),
             name="sovereign_watchdog",
         )
-        logger.info("🛡️ Sovereign Watchdog ACTIVE (Timeout: %.1fs)", self._timeout)
+        logger.info("Sovereign Watchdog ACTIVE (Timeout: %.1fs)", self._timeout)
 
     async def stop(self):
         """Stop the watchdog."""
@@ -163,7 +163,7 @@ class SovereignWatchdog:
                             except (TypeError, ValueError, OverflowError):
                                 request_age = 0.0
                             logger.info(
-                                "⏳ SOVEREIGN WATCHDOG: deferring stall recovery during active foreground inference "
+                                "SOVEREIGN WATCHDOG: deferring stall recovery during active foreground inference "
                                 "(elapsed=%.1fs state=%s active=%s owner=%s request_age=%.1fs).",
                                 elapsed,
                                 foreground_lane.get("state"),
@@ -172,7 +172,7 @@ class SovereignWatchdog:
                                 request_age,
                             )
                         continue
-                    logger.critical("🚨 SOVEREIGN WATCHDOG: HEARTBEAT STALL DETECTED (%.1fs elapsed)", elapsed)
+                    logger.critical("SOVEREIGN WATCHDOG: HEARTBEAT STALL DETECTED (%.1fs elapsed)", elapsed)
                     await self._execute_recovery()
                 
                 # Also check if the event loop is heavily blocked
@@ -180,7 +180,7 @@ class SovereignWatchdog:
                 await asyncio.sleep(0.01)
                 loop_elapsed = time.monotonic() - loop_start
                 if loop_elapsed > 5.0:  # Only fire on genuine stalls, not GIL contention during model loads
-                    logger.info("⏱️ SOVEREIGN WATCHDOG: Event loop lag detected (%.2fs block)", loop_elapsed)
+                    logger.info("SOVEREIGN WATCHDOG: Event loop lag detected (%.2fs block)", loop_elapsed)
                     try:
                         from core.event_bus import get_event_bus
                         get_event_bus().publish_threadsafe("telemetry", {
@@ -209,7 +209,7 @@ class SovereignWatchdog:
                             suppress_duration = min(60.0, loop_elapsed * 5.0)
                             orch._suppress_unsolicited_proactivity_until = time.time() + suppress_duration
                             logger.info(
-                                "⏳ BACKPRESSURE: Suppressing autonomous work for %.0fs (lag=%.1fs)",
+                                "BACKPRESSURE: Suppressing autonomous work for %.0fs (lag=%.1fs)",
                                 suppress_duration, loop_elapsed,
                             )
                     except (ImportError, AttributeError, RuntimeError) as _bp_exc:
@@ -236,7 +236,7 @@ class SovereignWatchdog:
         """Attempt to recover from a stall."""
         self._recovery_count += 1
         self._last_recovery_time = time.monotonic()
-        logger.warning("🛠️ Initiating Recovery Sequence #%d...", self._recovery_count)
+        logger.warning("Initiating Recovery Sequence #%d...", self._recovery_count)
         result: dict[str, Any] = {
             "ok": True,
             "recovery_count": self._recovery_count,
@@ -250,7 +250,7 @@ class SovereignWatchdog:
             sentinel = get_gpu_sentinel()
             # RLock does not have .locked(). We try to acquire without blocking to check if it's held.
             if not sentinel._lock.acquire(blocking=False):
-                logger.warning("🛠️ GPU Sentinel lock is HELD. Force-releasing.")
+                logger.warning("GPU Sentinel lock is HELD. Force-releasing.")
                 # Since it's an RLock, we might need to release multiple times if it's recursive,
                 # but for recovery, we just want to break the deadlock.
                 sentinel.release()
@@ -279,7 +279,7 @@ class SovereignWatchdog:
             bus = get_event_bus()
             bus.publish_threadsafe("telemetry", {
                 "type": "aura_message",
-                "message": "⚠️ I've detected a cognitive stall in my primary reasoning loop. I'm auto-retrying with a cleared context window now. Please wait...",
+                "message": "I've detected a cognitive stall in my primary reasoning loop. I'm auto-retrying with a cleared context window now. Please wait...",
                 "metadata": {
                     "system": True, 
                     "recovery": True,
@@ -323,5 +323,5 @@ class SovereignWatchdog:
             self._recovery_failure_streak += 1
         result["failure_streak"] = self._recovery_failure_streak
         self._last_recovery_result = dict(result)
-        logger.info("🛠️ Recovery sequence complete. Monitoring for stabilization.")
+        logger.info("Recovery sequence complete. Monitoring for stabilization.")
         return result

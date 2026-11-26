@@ -29,7 +29,7 @@ class DreamCycle:
             return
         self._running = True
         self._task = get_task_tracker().create_task(self._cycle_loop(interval))
-        logger.info("💤 Dream Cycle active: Re-ingesting dead-letter thoughts every %ds.", interval)
+        logger.info("Dream Cycle active: Re-ingesting dead-letter thoughts every %ds.", interval)
 
     def stop(self):
         self._running = False
@@ -67,7 +67,7 @@ class DreamCycle:
         if not self.dlq_path.exists():
             return
 
-        logger.info("🌙 Dream Cycle: Re-processing DLQ messages...")
+        logger.info("Dream Cycle: Re-processing DLQ messages...")
         
         valid_messages = []
         try:
@@ -97,7 +97,7 @@ class DreamCycle:
         if not valid_messages:
             return
 
-        logger.info("✨ Re-ingesting %d dreams into cognitive loop.", len(valid_messages))
+        logger.info("Re-ingesting %d dreams into cognitive loop.", len(valid_messages))
         for msg in valid_messages:
             # Enqueue with slightly lower priority/tag
             if isinstance(msg, str):
@@ -123,7 +123,7 @@ class DreamCycle:
                 return
             stats = await asyncio.to_thread(gravitation.consolidate, graph)
             if stats and stats.get("nudged"):
-                logger.info("🌌 Conceptual gravitation consolidated: %s", stats)
+                logger.info("Conceptual gravitation consolidated: %s", stats)
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation(
                 "dream_cycle",

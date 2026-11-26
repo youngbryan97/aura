@@ -168,7 +168,7 @@ async def mycelial_ui_callback(message: str):
         "timestamp": time.time(),
         "origin": "mycelial_failsafe",
     }
-    logger.info("🍄 [MYCELIUM] ⚡ Direct Broadcast: %s", message[:50])
+    logger.info("[MYCELIUM] Direct Broadcast: %s", message[:50])
     await ws_manager.broadcast(payload)
 
 
@@ -247,7 +247,7 @@ async def run_event_bridge(is_gui_proxy: bool = False) -> None:
         bus = get_event_bus()
         q = await bus.subscribe("*")
         logger.info(
-            "📡 EventBus → WebSocket bridge (Pydantic Zenith) ACTIVE (Bus ID: %s)",
+            "EventBus → WebSocket bridge (Pydantic Zenith) ACTIVE (Bus ID: %s)",
             bus._bus_id,
         )
 

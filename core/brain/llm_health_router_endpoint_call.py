@@ -68,11 +68,11 @@ def _hold_the_tier_the_request_may_use(
     from .llm_health_router import logger
     if is_bg:
         if prefer_tier in ("primary", "secondary"):
-            logger.info("🛡️ Tier Lock: Background task requested '%s'; using the governed tertiary tier.", prefer_tier)
+            logger.info("Tier Lock: Background task requested '%s'; using the governed tertiary tier.", prefer_tier)
         prefer_tier = "tertiary"
         deep_handoff = False
     elif prefer_tier == "secondary" and not deep_handoff:
-        logger.info("🛡️ Router: suppressing implicit secondary request without explicit deep handoff.")
+        logger.info("Router: suppressing implicit secondary request without explicit deep handoff.")
         prefer_tier = "primary"
     return deep_handoff, prefer_tier
 
@@ -395,7 +395,7 @@ class _CallsTheEndpoint:
         if ordered:
             available = ordered
             logger.debug(
-                "🎯 Router plan tier=%s deep_handoff=%s -> %s",
+                "Router plan tier=%s deep_handoff=%s -> %s",
                 prefer_tier,
                 deep_handoff,
                 [e.name for e in available],
@@ -424,7 +424,7 @@ class _CallsTheEndpoint:
                 ]
                 log = logger.info if unavailable and len(waiting) == len(unavailable) else logger.warning
                 log(
-                    "⚠️ Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order. %s",
+                    "Router: no endpoints matched routing plan for tier '%s'. Failing closed to safe fallback order. %s",
                     prefer_tier,
                     _the_lanes_out(unavailable),
                 )
@@ -685,7 +685,7 @@ class _CallsTheEndpoint:
         solver_guard = guard_solver_request(prefer_endpoint, deep_handoff=deep_handoff)
         if solver_guard["redirected"]:
             logger.info(
-                "🛡️ Router: Redirecting non-deep Solver request to %s.",
+                "Router: Redirecting non-deep Solver request to %s.",
                 solver_guard["endpoint"],
             )
             prefer_endpoint = str(solver_guard["endpoint"] or "")
@@ -742,7 +742,7 @@ class _CallsTheEndpoint:
 
         if is_bg and (self._foreground_user_turn_active() or self._foreground_owner_active() or foreground_owned):
             logger.info(
-                "⏸️ Router: Foreground lane reserved. Deferring background inference for origin=%s.",
+                "Router: Foreground lane reserved. Deferring background inference for origin=%s.",
                 origin,
             )
             return {
@@ -755,7 +755,7 @@ class _CallsTheEndpoint:
         
         if not prefer_tier:
             if is_bg:
-                logger.debug("🛡️ Router: Background task detected (origin=%s). Enforcing 'tertiary' tier.", origin)
+                logger.debug("Router: Background task detected (origin=%s). Enforcing 'tertiary' tier.", origin)
                 prefer_tier = "tertiary"
             else:
                 prefer_tier = "primary"
@@ -854,7 +854,7 @@ class _CallsTheEndpoint:
             fallback_chain.append(chain_entry)
             # Guard: background tasks must NEVER use the primary conversation lane.
             if is_bg and ep.name == PRIMARY_ENDPOINT:
-                logger.debug("🛡️ Router: Skipping %s for background request (origin=%s).", PRIMARY_ENDPOINT, origin)
+                logger.debug("Router: Skipping %s for background request (origin=%s).", PRIMARY_ENDPOINT, origin)
                 chain_entry["status"] = "skipped"
                 chain_entry["skip_reason"] = "background_blocked_from_primary_lane"
                 continue
@@ -862,7 +862,7 @@ class _CallsTheEndpoint:
             explicit_low_tier = prefer_tier in {"tertiary", "emergency"} or prefer_endpoint == ep.name
             if not is_bg and self._tier_is_background_only(tier_name) and not explicit_low_tier:
                 logger.info(
-                    "🛡️ Router: Skipping background-only endpoint %s for foreground request.",
+                    "Router: Skipping background-only endpoint %s for foreground request.",
                     ep.name,
                 )
                 chain_entry["status"] = "skipped"

@@ -52,7 +52,7 @@ class InstallPackageSkill(BaseSkill):
             
         import re
         if not re.match(r"^[a-zA-Z0-9_\-\.\[\]]+$", package_name):
-            logger.warning("🚨 Blocked suspicious package name: %s", package_name)
+            logger.warning("Blocked suspicious package name: %s", package_name)
             return {"ok": False, "error": f"Invalid package name: {package_name}"}
             
         try:

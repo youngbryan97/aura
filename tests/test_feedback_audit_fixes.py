@@ -1520,7 +1520,7 @@ def test_a_working_memory_skill_line_is_evidence_not_the_reply_when_the_payload_
             working_memory=[
                 {
                     "role": "system",
-                    "content": "[SKILL RESULT: web_search] ✅ Python 3.12.0 Documentation",
+                    "content": "[SKILL RESULT: web_search] Python 3.12.0 Documentation",
                     "metadata": {"type": "skill_result", "skill": "web_search", "ok": True},
                 }
             ]

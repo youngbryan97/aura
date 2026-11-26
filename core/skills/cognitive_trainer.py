@@ -60,7 +60,7 @@ class CognitiveTrainerSkill(BaseSkill):
 
     async def _ingest_memory_agent_bench(self, limit: int, dry_run: bool) -> Dict[str, Any]:
         """Load and ingest MemoryAgentBench from HuggingFace."""
-        logger.info("📚 Ingesting MemoryAgentBench (ICLR 2026)...")
+        logger.info("Ingesting MemoryAgentBench (ICLR 2026)...")
         try:
             from datasets import load_dataset
             # Using the identified HF path and one of the valid splits (Accurate_Retrieval)
@@ -99,7 +99,7 @@ class CognitiveTrainerSkill(BaseSkill):
 
     async def _ingest_agent_drive(self, limit: int, dry_run: bool) -> Dict[str, Any]:
         """Ingest AgentDrive-MCQ from the locally unzipped repository."""
-        logger.info("🚦 Ingesting AgentDrive-MCQ (2026 Reasoning Bench)...")
+        logger.info("Ingesting AgentDrive-MCQ (2026 Reasoning Bench)...")
         import json
         from core.config import config
         

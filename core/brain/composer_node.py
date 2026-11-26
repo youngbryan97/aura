@@ -31,7 +31,7 @@ class ComposerNode:
                 self.vision_buffer = get_runtime_service("continuous_vision", default=None)
                 self.capability_engine = get_runtime_service("capability_engine", default=None)
             self._is_setup = True
-            logger.info("🎨 Composer Node Online (Style Planning Enabled).")
+            logger.info("Composer Node Online (Style Planning Enabled).")
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('composer_node', e)
             logger.error("Composer setup failed: %s", e)
@@ -53,7 +53,7 @@ class ComposerNode:
         if not frames:
             return {"ok": False, "error": "No frames captured."}
             
-        logger.info("🎭 Planning desktop style treatment: '%s'", style_prompt)
+        logger.info("Planning desktop style treatment: '%s'", style_prompt)
         
         try:
             # Ground the plan in Aura's resident visual-context service.

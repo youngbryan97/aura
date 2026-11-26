@@ -156,7 +156,7 @@ class EvolutionOrchestrator:
         self._stop = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._load()
-        logger.info("🧬 EvolutionOrchestrator initialized — phase: %s (%.1f%%)",
+        logger.info("EvolutionOrchestrator initialized — phase: %s (%.1f%%)",
                      self._snapshot.phase_label,
                      self._snapshot.overall_progress * 100)
 
@@ -182,11 +182,11 @@ class EvolutionOrchestrator:
             return
         block_reason = background_loop_start_reason("evolution_orchestrator")
         if block_reason:
-            logger.info("🧬 Evolution loop not started: %s", block_reason)
+            logger.info("Evolution loop not started: %s", block_reason)
             return
         self._stop.clear()
         self._task = get_task_tracker().create_task(self._loop())
-        logger.info("🧬 Evolution loop started.")
+        logger.info("Evolution loop started.")
 
     async def stop(self) -> None:
         self._stop.set()
@@ -216,7 +216,7 @@ class EvolutionOrchestrator:
                 for m in milestones:
                     if m not in ax.milestones:
                         ax.milestones.append(m)
-                        logger.info("🏆 [EVOLUTION] %s milestone: %s", axis.value, m)
+                        logger.info("[EVOLUTION] %s milestone: %s", axis.value, m)
                 ax.blockers = blockers
             except _EVOLUTION_RECOVERABLE_ERRORS as exc:
                 _record_evolution_degradation(
@@ -651,7 +651,7 @@ class EvolutionOrchestrator:
                 else:
                     await self.tick()
                     logger.info(
-                        "🧬 Evolution tick #%d — Phase: %s (%.1f%%)",
+                        "Evolution tick #%d — Phase: %s (%.1f%%)",
                         self._snapshot.tick_count,
                         self._snapshot.phase_label,
                         self._snapshot.overall_progress * 100,

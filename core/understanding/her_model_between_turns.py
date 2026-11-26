@@ -178,7 +178,7 @@ async def _asked_until_answered(asked: str, max_tokens: int, *, goes_on: bool = 
             # Part of an answer, stopped for somebody or by the clock: not the answer.
             stopped += not _somebody_is_waiting()
             so_far += max([text or "", *held], key=len) if goes_on else ""
-            logger.info("🧰 An ask for work was stopped (%s), and %s.", ended,
+            logger.info("An ask for work was stopped (%s), and %s.", ended,
                         f"goes on from {len(so_far)} characters" if so_far else "is made again")
             continue
         if text and re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip():
@@ -186,12 +186,12 @@ async def _asked_until_answered(asked: str, max_tokens: int, *, goes_on: bool = 
             if goes_on and ended in NO_ROOM and out_of_room < GOES_ON and (so_far + text).count("```") % 2:
                 out_of_room += 1
                 so_far += text
-                logger.info("🧰 A write ran out of its room of %d tokens, and goes on from %d characters.", max_tokens, len(so_far))
+                logger.info("A write ran out of its room of %d tokens, and goes on from %d characters.", max_tokens, len(so_far))
                 continue
             return so_far + text
         if _somebody_is_waiting():
             so_far += held[0] if goes_on and held else ""
-            logger.info("🧰 An ask for work gave way to somebody speaking, and %s after them.",
+            logger.info("An ask for work gave way to somebody speaking, and %s after them.",
                         f"goes on from {len(so_far)} characters" if so_far else "is made again")
             continue
         raise HerModelIsAwayError("an empty answer" if text is not None else "its lane is held for something else")

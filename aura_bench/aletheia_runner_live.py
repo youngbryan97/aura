@@ -1933,7 +1933,7 @@ def main():
             generate_battery_artifacts(battery, results, processor.action_log)
             sys.exit(2)
         results.append(result)
-        status = "✅" if result["status"] == "ok" else "❌"
+        status = "ok" if result["status"] == "ok" else "failed"
         log.info("  %s %s", status, wid)
 
     generate_battery_artifacts(battery, results, processor.action_log)

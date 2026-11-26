@@ -36,7 +36,7 @@ async def run_dream_cycle() -> dict[str, Any]:
     """Dream Cycle: Selective pruning of noisy vector memories and insight consolidation.
     Triggered when system stability falls below threshold.
     """
-    logger.info("🌙 Aura is entering a Dream Cycle for stability restoration...")
+    logger.info("Aura is entering a Dream Cycle for stability restoration...")
     started_at = time.time()
     result: dict[str, Any] = {
         "ok": True,
@@ -109,7 +109,7 @@ async def run_dream_cycle() -> dict[str, Any]:
             if result["ok"]
             else f"Dream cycle completed with degraded steps: {', '.join(result['degraded_steps'])}."
         )
-        get_emitter().emit("Stability 🌙", status_text, level="info")
+        get_emitter().emit("Stability", status_text, level="info")
         result["completed_steps"].append("thought_stream_emit")
     except (ImportError, AttributeError, RuntimeError) as _exc:
         result["ok"] = False

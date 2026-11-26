@@ -187,7 +187,7 @@ class SovereignNetworkSkill(BaseSkill):
         target = target or self._guess_subnet()
         if not shutil.which("nmap"):
             return {"ok": False, "error": "The 'nmap' utility is not installed on this system. Aura cannot perform deep network scans without it. Please install nmap or use 'recon' mode for basic ARP-based discovery."}
-        logger.info("📡 Nmap Scanning: %s", target)
+        logger.info("Nmap Scanning: %s", target)
         try:
             # -sn: Ping scan (no port scan)
             process = await get_subprocess_gateway().spawn_async(
@@ -210,7 +210,7 @@ class SovereignNetworkSkill(BaseSkill):
             return {"ok": False, "error": "Audit mode requires a 'target' IP."}
         if not shutil.which("nmap"):
             return {"ok": False, "error": "The 'nmap' utility is required for network auditing. Please install it to enable this capability."}
-        logger.info("🔍 Auditing %s on ports %s", target, ports)
+        logger.info("Auditing %s on ports %s", target, ports)
         try:
             # -F: Fast, -sV: Version detection
             process = await get_subprocess_gateway().spawn_async(
@@ -229,7 +229,7 @@ class SovereignNetworkSkill(BaseSkill):
     async def _perform_discovery(self, target: str, ports: str) -> dict[str, Any]:
         """Discover other Aura instances on the network."""
         target = target or self._guess_subnet()
-        logger.info("📡 Aura Peer Discovery starting on %s:%s", target, ports)
+        logger.info("Aura Peer Discovery starting on %s:%s", target, ports)
         if not shutil.which("nmap"):
             logger.info("nmap unavailable; falling back to bounded TCP peer discovery.")
             return await self._perform_tcp_peer_discovery(target, ports)

@@ -77,11 +77,11 @@ def test_seqlock():
         
     print(f"Test finished. Total successful reads: {total_reads}, Torn reads detected: {total_errors}")
     if total_errors == 0 and total_reads > 0:
-        print("✅ Seqlock verified: Zero torn reads under heavy contention.")
+        print("Seqlock verified: Zero torn reads under heavy contention.")
     elif total_reads == 0:
-        print("⚠️ Test produced no reads. Check segment attachment.")
+        print("Test produced no reads. Check segment attachment.")
     else:
-        print(f"❌ Seqlock FAILED: {total_errors} torn reads detected!")
+        print(f"Seqlock FAILED: {total_errors} torn reads detected!")
 
 if __name__ == "__main__":
     test_seqlock()

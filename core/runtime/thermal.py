@@ -131,7 +131,7 @@ def thermal_state(*, max_age_s: float = _CACHE_TTL_S) -> ThermalReading:
         reading = ThermalReading(level=0, source="blind", detail="no thermal source available")
     if reading.level >= 2:
         logger.warning(
-            "🔥 Host thermal pressure: level=%d via %s (%s)",
+            "Host thermal pressure: level=%d via %s (%s)",
             reading.level,
             reading.source,
             reading.detail,

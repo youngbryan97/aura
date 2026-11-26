@@ -89,7 +89,7 @@ class UnifiedStateRegistry:
         self.failed_notifications = 0
         self.coalesced_notifications = 0
         
-        logger.info("📡 UnifiedStateRegistry initialized (Hardened Dispatcher).")
+        logger.info("UnifiedStateRegistry initialized (Hardened Dispatcher).")
 
     def ensure_dispatcher(self):
         """Lazy start the dispatcher in the active event loop."""
@@ -110,7 +110,7 @@ class UnifiedStateRegistry:
                     self._notification_dispatcher(),
                     name="state_registry.notification_dispatcher",
                 )
-                logger.info("🚀 StateRegistry: Notification Dispatcher started.")
+                logger.info("StateRegistry: Notification Dispatcher started.")
 
     def _enqueue(self, snapshot: UnifiedState | None) -> None:
         """Keep recent state when a consumer falls behind. Caller holds the state lock."""

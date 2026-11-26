@@ -424,7 +424,7 @@ class _WarmsUpAndSwapsAdapters:
                 if adapter_verdict is not None and adapter_verdict.reason
                 else f"adapter_missing:{path}"
             )
-            logger.warning("🧬 [MLX] Refused adapter attach for %s: %s", path, reason)
+            logger.warning("[MLX] Refused adapter attach for %s: %s", path, reason)
             return {
                 "ok": False,
                 "reason": reason,
@@ -576,7 +576,7 @@ class _WarmsUpAndSwapsAdapters:
         verdict = await asyncio.to_thread(_validate_model_artifact, resolved, previous)
         if not verdict.ok:
             logger.warning(
-                "🧬 [MLX] Refused artifact promotion for %s: %s", resolved.name, verdict.reason
+                "[MLX] Refused artifact promotion for %s: %s", resolved.name, verdict.reason
             )
             return {
                 "ok": False,
@@ -604,7 +604,7 @@ class _WarmsUpAndSwapsAdapters:
             # promotion. It is a separate intent now.
             self._pending_promotion = str(resolved)
             logger.info(
-                "🧬 [MLX] Promoted artifact staged for %s; activating after the active request.",
+                "[MLX] Promoted artifact staged for %s; activating after the active request.",
                 resolved.name,
             )
             return {
@@ -683,7 +683,7 @@ class _WarmsUpAndSwapsAdapters:
             }
         _rebind_client_registry_key(previous, self.model_path, self)
         logger.info(
-            "🧬 [MLX] Promoted artifact is now this lane's serving identity: %s "
+            "[MLX] Promoted artifact is now this lane's serving identity: %s "
             "(worker unloaded; it loads on next use).",
             Path(target).name,
         )
@@ -812,7 +812,7 @@ class _WarmsUpAndSwapsAdapters:
                         f"left:{max(0.0, probe_budget):.1f}s"
                     )
                 logger.info(
-                    "🔥 [MLX] Verifying conversation readiness for %s with a visible probe.",
+                    "[MLX] Verifying conversation readiness for %s with a visible probe.",
                     os.path.basename(self.model_path),
                 )
                 # The same prover the reconciler uses, so that asking and
@@ -836,13 +836,13 @@ class _WarmsUpAndSwapsAdapters:
                 self._last_ready_at = time.time()
                 self._warmup_in_flight = False
                 _clear_matching_foreground_owner(owner_name)
-                logger.info("🔥 [MLX] Warmup complete — Metal shaders compiled.")
+                logger.info("[MLX] Warmup complete — Metal shaders compiled.")
                 return
             except asyncio.CancelledError as exc:
                 last_exc = exc
                 if _runtime_shutdown_requested():
                     logger.info(
-                        "🛑 [MLX] Warmup pre-compile cancelled for %s during runtime shutdown.",
+                        "[MLX] Warmup pre-compile cancelled for %s during runtime shutdown.",
                         os.path.basename(self.model_path),
                     )
                     raise
@@ -876,7 +876,7 @@ class _WarmsUpAndSwapsAdapters:
                     if recovery_budget <= _MIN_READINESS_PROBE_BUDGET_S:
                         raise last_exc from None
                     logger.warning(
-                        "⚠️ [MLX] Warmup pre-compile failed once for %s: %s. "
+                        "[MLX] Warmup pre-compile failed once for %s: %s. "
                         "Retrying cleanly within the remaining %.1fs...",
                         os.path.basename(self.model_path),
                         exc,
@@ -989,7 +989,7 @@ class _WarmsUpAndSwapsAdapters:
                     )
                     return False
             logger.warning(
-                "🔧 [MLX] Warmup for %s stuck for %.0fs — cancelling the prior "
+                "[MLX] Warmup for %s stuck for %.0fs — cancelling the prior "
                 "warmup task before starting a replacement.",
                 os.path.basename(self.model_path),
                 age,
@@ -1106,7 +1106,7 @@ class _WarmsUpAndSwapsAdapters:
                             if self._lane_state != "failed":
                                 self._set_lane_state("recovering", self._deferral_cause())
                             logger.info(
-                                "⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path)
+                                "[MLX] Warmup deferred for %s.", os.path.basename(self.model_path)
                             )
                             return False
 
@@ -1122,7 +1122,7 @@ class _WarmsUpAndSwapsAdapters:
                             # her: the runtime declined to spawn, and the
                             # warm-up says so and stands down.
                             logger.info(
-                                "⏸️ [MLX] Warmup deferred for %s: the runtime is not "
+                                "[MLX] Warmup deferred for %s: the runtime is not "
                                 "spawning workers right now (%s).",
                                 os.path.basename(self.model_path),
                                 deferred,
@@ -1142,7 +1142,7 @@ class _WarmsUpAndSwapsAdapters:
                                 severity="warning",
                                 foreground_request=foreground_request,
                             )
-                            logger.warning("⚠️ [MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
+                            logger.warning("[MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
                             return False
                 except TimeoutError as exc:
                     self._set_lane_state("recovering", "warmup_foreground_owner_timeout")
@@ -1153,7 +1153,7 @@ class _WarmsUpAndSwapsAdapters:
                         foreground_request=foreground_request,
                     )
                     logger.info(
-                        "⏸️ [MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc
+                        "[MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc
                     )
                     return False
                 return True
@@ -1175,7 +1175,7 @@ class _WarmsUpAndSwapsAdapters:
             # it needed sat deferred behind it).
             if request_is_background and _foreground_owner_active() and not self._is_primary_lane():
                 logger.info(
-                    "⏸️ [MLX] Background warmup deferred for %s (before worker spawn) while foreground lane is owned by %s.",
+                    "[MLX] Background warmup deferred for %s (before worker spawn) while foreground lane is owned by %s.",
                     os.path.basename(self.model_path),
                     client_module._FOREGROUND_OWNER_NAME or "foreground",
                 )
@@ -1189,13 +1189,13 @@ class _WarmsUpAndSwapsAdapters:
             if not alive:
                 if self._lane_state != "failed":
                     self._set_lane_state("recovering", self._deferral_cause())
-                logger.info("⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
+                logger.info("[MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
                 return False
             if request_is_background and _foreground_owner_active() and not self._is_primary_lane():
                 # Re-check: a foreground turn can take ownership while the
                 # worker was coming up.
                 logger.info(
-                    "⏸️ [MLX] Background warmup precompile deferred for %s while foreground lane is owned by %s.",
+                    "[MLX] Background warmup precompile deferred for %s while foreground lane is owned by %s.",
                     os.path.basename(self.model_path),
                     client_module._FOREGROUND_OWNER_NAME or "foreground",
                 )
@@ -1218,7 +1218,7 @@ class _WarmsUpAndSwapsAdapters:
                 # `stopped_before_worker_spawn:foreground_headroom_reserved`
                 # arriving as `FAULT RUNTIME-MLX_CLIENT [MARGINAL]`.
                 logger.info(
-                    "⏸️ [MLX] Warmup deferred for %s: the runtime is not "
+                    "[MLX] Warmup deferred for %s: the runtime is not "
                     "spawning workers right now (%s).",
                     os.path.basename(self.model_path),
                     deferred,
@@ -1236,7 +1236,7 @@ class _WarmsUpAndSwapsAdapters:
                     severity="warning",
                     foreground_request=foreground_request,
                 )
-                logger.warning("⚠️ [MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
+                logger.warning("[MLX] Warmup pre-compile skipped: %s (non-fatal)", e)
                 return False
             return True
         finally:

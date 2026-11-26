@@ -423,7 +423,7 @@ class KnowledgeFormalizer:
 
             self._total_facts_committed += result["facts_committed"]
             logger.info(
-                "📚 Formalizer: Committed %d facts, %d relationships from '%s' (total: %d)",
+                "Formalizer: Committed %d facts, %d relationships from '%s' (total: %d)",
                 result["facts_committed"],
                 result["relationships_created"],
                 source_title[:60],

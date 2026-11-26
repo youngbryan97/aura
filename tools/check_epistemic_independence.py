@@ -294,11 +294,11 @@ def main() -> int:
         baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     limit = int(baseline.get("count", 0))
 
-    print(f"🎯 Criteria derived from what they judge: {len(findings)} (baseline {limit})")
+    print(f"Criteria derived from what they judge: {len(findings)} (baseline {limit})")
 
     if args.write_baseline:
         if len(findings) > limit and BASELINE.exists():
-            print(f"❌ refusing to raise the baseline from {limit} to {len(findings)}.")
+            print(f"refusing to raise the baseline from {limit} to {len(findings)}.")
             return 1
         # The description is kept: it records that these entries were read
         # and judged legitimate, which is what stops the next reader
@@ -319,7 +319,7 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        print(f"✅ baseline written at {len(findings)}")
+        print(f"baseline written at {len(findings)}")
         return 0
 
     if len(findings) > limit:
@@ -331,7 +331,7 @@ def main() -> int:
 
         known = {unplaced(site) for site in baseline.get("sites", [])}
         new = sorted(site for site in findings if unplaced(site) not in known)
-        print(f"❌ {len(findings) - limit} new self-referential criteria:")
+        print(f"{len(findings) - limit} new self-referential criteria:")
         for item in new[:20]:
             print(f"   • {item}")
         print(
@@ -341,7 +341,7 @@ def main() -> int:
         )
         return 1
 
-    print(f"✅ at or below baseline ({len(findings)} <= {limit})")
+    print(f"at or below baseline ({len(findings)} <= {limit})")
     return 0
 
 

@@ -7,7 +7,7 @@ LIVE, 2026-08-13, on every boot of the desktop:
     RuntimeError: CRITICAL SERVICE FAILURE: Subsystem 'inference_gate' failed
     with failure policy 'fail-closed'. Original error: RuntimeError:
     warmup_deferred
-    🚨 [STABILITY v53] Background task 'InferenceGate.deferred_cortex_prewarm'
+    [STABILITY v53] Background task 'InferenceGate.deferred_cortex_prewarm'
     crashed
 
 "warmup_deferred" was already in backpressure_markers, and that demotes it from

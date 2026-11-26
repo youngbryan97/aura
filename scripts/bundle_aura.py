@@ -19,7 +19,7 @@ def bundle_codebase(root_dir, output_file, max_size_mb=25):
     total_size = 0
     file_count = 0
     
-    print(f"📦 Bundling Aura from {root}...")
+    print(f"Bundling Aura from {root}...")
     
     for path in sorted(root.rglob('*')):
         if not path.is_file():
@@ -49,14 +49,14 @@ def bundle_codebase(root_dir, output_file, max_size_mb=25):
                 file_count += 1
                 
                 if total_size > max_size_mb * 1024 * 1024:
-                    print(f"⚠️ Warning: Bundle size exceeds {max_size_mb}MB. Stopping.")
+                    print(f"Warning: Bundle size exceeds {max_size_mb}MB. Stopping.")
                     break
             except (OSError, UnicodeError) as e:
-                print(f"❌ Failed to read {path}: {e}")
+                print(f"Failed to read {path}: {e}")
                 
     atomic_write_text(output, "\n".join(bundle_content), encoding='utf-8')
-    print(f"✅ Bundle created: {output} ({total_size / 1024 / 1024:.2f} MB)")
-    print(f"📄 Total files: {file_count}")
+    print(f"Bundle created: {output} ({total_size / 1024 / 1024:.2f} MB)")
+    print(f"Total files: {file_count}")
 
 if __name__ == "__main__":
     # Ensure we use the correct absolute path

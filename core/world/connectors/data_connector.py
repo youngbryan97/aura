@@ -19,7 +19,7 @@ class DataConnector:
     """Reads financial market indices, package telemetry, and public stats."""
 
     async def fetch_financial_indicators(self, query: str) -> dict[str, Any]:
-        logger.info("📡 DataConnector: fetching financial metrics for '%s'", query)
+        logger.info("DataConnector: fetching financial metrics for '%s'", query)
 
         try:
             res = await ActionExecutor.execute(

@@ -70,10 +70,10 @@ if [ "${AURA_AUTO_USE_LOCAL_CODESIGN}" = "1" ] && command -v security >/dev/null
         if run_with_timeout "${AURA_CODESIGN_PROBE_TIMEOUT_S:-8}" codesign --force --sign "${LOCAL_AURA_IDENTITY}" "${SIGN_PROBE_DIR}/probe" >/dev/null 2>&1; then
             DEFAULT_CODESIGN_IDENTITY="${LOCAL_AURA_IDENTITY}"
         elif [ "${AURA_REQUIRE_STABLE_CODESIGN}" = "1" ]; then
-            echo "❌ Local Aura code-signing identity exists but cannot sign from this shell." >&2
+            echo "Local Aura code-signing identity exists but cannot sign from this shell." >&2
             exit 1
         else
-            echo "⚠️ Local Aura code-signing identity exists but cannot sign from this shell within ${AURA_CODESIGN_PROBE_TIMEOUT_S:-8}s; using ad-hoc signing." >&2
+            echo "Local Aura code-signing identity exists but cannot sign from this shell within ${AURA_CODESIGN_PROBE_TIMEOUT_S:-8}s; using ad-hoc signing." >&2
         fi
     fi
 fi
@@ -100,7 +100,7 @@ SCREEN_CAPTURE_POLICY_RESOURCE="${RESOURCES_DIR}/screen_capture_privacy_policy.j
 
 cd "${ROOT_DIR}"
 
-echo "📦 Building ${APP_NAME} (live source mode)..."
+echo "Building ${APP_NAME} (live source mode)..."
 
 PRIMARY_ROOT=""
 GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
@@ -130,7 +130,7 @@ for candidate in "${PYTHON_CANDIDATES[@]}"; do
     fi
 done
 if [ -z "${PYTHON_RUNTIME}" ]; then
-    echo "❌ Aura needs the repository Python 3.12 environment with runtime dependencies installed." >&2
+    echo "Aura needs the repository Python 3.12 environment with runtime dependencies installed." >&2
     echo "   Expected .venv under ${ROOT_DIR}${PRIMARY_ROOT:+ or ${PRIMARY_ROOT}}." >&2
     exit 1
 fi
@@ -140,23 +140,23 @@ if [ -f "${ROOT_DIR}/scripts/build_launcher_icon.py" ]; then
 fi
 
 if [ ! -f "${LAUNCHER_SOURCE}" ]; then
-    echo "❌ Missing launcher source: ${LAUNCHER_SOURCE}"
+    echo "Missing launcher source: ${LAUNCHER_SOURCE}"
     exit 1
 fi
 
 if [ ! -f "${SCREEN_CAPTURE_POLICY_SOURCE}" ]; then
-    echo "❌ Missing screen-capture privacy policy: ${SCREEN_CAPTURE_POLICY_SOURCE}"
+    echo "Missing screen-capture privacy policy: ${SCREEN_CAPTURE_POLICY_SOURCE}"
     exit 1
 fi
 
 if ! command -v xcrun >/dev/null 2>&1; then
-    echo "❌ xcrun is required to build the native Aura launcher."
+    echo "xcrun is required to build the native Aura launcher."
     exit 1
 fi
 
 SWIFTC_PATH="$(xcrun --find swiftc 2>/dev/null || true)"
 if [ -z "${SWIFTC_PATH}" ]; then
-    echo "❌ swiftc is required to build the native Aura launcher."
+    echo "swiftc is required to build the native Aura launcher."
     exit 1
 fi
 
@@ -260,9 +260,9 @@ with info_path.open("wb") as handle:
 write_entitlements_plist(entitlements_path)
 PY
 
-echo "✅ Built ${APP_DIR}"
-echo "🧠 Live source link: ${ROOT_DIR}"
-echo "✍️ Edit the repo normally — this launcher always runs the current workspace code."
+echo "Built ${APP_DIR}"
+echo "Live source link: ${ROOT_DIR}"
+echo "Edit the repo normally — this launcher always runs the current workspace code."
 
 sign_bundle() {
     local target="$1"
@@ -271,7 +271,7 @@ sign_bundle() {
         return 0
     fi
     if [ "${CODESIGN_IDENTITY}" != "-" ] && [ "${AURA_REQUIRE_STABLE_CODESIGN}" != "1" ]; then
-        echo "⚠️ Codesigning ${target} with ${CODESIGN_IDENTITY} failed or timed out; falling back to ad-hoc signing." >&2
+        echo "Codesigning ${target} with ${CODESIGN_IDENTITY} failed or timed out; falling back to ad-hoc signing." >&2
         local fallback_args=(--force --sign "-" --entitlements "${ENTITLEMENTS_PLIST}")
         run_with_timeout "${timeout_s}" codesign "${fallback_args[@]}" "${target}" >/dev/null
         return $?
@@ -283,14 +283,14 @@ verify_signed_bundle() {
     local target="$1"
     local timeout_s="${AURA_CODESIGN_VERIFY_TIMEOUT_S:-20}"
     if ! run_with_timeout "${timeout_s}" codesign --verify --deep --strict --verbose=2 "${target}" >/dev/null 2>&1; then
-        echo "❌ Strict code-signature verification failed for ${target}." >&2
+        echo "Strict code-signature verification failed for ${target}." >&2
         return 1
     fi
 }
 
 if command -v codesign >/dev/null 2>&1; then
     if [ "${AURA_REQUIRE_STABLE_CODESIGN}" = "1" ] && [ "${CODESIGN_IDENTITY}" = "-" ]; then
-        echo "❌ A stable code-signing identity is required for installed Aura.app builds." >&2
+        echo "A stable code-signing identity is required for installed Aura.app builds." >&2
         exit 1
     fi
     CODESIGN_ARGS=(--force --sign "${CODESIGN_IDENTITY}" --entitlements "${ENTITLEMENTS_PLIST}")
@@ -305,12 +305,12 @@ if command -v codesign >/dev/null 2>&1; then
 fi
 
 if [ -n "${INSTALL_PATH}" ]; then
-    echo "📥 Installing ${APP_NAME} to ${INSTALL_PATH}..."
+    echo "Installing ${APP_NAME} to ${INSTALL_PATH}..."
     rm -rf "${INSTALL_PATH}"
     cp -R "${APP_DIR}" "${INSTALL_PATH}"
     if command -v codesign >/dev/null 2>&1; then
         sign_bundle "${INSTALL_PATH}"
         verify_signed_bundle "${INSTALL_PATH}"
     fi
-    echo "✅ Installed ${INSTALL_PATH}"
+    echo "Installed ${INSTALL_PATH}"
 fi

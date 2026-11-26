@@ -282,7 +282,7 @@ def main() -> int:
         for one in problems:
             print("  ", one)
     else:
-        print("✅ every page passes the audit at 1440x900, 1024x768 and 320x568, dark and light, in every theme and accent it offers, by keyboard, and with reduced motion")
+        print("every page passes the audit at 1440x900, 1024x768 and 320x568, dark and light, in every theme and accent it offers, by keyboard, and with reduced motion")
     return 1 if problems else 0
 
 

@@ -29,13 +29,13 @@ class MemorySubsystem:
             self.maintenance_loop(),
             name="memory_subsystem.maintenance_loop",
         )
-        logger.info("🧠 MemorySubsystem online (Pruner & Governor active).")
+        logger.info("MemorySubsystem online (Pruner & Governor active).")
 
     async def stop(self):
         self._running = False
         if self._task:
             await cancel_and_join(self._task, owner="core.memory.memory_subsystem")
-        logger.info("🧠 MemorySubsystem stopped.")
+        logger.info("MemorySubsystem stopped.")
 
     async def maintenance_loop(self):
         """Background loop for memory health."""
@@ -49,7 +49,7 @@ class MemorySubsystem:
                 if self.orchestrator and hasattr(self.orchestrator, 'get_current_context_tokens'):
                     tokens = self.orchestrator.get_current_context_tokens()
                     if self.pruner.needs_pruning(tokens):
-                        logger.info("🕸️ Context threshold reached. Pruning recommended.")
+                        logger.info("Context threshold reached. Pruning recommended.")
                         # Actual pruning usually happens within the conversation loop
                         # but we can signal it here or run it on the last history.
                 

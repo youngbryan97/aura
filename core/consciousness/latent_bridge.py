@@ -178,7 +178,7 @@ class LatentReadoutHook:
 
         self._installed = True
         logger.info(
-            "🔄 LatentReadoutHook installed at layer %d (%d dimensions) via %s",
+            "LatentReadoutHook installed at layer %d (%d dimensions) via %s",
             self._layer_idx, len(self._steering_vectors), target_name
         )
 
@@ -296,7 +296,7 @@ class SubstrateInjectionThread:
         )
         self._thread.start()
         logger.info(
-            "🔄 LatentBridge readout publisher started (%d hooks)", len(self._hooks)
+            "LatentBridge readout publisher started (%d hooks)", len(self._hooks)
         )
 
     def stop(self):
@@ -432,7 +432,7 @@ class LatentBridge:
             return False
         self._attachment_error = None
         logger.info(
-            "✅ LatentBridge attached: %d readout hooks at layers %s via %s",
+            "LatentBridge attached: %d readout hooks at layers %s via %s",
             len(self._readout_hooks), target_layers, layer_view.path,
         )
         return True
@@ -462,7 +462,7 @@ class LatentBridge:
             self._injection_thread.stop()
         for hook in self._readout_hooks:
             hook._active = False
-        logger.info("🔕 LatentBridge stopped")
+        logger.info("LatentBridge stopped")
 
     def get_current_affective_readout(self) -> Dict[str, float]:
         """
@@ -616,5 +616,5 @@ def attach_latent_bridge(model, channel: Any = None) -> Optional[LatentBridge]:
         record_degradation('latent_bridge', _e)
         logger.debug('Ignored Exception in latent_bridge.py: %s', _e)
 
-    logger.info("✅ LatentBridge singleton created and registered")
+    logger.info("LatentBridge singleton created and registered")
     return _bridge_instance

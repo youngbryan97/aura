@@ -88,5 +88,5 @@ def test_the_decline_comes_before_any_request_is_built() -> None:
 
 def test_a_new_worker_starts_with_no_record() -> None:
     source = inspect.getsource(mlx_client_worker_lifecycle)
-    ready = source.index('"✅ [MLX] Worker ready: %s"')
+    ready = source.index('"[MLX] Worker ready: %s"')
     assert "self._unstartable_from_chars = 0" in source[ready - 300:ready]

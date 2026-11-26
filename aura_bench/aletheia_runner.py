@@ -1383,9 +1383,9 @@ def main():
         result = processor.process_world(wid)
         results.append(result)
         if result["status"] == "ok":
-            log.info("  ✅ %s", wid)
+            log.info("  %s", wid)
         else:
-            log.warning("  ❌ %s: %s", wid, result.get("error", result["status"]))
+            log.warning("  %s: %s", wid, result.get("error", result["status"]))
 
     # Generate battery-level artifacts
     log.info("Generating battery-level artifacts...")

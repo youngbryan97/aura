@@ -119,7 +119,7 @@ class HerCortex:
         content, generations, empty = "", 0, 0
         while turns_left > 0 and empty < 2:
             if a_person_is_waiting_for_her_model():
-                logger.info("🛠️ her pass stands aside after %d generation(s): a person is talking with her", generations)
+                logger.info("her pass stands aside after %d generation(s): a person is talking with her", generations)
                 break
             left_s = ends_at - monotonic_time()
             if left_s <= 0.0:
@@ -136,7 +136,7 @@ class HerCortex:
                 # The pass's own time ran out mid-generation: its end, not a fault, and what it did stays. LIVE to 12
                 # November 2026 the timeout left the pass, its earlier calls were lost, and her self-repair targeted
                 # this line as a bug.
-                logger.info("🛠️ her pass ran out of its %.0f s after %d generation(s)", PASS_SECONDS, generations)
+                logger.info("her pass ran out of its %.0f s after %d generation(s)", PASS_SECONDS, generations)
                 break
             finally:
                 release_external_generation_gate_lease(lease)
@@ -343,7 +343,7 @@ def ensure_workspace(record: GoalRecord) -> Path:
     if made.returncode != 0:
         raise RuntimeError(f"her workspace could not be made: {made.stderr.strip()[:300]}")
     record.base = base
-    logger.info("🛠️ her workspace for '%s': %s on %s from %s", record.goal[:60], path, branch_of(record.slug), base[:9])
+    logger.info("her workspace for '%s': %s on %s from %s", record.goal[:60], path, branch_of(record.slug), base[:9])
     return path
 
 
@@ -373,10 +373,10 @@ def _bring_it_up_to_the_source(record: GoalRecord) -> None:
     if moved.returncode != 0:
         record.said.append({"words": f"My workspace could not be brought up to my source ({head[:9]}): "
                                      f"{moved.stderr.strip()[:300]}", "at": time.time()})
-        logger.info("🛠️ her workspace for '%s' stays at %s: %s", record.goal[:60], record.base[:9],
+        logger.info("her workspace for '%s' stays at %s: %s", record.goal[:60], record.base[:9],
                     moved.stderr.strip()[:160])
         return
-    logger.info("🛠️ her workspace for '%s' brought up from %s to %s", record.goal[:60], record.base[:9], head[:9])
+    logger.info("her workspace for '%s' brought up from %s to %s", record.goal[:60], record.base[:9], head[:9])
     record.base, record.last_check = head, {}
 
 
@@ -449,12 +449,12 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         # that had already landed. On source changed since it stalled, she works it again.
         head = await asyncio.to_thread(source_head)
         if head and head != record.stalled_on:
-            logger.info("🛠️ '%s' worked again: her source moved from %s to %s since it stalled", goal[:60],
+            logger.info("'%s' worked again: her source moved from %s to %s since it stalled", goal[:60],
                         record.stalled_on[:9] or "before this was kept", head[:9])
             record.status, record.quiet_passes = WORKING, 0
             await save(record)
     if record.status != WORKING:
-        logger.info("🛠️ '%s' is %s; no pass", goal[:60], record.status)
+        logger.info("'%s' is %s; no pass", goal[:60], record.status)
         return record
     router = router or HerCortex()
     workspace = await asyncio.to_thread(ensure_workspace, record)
@@ -477,7 +477,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     calls = list((result or {}).get("tool_calls") or [])
     words = str((result or {}).get("content") or "").strip()
     if not calls and not words and not (result or {}).get("turns"):
-        logger.info("🛠️ '%s': not now (her model is held for something else)", goal[:60])
+        logger.info("'%s': not now (her model is held for something else)", goal[:60])
         return record
     now = time.time()
     # A tool of hers may have changed the record during the pass.
@@ -495,7 +495,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         record.stalled_on = await asyncio.to_thread(source_head)
     record.last_worked_at = now
     await save(record)
-    logger.info("🛠️ '%s': %d call(s) this pass (%s); %d in all; %s", goal[:60], len(calls),
+    logger.info("'%s': %d call(s) this pass (%s); %d in all; %s", goal[:60], len(calls),
                 ", ".join(str(call.get("tool")) for call in calls[:6]) or "none", len(record.steps), record.status)
     if record.status == OFFERED:
         # Offered this pass: her own yes, and the gates it asks, outside her model's turn.
@@ -720,7 +720,7 @@ def _guard_what_it_kept(standing: GoalRecord) -> dict[str, Any]:
         on_disk = _onto_disk(guard)
     else:
         on_disk = _git("merge", "--ff-only", guard, cwd=root, effect="merge").returncode == 0
-    logger.info("🛠️ her change '%s', kept after probation, is guarded by %s (%s)", standing.goal[:60], path, guard[:9])
+    logger.info("her change '%s', kept after probation, is guarded by %s (%s)", standing.goal[:60], path, guard[:9])
     return {"path": path, "commit": guard, "on_disk": on_disk}
 
 
@@ -763,7 +763,7 @@ def _tried_on_her_real_calls(standing: GoalRecord) -> dict[str, Any]:
     kept = {key: tried.get(key) for key in ("verdict", "calls", "functions", "said", "could_not_be_run")}
     standing.offer = {**standing.offer, "real_calls_tried": digest, "real_calls_verdict": {**kept, "disposition": disposition}}
     _write_now(standing)
-    logger.info("🛠️ her change '%s' on probation, tried on %s real call(s) of hers: %s (%s)", standing.goal[:60],
+    logger.info("her change '%s' on probation, tried on %s real call(s) of hers: %s (%s)", standing.goal[:60],
                 tried.get("calls", 0), tried.get("verdict") or "not judged", disposition)
     return {**tried, "disposition": disposition}
 
@@ -775,17 +775,17 @@ def take_it_herself(slug: str) -> dict[str, Any]:
         return {"ok": False, "why": f"no draft of hers waits under {slug}"}
     governing = [name for name in record.offer.get("files") or [] if governs_her(name)]
     if governing:
-        logger.warning("🛠️ her draft for '%s' changes her own governance (%s); it waits for Bryan",
+        logger.warning("her draft for '%s' changes her own governance (%s); it waits for Bryan",
                        record.goal[:60], ", ".join(governing[:4]))
         return {"ok": False, "why": "it changes her own governance, so it waits for Bryan", "files": governing}
     if MEASURING_HOLD.exists():
-        logger.info("🛠️ her draft for '%s' waits: a run is measuring her", record.goal[:60])
+        logger.info("her draft for '%s' waits: a run is measuring her", record.goal[:60])
         return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
     gates = the_gates_her_yes_asks(record)
     stopped = next((name for name, gate in gates.items() if gate.get("finished") is False), "")
     if stopped:
         # Judged nothing: the draft stays offered, and her yes asks again on her next pass.
-        logger.info("🛠️ her draft for '%s' waits: %s was stopped before it finished", record.goal[:60], stopped)
+        logger.info("her draft for '%s' waits: %s was stopped before it finished", record.goal[:60], stopped)
         return {"ok": False, "why": f"{stopped} was stopped before it finished", "gates": gates}
     failed = next((name for name, gate in gates.items() if not gate["passed"]), "")
     if failed:
@@ -796,13 +796,13 @@ def take_it_herself(slug: str) -> dict[str, Any]:
                                      f"{gates[failed]['tail']}", "at": time.time()})
         record.offer = {**record.offer, "gates": gates}
         _write_now(record)
-        logger.warning("🛠️ her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
+        logger.warning("her draft for '%s' did not pass %s; it is hers to mend", record.goal[:60], failed)
         return {"ok": False, "why": f"{failed} failed", "gates": gates}
     # A change her checks cannot settle lands on probation, one at a time, and no person is asked (Bryan, 18 November 2026).
     doubted = bool(doubted_by(gates))
     standing = change_on_probation()
     if doubted and standing is not None:
-        logger.info("🛠️ her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
+        logger.info("her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
         return {"ok": False, "why": f"another change of hers is on probation: {standing.slug}"}
     record.offer = {**record.offer, "on_probation": doubted}
     # Watched, not obeyed: Bryan, 18 November 2026, wants her landing changes while the benchmarks are read beside them.
@@ -810,7 +810,7 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     record.offer = {**record.offer, "outside_bar_at_landing": said or "nothing against it"}
     _write_now(record)
     if said:
-        logger.warning("🛠️ her draft for '%s' lands with this on its record: %s", record.goal[:60], said)
+        logger.warning("her draft for '%s' lands with this on its record: %s", record.goal[:60], said)
     return approve(slug, by="herself", gates=gates)
 
 
@@ -1124,7 +1124,7 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
     if "why" in landed:
         record.said.append({"words": f"My yes could not land my draft: {landed['why']}", "at": time.time()})
         _write_now(record)
-        logger.warning("🛠️ her draft for '%s' did not land: %s", record.goal[:60], landed["why"][:200])
+        logger.warning("her draft for '%s' did not land: %s", record.goal[:60], landed["why"][:200])
         return {"ok": False, "why": landed["why"]}
     if landed:
         commit, on_disk = landed["landed"], _onto_disk(landed["landed"])
@@ -1150,7 +1150,7 @@ def approve(slug: str, *, by: str = "Bryan", gates: dict[str, Any] | None = None
     if changed:
         record.offer["what_it_changed"] = changed
     _write_now(record)
-    logger.info("🛠️ %s took her draft for '%s' (%s)%s%s", by, record.goal[:60], commit[:9],
+    logger.info("%s took her draft for '%s' (%s)%s%s", by, record.goal[:60], commit[:9],
                 ", on origin" if landed else "", "" if on_disk else "; her disk takes it at the next deploy")
     return {"ok": True, "commit": commit, "on_origin": bool(landed), "on_disk": on_disk}
 
@@ -1188,7 +1188,7 @@ def take_it_back(slug: str, why: str) -> dict[str, Any]:
     record.offer = {**record.offer, "reverted": revert, "reverted_at": time.time(), "reverted_on_disk": on_disk}
     record.said.append({"words": f"My mend did not hold, and I took it back out: {why}", "at": time.time()})
     _write_now(record)
-    logger.warning("🛠️ her mend for '%s' did not hold and was taken back out (%s): %s", record.goal[:60],
+    logger.warning("her mend for '%s' did not hold and was taken back out (%s): %s", record.goal[:60],
                    revert[:9], why[:160])
     return {"ok": True, "revert": revert, "on_disk": on_disk}
 

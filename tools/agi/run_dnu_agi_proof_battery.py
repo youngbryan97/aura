@@ -1717,7 +1717,7 @@ async def recycle_proof_model_lane(
             # A recycle REPLACES a dead lane — the rewarm reloads the SAME model
             # the just-aborted worker freed, so it is not net-additive memory.
             # The RAM-protection warmup deferral, however, samples the
-            # about-to-be-replaced worker's RSS and defers ("⏸️ Warmup deferred
+            # about-to-be-replaced worker's RSS and defers ("Warmup deferred
             # to protect RAM"), leaving the lane cold →
             # recycled_model_lane_not_live_after_warmup. Force the warmup through
             # for the duration of THIS recycle only, then restore the env.
@@ -3382,9 +3382,9 @@ def generate_markdown_report(
     pre = anti_theater.get("pre_check_violations", [])
     post = anti_theater.get("post_check_violations", [])
     if not pre and not post:
-        lines.append("✅ All anti-theater checks passed. No synthetic scores detected.")
+        lines.append("All anti-theater checks passed. No synthetic scores detected.")
     else:
-        lines.append("⚠️ **Anti-theater violations detected:**")
+        lines.append("**Anti-theater violations detected:**")
         for v in pre + post:
             lines.append(f"- {v}")
     lines.append("")
@@ -4041,7 +4041,7 @@ async def main():
                         results.append(result)
                         trace_fh.write(json.dumps(result, default=str) + "\n")
                         trace_fh.flush()
-                        print(f"⚠ error ({result['error']})")
+                        print(f"error ({result['error']})")
                         continue
                 except _DNU_RUN_RECOVERABLE_ERRORS as ex:
                     result = {
@@ -4059,7 +4059,7 @@ async def main():
                     results.append(result)
                     trace_fh.write(json.dumps(result, default=str) + "\n")
                     trace_fh.flush()
-                    print(f"⚠ error ({result['error']})")
+                    print(f"error ({result['error']})")
                     continue
 
             # Hard per-task wall-clock cap. A proof battery must NEVER hang
@@ -4081,7 +4081,7 @@ async def main():
                     timeout=_task_wall_cap_s,
                 )
             except TimeoutError:
-                print(f"⚠ abandoned (task_wall_clock_exceeded {_task_wall_cap_s:.0f}s)")
+                print(f"abandoned (task_wall_clock_exceeded {_task_wall_cap_s:.0f}s)")
                 try:
                     await recycle_proof_model_lane(
                         router,
@@ -4157,8 +4157,8 @@ async def main():
             status_icon = {
                 "pass": "✓",
                 "fail": "✗",
-                "timeout": "⏱",
-                "error": "⚠",
+                "timeout": "T",
+                "error": "!",
                 "no_answer": "∅",
                 "ungraded": "?",
             }.get(result["status"], "?")

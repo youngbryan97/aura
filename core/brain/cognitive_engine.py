@@ -265,7 +265,7 @@ async def _keep_the_cycle_open_while_it_is_working(
             if not said_it_once:
                 said_it_once = True
                 logger.info(
-                    "⏳ [COGNITION] Past the cycle deadline and still producing; "
+                    "[COGNITION] Past the cycle deadline and still producing; "
                     "holding it open while the answer arrives."
                 )
     except asyncio.CancelledError:
@@ -337,7 +337,7 @@ def _fit_history_to_what_is_left(
         return history_messages, ""
     kept = [message for pair in pairs[reach.boundary :] for message in pair]
     logger.info(
-        "📐 [CONTEXT] conversation %d → %d message(s): %s",
+        "[CONTEXT] conversation %d → %d message(s): %s",
         len(history_messages),
         len(kept),
         reach.reason,
@@ -1301,7 +1301,7 @@ def _note_unattested_exchange(entry: Any) -> None:
         return
     _UNATTESTED_EXCHANGE_SEEN.add(shape)
     logger.warning(
-        "🔏 Dropped a conversation exchange with no runtime stamp (keys: %s). "
+        "Dropped a conversation exchange with no runtime stamp (keys: %s). "
         "Its producer should call injected_blocks.stamp_runtime_payload().",
         shape,
     )
@@ -1335,7 +1335,7 @@ def _desktop_history_messages_from_context(
     )
     if reached.reach is not None and reached.reach.cuts_anything:
         logger.info(
-            "📐 History reach: %s (%d message(s) admitted)",
+            "History reach: %s (%d message(s) admitted)",
             reached.reach.reason,
             len(reached.messages),
         )
@@ -1447,7 +1447,7 @@ async def _commit_the_thought_with_retries(
             commit_outcome = (
                 "bypassed_test_isolation" if is_test_run else "no_state_repository"
             )
-            logger.info("🧠 [STATE] Test run state isolation: bypassing database commit.")
+            logger.info("[STATE] Test run state isolation: bypassing database commit.")
             break
         # Phase waits may have renewed this same cycle while it was working.
         # Persistence must consume that renewal, not the original estimate.
@@ -1508,7 +1508,7 @@ async def _commit_the_thought_with_retries(
                 break
 
             logger.warning(
-                "🔄 [STATE] Version conflict (attempt %d/%d). Re-deriving from latest...",
+                "[STATE] Version conflict (attempt %d/%d). Re-deriving from latest...",
                 attempt + 1,
                 max_retries,
             )
@@ -1724,7 +1724,7 @@ def _note_refused_thought(origin: str, reason: str) -> None:
         return
     _REFUSALS_SAID[key] = now
     logger.info(
-        "🛡️ CognitiveEngine: refused a background thought for origin=%s (%s); said once per ten minutes.",
+        "CognitiveEngine: refused a background thought for origin=%s (%s); said once per ten minutes.",
         origin,
         reason,
     )
@@ -1827,13 +1827,13 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         }
         if len(self._phases) != required_phases:
             logger.warning(
-                "⚠️ AuraPipeline: Incomplete cognitive pipeline (%d/%d phases).",
+                "AuraPipeline: Incomplete cognitive pipeline (%d/%d phases).",
                 len(self._phases),
                 required_phases,
             )
         else:
             logger.info(
-                "🧠 AuraPipeline: Full cognitive spectrum online (%d phases).", required_phases
+                "AuraPipeline: Full cognitive spectrum online (%d phases).", required_phases
             )
 
         self.phase_map = {phase.__class__.__name__: phase for _, phase in phase_entries}
@@ -1841,7 +1841,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
     async def on_start_async(self):
         """Lifecycle hook."""
         self.setup()
-        logger.info("⚡ CognitiveEngine active.")
+        logger.info("CognitiveEngine active.")
 
     @staticmethod
     def _reapply_turn_changes(target: Any, worked: Any, baseline: dict[str, Any]) -> None:
@@ -2162,7 +2162,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             return
         cls._refused_origin_inheritance_seen.add(key)
         logger.warning(
-            "🛡️ Refused to inherit the user-facing origin %r from %s: a request "
+            "Refused to inherit the user-facing origin %r from %s: a request "
             "that did not declare its own principal does not get one.",
             origin,
             source,
@@ -2217,7 +2217,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             return
         cls._refused_test_isolation_seen.add(origin)
         logger.warning(
-            "🛡️ Ambient test environment is set, but origin %r is user-facing: "
+            "Ambient test environment is set, but origin %r is user-facing: "
             "keeping real state and committing this turn.",
             origin,
         )
@@ -2433,7 +2433,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         # working memory keeps the real words, because that is her memory of
         # what was said and this is a diagnostic.
         logger.info(
-            "🧠 CognitiveEngine.think: %s... (%s) Origin: %s",
+            "CognitiveEngine.think: %s... (%s) Origin: %s",
             self._log_safe_objective(objective),
             mode.name,
             origin,
@@ -2444,7 +2444,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         if is_test_run:
             from core.state.aura_state import AuraState
             state = AuraState.default()
-            logger.info("🧠 CognitiveEngine.think: Enforced database-independent state isolation for test run.")
+            logger.info("CognitiveEngine.think: Enforced database-independent state isolation for test run.")
             if self.state_repository is None:
                 container = get_container()
                 self.state_repository = container.get("state_repository", default=None)
@@ -2606,7 +2606,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
 
             check = await spine.pre_response_check(objective, topic=topic)
             if check.injection:
-                logger.info("⚡ [Spine] Binding prior position as system context.")
+                logger.info("[Spine] Binding prior position as system context.")
                 # As a SYSTEM message, not spliced into the objective.
                 #
                 # The injection used to be prepended to `objective`, and the
@@ -3143,7 +3143,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         """
         if self._is_background_request(origin, False):
             logger.debug(
-                "🛡️ CognitiveEngine: suppressing background reactive recovery for origin=%s (%s).",
+                "CognitiveEngine: suppressing background reactive recovery for origin=%s (%s).",
                 origin,
                 reason,
             )
@@ -3184,7 +3184,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
                 self._recovery_lock.release()
 
         try:
-            logger.warning("⚡ [COGNITION] Initiating Reactive Recovery Phase. Reason: %s", reason)
+            logger.warning("[COGNITION] Initiating Reactive Recovery Phase. Reason: %s", reason)
 
             # 1. Rollback state to last stable version (with timeout + guard)
             #
@@ -3305,7 +3305,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
         calls the router, and still publishes events. Shutdown that does not
         stop anything is worse than none, because callers believe it did.
         """
-        logger.info("🛑 CognitiveEngine stopping...")
+        logger.info("CognitiveEngine stopping...")
         self._stopped = True
         self._phases = []
         cancelled = 0
@@ -3324,7 +3324,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             pass
         if cancelled:
             logger.info(
-                "🛑 CognitiveEngine cancelled %d in-flight cognitive task(s).",
+                "CognitiveEngine cancelled %d in-flight cognitive task(s).",
                 cancelled,
             )
 
@@ -3365,7 +3365,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
             if not resolution.resolved:
                 return text
             logger.info(
-                "🔗 CognitiveEngine: resolved a %s against the previous turn "
+                "CognitiveEngine: resolved a %s against the previous turn "
                 "(%d chars of antecedent restored).",
                 resolution.kind,
                 len(resolution.antecedent),
@@ -3835,12 +3835,12 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
                 severity="warning",
                 action="refused a malformed vision payload",
             )
-            return "👁️ visual_analysis: Malformed vision request."
+            return "visual_analysis: Malformed vision request."
 
         buffer = get_container().get("vision_buffer", default=None)
         if not buffer:
-            logger.warning("👁️ [VISION] see() called but vision_buffer not found in container.")
-            return "👁️ visual_analysis: Sensory buffer unavailable."
+            logger.warning("[VISION] see() called but vision_buffer not found in container.")
+            return "visual_analysis: Sensory buffer unavailable."
 
         raw_prompt = (
             vision_payload.get("query")
@@ -3950,7 +3950,7 @@ class CognitiveEngine(_RunsTheThinkingLoop, _AnswersTheDesktopDirectly, _RunsIts
                     from ..thought_stream import get_emitter
 
                     get_emitter().emit(
-                        "Deep Reasoning 🧠",
+                        "Deep Reasoning",
                         f"Using {strategy.name} strategy",
                         level="info",
                         category="Cognition",

@@ -54,8 +54,8 @@ def hold_the_answer(job: Any, tokenizer: Any, native_thinking: Any, logits_proce
             held, what = enforce_json(tokenizer, after_token=closing, require=_SHAPES[shape]), shape
         if held is not None:
             logits_processors.append(held)
-            logger.info("🧠 [WORKER] Answer shape held by the decoder: %s.", what)
+            logger.info("[WORKER] Answer shape held by the decoder: %s.", what)
         else:
-            logger.warning("🧠 [WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", what)
+            logger.warning("[WORKER] Answer shape %s NOT held; MLX unavailable to the processor.", what)
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
         on_failure(e, action="continued generation without the decoder holding the answer's shape", severity="warning")

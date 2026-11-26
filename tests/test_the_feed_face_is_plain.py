@@ -55,7 +55,7 @@ def test_every_sentence_is_for_a_line_still_in_her_code():
 
 
 def test_a_call_that_gives_its_own_sentence_is_shown_by_it():
-    record = logging.LogRecord("Aura.Core.Orchestrator", logging.INFO, __file__, 1, "🫀 %s", ("═══ PULSE ═══",), None)
+    record = logging.LogRecord("Aura.Core.Orchestrator", logging.INFO, __file__, 1, "%s", ("═══ PULSE ═══",), None)
     record.plain = "Health check: all her systems are running, and she is ready to talk."
     assert plain_feed.plain_face_of(record) == record.plain
 
@@ -66,7 +66,7 @@ def test_the_health_pulse_reads_as_a_sentence():
     well = ("═══ UNIFIED HEALTH PULSE ═══\nSystem: CPU 20.2% | RAM 59.5% | Uptime: 3533s\nRuntime: HEALTHY | "
             "Required probes: PASS | Subsystem audit: PASS | Conversation: PASS | Heartbeats: 11/11 ACTIVE")
     unwell = well.replace("Runtime: HEALTHY", "Runtime: DEGRADED").replace(
-        "Uptime: 3533s\n", "Uptime: 3533s\n  ⚠️ mind_tick: STALE (40s)\n")
+        "Uptime: 3533s\n", "Uptime: 3533s\n  warning mind_tick: STALE (40s)\n")
     assert SubsystemAudit.plain_pulse(well) == (
         "Health check: all her systems are running, and she is ready to talk. "
         "The computer is at 20% processor and 60% memory.")
@@ -78,7 +78,7 @@ def test_her_server_puts_the_sentence_on_the_feed_event():
     import interface.server as server
     from interface.websocket_manager import log_queue
 
-    row = next(row for row in ROWS if row["says"].startswith("⚡ GW IGNITION"))
+    row = next(row for row in ROWS if row["says"].startswith("GW IGNITION"))
     saved = list(log_queue)
     log_queue.clear()
     try:
@@ -90,7 +90,7 @@ def test_her_server_puts_the_sentence_on_the_feed_event():
     finally:
         log_queue.clear()
         log_queue.extend(saved)
-    assert entry["message"].startswith("⚡ GW IGNITION #58")
+    assert entry["message"].startswith("GW IGNITION #58")
     assert entry["plain"] == "Something took the centre of her attention: drive social."
 
 

@@ -36,9 +36,9 @@ async def verify():
     print(f"Retrieved context:\n{context}")
     
     if "[SUBCONSCIOUS TEMPORAL RECALL]" in context:
-        print("✅ SUCCESS: RAG Bridge returned expected header.")
+        print("SUCCESS: RAG Bridge returned expected header.")
     else:
-        print("❌ FAILURE: RAG Bridge missing header or content.")
+        print("FAILURE: RAG Bridge missing header or content.")
         raise AssertionError("RAG Bridge missing temporal recall header")
 
 if __name__ == "__main__":

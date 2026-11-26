@@ -560,12 +560,12 @@ class EmbodiedInteroception:
                     "on_prediction_error",
                     error=self._habituated("prediction_error", ml.velocity * 2.0),
                 )
-                logger.debug("⚡ Interoception: CPU spike (v=%.2f) → prediction error", ml.velocity)
+                logger.debug("Interoception: CPU spike (v=%.2f) → prediction error", ml.velocity)
 
             # CPU DROPPING (negative velocity) → relief → endorphin
             if ml.velocity < -0.1 and ml.smoothed < 0.5:
                 self._emit_neurochemical_event("on_success")  # Relief is a form of reward
-                logger.debug("😌 Interoception: CPU dropping (v=%.2f) → relief", ml.velocity)
+                logger.debug("Interoception: CPU dropping (v=%.2f) → relief", ml.velocity)
 
             # Sudden ACCELERATION in any channel → novelty signal → dopamine + acetylcholine
             # This fires when change is itself changing rapidly — something unexpected
@@ -578,12 +578,12 @@ class EmbodiedInteroception:
             if max_accel > 0.1:
                 # 0.3 is on_novelty's own size for a novelty, which this passed by leaving it out.
                 self._emit_neurochemical_event("on_novelty", amount=self._habituated("novelty", 0.3))
-                logger.debug("🔔 Interoception: acceleration spike (%.2f) → novelty", max_accel)
+                logger.debug("Interoception: acceleration spike (%.2f) → novelty", max_accel)
 
             # Resource pressure RISING FAST → cortisol spike (impending crisis)
             if rp.velocity > 0.1:
                 self._emit_neurochemical_event("on_threat", severity=rp.velocity * 3.0)
-                logger.debug("⚠️ Interoception: RAM pressure rising (v=%.2f) → threat", rp.velocity)
+                logger.debug("Interoception: RAM pressure rising (v=%.2f) → threat", rp.velocity)
 
             # Everything STABILIZING (low velocity across all channels) → GABA + serotonin (calm)
             all_velocities = [abs(ch.velocity) for ch in self.channels.values()]

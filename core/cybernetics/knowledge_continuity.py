@@ -69,7 +69,7 @@ class KnowledgeContinuity:
                 exc,
             )
             self._event_bus = None
-        logger.info("🧠 [CONTINUITY] Knowledge Distillation Substrate ACTIVE.")
+        logger.info("[CONTINUITY] Knowledge Distillation Substrate ACTIVE.")
 
     def _fnv1a_32(self, data: str) -> str:
         """Real FNV-1a 32-bit non-cryptographic hash for [CORTICAL STACK] integrity."""

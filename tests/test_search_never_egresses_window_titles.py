@@ -3,7 +3,7 @@
 LIVE DEFECT, 2026-08-10, found in ~/.aura/logs. The "required search evidence"
 lane in response_generation ran real web searches with these queries:
 
-    query=The Sick Mind of EDP445 | …Documentary - YouTube 🔊
+    query=The Sick Mind of EDP445 | …Documentary - YouTube
     query=License Plate Lookup & VIN Search | VehicleHistory.us
     query=Monthly Expenses
     query=t get a clear enough answer together, and I
@@ -38,7 +38,7 @@ _comes_from_user = _Phase._query_comes_from_the_user
 @pytest.mark.parametrize(
     "leaked",
     [
-        "The Sick Mind of EDP445 | …Documentary - YouTube 🔊",
+        "The Sick Mind of EDP445 | …Documentary - YouTube",
         "License Plate Lookup & VIN Search | VehicleHistory.us",
         "Monthly Expenses",
         "t get a clear enough answer together, and I",

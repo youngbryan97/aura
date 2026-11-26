@@ -224,7 +224,7 @@ async def kept_answer_for(objective: str, *, router: Any, origin: str, tier: str
 
 def kept_answer_evidence(planted: dict[str, Any]) -> str:
     """A kept answer as she is shown it before drafting: the skill result the phases put in front of her."""
-    return f"[SKILL RESULT: kept_procedure] \u2705 Answer: {planted['answer']}\nSummary: {planted['summary']}"
+    return f"[SKILL RESULT: kept_procedure] ok Answer: {planted['answer']}\nSummary: {planted['summary']}"
 
 
 def planted_for(state: Any, objective: str) -> dict[str, Any] | None:

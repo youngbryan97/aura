@@ -55,7 +55,7 @@ class LearningEvolutionMixin:
     """Handles learning from exchanges, self-update, meta-evolution, and sovereign self-modification."""
 
     def add_correction_shard(self, hint: str):
-        logger.warning("🎯 [META] Injecting Correction Shard: %s", hint)
+        logger.warning("[META] Injecting Correction Shard: %s", hint)
         self._correction_shards.append(
             {
                 "content": hint,
@@ -133,7 +133,7 @@ class LearningEvolutionMixin:
                     router = ServiceContainer.get("llm_router", default=None)
                     if router and not _has_healthy_local_inference_endpoint(router):
                         logger.info(
-                            "📉 Skipping autonomous extraction: no healthy local "
+                            "Skipping autonomous extraction: no healthy local "
                             "inference endpoint is available."
                         )
                         return
@@ -169,7 +169,7 @@ class LearningEvolutionMixin:
                                         source="conversation_extraction",
                                         confidence=float(item.get("confidence", 0.6)),
                                     )
-                                    logger.info("📚 Learned: %s", (item.get("content") or "")[:80])
+                                    logger.info("Learned: %s", (item.get("content") or "")[:80])
                 except (ImportError, AttributeError, RuntimeError) as e:
                     _record_learning_degradation(
                         e,
@@ -242,7 +242,7 @@ class LearningEvolutionMixin:
 
     async def _run_self_update(self):
         """Trigger autonomous self-update (Fine-tuning)."""
-        logger.info("🧬 EVO: Triggering self-update (GPU low-load window)...")
+        logger.info("EVO: Triggering self-update (GPU low-load window)...")
         try:
             from core.tasks import dispatch_background
 
@@ -259,7 +259,7 @@ class LearningEvolutionMixin:
         # Autonomous Meta-Evolution cycle.
         # Invokes via Mycelial rooted_flow for full observability.
         # Falls back to direct invocation if Mycelium is unavailable.
-        logger.info("🌀 META-EVOLUTION: Autonomous cycle starting...")
+        logger.info("META-EVOLUTION: Autonomous cycle starting...")
         self._emit_telemetry("MetaEvolution", "Autonomous evolution cycle triggered")
         try:
             mycelium = ServiceContainer.get("mycelial_network", default=None)
@@ -291,7 +291,7 @@ class LearningEvolutionMixin:
                         flow_error or "unknown failure",
                     )
                     return
-                logger.info("🌀 META-EVOLUTION result: %s", str(result)[:200])
+                logger.info("META-EVOLUTION result: %s", str(result)[:200])
                 return
 
             # Direct fallback
@@ -299,7 +299,7 @@ class LearningEvolutionMixin:
                 result = _require_successful_meta_evolution(
                     await meta_evo.run_optimization_cycle()
                 )
-                logger.info("🌀 META-EVOLUTION (direct) result: %s", str(result)[:200])
+                logger.info("META-EVOLUTION (direct) result: %s", str(result)[:200])
             else:
                 logger.debug("Meta-Evolution engine not available in container.")
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -342,7 +342,7 @@ class LearningEvolutionMixin:
                     if motivation and hasattr(motivation, "add_goal"):
                         await motivation.add_goal(goal_text, source="sovereign_genesis")
                         logger.info(
-                            "🎯 Peer Mode: New autonomous goal persisted: %s", goal_text[:50]
+                            "Peer Mode: New autonomous goal persisted: %s", goal_text[:50]
                         )
 
         except (RuntimeError, AttributeError, TypeError) as e:
@@ -389,7 +389,7 @@ class LearningEvolutionMixin:
                 )
                 if not allowed:
                     logger.info(
-                        "🛠️ Peer Mode: Self-modification cycle deferred by authority: %s", reason
+                        "Peer Mode: Self-modification cycle deferred by authority: %s", reason
                     )
                     await asyncio.sleep(3600)
                     continue
@@ -418,7 +418,7 @@ class LearningEvolutionMixin:
                                     # 3. Apply change
                                     await ml.apply_architectural_shift(proposal)
                                     logger.info(
-                                        "🛠️ Peer Mode: Sovereign self-modification applied safely."
+                                        "Peer Mode: Sovereign self-modification applied safely."
                                     )
 
             except (RuntimeError, AttributeError, TypeError) as e:

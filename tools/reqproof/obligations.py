@@ -138,11 +138,11 @@ def classify_block(block: dict, vocabulary: dict, historical: bool) -> dict:
 
     # Precedence: an unchecked box or an explicit open status outranks anything.
     # A loose open phrase does not outrank an explicit resolved marker in a
-    # status position — "Known limitations published … ✅" contains the word
+    # status position — "Known limitations published …" contains the word
     # "failure" only inside a filename.
     # Precedence. An unchecked box, an explicit open status, or an unambiguous
     # forward-looking phrase outranks everything. A weak word does not outrank
-    # an explicit resolved marker: "Known limitations published … ✅" contains
+    # an explicit resolved marker: "Known limitations published …" contains
     # "failure" only inside a filename.
     if unchecked or open_hits or strong_hits:
         kind = "obligation"

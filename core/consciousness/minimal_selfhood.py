@@ -377,7 +377,7 @@ class MinimalSelfhood:
         taught = {DEFICIT_KEYS[i]: round(float(reward[i]), 4) for i in range(len(DEFICIT_KEYS)) if reward[i] > 0.0}
         # Said where her log can be read: her ticks are minutes apart, so most lessons land after the intention that
         # earned them has already been logged.
-        logger.info("🪞 MinimalSelfhood learned from %s over %.0fs: %s (field %.3f)", token.split(":", 1)[0],
+        logger.info("MinimalSelfhood learned from %s over %.0fs: %s (field %.3f)", token.split(":", 1)[0],
                     time.time() - entry[0],
                     ", ".join(f"{k} -{v:.3f}" for k, v in sorted(taught.items())) or "nothing fell", learned)
         return taught

@@ -531,7 +531,7 @@ class VisionSystem:
     async def capture(self, duration: float = 0, save_path: str | None = None) -> dict[str, Any]:
         """Capture from camera (Async)."""
         if not camera_allowed():
-            logger.debug("📷🚫 Camera capture blocked: permissions.camera=False (user setting)")
+            logger.debug("Camera capture blocked: permissions.camera=False (user setting)")
             return {"error": "camera_permission_denied"}
         if not await self._get_camera_available():
             return {"error": "camera_not_available"}

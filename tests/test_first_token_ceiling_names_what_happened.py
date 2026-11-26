@@ -2,10 +2,10 @@
 
 Live 2026-08-03, two consecutive lines in the desktop log:
 
-    🛑 [MLX] First-token HARD CEILING exceeded (livelocked: heartbeats but
+    [MLX] First-token HARD CEILING exceeded (livelocked: heartbeats but
        zero tokens) for Qwen2.5-7B-Instruct-4bit (18.4s elapsed, sla=8.0s,
        hard=16.8s).
-    ⏱️ [MLX] Cortex ran past this turn's deadline (18.4s elapsed, budget
+    [MLX] Cortex ran past this turn's deadline (18.4s elapsed, budget
        16.8s) but is healthy (heartbeat 0.7s ago, livelock ceiling 20.0s).
        Cancelling the request and KEEPING the warm lane.
 

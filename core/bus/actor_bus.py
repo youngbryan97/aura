@@ -213,11 +213,11 @@ class ActorBus:
     def add_actor(self, name: str, connection: Any, is_child: bool = False):
         """Register and start a new actor transport."""
         if connection is None:
-            logger.warning("📡 Refusing to register actor '%s' without a live transport.", name)
+            logger.warning("Refusing to register actor '%s' without a live transport.", name)
             return False
         if not _is_connection_pair(connection):
             logger.warning(
-                "📡 Refusing to register actor '%s' with legacy shared transport; "
+                "Refusing to register actor '%s' with legacy shared transport; "
                 "expected an explicit (read_conn, write_conn) pair.",
                 name,
             )
@@ -236,7 +236,7 @@ class ActorBus:
             logger.debug("ActorBus activity monitor hookup failed for %s: %s", name, e)
         transport.start()
         self._transports[name] = transport
-        logger.info("📡 Registered Actor Transport: %s", name)
+        logger.info("Registered Actor Transport: %s", name)
         return True
 
     def has_actor(self, name: str) -> bool:
@@ -256,7 +256,7 @@ class ActorBus:
         """Hot-swap an actor's transport with a new connection (e.g. after a restart)."""
         old_transport = self._transports.get(name)
         if old_transport:
-            logger.info("🔄 Hot-swapping transport for %s...", name)
+            logger.info("Hot-swapping transport for %s...", name)
             await old_transport.stop()
         
         # Register new transport
@@ -285,7 +285,7 @@ class ActorBus:
                 name="actor_bus.telemetry_broadcaster",
             )
             
-        logger.info("📡 ActorBus (Unified Layer) ONLINE.")
+        logger.info("ActorBus (Unified Layer) ONLINE.")
 
     async def _telemetry_broadcaster(self):
         """ZENITH: Non-blocking telemetry delivery with backpressure."""
@@ -461,7 +461,7 @@ class ActorBus:
         # Congestion Check (High Water Mark)
         pending = len(transport._pending_requests)
         if pending > self._high_water_mark:
-            logger.warning("⚠️ Bus Congested: %s pending requests for %s", pending, actor)
+            logger.warning("Bus Congested: %s pending requests for %s", pending, actor)
             return False
             
         return True
@@ -478,7 +478,7 @@ class ActorBus:
         if not transport:
             # Routing: Forward to kernel if it's a child process
             if "kernel" in self._transports:
-                logger.debug("🔀 Routing request for '%s' via kernel...", actor)
+                logger.debug("Routing request for '%s' via kernel...", actor)
                 return await self.request("kernel", "route_request", {
                     "target": actor,
                     "type": msg_type,
@@ -500,15 +500,15 @@ class ActorBus:
             
             latency = (time.time() - start) * 1000
             if latency > 100:
-                logger.debug("🐢 Slow bus request to %s: %sms", actor, f"{latency:.1f}")
+                logger.debug("Slow bus request to %s: %sms", actor, f"{latency:.1f}")
                 
             return result
             
         except (TimeoutError, BusDegraded, BrokenPipeError, ConnectionResetError) as e:
             if _is_shutdown_commit_request(actor, msg_type, payload):
-                logger.debug("📡 StateVault bus closed during shutdown commit; caller will handle snapshot fallback.")
+                logger.debug("StateVault bus closed during shutdown commit; caller will handle snapshot fallback.")
             else:
-                logger.warning("📡 Bus degraded for %s → %s", actor, e)
+                logger.warning("Bus degraded for %s → %s", actor, e)
             raise
 
     async def send(self, actor: str, msg_type: str, payload: Any) -> bool:
@@ -517,18 +517,18 @@ class ActorBus:
         if not transport:
             # Routing: Forward to kernel if it's a child process
             if "kernel" in self._transports:
-                logger.debug("🔀 Routing send for '%s' via kernel...", actor)
+                logger.debug("Routing send for '%s' via kernel...", actor)
                 return await self.send("kernel", "route_send", {
                     "target": actor,
                     "type": msg_type,
                     "payload": payload
                 })
-            logger.error("❌ Unknown actor: %s", actor)
+            logger.error("Unknown actor: %s", actor)
             self._record_drop(kind="send", reason="unknown_actor", actor=actor, topic=msg_type)
             return False
 
         if not await self._health_ping(actor):
-            logger.error("❌ Cannot send to %s: Bus degraded", actor)
+            logger.error("Cannot send to %s: Bus degraded", actor)
             self._record_drop(kind="send", reason="actor_degraded", actor=actor, topic=msg_type)
             return False
 

@@ -36,7 +36,7 @@ class MockBrain:
         return type('obj', (object,), {'content': "Consensus: Fix is safe to apply."})
 
 async def run_decisive_demo():
-    print("🚀 STARTING LIVE-SOURCE AUTONOMOUS IMPROVEMENT CYCLE")
+    print("STARTING LIVE-SOURCE AUTONOMOUS IMPROVEMENT CYCLE")
     print("=" * 80)
     
     ServiceContainer.register("config", config)
@@ -53,13 +53,13 @@ async def run_decisive_demo():
     original_code = target_file.read_text(encoding="utf-8")
     
     # 2. INJECTION
-    print(f"💉 Injecting 'datetiime' import bug into {target_path}...")
+    print(f"Injecting 'datetiime' import bug into {target_path}...")
     buggy_code = original_code.replace("from datetime import datetime", "from datetime import datetiime")
     atomic_write_text(target_file, buggy_code, encoding="utf-8")
     
     try:
         # 3. DETECTION
-        print("🔍 Injecting failure events into Aura's memory...")
+        print("Injecting failure events into Aura's memory...")
         for _ in range(3):
             event = ErrorEvent(
                 timestamp=time.time(),
@@ -74,27 +74,27 @@ async def run_decisive_demo():
             engine.error_intelligence.logger_system.recent_errors.append(event)
         
         # 4. EXECUTION
-        print("⚙️ Triggering Autonomous Self-Improvement Cycle...")
+        print("Triggering Autonomous Self-Improvement Cycle...")
         engine.auto_fix_enabled = True
         
         bugs = await engine.diagnose_current_bugs()
         if bugs:
-            print(f"✨ Aura detected pattern: {bugs[0]['pattern'].fingerprint[:12]}...")
+            print(f"Aura detected pattern: {bugs[0]['pattern'].fingerprint[:12]}...")
             fix_proposal = await engine.propose_fix(bugs[0])
             if fix_proposal:
-                print(f"🛠️  Aura proposed fix for {fix_proposal['fix'].target_file}")
+                print(f" Aura proposed fix for {fix_proposal['fix'].target_file}")
                 success = await engine.apply_fix(fix_proposal, force=True)
                 
                 print("\n" + "=" * 80)
-                print("📊 FINAL RECEIPTS (LIVE SOURCE)")
+                print("FINAL RECEIPTS (LIVE SOURCE)")
                 print("-" * 80)
                 if success:
-                    print("Autonomous Cycle: SUCCESS ✅")
+                    print("Autonomous Cycle: SUCCESS")
                     print("Improvement Promotion: COMMITTED")
                     
                     current_code = target_file.read_text(encoding="utf-8")
                     if "from datetime import datetime" in current_code:
-                        print("Aura's Self-Repair: VERIFIED 💠")
+                        print("Aura's Self-Repair: VERIFIED")
                         diff = difflib.unified_diff(
                             buggy_code.splitlines(),
                             current_code.splitlines(),
@@ -105,13 +105,13 @@ async def run_decisive_demo():
                         print("\nAUDIT LOG:")
                         print('\n'.join(diff))
                     else:
-                        print("Aura's Self-Repair: FAILED (Code mismatch) ❌")
+                        print("Aura's Self-Repair: FAILED (Code mismatch)")
                 else:
-                    print("Autonomous Cycle: REJECTED ❌")
+                    print("Autonomous Cycle: REJECTED")
             else:
-                print("Status: FAILED ❌ - Fix generation/validation failed.")
+                print("Status: FAILED - Fix generation/validation failed.")
         else:
-            print("Status: FAILED ❌ - Aura didn't see the bug.")
+            print("Status: FAILED - Aura didn't see the bug.")
     finally:
         atomic_write_text(target_file, original_code, encoding="utf-8")
 

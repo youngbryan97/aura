@@ -88,7 +88,7 @@ class PersistentKnowledgeGraph:
                     return True, decision
                 return True
 
-            logger.warning("🚫 KnowledgeGraph write blocked: %s (%s)", memory_type, reason)
+            logger.warning("KnowledgeGraph write blocked: %s (%s)", memory_type, reason)
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -279,7 +279,7 @@ class PersistentKnowledgeGraph:
                                time.time(), 1, json.dumps(metadata or {})))
                     conn.commit()
         
-        logger.info("📚 Learned: %s...", content[:80])
+        logger.info("Learned: %s...", content[:80])
         return node_id
     
     def get_knowledge(self, node_id: str) -> dict | None:
@@ -410,7 +410,7 @@ class PersistentKnowledgeGraph:
                              (person_id, name, time.time(), time.time(), 1, json.dumps(data)))
                 conn.commit()
             
-            logger.info("👤 Remembered: %s", name)
+            logger.info("Remembered: %s", name)
             return person_id
     
     def get_person(self, name: str) -> dict | None:
@@ -438,7 +438,7 @@ class PersistentKnowledgeGraph:
                          (skill_id, name, description, time.time(), proficiency,
                           0, 0.0, None, json.dumps({})))
                 conn.commit()
-            logger.info("🎓 Skill: %s", name)
+            logger.info("Skill: %s", name)
             return skill_id
     
     def practice_skill(self, skill_id: str, success: bool):
@@ -486,7 +486,7 @@ class PersistentKnowledgeGraph:
                          (goal_id, goal, time.time(), time.time() + target_days * 86400,
                           priority, 0.0, False, ""))
                 conn.commit()
-            logger.info("🎯 Goal: %s", goal)
+            logger.info("Goal: %s", goal)
             return goal_id
     
     def get_active_learning_goals(self) -> list[dict]:
@@ -514,7 +514,7 @@ class PersistentKnowledgeGraph:
                 c.execute("""INSERT OR REPLACE INTO questions VALUES (?,?,?,?,?,?,?)""",
                          (q_id, question, time.time(), importance, False, None, None))
                 conn.commit()
-            logger.info("❓ Question: %s", question)
+            logger.info("Question: %s", question)
             return q_id
     
     def answer_question(self, q_id: str, answer: str):
@@ -583,7 +583,7 @@ class PersistentKnowledgeGraph:
                     (from_id, to_id, relation_type, strength, time.time(), strength * 0.5),
                 )
                 conn.commit()
-        logger.info("🔗 Relationship: %s -[%s]-> %s (strength=%.2f)",
+        logger.info("Relationship: %s -[%s]-> %s (strength=%.2f)",
                     from_id[:8], relation_type, to_id[:8], strength)
         return True
 

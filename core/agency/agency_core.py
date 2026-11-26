@@ -234,7 +234,7 @@ class SovereignSwarm(_RunsOneShard):
                 require_conversation_ready=True,
             )
             if reason:
-                logger.info("⏸️ Swarm: shard deferred for '%s' (%s).", str(goal)[:80], reason)
+                logger.info("Swarm: shard deferred for '%s' (%s).", str(goal)[:80], reason)
                 return False
         except _AGENCY_BOUNDARY_ERRORS as exc:
             # The admission policy DISAPPEARED when its dependencies failed:
@@ -253,7 +253,7 @@ class SovereignSwarm(_RunsOneShard):
                 extra={"goal": str(goal)[:120]},
             )
             logger.warning(
-                "⏸️ Swarm: shard deferred for '%s' — background-policy probe failed: %s",
+                "Swarm: shard deferred for '%s' — background-policy probe failed: %s",
                 str(goal)[:80],
                 exc,
             )
@@ -305,7 +305,7 @@ class SovereignSwarm(_RunsOneShard):
             }
             return dict(self._last_deliberation)
 
-        logger.info("⚖️ Swarm: Initiating bounded deliberation on: %s (Source: %s)", topic, topic_source)
+        logger.info("Swarm: Initiating bounded deliberation on: %s (Source: %s)", topic, topic_source)
 
         if not roles:
             roles = [
@@ -322,7 +322,7 @@ class SovereignSwarm(_RunsOneShard):
                 from core.runtime import resource_psutil as psutil
                 mem = psutil.virtual_memory()
                 if mem.percent > 90:
-                    logger.warning("⚖️ Swarm: RAM Critical (%s%%). Throttling shard spawn for %s", mem.percent, p)
+                    logger.warning("Swarm: RAM Critical (%s%%). Throttling shard spawn for %s", mem.percent, p)
                     await asyncio.sleep(5.0)
                 elif mem.percent > 85:
                     await asyncio.sleep(1.0)
@@ -342,7 +342,7 @@ class SovereignSwarm(_RunsOneShard):
                     severity="warning",
                 )
                 logger.warning(
-                    "⚖️ Swarm: RAM unmeasurable (%s); pacing shard spawn conservatively.",
+                    "Swarm: RAM unmeasurable (%s); pacing shard spawn conservatively.",
                     _e,
                 )
                 await asyncio.sleep(1.0)
@@ -588,7 +588,7 @@ class AgencyCore:
             from core.orchestrator.meta_cognition_shard import MetaCognitionShard
             self.meta_cognition = MetaCognitionShard(self.orch)
         except ImportError:
-            logger.warning("🧠 Meta-Cognition Shard module not found. Skipping.")
+            logger.warning("Meta-Cognition Shard module not found. Skipping.")
             self.meta_cognition = None
 
         self._pathway_registry: dict[str, Callable] = {
@@ -624,7 +624,7 @@ class AgencyCore:
         self._last_canvas_update: float = 0.0
         self._last_social_reflection: float = 0.0
         self._last_creative_synthesis: float = 0.0
-        logger.info("🧠 AgencyCore initialized with %d structured pathways", len(self._pathway_registry))
+        logger.info("AgencyCore initialized with %d structured pathways", len(self._pathway_registry))
 
     def register_pathway_hook(self, pathway_name: str, provider: Callable[..., Any]) -> None:
         """Register an external proposal provider for a named agency pathway."""
@@ -684,7 +684,7 @@ class AgencyCore:
             return component
 
         # Specialized re-registration attempt for critical components
-        logger.warning("🧠 AgencyCore: Critical component '%s' missing. Attempting re-resolution...", name)
+        logger.warning("AgencyCore: Critical component '%s' missing. Attempting re-resolution...", name)
 
         # Some components can be re-resolved via orchestrator if available
         if self.orch and hasattr(self.orch, name):
@@ -702,7 +702,7 @@ class AgencyCore:
         try:
             from core.consciousness.coordinator import get_consciousness_coordinator
             await get_consciousness_coordinator()
-            logger.info("🧠 Unified consciousness initialized and wired through agency core")
+            logger.info("Unified consciousness initialized and wired through agency core")
         except _AGENCY_BOUNDARY_ERRORS as e:
             _record_agency_degradation(e, action="consciousness coordinator initialization skipped")
             logger.debug("Consciousness coordinator initialization failed: %s", e)
@@ -746,7 +746,7 @@ class AgencyCore:
             loop_receipt = register_if_enabled(self)
             if loop_receipt.get("registered"):
                 logger.info(
-                    "🧠 Cognitive-loop pathway wired: %s",
+                    "Cognitive-loop pathway wired: %s",
                     loop_receipt["registered"],
                 )
         except _AGENCY_BOUNDARY_ERRORS as exc:
@@ -754,7 +754,7 @@ class AgencyCore:
                 exc, action="cognitive-loop pathway registration skipped"
             )
 
-        logger.info("🧠 AgencyCore background pathways activated.")
+        logger.info("AgencyCore background pathways activated.")
 
     async def _setup_spatial_empathy_watcher(self):
         """Listen for connection requests and cache non-blocking screen context."""
@@ -762,7 +762,7 @@ class AgencyCore:
 
         workspace = ServiceContainer.get("global_workspace", default=None)
         if not workspace:
-            logger.warning("🧠 Spatial Empathy Watcher: Global workspace not found. Empathy disabled.")
+            logger.warning("Spatial Empathy Watcher: Global workspace not found. Empathy disabled.")
             return
 
         from core.brain.initiative_engine import _proactivity_suppressed_now
@@ -795,10 +795,10 @@ class AgencyCore:
                 # directly and leaving no trace.
                 if _proactivity_suppressed_now():
                     logger.info(
-                        "👀 Spatial Empathy: quiet window in force — not reading the screen."
+                        "Spatial Empathy: quiet window in force — not reading the screen."
                     )
                     return
-                logger.info("👀 Spatial Empathy: Soul requested connection. Checking user context non-blockingly.")
+                logger.info("Spatial Empathy: Soul requested connection. Checking user context non-blockingly.")
                 try:
                     from skills.computer_use import ComputerUseSkill
                     skill = ComputerUseSkill()
@@ -811,17 +811,17 @@ class AgencyCore:
 
                     if screen_context and "Text on screen" in screen_context:
                         self.on_visual_change(f"User is currently viewing: {screen_context[:150]}...")
-                        logger.info("👀 Spatial Empathy: Context acquired and cached for volition.")
+                        logger.info("Spatial Empathy: Context acquired and cached for volition.")
                     else:
-                        logger.debug("👀 Spatial Empathy: Screen read returned empty/irrelevant context.")
+                        logger.debug("Spatial Empathy: Screen read returned empty/irrelevant context.")
 
                 except _AGENCY_BOUNDARY_ERRORS as e:
                     _record_agency_degradation(e, action="spatial empathy screen read skipped")
-                    logger.error("👀 Spatial Empathy Failed: %s", e)
+                    logger.error("Spatial Empathy Failed: %s", e)
 
         # Register handler with GWT
         workspace.subscribe(_handle_spatial_empathy)
-        logger.info("👀 Spatial Empathy Watcher online and listening to Global Workspace.")
+        logger.info("Spatial Empathy Watcher online and listening to Global Workspace.")
 
     @staticmethod
     def _is_visible_output_action(action: dict[str, Any]) -> bool:
@@ -942,7 +942,7 @@ class AgencyCore:
 
         if self.state.safemode:
             if random.random() < 0.05:
-                logger.warning("🚫 Agency suppressed by Spinal Cord Safemode. Awaiting manual override.")
+                logger.warning("Agency suppressed by Spinal Cord Safemode. Awaiting manual override.")
             return None
 
         # ── Viability gate ──────────────────────────────────────────
@@ -958,7 +958,7 @@ class AgencyCore:
             if _behavior.initiative_budget_per_min <= 0.0:
                 if random.random() < 0.02:
                     logger.info(
-                        "🩸 agency suppressed by viability=%s (budget=0)",
+                        "agency suppressed by viability=%s (budget=0)",
                         _viability.state.value,
                     )
                 return None
@@ -969,7 +969,7 @@ class AgencyCore:
             if len(self._viability_emit_window) >= int(_behavior.initiative_budget_per_min):
                 if random.random() < 0.02:
                     logger.info(
-                        "🩸 agency throttled by viability=%s (budget=%.1f, emitted=%d)",
+                        "agency throttled by viability=%s (budget=%.1f, emitted=%d)",
                         _viability.state.value,
                         _behavior.initiative_budget_per_min,
                         len(self._viability_emit_window),
@@ -1059,7 +1059,7 @@ class AgencyCore:
                 effort = resilience.get_effort_modifier()
                 if random.random() > effort:
                     logger.info(
-                        "⚡ Agency action suppressed by ResilienceEngine (effort=%.2f)",
+                        "Agency action suppressed by ResilienceEngine (effort=%.2f)",
                         effort,
                     )
                     try:
@@ -1292,7 +1292,7 @@ class AgencyCore:
                 extraversion = pe.traits.get('extraversion', 0.5)
                 self.state.social_hunger = min(1.0, self.state.social_hunger + (extraversion * 0.01))
             else:
-                logger.debug("🧠 AgencyCore: Personality engine traits unavailable for modulation.")
+                logger.debug("AgencyCore: Personality engine traits unavailable for modulation.")
         except _AGENCY_BOUNDARY_ERRORS as e:
             _record_agency_degradation(e, action="personality agency modulation skipped")
             logger.debug("Failed to sync personality_engine: %s", e)
@@ -1401,7 +1401,7 @@ class AgencyCore:
             context_summary,
             limit=_MAX_AMBIENT_CONTEXT_CHARS,
         )
-        logger.debug("🧠 AgencyCore absorbed new ambient context: %s", self.state.current_ambient_context)
+        logger.debug("AgencyCore absorbed new ambient context: %s", self.state.current_ambient_context)
 
     def _get_sensory_summary(self) -> str:
         """Resolve and summarize the continuous sensorium."""
@@ -1582,7 +1582,7 @@ class AgencyCore:
             )
         goal["durable"] = durable
         logger.info(
-            "🎯 New goal (%s): %s",
+            "New goal (%s): %s",
             "durable" if durable else "session-only",
             goal_label[:60],
         )
@@ -1649,7 +1649,7 @@ class AgencyCore:
         if status == "completed":
             target_goal["completed_at"] = time.time()
         goal_label = str(goal_text or "")
-        logger.info("🎯 Goal %s updated to: %s", goal_label[:60], status)
+        logger.info("Goal %s updated to: %s", goal_label[:60], status)
         return True
 
     def claim_goal_for_execution(
@@ -2106,7 +2106,7 @@ class AgencyCore:
                 {"affected_selves": ["self", "user"]}
             )
             if not assessment.get("is_morally_acceptable", True):
-                logger.warning("🚫 Goal rejected by MoralReasoningEngine: %s", assessment.get("reasoning"))
+                logger.warning("Goal rejected by MoralReasoningEngine: %s", assessment.get("reasoning"))
                 return {
                     "type": "vetoed_goal",
                     "topic": topic,
@@ -2650,7 +2650,7 @@ class AgencyCore:
         monitor = self._resolve_component("system_monitor")
 
         if not (refiner and evolver and monitor):
-            logger.debug("🧠 AgencyCore: Self-architect pathway skipped — missing internal tools.")
+            logger.debug("AgencyCore: Self-architect pathway skipped — missing internal tools.")
             return None
 
         choice = random.random()
@@ -2947,7 +2947,7 @@ class AgencyCore:
             or self._resolve_component("identity")
         )
         if not identity or not hasattr(identity, "state") or not identity.state.kinship:
-            logger.debug("🧠 AgencyCore: Social reflection skipped — identity or kinship data missing.")
+            logger.debug("AgencyCore: Social reflection skipped — identity or kinship data missing.")
             return None
 
         self._last_social_reflection = now

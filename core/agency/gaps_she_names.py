@@ -154,7 +154,7 @@ def hear_what_she_said_she_cannot(asked: str, reply: str, receipts: Sequence[Any
         record_degradation("gaps_she_names", exc, severity="info", action="her reply was not read for gaps this time")
         return []
     for gap in gaps:
-        logger.info("🧩 she said she cannot: %r — %s%s", gap.said[:120], gap.finding,
+        logger.info("she said she cannot: %r — %s%s", gap.said[:120], gap.finding,
                     f" ({gap.capability})" if gap.capability else "")
     return gaps
 

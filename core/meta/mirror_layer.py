@@ -59,7 +59,7 @@ class MirrorLayer:
         
         last_three = [m.summary for m in self.history[-3:]]
         if len(set(last_three)) == 1:
-            logger.warning("🔄 Recursive Logic Loop detected in Mirror Layer!")
+            logger.warning("Recursive Logic Loop detected in Mirror Layer!")
             self.acoustics_report["logic_loops"] += 1
             self.acoustics_report["pollution_detected"] = True
 

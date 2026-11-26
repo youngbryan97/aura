@@ -110,7 +110,7 @@ def _prompt_within_prefill_ceiling(prompt: Any, *, model_path: str = "", origin:
     bounded = text[:KEEP_HEAD_CHARS] + marker + text[-tail_budget:]
     who = str(origin or "").strip() or "an unnamed caller"
     logger.error(
-        "🪓 [MLX] Prompt %d chars from %s exceeded the %d prefill ceiling for %s — kept "
+        "[MLX] Prompt %d chars from %s exceeded the %d prefill ceiling for %s — kept "
         "head+tail, dropped the middle. An unbounded prompt returns one token and no text.",
         len(text),
         who,
@@ -150,7 +150,7 @@ def cpu_lane_cannot_start(client: Any, prompt_chars: int) -> bool:
     if smallest <= 0 or str(getattr(client, "device", "")).lower() != "cpu" or int(prompt_chars) < smallest:
         return False
     logger.info(
-        "⏭️ [MLX] %s on the CPU could not start a %d-char prompt within its first-token "
+        "[MLX] %s on the CPU could not start a %d-char prompt within its first-token "
         "ceiling; declining a %d-char one now rather than after the same ceiling.",
         os.path.basename(str(getattr(client, "model_path", "") or "")),
         smallest,

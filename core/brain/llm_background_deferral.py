@@ -298,14 +298,14 @@ class _DefersBackgroundWork:
         suffix = f" after suppressing {suppressed} repeated notices" if suppressed else ""
         if endpoint:
             logger.info(
-                "⏸️ Router: Deferring background local endpoint %s (%s)%s.",
+                "Router: Deferring background local endpoint %s (%s)%s.",
                 endpoint,
                 reason,
                 suffix,
             )
             return
         logger.info(
-            "⏸️ Router: Queueing background inference until admission clears for origin=%s reason=%s%s.",
+            "Router: Queueing background inference until admission clears for origin=%s reason=%s%s.",
             origin,
             reason,
             suffix,

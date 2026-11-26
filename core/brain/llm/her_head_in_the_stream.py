@@ -463,5 +463,5 @@ def timed(responses: Any, each: Callable[[], None]) -> Generator[Any, None, None
             looped += asked - came
     finally:
         if count > 1:
-            logger.info("⏱️ [WORKER] %d tokens: %.2fs waiting on the model, %.2fs in the token loop around it",
+            logger.info("[WORKER] %d tokens: %.2fs waiting on the model, %.2fs in the token loop around it",
                         count, waited, looped)

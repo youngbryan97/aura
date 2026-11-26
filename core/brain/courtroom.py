@@ -261,7 +261,7 @@ class Courtroom:
         confidence = self._score(candidates, objections, verifier_ok, bool(evidence))
         unresolved = self._unresolved(objections, verifier_issues, verifier_ok)
         logger.info(
-            "⚖️ [Courtroom] %d candidates, %d objections, verifier=%s → conf %.2f",
+            "[Courtroom] %d candidates, %d objections, verifier=%s → conf %.2f",
             len(candidates), len(objections), "PASS" if verifier_ok else "FAIL", confidence,
         )
         return CourtroomVerdict(

@@ -51,7 +51,7 @@ class SafeSelfOptimizer:
             await self._backup_current_weights()
 
             # 3. Execute the configured local trainer when available.
-            logger.info("🚀 Starting Safe LoRA training gate on %s", dataset_path)
+            logger.info("Starting Safe LoRA training gate on %s", dataset_path)
             trained = await self._run_training_command(dataset_path, base_model)
             if not trained:
                 logger.error("LoRA Optimization: no verified local trainer completed.")
@@ -67,7 +67,7 @@ class SafeSelfOptimizer:
             # Delivery truth: this method trains and VALIDATES. It performs no
             # merge or promotion, so it must not claim one.
             logger.info(
-                "✅ LoRA training gate passed validation (adapter at %s). "
+                "LoRA training gate passed validation (adapter at %s). "
                 "No merge/promotion is performed by this stage.",
                 self.lora_dir,
             )
@@ -259,7 +259,7 @@ class SafeSelfOptimizer:
             legacy = sorted(self.backup_dir.glob("adapter_*.bin"))
             if not legacy:
                 logger.error(
-                    "⏪ Rollback requested but NO backup exists — the adapter "
+                    "Rollback requested but NO backup exists — the adapter "
                     "directory is left in whatever state training produced."
                 )
                 return False
@@ -269,7 +269,7 @@ class SafeSelfOptimizer:
                 await asyncio.to_thread(latest.read_bytes),
                 source="core.adaptation.safe_optimizer.rollback_weights",
             )
-            logger.info("⏪ Rollback complete (legacy): Restored from %s", latest.name)
+            logger.info("Rollback complete (legacy): Restored from %s", latest.name)
             return True
 
         snapshot = snapshots[-1]
@@ -285,10 +285,10 @@ class SafeSelfOptimizer:
             )
             restored += 1
         if restored:
-            logger.info("⏪ Rollback complete: restored %d file(s) from %s",
+            logger.info("Rollback complete: restored %d file(s) from %s",
                         restored, snapshot.name)
             return True
-        logger.error("⏪ Rollback snapshot %s was empty.", snapshot.name)
+        logger.error("Rollback snapshot %s was empty.", snapshot.name)
         return False
 
     @staticmethod

@@ -95,7 +95,7 @@ class ICELayer:
         # Initialize the learned anomaly detector
         self._get_anomaly_detector()
 
-        logger.info("🛡️ [ICE] Intrusion Counter-Electronics ACTIVE. Firewall at 100%.")
+        logger.info("[ICE] Intrusion Counter-Electronics ACTIVE. Firewall at 100%.")
 
     async def shutdown(self):
         """Stop the ICE event processing loop before kernel teardown completes."""
@@ -105,7 +105,7 @@ class ICELayer:
             await asyncio.gather(self._task, return_exceptions=True)
         self._task = None
         self._event_bus = None
-        logger.info("🛡️ [ICE] Intrusion Counter-Electronics OFFLINE.")
+        logger.info("[ICE] Intrusion Counter-Electronics OFFLINE.")
 
     async def _process_events(self):
         """Background loop to drain event queues."""
@@ -167,7 +167,7 @@ class ICELayer:
         # Legacy safety net: hard threshold for extreme drift
         direct_signal = drift > 0.7 or status == "UNCANNY_VALLEY_DETECTED"
         if direct_signal:
-            logger.warning("🚨 [ICE] COGNITIVE ANOMALY DETECTED. Assessing threat level.")
+            logger.warning("[ICE] COGNITIVE ANOMALY DETECTED. Assessing threat level.")
             self._signal_times.append(now)
             self._stable_audits = 0
             self._threat_level = min(
@@ -205,10 +205,10 @@ class ICELayer:
         anomaly = self.classify_anomaly(label)
         description = anomaly.get("description") or anomaly.get("desc") or "Unknown anomaly."
         logger.warning(
-            f"🚨 [ICE] AWE CLASSIFIED: {anomaly['type']} ({description}). "
+            f"[ICE] AWE CLASSIFIED: {anomaly['type']} ({description}). "
             f"Containment: {anomaly['containment']}"
         )
-        logger.warning("🚨 [ICE] EXECUTIVE VIOLATION DETECTED: %s. Increasing threat level.", label)
+        logger.warning("[ICE] EXECUTIVE VIOLATION DETECTED: %s. Increasing threat level.", label)
 
         # Feed violation into learned detector
         detector = self._get_anomaly_detector()
@@ -271,10 +271,10 @@ class ICELayer:
 
     async def _trigger_black_ice_escalation(self, payload: dict[str, Any]):
         """[BLACK ICE] Automated SOAR: Identity Blacklisting and Context Flush."""
-        logger.critical("💀 [BLACK ICE] CRITICAL COGNITIVE THREAT. Commencing Countermeasures.")
+        logger.critical("[BLACK ICE] CRITICAL COGNITIVE THREAT. Commencing Countermeasures.")
         # Simulated SOAR actions
         user_id = payload.get("user_id", "unknown_subject")
-        logger.warning("🚫 [BLACK ICE] Blacklisting Subject: %s", user_id)
+        logger.warning("[BLACK ICE] Blacklisting Subject: %s", user_id)
         if self._event_bus:
             self._event_bus.publish_threadsafe("core/security/black_ice_escalation", {
                 "subject": user_id,
@@ -317,7 +317,7 @@ class ICELayer:
             "state": "contained",
         }
         logger.critical(
-            "⛔ [ICE] CORROBORATED BREACH RISK. Neural containment active "
+            "[ICE] CORROBORATED BREACH RISK. Neural containment active "
             "(incident=%s reason=%s).",
             incident_id,
             reason,

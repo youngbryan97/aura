@@ -354,16 +354,16 @@ def apply_all_fixes(orchestrator: Any) -> bool:
         
         if successful:
             logger.info("\n" + "=" * 70)
-            logger.info("✅ ALL FIXES APPLIED SUCCESSFULLY")
+            logger.info("ALL FIXES APPLIED SUCCESSFULLY")
             logger.info("=" * 70)
             return True
         else:
             logger.error("\n" + "=" * 70)
-            logger.error("❌ INTEGRATION FAILED")
+            logger.error("INTEGRATION FAILED")
             return False
             
     except _INTEGRATION_RECOVERABLE_ERRORS as e:
-        logger.error(f"\n❌ Master integration failed: {e}", exc_info=True)
+        logger.error(f"\nMaster integration failed: {e}", exc_info=True)
         return False
 
 # Main execution for testing

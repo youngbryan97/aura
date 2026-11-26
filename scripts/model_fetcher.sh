@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "${SCRIPT_DIR}/.."
 
-echo "🧠 Aura model fetcher"
+echo "Aura model fetcher"
 echo "   Backend: ${AURA_LOCAL_BACKEND:-mlx}"
 echo ""
 

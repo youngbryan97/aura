@@ -1204,7 +1204,7 @@ class GlobalWorkspace:
                 if incoming <= replacement_threshold:
                     # Incoming really is the least important — drop it and signal flood.
                     logger.warning(
-                        "🧠 [SEIZURE GUARD] GlobalWorkspace FLOODED (%d); dropping lowest bid %s "
+                        "[SEIZURE GUARD] GlobalWorkspace FLOODED (%d); dropping lowest bid %s "
                         "(%.3f ≤ replacement threshold %.3f).",
                         len(self._candidates), candidate.source, incoming, replacement_threshold,
                     )
@@ -1219,7 +1219,7 @@ class GlobalWorkspace:
 
                 # Incoming outranks the weakest → evict the weakest, admit the incoming.
                 logger.warning(
-                    "🧠 [SEIZURE GUARD] GlobalWorkspace FLOODED (%d); evicting weakest %s (%.3f) for %s (%.3f).",
+                    "[SEIZURE GUARD] GlobalWorkspace FLOODED (%d); evicting weakest %s (%.3f) for %s (%.3f).",
                     len(self._candidates), weakest.source, weakest.effective_priority,
                     candidate.source, incoming,
                 )
@@ -1585,7 +1585,7 @@ class GlobalWorkspace:
         if self.ignited and not was_ignited:
             self._ignition_count += 1
             logger.info(
-                "⚡ GW IGNITION #%d: source=%s, priority=%.3f, phi=%.4f",
+                "GW IGNITION #%d: source=%s, priority=%.3f, phi=%.4f",
                 self._ignition_count, winner.source, winner_priority, self._current_phi,
             )
 

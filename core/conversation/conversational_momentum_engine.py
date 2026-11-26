@@ -35,7 +35,7 @@ class ConversationalMomentumEngine:
         """Starts the momentum decay and spontaneous turn loops."""
         self.running = True
         self._decay_task = task_tracker.track(self._momentum_decay_loop(), name="MomentumDecayLoop")
-        logger.info("🌊 ConversationalMomentumEngine active - Flowing with the current.")
+        logger.info("ConversationalMomentumEngine active - Flowing with the current.")
 
     async def stop(self):
         self.running = False
@@ -155,7 +155,7 @@ class ConversationalMomentumEngine:
         """Manual trigger for spontaneous engagement when momentum is high."""
         if self.active_threads and self.active_threads[0].momentum > 0.5:
             thread = self.active_threads[0]
-            logger.info("⚡ [MOMENTUM] Proactive burst requested.")
+            logger.info("[MOMENTUM] Proactive burst requested.")
             
             # Route through the managed local fast lane for momentum bursts.
             llm_router = get_runtime_service("llm_router", default=None)

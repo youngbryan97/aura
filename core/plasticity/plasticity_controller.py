@@ -53,11 +53,11 @@ class PlasticityController:
         if score > 0.7:
             change = (self.state != PlasticityMode.LEARNING)
             self.state = PlasticityMode.LEARNING
-            if change: logger.info("🧠 Plasticity: Entering HIGH LEARNING mode. Throttling challenges.")
+            if change: logger.info("Plasticity: Entering HIGH LEARNING mode. Throttling challenges.")
         elif score < 0.3:
             change = (self.state != PlasticityMode.STABLE)
             self.state = PlasticityMode.STABLE
-            if change: logger.info("🧠 Plasticity: Stabilized. Initiating consolidation bias.")
+            if change: logger.info("Plasticity: Stabilized. Initiating consolidation bias.")
         else:
             self.state = PlasticityMode.CONSOLIDATING
             

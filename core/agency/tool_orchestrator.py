@@ -793,7 +793,7 @@ class ToolOrchestrator:
         success = False
 
         if tool_name == "python_sandbox":
-            logger.info("🛠️ Aura initiated Python Sandbox execution.")
+            logger.info("Aura initiated Python Sandbox execution.")
 
             # One run, and its error goes back to whoever asked for it, as the tool's result.
             #
@@ -808,7 +808,7 @@ class ToolOrchestrator:
             result = prefix + raw_result
 
         elif tool_name == "web_search":
-            logger.info("🌐 Aura initiated Web Search: %s", payload)
+            logger.info("Aura initiated Web Search: %s", payload)
             result = await self.search_web(payload)
             success = self._tool_result_succeeded(result)
 
@@ -818,7 +818,7 @@ class ToolOrchestrator:
                 state = resilience.record_failure(domain="tool_execution", severity=0.5, stakes=0.7)
                 if state.value == "depletion":
                     logger.warning(
-                        "🛑 [Resilience] DEPLETION trigger - Gating further autonomous tasks."
+                        "[Resilience] DEPLETION trigger - Gating further autonomous tasks."
                     )
                     return "[RESILIENCE BLOCK] I am too depleted to continue this autonomous task safely."
             else:

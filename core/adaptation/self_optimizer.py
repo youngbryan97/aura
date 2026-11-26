@@ -73,7 +73,7 @@ class SelfOptimizer:
 
         mem = psutil.virtual_memory()
         if mem.available < 8 * 1024**3:  # <8 GB free -> abort
-            logger.warning("🧠 Nucleus: Insufficient RAM for LoRA. Requires 8GB free.")
+            logger.warning("Nucleus: Insufficient RAM for LoRA. Requires 8GB free.")
             return {"ok": False, "error": "insufficient RAM (need 8 GB free)"}
             
         if not self.dataset_path.exists():
@@ -98,7 +98,7 @@ class SelfOptimizer:
             else:
                 malformed += 1
         if malformed:
-            logger.warning("🧠 Nucleus: Skipped %d malformed dataset line(s).", malformed)
+            logger.warning("Nucleus: Skipped %d malformed dataset line(s).", malformed)
         if len(data) < 5:
             return {"ok": False, "error": "Insufficient valid data in dataset for training"}
 
@@ -111,7 +111,7 @@ class SelfOptimizer:
                 return {"ok": False, "error": "Optimization already in progress"}
             self._is_optimizing = True
         self._abort_requested = False # Reset abort flag for new optimization cycle
-        logger.info("🧠 Nucleus: Starting self-optimization (LoRA) cycle...")
+        logger.info("Nucleus: Starting self-optimization (LoRA) cycle...")
         
         if self.event_bus:
             get_task_tracker().create_task(self.event_bus.publish("core/optimizer/started", {
@@ -177,7 +177,7 @@ class SelfOptimizer:
             duration = time.time() - start_time
             
             if train_result["returncode"] == 0:
-                logger.info("🧠 Nucleus: Training complete. Fusing weights into new model...")
+                logger.info("Nucleus: Training complete. Fusing weights into new model...")
                 from core.brain.llm.model_registry import get_fused_model_root
 
                 fused_root = get_fused_model_root()
@@ -202,7 +202,7 @@ class SelfOptimizer:
                 fusion_ok = fuse_result["returncode"] == 0
                 candidate_receipt: dict[str, Any] | None = None
                 if fusion_ok:
-                    logger.info("🧠 Nucleus: Fusion successful. Recording qualification candidate...")
+                    logger.info("Nucleus: Fusion successful. Recording qualification candidate...")
                     candidate_receipt = await asyncio.to_thread(
                         record_upgrade_candidate,
                         candidate_model_path=fused_dir,
@@ -218,7 +218,7 @@ class SelfOptimizer:
                         },
                     )
                 else:
-                    logger.error("❌ Nucleus: Fusion failed.")
+                    logger.error("Nucleus: Fusion failed.")
 
                 # Delivery truth: overall success requires BOTH training AND
                 # fusion. The previous code returned ok=True (and published
@@ -258,14 +258,14 @@ class SelfOptimizer:
                         "status": "failed",
                         "error": error_msg
                     }))
-                logger.error("❌ Nucleus: Self-optimization failed: %s", error_msg)
+                logger.error("Nucleus: Self-optimization failed: %s", error_msg)
                 return {"ok": False, "error": error_msg}
                 
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError, json.JSONDecodeError, UnicodeError) as e:
             # Broadened: JSON/OS/Unicode/subprocess-shaped failures previously
             # escaped this narrow handler and crashed the optimizer.
             record_degradation('self_optimizer', e)
-            logger.error("❌ Nucleus: Critical optimizer failure: %s", e)
+            logger.error("Nucleus: Critical optimizer failure: %s", e)
             return {"ok": False, "error": str(e)}
         finally:
             if temp_dir:
@@ -282,7 +282,7 @@ class SelfOptimizer:
                                 mx.metal.clear_cache()
                             else:
                                 mx.clear_cache()
-                            logger.info("🧠 Nucleus: MLX cache cleared post-optimization.")
+                            logger.info("Nucleus: MLX cache cleared post-optimization.")
                         finally:
                             sentinel.release()
                 except (ImportError, AttributeError, RuntimeError) as e:
@@ -298,7 +298,7 @@ class SelfOptimizer:
                 recursive=True,
                 source="core.adaptation.self_optimizer.cleanup_temp",
             ):
-                logger.debug("🧠 Nucleus: Temporary training data cleaned.")
+                logger.debug("Nucleus: Temporary training data cleaned.")
         except (AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
             record_degradation('self_optimizer', e)
             logger.warning("Failed to cleanup optimizer temp dir: %s", e)
@@ -335,7 +335,7 @@ class SelfOptimizer:
         stdout = process.stdout
         while process.returncode is None:
             if abortable and getattr(self, "_abort_requested", False):
-                logger.warning("🧠 Nucleus: Memory critical! Terminating LoRA training...")
+                logger.warning("Nucleus: Memory critical! Terminating LoRA training...")
                 process.terminate()
                 try:
                     await asyncio.wait_for(process.wait(), timeout=5.0)

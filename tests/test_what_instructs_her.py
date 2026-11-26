@@ -44,9 +44,9 @@ def test_the_check_reads_the_census_from_her_log(tmp_path):
 
     log = tmp_path / "aura_json.log"
     log.write_text("\n".join(json.dumps(row) for row in (
-        {"timestamp": "2026-10-20T15:00:01", "event": "🧾 [INSTRUCTED] curriculum_loop: 812 characters tell her model "
+        {"timestamp": "2026-10-20T15:00:01", "event": "[INSTRUCTED] curriculum_loop: 812 characters tell her model "
                                                        "who to be or what to do; the first: 'You are a tutor.'"},
-        {"timestamp": "2026-10-20T14:00:00", "event": "🧾 [INSTRUCTED] old_loop: 9 characters tell her model who to be "
+        {"timestamp": "2026-10-20T14:00:00", "event": "[INSTRUCTED] old_loop: 9 characters tell her model who to be "
                                                        "or what to do; the first: 'Never.'"},
         {"timestamp": "2026-10-20T15:00:02", "event": "an unrelated line"})) + "\n")
     found = census(log, since="2026-10-20T14:30")

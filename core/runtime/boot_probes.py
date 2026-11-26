@@ -354,7 +354,7 @@ async def run_boot_probes(
         total = sum(r.duration_s for r in report.results)
         breakdown = ", ".join(f"{r.name}={r.duration_s * 1000:.0f}ms" for r in slowest[:3])
         logger.info(
-            "🔬 Boot probes: %d probes in %.0fms (slowest: %s)",
+            "Boot probes: %d probes in %.0fms (slowest: %s)",
             len(report.results),
             total * 1000,
             breakdown,

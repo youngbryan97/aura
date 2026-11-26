@@ -222,7 +222,7 @@ class InitiativeGenerationPhase(BasePhase):
         pause_reason = self._autonomy_pause_reason()
         if pause_reason:
             note_branch("paused", pause_reason=pause_reason)
-            logger.debug("⚡ InitiativeGeneration: paused while runtime is guarded (%s).", pause_reason)
+            logger.debug("InitiativeGeneration: paused while runtime is guarded (%s).", pause_reason)
             return state
 
         try:
@@ -319,7 +319,7 @@ class InitiativeGenerationPhase(BasePhase):
         lonely = state.affect.social_hunger * gates.multiplier("social") > threshold
 
         if curious or lonely or is_bored:
-            logger.info("⚡ InitiativeGeneration: Triggered by %s.",
+            logger.info("InitiativeGeneration: Triggered by %s.",
                         'curiosity' if curious else 'social_hunger' if lonely else 'boredom')
             
             self._last_impulse_time = now

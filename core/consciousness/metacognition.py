@@ -323,7 +323,7 @@ class MetaCognitionEngine:
     async def start(self):
         self.running = True
         self._task = get_task_tracker().create_task(self._audit_loop())
-        logger.info("🧠 Meta-Cognition: System Audit & Reasoning Monitor active.")
+        logger.info("Meta-Cognition: System Audit & Reasoning Monitor active.")
 
     async def stop(self):
         self.running = False
@@ -347,7 +347,7 @@ class MetaCognitionEngine:
         return None
 
     async def _trigger_cognitive_reset(self):
-        logger.error("🚨 CRITICAL COGNITIVE FAILURE: Triggering Reset.")
+        logger.error("CRITICAL COGNITIVE FAILURE: Triggering Reset.")
         substrate = ServiceContainer.get("liquid_substrate", default=None)
         if substrate:
             with substrate.sync_lock:
@@ -379,7 +379,7 @@ class MetaCognitionEngine:
         violation = self._check_consistency(reasoning, action_desc)
         if violation:
             self.violation_count += 1
-            logger.warning("⚠️ COGNITIVE DISSONANCE: %s", violation)
+            logger.warning("COGNITIVE DISSONANCE: %s", violation)
             if self.violation_count >= self.max_violations:
                 await self._trigger_cognitive_reset()
 
@@ -394,7 +394,7 @@ class MetaCognitionEngine:
         
         # Phase 19.3: Check for recursive depth
         if "Architectural Auditing" in task:
-            logger.info("🛡️ Metadata Cycle: Analyzing internal Cathedral Acoustics.")
+            logger.info("Metadata Cycle: Analyzing internal Cathedral Acoustics.")
 
         # Low impact by default for monitoring, but can be scaled
         self.reflector.log_experience("reasoning_task", f"{task} -> {result}", impact=0.3)

@@ -72,7 +72,7 @@ class ProgressiveAutonomySystem:
         self._questions_asked: int = 0
         self._execution_outcomes: deque = deque(maxlen=500)
         self._load_state()
-        logger.info("🔓 EDI initialized. Tier: %s, Trust: %.3f", self._tier.value, self._trust_score)
+        logger.info("EDI initialized. Tier: %s, Trust: %.3f", self._tier.value, self._trust_score)
 
     def _load_state(self):
         if self.persist_path.exists():

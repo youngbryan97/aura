@@ -236,7 +236,7 @@ class InnerMonologue:
             )
             logger.debug("InnerMonologue: mycelium registration failed: %s", e)
 
-        logger.info("✅ InnerMonologue ONLINE — router_available=%s", self._router_available)
+        logger.info("InnerMonologue ONLINE — router_available=%s", self._router_available)
 
     def _ensure_router(self) -> Any:
         """Lazy fetch the router if it was missing at start."""
@@ -247,7 +247,7 @@ class InnerMonologue:
         self._llm_router = ServiceContainer.get("llm_router", default=None)
         if self._llm_router:
             self._router_available = True
-            logger.info("🧠 InnerMonologue: Linked to LLMRouter (Lazy Recovery)")
+            logger.info("InnerMonologue: Linked to LLMRouter (Lazy Recovery)")
         return self._llm_router
 
     # ─── Main entry ──────────────────────────────────────────────────────────

@@ -152,7 +152,7 @@ def main(argv: list[str]) -> int:
         was = int((previous or {}).get("raw_lock_calls", 0))
         if previous is not None and raw > was:
             print(
-                f"❌ refusing to raise the baseline: {was} -> {raw}. "
+                f"refusing to raise the baseline: {was} -> {raw}. "
                 "Migrate the new raw locks to checked_lock / checked_async_lock, "
                 "or adopt the section with instrument()."
             )
@@ -171,12 +171,12 @@ def main(argv: list[str]) -> int:
 
     baseline = _load_baseline()
     if baseline is None:
-        print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
+        print(f"no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
         return 1
 
     allowed = int(baseline.get("raw_lock_calls", 0))
     if raw > allowed:
-        print(f"❌ raw lock constructions rose: {allowed} -> {raw}")
+        print(f"raw lock constructions rose: {allowed} -> {raw}")
         previous = baseline.get("raw_by_file") or {}
         for name, count in sorted(current["raw_by_file"].items()):  # type: ignore[union-attr]
             was = int(previous.get(name, 0))
@@ -190,11 +190,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     if raw < allowed:
-        print(f"⬇️  raw lock constructions fell: {allowed} -> {raw}")
+        print(f" raw lock constructions fell: {allowed} -> {raw}")
         print(f"    refresh with: python {Path(__file__).name} --write-baseline")
         return 1
 
-    print("✅ lock coverage held at baseline")
+    print("lock coverage held at baseline")
     return 0
 
 

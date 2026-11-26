@@ -110,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(report, indent=2))
     if findings:
         print(
-            "\n❌ Proof fabrication detected. A proof must grade real outputs or "
+            "\nProof fabrication detected. A proof must grade real outputs or "
             "label fixtures as controlled-smoke — never assert victory over "
             "invented numbers.",
             file=sys.stderr,

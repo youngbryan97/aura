@@ -16,12 +16,12 @@ class SomaSubsystem:
     async def start(self):
         """Activate somatic sensors."""
         await self.soma.start()
-        logger.info("🧘 SomaSubsystem: Proprioception loop active.")
+        logger.info("SomaSubsystem: Proprioception loop active.")
 
     async def stop(self):
         """Deactivate somatic sensors."""
         await self.soma.stop()
-        logger.info("🧘 SomaSubsystem: Sensors offline.")
+        logger.info("SomaSubsystem: Sensors offline.")
 
     def get_status(self):
         """Return a snapshot of physical state."""

@@ -43,11 +43,11 @@ async def test_nethack_memory_horizon():
         )
 
         if found_altar_spatial:
-            print(f"   ✅ Spatial recall success: Found at {spatial_results[0][0]}")
+            print(f"   Spatial recall success: Found at {spatial_results[0][0]}")
 
         print("   - Querying for turn 400 feature (spatial)...")
         spatial_results = await memory.find_feature("izchak")
         assert spatial_results, "Failed to recall the shopkeeper from turn 400"
-        print("   ✅ Memory horizon test passed via spatial layer!")
+        print("   Memory horizon test passed via spatial layer!")
     finally:
         await memory.on_stop_async()

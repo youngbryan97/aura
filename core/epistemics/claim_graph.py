@@ -53,7 +53,7 @@ class ClaimGraph:
             self.nodes[cid2].contradiction_links.append(cid1)
             self.contradictions.setdefault(cid1, set()).add(cid2)
             self.contradictions.setdefault(cid2, set()).add(cid1)
-            logger.warning("⚠️ Contradiction link established between %s and %s", cid1, cid2)
+            logger.warning("Contradiction link established between %s and %s", cid1, cid2)
 
 
 import logging

@@ -177,7 +177,7 @@ class WebhookAlertHandler(logging.Handler):
         try:
             log_entry = self.format(record)
             payload = {
-                "content": f"🚨 **AURA CRITICAL ALERT** 🚨\n```text\n{log_entry}\n```"
+                "content": f"**AURA CRITICAL ALERT**\n```text\n{log_entry}\n```"
             }
             # Short timeout to avoid hanging the main loop
             get_network_gateway().request(
@@ -232,7 +232,7 @@ def setup_enhanced_logging(logger_name: str = "Aura"):
         alert_handler.setLevel(logging.ERROR)
         alert_handler.setFormatter(formatter)
         logger.addHandler(alert_handler)
-        logger.info("📡 Webhook Alerting system active.")
+        logger.info("Webhook Alerting system active.")
     else:
         logger.info("Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).")
 

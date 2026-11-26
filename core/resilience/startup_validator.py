@@ -288,7 +288,7 @@ class StartupValidator:
                     is_orphaned = process.ppid == 1
                     
                     if "mlx_worker" in cmdline and is_orphaned:
-                        logger.warning("💉 [REAPER] Reaping orphaned MLX worker (PID: %d)", process.pid)
+                        logger.warning("[REAPER] Reaping orphaned MLX worker (PID: %d)", process.pid)
                         os.kill(process.pid, signal.SIGKILL)
                         reaped_count += 1
                 except (ProcessLookupError, PermissionError):

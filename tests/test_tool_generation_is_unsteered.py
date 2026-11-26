@@ -7,7 +7,7 @@ user-surface quality validation. So the surface quality gate was pointed at a
 tool call — which is not a user-facing answer and never passes it — and the
 worker generated 100 tokens and then cleared them:
 
-    ⚠️ [WORKER] Generation produced 100 token(s) but no text survived to the
+    [WORKER] Generation produced 100 token(s) but no text survived to the
     caller — discarded downstream, not a decode failure
 
 The generation was never the problem. Whether the eventual REPLY is a good

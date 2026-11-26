@@ -78,7 +78,7 @@ class SerializedDBWriter:
         self._writes_since_checkpoint: Dict[str, int] = {}
         self._thread = threading.Thread(target=self._writer_loop, daemon=True, name="db-writer")
         self._thread.start()
-        logger.info("📝 SerializedDBWriter started")
+        logger.info("SerializedDBWriter started")
 
     def _get_conn(self, db_path: str) -> sqlite3.Connection:
         """ISSUE 27 fix: Thread-local connection fetching to avoid cross-thread collision."""
@@ -209,7 +209,7 @@ class SerializedDBWriter:
                             if "locked" in str(e).lower() and attempt < max_retries - 1:
                                 sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0, 0.05)
                                 logger.warning(
-                                    "⚠️ DB locked conflict in batch. Attempt %d/%d. Sleeping %.3fs",
+                                    "DB locked conflict in batch. Attempt %d/%d. Sleeping %.3fs",
                                     attempt + 1, max_retries, sleep_time
                                 )
                                 time.sleep(sleep_time)
@@ -332,7 +332,7 @@ class SerializedDBWriter:
         # a fresh one.
         if hasattr(self._local, "connections"):
             self._local.connections.clear()
-        logger.info("📝 SerializedDBWriter shut down")
+        logger.info("SerializedDBWriter shut down")
 
     def flush_and_checkpoint(self) -> None:
         """Force WAL checkpoint across all writer connections."""

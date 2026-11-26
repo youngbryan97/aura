@@ -11,8 +11,8 @@ turns.
 
 LIVE, 2026-09-08:
 
-    🔥 [MLX] Verifying conversation readiness ... with a visible probe
-    🧊 [PROMPT CACHE] cleared everything under key=(5026061904, 'user_surface')
+    [MLX] Verifying conversation readiness ... with a visible probe
+    [PROMPT CACHE] cleared everything under key=(5026061904, 'user_surface')
 
 then three consecutive turns of one conversation, each `matched 0 (0.0%)`
 against 663 tokens retained from the turn before.

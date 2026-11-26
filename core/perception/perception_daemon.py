@@ -138,7 +138,7 @@ class PerceptionDaemon:
             os.getenv("AURA_PERCEPTION_FILE_SCAN_ROOT", str(state_root()))
         )
 
-        logger.info("📡 PerceptionDaemon initialized.")
+        logger.info("PerceptionDaemon initialized.")
 
     @classmethod
     async def get(cls) -> PerceptionDaemon:
@@ -157,7 +157,7 @@ class PerceptionDaemon:
         if self.running:
             return
         self.running = True
-        logger.info("📡 PerceptionDaemon starting background sensory loops...")
+        logger.info("PerceptionDaemon starting background sensory loops...")
 
         self._tasks.append(
             get_task_tracker().create_task(
@@ -172,7 +172,7 @@ class PerceptionDaemon:
             )
         )
 
-        logger.info("📡 PerceptionDaemon is ONLINE.")
+        logger.info("PerceptionDaemon is ONLINE.")
 
     async def stop(self) -> None:
         self.running = False
@@ -184,7 +184,7 @@ class PerceptionDaemon:
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
         self._tasks.clear()
-        logger.info("📡 PerceptionDaemon is OFFLINE.")
+        logger.info("PerceptionDaemon is OFFLINE.")
 
     def register_moment(self, source: str, content: str, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         """Insert a perceptual moment, apply privacy filters, and publish to the EventBus."""
@@ -357,7 +357,7 @@ class PerceptionDaemon:
         except (ImportError, RuntimeError, AttributeError):
             headless = False
         if headless:
-            logger.info("📡 PerceptionDaemon: headless runtime — GUI perception dormant.")
+            logger.info("PerceptionDaemon: headless runtime — GUI perception dormant.")
         while self.running:
             try:
                 if headless:
@@ -672,12 +672,12 @@ class PerceptionDaemon:
             "last_seen": time.time(),
             "metadata": dict(metadata or {}),
         }
-        logger.info("🆕 Tracking entity: %s (type=%s, ID=%s)", name, entity_type, entity_id)
+        logger.info("Tracking entity: %s (type=%s, ID=%s)", name, entity_type, entity_id)
         return entity_id
 
     async def active_perceive(self, probe_type: str, query: str | None = None) -> dict[str, Any]:
         """Force a perception probe like a manual screen capture or file verification."""
-        logger.info("🔍 Active perception triggered: probe_type=%s, query=%s", probe_type, query)
+        logger.info("Active perception triggered: probe_type=%s, query=%s", probe_type, query)
         
         if probe_type == "screen_ocr":
             vision = optional_service("vision_engine")

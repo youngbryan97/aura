@@ -1102,7 +1102,7 @@ class LiquidSubstrate(_HowTheSubstrateLearns, _KeepsItsStateOnDisk):
         from core.consciousness.stdp_learning import frobenius_ceiling
 
         with self.sync_lock:
-            logger.info("🧠 Calibrating neutral substrate for long-term resonance.")
+            logger.info("Calibrating neutral substrate for long-term resonance.")
             # Shift weights towards the resonance vector (historical semantic density)
             calibration_rate = 0.01
             # Stability: Tanh on resonance to bound the update

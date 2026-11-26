@@ -117,7 +117,7 @@ except (OSError, IOError) as e:
                 name=f"probe-listener:{probe_id}",
             )
             
-            logger.info("👻 Ghost Probe '%s' deployed to watch %s.", probe_id, target)
+            logger.info("Ghost Probe '%s' deployed to watch %s.", probe_id, target)
             return True
         except (subprocess.SubprocessError, OSError, RuntimeError, TimeoutError, ValueError) as e:
             probe_path.unlink(missing_ok=True)
@@ -186,7 +186,7 @@ except (OSError, IOError) as e:
                 logger.debug("Failed to remove probe script %s: %s", path, e)
 
         if ok:
-            logger.info("👻 Ghost Probe '%s' cleaned up.", probe_id)
+            logger.info("Ghost Probe '%s' cleaned up.", probe_id)
         return ok
 
     async def stop(self) -> bool:

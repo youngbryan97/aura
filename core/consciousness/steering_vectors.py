@@ -371,7 +371,7 @@ class SteeringVectorLibrary(_ReadsACachedVector):
                 self._source_dirs.append(path)
         if self._source_dirs:
             logger.info(
-                "🎯 Steering vectors: using runtime cache %s with %d compatible source dir(s)",
+                "Steering vectors: using runtime cache %s with %d compatible source dir(s)",
                 self._cache_dir,
                 len(self._source_dirs),
             )
@@ -451,7 +451,7 @@ class SteeringVectorLibrary(_ReadsACachedVector):
             raise ValueError("steering_model_identity_unavailable")
         key = dim_spec["key"]
         cache_path = self._cache_dir / f"{key}_layer{target_layer}.npz"
-        logger.info("🔬 Deriving steering vector: %s (layer %d)...", key, target_layer)
+        logger.info("Deriving steering vector: %s (layer %d)...", key, target_layer)
         try:
             vec = self._derive_caa(
                 model=model,
@@ -610,7 +610,7 @@ class SteeringVectorLibrary(_ReadsACachedVector):
 
         self._vectors = dict(self._vectors_by_layer.get(target_layers[0], {}))
         logger.info(
-            "📚 SteeringVectorLibrary ready: %d loaded, %d derived, %d nearest-layer matches",
+            "SteeringVectorLibrary ready: %d loaded, %d derived, %d nearest-layer matches",
             loaded,
             derived,
             nearest,

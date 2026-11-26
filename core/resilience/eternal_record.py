@@ -21,7 +21,7 @@ class EternalRecord:
         self.brain_dir = brain_dir
         self.records_dir = brain_dir / "eternal_records"
         self.records_dir.mkdir(parents=True, exist_ok=True)
-        logger.info("🏺 Eternal Record Archive initialized at %s", self.records_dir)
+        logger.info("Eternal Record Archive initialized at %s", self.records_dir)
 
     def create_snapshot(self, kg_path: Path):
         """Create a full physical and logical snapshot of the system's knowledge."""

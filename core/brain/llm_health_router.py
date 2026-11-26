@@ -1544,7 +1544,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             return False
         if receipts:
             logger.warning(
-                "✋ [ROUTER] Soft-cancelled %d background generation(s) for a "
+                "[ROUTER] Soft-cancelled %d background generation(s) for a "
                 "foreground turn (%s); model stays warm.",
                 len(receipts),
                 reason,
@@ -1787,7 +1787,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             error = res.get("error", "unknown")
             endpoint = res.get("endpoint", "none")
             logger.error(
-                "⚠️ [LLM ROUTER] All endpoints exhausted. Last error: %s (endpoint: %s)",
+                "[LLM ROUTER] All endpoints exhausted. Last error: %s (endpoint: %s)",
                 error, endpoint
             )
             # Receipt for string consumers: this text is a surface fallback,
@@ -1941,7 +1941,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 holder = _oldest_generation_gate_lease()
                 holder_owner = holder[2] if holder is not None else "unknown"
                 logger.info(
-                    "⏸️ Router: Background generation deferred behind active gate owner=%s.",
+                    "Router: Background generation deferred behind active gate owner=%s.",
                     holder_owner[:120],
                 )
                 return _background_generation_gate_deferred_result(holder_owner)
@@ -2184,7 +2184,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             # one line that looked like evidence was not. Diagnosing a turn
             # that should have called a tool and did not starts here.
             logger.info(
-                "🔧 Tool handoff: skill=%s offered=%s",
+                "Tool handoff: skill=%s offered=%s",
                 str(getattr(contract, "required_skill", "") or "?"),
                 ",".join(sorted(tools)) if tools else "NONE",
             )
@@ -2421,7 +2421,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         try:
             deterministic = self._deterministic_intent_classification(prompt)
             if deterministic:
-                logger.info("🧭 Intent classification resolved deterministically: %s", deterministic)
+                logger.info("Intent classification resolved deterministically: %s", deterministic)
                 return deterministic
 
             # We use generate_with_metadata directly to ensure strict parameters
@@ -2441,7 +2441,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             text = re.sub(r'[^a-z_]', '', text)
 
             if not text:
-                logger.warning("⚠️ Intent classification returned empty. Defaulting to 'casual'.")
+                logger.warning("Intent classification returned empty. Defaulting to 'casual'.")
                 return "casual"
 
             allowed_labels = {
@@ -2461,7 +2461,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             for label in allowed_labels:
                 if text.startswith(label):
                     logger.warning(
-                        "⚠️ Intent classifier returned non-token output %r; using leading label %r.",
+                        "Intent classifier returned non-token output %r; using leading label %r.",
                         text[:60],
                         label,
                     )
@@ -2478,7 +2478,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 action="defaulted intent classification to casual after classifier failed",
                 severity="degraded",
             )
-            logger.error("❌ Intent classification failed: %s. Defaulting to 'casual'.", e)
+            logger.error("Intent classification failed: %s. Defaulting to 'casual'.", e)
             return "casual"
 
     async def think_and_act(
@@ -2585,7 +2585,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                 holder = _oldest_generation_gate_lease()
                 holder_owner = holder[2] if holder is not None else "unknown"
                 logger.info(
-                    "⏸️ Router: tool-capable route deferred behind gate owner=%s.",
+                    "Router: tool-capable route deferred behind gate owner=%s.",
                     holder_owner[:120],
                 )
                 return {
@@ -3005,7 +3005,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                     else {}
                 )
                 if warmup_result is not False and lane.get("conversation_ready", False):
-                    logger.info("♻️ Router: restored %s after deep handoff.", PRIMARY_ENDPOINT)
+                    logger.info("Router: restored %s after deep handoff.", PRIMARY_ENDPOINT)
                 else:
                     logger.warning(
                         "Router: %s restore remained unavailable after deep handoff "
@@ -3223,7 +3223,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
                     if self._client is None:
                         from core.brain.llm.mlx_client import get_mlx_client
                         logger.info(
-                            "🧠 [LAZY LOAD] Instantiating local runtime client for %s on demand.",
+                            "[LAZY LOAD] Instantiating local runtime client for %s on demand.",
                             self.target_path,
                         )
                         self._client = get_mlx_client(
@@ -3257,20 +3257,20 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
                         warm_method(),
                         name="llm_router.prewarm_primary_local_runtime",
                     )
-                    logger.info("✅ Scheduled background pre-warming of 72B Cortex model.")
+                    logger.info("Scheduled background pre-warming of 72B Cortex model.")
                 except RuntimeError:
                     logger.debug("No async loop running for pre-warm. Model will load on first inference.")
 
-            logger.info("✅ Local runtime client instantiated for HealthAwareLLMRouter")
+            logger.info("Local runtime client instantiated for HealthAwareLLMRouter")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_router_degradation(
                 e,
                 action="continued router build without standalone local runtime client",
                 severity="degraded",
             )
-            logger.error("❌ Failed to instantiate local runtime client: %s", e)
+            logger.error("Failed to instantiate local runtime client: %s", e)
     else:
-        logger.info("🛡️ HealthRouter using existing InferenceGate; skipping standalone local runtime bootstrap.")
+        logger.info("HealthRouter using existing InferenceGate; skipping standalone local runtime bootstrap.")
 
     from core.brain.llm.model_registry import (
         get_active_model,
@@ -3285,7 +3285,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
     # We prefer the established InferenceGate from the ServiceContainer
     # instead of spawning a new standalone local worker during router setup.
     if inference_gate:
-        logger.info("🛡️ HealthRouter syncing with established InferenceGate.")
+        logger.info("HealthRouter syncing with established InferenceGate.")
         router.register(
             name=PRIMARY_ENDPOINT,
             url="internal",
@@ -3298,7 +3298,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
     else:
         # Fallback to legacy if gate not ready
-        logger.warning("⚠️ InferenceGate not found in container. Falling back to legacy client.")
+        logger.warning("InferenceGate not found in container. Falling back to legacy client.")
         router.register(
             name=PRIMARY_ENDPOINT,
             url="internal",
@@ -3312,7 +3312,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
 
     if primary_proof_lane:
         logger.info(
-            "🛡️ Proof-primary lane active — HealthRouter exposing only %s; "
+            "Proof-primary lane active — HealthRouter exposing only %s; "
             "Solver, Brainstem, and Reflex endpoints are not registered.",
             PRIMARY_ENDPOINT,
         )
@@ -3337,7 +3337,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         deep_lane_possible = False
     if not deep_lane_possible:
         logger.info(
-            "⏭️  %s not registered: this host cannot admit the deep solver "
+            " %s not registered: this host cannot admit the deep solver "
             "beside the resident cortex.",
             DEEP_ENDPOINT,
         )
@@ -3356,7 +3356,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             client=LazyLocalClient(deep_model_path),
             failure_threshold=3,
         )
-        logger.info("✅ %s registered with an admitted local specialist.", DEEP_ENDPOINT)
+        logger.info("%s registered with an admitted local specialist.", DEEP_ENDPOINT)
     except _DeepLaneUnavailable:
         # Not a failure: the deep lane raised its own unavailability above; this is where that is handled.
         pass
@@ -3366,7 +3366,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             action="continued router build without deep solver lane registration",
             severity="degraded",
         )
-        logger.error("❌ Failed to register %s: %s", DEEP_ENDPOINT, e)
+        logger.error("Failed to register %s: %s", DEEP_ENDPOINT, e)
 
     # Brainstem (7B) — fast local fallback.
     try:
@@ -3379,14 +3379,14 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             client=LazyLocalClient(brainstem_path),
             failure_threshold=3,
         )
-        logger.info("✅ %s registered with lazy 7B client.", BRAINSTEM_ENDPOINT)
+        logger.info("%s registered with lazy 7B client.", BRAINSTEM_ENDPOINT)
     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
         _record_router_degradation(
             e,
             action="continued router build without brainstem fallback lane registration",
             severity="error",
         )
-        logger.error("❌ Failed to register %s: %s", BRAINSTEM_ENDPOINT, e)
+        logger.error("Failed to register %s: %s", BRAINSTEM_ENDPOINT, e)
 
     # Emergency reflex lane (1.5B / CPU-friendly).
     try:
@@ -3400,14 +3400,14 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             failure_threshold=2,
             recovery_timeout=30.0,
         )
-        logger.info("🚨 EMERGENCY Tier registered: %s lazy bypass", FALLBACK_ENDPOINT)
+        logger.info("EMERGENCY Tier registered: %s lazy bypass", FALLBACK_ENDPOINT)
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
         _record_router_degradation(
             e,
             action="continued router build with degraded emergency fallback coverage",
             severity="critical",
         )
-        logger.error("❌ Failed to register %s: %s", FALLBACK_ENDPOINT, e)
+        logger.error("Failed to register %s: %s", FALLBACK_ENDPOINT, e)
 
     return router
 

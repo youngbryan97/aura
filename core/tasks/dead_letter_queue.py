@@ -58,7 +58,7 @@ class DeadLetterQueue:
             )
             con.commit()
         logger.warning(
-            "💀 DLQ: '%s' failed and was quarantined. Error: %s", skill_name, error[:100]
+            "DLQ: '%s' failed and was quarantined. Error: %s", skill_name, error[:100]
         )
         return entry_id
 

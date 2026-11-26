@@ -300,7 +300,7 @@ class BackgroundReasoningQueue:
                     continue
 
                 logger.info(
-                    "🧠 Processing Reasoning Task [%s] (%s) on worker %d...",
+                    "Processing Reasoning Task [%s] (%s) on worker %d...",
                     task.description,
                     task.task_id,
                     worker_id,
@@ -569,7 +569,7 @@ class BackgroundReasoningQueue:
 
             for task in dropped:
                 logger.info(
-                    "🗑️ Pruning low-priority task [%s] due to cognitive overwhelm.",
+                    "Pruning low-priority task [%s] due to cognitive overwhelm.",
                     task.description,
                 )
                 self._finalize_dropped(

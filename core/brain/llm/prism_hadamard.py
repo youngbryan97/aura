@@ -254,7 +254,7 @@ def load_prism_hadamard_text_model(directory: str | Path) -> tuple[Any, dict[str
     model.eval()
     mx.eval(model.parameters())
     logger.info(
-        "🌳 Prism Hadamard pack loaded: %d packed modules, block %d, %d sign width(s)",
+        "Prism Hadamard pack loaded: %d packed modules, block %d, %d sign width(s)",
         len(seen),
         block,
         len(signs),

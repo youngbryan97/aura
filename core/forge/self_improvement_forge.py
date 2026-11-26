@@ -35,7 +35,7 @@ class SelfImprovementForge:
         baseline_performance: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Drives one complete iteration of the self-improvement loop."""
-        logger.info("🚀 Initiating Self-Improvement Forge cycle...")
+        logger.info("Initiating Self-Improvement Forge cycle...")
 
         # 1. Detect weaknesses
         weaknesses = WeaknessDetector.scan_for_weaknesses(recent_execution_logs)
@@ -52,7 +52,7 @@ class SelfImprovementForge:
 
         # Check against regression memory
         if reg_mem.is_known_failure(patch["patch_code"]):
-            logger.error("🚫 Aborting cycle: Patch code matches a known historical failure.")
+            logger.error("Aborting cycle: Patch code matches a known historical failure.")
             return {"ok": False, "status": "blocked_regression_memory"}
 
         # 3. Execute shadow sandbox tests
@@ -79,7 +79,7 @@ class SelfImprovementForge:
             )
             return {"ok": False, "status": "failed_evaluation", "eval_report": eval_report}
 
-        logger.info("🎉 Patch for module %s successfully approved for promotion!", module)
+        logger.info("Patch for module %s successfully approved for promotion!", module)
         return {
             "ok": True,
             "status": "promoted",

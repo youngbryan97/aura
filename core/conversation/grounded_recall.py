@@ -369,7 +369,7 @@ def build_own_statement_recall_context(
     turn = resolve_own_prior_turn(user_message, history=history)
     if not turn:
         logger.info(
-            "🧠 [GroundedRecall] own-statement recall detected but no matching "
+            "[GroundedRecall] own-statement recall detected but no matching "
             "prior turn of hers found — cannot ground, letting model answer."
         )
         return None
@@ -378,7 +378,7 @@ def build_own_statement_recall_context(
     # not to report a different original position than this one; without
     # something to compare against afterwards, that is a suggestion.
     remember_own_prior_turn(turn)
-    logger.info("🧠 [GroundedRecall] resolved her own prior turn for grounding.")
+    logger.info("[GroundedRecall] resolved her own prior turn for grounding.")
     return (
         "[GROUNDED RECALL — this is the verbatim fact; answer from it, do not guess]\n"
         "Earlier in this same conversation, YOU said:\n"
@@ -694,14 +694,14 @@ def build_grounded_recall_context(user_message: str, history: Any = None) -> str
     turn = resolve_positional_turn(user_message, position, history=history)
     if not turn:
         logger.info(
-            "🧠 [GroundedRecall] positional=%s detected but no prior turn found "
+            "[GroundedRecall] positional=%s detected but no prior turn found "
             "(history_len=%s) — cannot ground, letting model answer.",
             position,
             len(history) if isinstance(history, list) else "n/a",
         )
         return None
     which = "first thing" if position == "first" else "most recent thing (before this turn)"
-    logger.info("🧠 [GroundedRecall] positional=%s resolved actual turn for grounding.", position)
+    logger.info("[GroundedRecall] positional=%s resolved actual turn for grounding.", position)
     block = (
         f"[GROUNDED RECALL — this is the verbatim fact; answer from it, do not guess]\n"
         f"The {which} the user actually said to you in this conversation was:\n"
@@ -870,7 +870,7 @@ def repair_grounded_recall_speaker_attribution(
     claim_words = _provenance_words(_SPEECH_ACT_FRAME_RE.sub("", body))
     if not claim_words or not claim_words <= quote_words:
         logger.debug(
-            "🧠 [GroundedRecall] leaving first-person sentence alone — its "
+            "[GroundedRecall] leaving first-person sentence alone — its "
             "content is not the quoted turn's (%s absent from the quote).",
             sorted(claim_words - quote_words)[:6] or "nothing quotable",
         )

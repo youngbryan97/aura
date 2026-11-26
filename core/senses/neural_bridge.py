@@ -184,7 +184,7 @@ class NeuralBridge:
         self._last_band_profile: dict[str, float] = {}
 
     async def load(self):
-        logger.info("🧠 [NEURAL] Initializing BCI Neural Bridge...")
+        logger.info("[NEURAL] Initializing BCI Neural Bridge...")
 
         try:
             self._main_loop = asyncio.get_running_loop()
@@ -195,7 +195,7 @@ class NeuralBridge:
         await asyncio.to_thread(self._calibrate)
         self.is_trained = True
         logger.info(
-            "✅ [NEURAL] BCI Calibration complete. %s cortex ONLINE.",
+            "[NEURAL] BCI Calibration complete. %s cortex ONLINE.",
             _resident_cortex_label(),
         )
         self.start()
@@ -251,7 +251,7 @@ class NeuralBridge:
             name="AuraNeuralWorker",
         )
         self._worker_thread.start()
-        logger.info("🌊 [NEURAL] Continuous telemetry loop started.")
+        logger.info("[NEURAL] Continuous telemetry loop started.")
 
     def stop(self):
         self._is_running = False
@@ -314,7 +314,7 @@ class NeuralBridge:
                     # (173 lines in one battery run) — pure noise that also
                     # adds log-pipe pressure under load.
                     logger.debug(
-                        "🧠 [NEURAL] Simulated neural telemetry: state=%s quality=%.2f entropy=%.2f novelty=%.2f bands=%s",
+                        "[NEURAL] Simulated neural telemetry: state=%s quality=%.2f entropy=%.2f novelty=%.2f bands=%s",
                         self._last_pattern,
                         self._confidence,
                         self._entropy,
@@ -329,7 +329,7 @@ class NeuralBridge:
                         if prior is not None and not prior.done():
                             # The previous publish has not drained — the loop
                             # is backed up. Drop this tick rather than pile on.
-                            logger.debug("⚠️ [NEURAL] Prior broadcast in flight; dropping tick (backpressure).")
+                            logger.debug("[NEURAL] Prior broadcast in flight; dropping tick (backpressure).")
                         elif loop and not loop.is_closed():
                             future = asyncio.run_coroutine_threadsafe(
                                 self._event_bus.publish(
@@ -341,7 +341,7 @@ class NeuralBridge:
                             self._inflight_broadcast = future
                             future.add_done_callback(self._handle_broadcast_result)
                         else:
-                            logger.debug("⚠️ [NEURAL] Main loop unavailable. Skipping broadcast.")
+                            logger.debug("[NEURAL] Main loop unavailable. Skipping broadcast.")
                     except _NEURAL_RECOVERABLE_ERRORS as loop_error:
                         _record_neural_degradation(
                             loop_error,

@@ -394,12 +394,12 @@ def main(argv: list[str] | None = None) -> int:
     print()
     for proof in proofs:
         mark = {
-            "PROVEN": "✅",
-            "HELD": "🟡",
-            "REFUTED": "🔴",
-            "SKIPPED": "⏭️ ",
-            "FAILED": "❌",
-        }.get(proof.verdict, "❓")
+            "PROVEN": "ok",
+            "HELD": "warning",
+            "REFUTED": "failed",
+            "SKIPPED": "skipped ",
+            "FAILED": "failed",
+        }.get(proof.verdict, "unknown")
         print(f"{mark} [{proof.number}] {proof.title} — {proof.verdict} ({proof.seconds:.1f}s)")
         print(f"     mechanism: {proof.mechanism}")
         print(f"     {proof.detail}")

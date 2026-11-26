@@ -29,7 +29,7 @@ class StateObservatory:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         self.current_log_file = self.log_dir / "state_metrics.jsonl"
         
-        logger.info("🔭 State Observatory initialized. Logging to %s", self.current_log_file)
+        logger.info("State Observatory initialized. Logging to %s", self.current_log_file)
 
     def snapshot(self, event_type: str, context_metadata: Optional[Dict[str, Any]] = None):
         """Captures a snapshot of the current unified state and correlates it with an event."""
@@ -53,7 +53,7 @@ class StateObservatory:
         
         self.history.append(record)
         self._persist_record(record)
-        logger.debug("📸 State Snapshot captured for event: %s", event_type)
+        logger.debug("State Snapshot captured for event: %s", event_type)
 
     def _persist_record(self, record: Dict[str, Any]):
         """Append record to the JSONL log file."""

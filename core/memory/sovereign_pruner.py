@@ -105,7 +105,7 @@ class SovereignPruner:
                 log.append(f"Deferred consolidation for {len(deferred)} memories")
 
             if pending:
-                logger.info("💾 [PRUNER] Consolidating %d memory task(s) this pass (deferred=%d).", len(pending), len(deferred))
+                logger.info("[PRUNER] Consolidating %d memory task(s) this pass (deferred=%d).", len(pending), len(deferred))
                 results = await asyncio.gather(
                     *(self._consolidate(mem) for mem in pending),
                     return_exceptions=True,
@@ -113,7 +113,7 @@ class SovereignPruner:
                 
                 for mem, result in zip(pending, results, strict=True):
                     if isinstance(result, Exception):
-                        logger.warning("⚠️ [PRUNER] Consolidation failed for %s: %s", mem.id[:8], result)
+                        logger.warning("[PRUNER] Consolidation failed for %s: %s", mem.id[:8], result)
                         surviving.append(mem)
                         log.append(f"Failed: {mem.id[:8]}")
                     elif result:

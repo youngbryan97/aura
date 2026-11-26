@@ -407,7 +407,7 @@ def register_core_pathways(mycelium: Any):
             "hyphae": len(topology.get("hyphae") or {}),
         }
     logger.info(
-        "🍄 [MYCELIUM] registered %d pathways and %d hyphae via extracted initializer.",
+        "[MYCELIUM] registered %d pathways and %d hyphae via extracted initializer.",
         counts["pathways"],
         counts["hyphae"],
     )

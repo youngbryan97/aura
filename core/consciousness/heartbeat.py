@@ -194,7 +194,7 @@ class CognitiveHeartbeat:
         if self._stop_event is None:
             self._stop_event = asyncio.Event()
 
-        logger.info("💓 Cognitive Heartbeat STARTED")
+        logger.info("Cognitive Heartbeat STARTED")
         interval = 1.0 / max(self._TICK_RATE_HZ, 0.1)
 
         while not self._stop_event.is_set():
@@ -247,7 +247,7 @@ class CognitiveHeartbeat:
             except asyncio.CancelledError:
                 break
 
-        logger.info("💓 Cognitive Heartbeat STOPPED (total ticks: %s)", self.tick_count)
+        logger.info("Cognitive Heartbeat STOPPED (total ticks: %s)", self.tick_count)
 
     def stop(self):
         self._stop_event.set()
@@ -723,7 +723,7 @@ class CognitiveHeartbeat:
             if not resource_stress:
                 await self._inject_narrative()
             else:
-                logger.warning("⚠️ Resource stress detected: Throttling narrative injection.")
+                logger.warning("Resource stress detected: Throttling narrative injection.")
 
         # ── 10. DEBUG LOG every 10 ticks ───────────────────────────────
         if tick % 10 == 0:

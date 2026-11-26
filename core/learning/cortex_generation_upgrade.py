@@ -1233,7 +1233,7 @@ def stage_upgrade(
         "evaluation_verdict": evaluation.get("verdict"),
         "staged_at": time.time(),
     }
-    logger.info("🧬 Cortex upgrade STAGED: %s → %s", current["active_model_path"], candidate)
+    logger.info("Cortex upgrade STAGED: %s → %s", current["active_model_path"], candidate)
     return receipt
 
 
@@ -1399,7 +1399,7 @@ def activate_upgrade(
         "activated_at": time.time(),
     }
     logger.info(
-        "🧬 Cortex upgrade ACTIVATED by %s (effective at next boot)",
+        "Cortex upgrade ACTIVATED by %s (effective at next boot)",
         authorized_by.strip(),
     )
     return receipt
@@ -1436,7 +1436,7 @@ def rollback_upgrade(*, fused_model_dir: Path | str | None = None) -> dict[str, 
         "restored_sha256": hashlib.sha256(restored).hexdigest(),
         "rolled_back_at": time.time(),
     }
-    logger.info("🧬 Cortex upgrade ROLLED BACK (byte_exact=%s)", exact)
+    logger.info("Cortex upgrade ROLLED BACK (byte_exact=%s)", exact)
     return receipt
 
 

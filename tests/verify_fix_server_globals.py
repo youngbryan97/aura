@@ -39,7 +39,7 @@ server.AgentThread = FixtureAgentThread
 
 async def test_server_globals():
     """Verify that lifespan updates global aura_agent"""
-    print("🧪 Testing Server Global Variable Linkage...")
+    print("Testing Server Global Variable Linkage...")
 
     # Run lifespan context
     async with server.lifespan(server.app):
@@ -48,13 +48,13 @@ async def test_server_globals():
 
         # Check if global aura_agent is set
         if server.aura_agent is not None:
-            print("✅ Success: server.aura_agent is linked!")
+            print("Success: server.aura_agent is linked!")
             if isinstance(server.aura_agent, FixtureOrchestrator):
-                print("✅ Success: server.aura_agent is the correct instance!")
+                print("Success: server.aura_agent is the correct instance!")
             else:
-                print(f"❌ Failure: server.aura_agent is wrong type: {type(server.aura_agent)}")
+                print(f"Failure: server.aura_agent is wrong type: {type(server.aura_agent)}")
         else:
-            print("❌ Failure: server.aura_agent is None!")
+            print("Failure: server.aura_agent is None!")
 
 
 if __name__ == "__main__":

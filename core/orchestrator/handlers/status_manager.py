@@ -291,7 +291,7 @@ class StatusManagerMixin:
 
             if not semantic_routing_ready():
                 if await asyncio.to_thread(warm_semantic_routing):
-                    logger.info("🧭 Semantic evidence routing is warm.")
+                    logger.info("Semantic evidence routing is warm.")
 
             from core.runtime.background_policy import (
                 IDLE_COGNITION_BACKGROUND_POLICY,
@@ -314,7 +314,7 @@ class StatusManagerMixin:
             # arriving during this warm cycle takes the next slot.
             settled = await asyncio.to_thread(warm_language_matchers, 1)
             if settled:
-                logger.info("🧠 Settled %d new phrasing(s) from use.", settled)
+                logger.info("Settled %d new phrasing(s) from use.", settled)
         except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
             from core.runtime.errors import record_degradation
 

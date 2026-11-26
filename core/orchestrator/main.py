@@ -180,7 +180,7 @@ async def _start_the_background_organs(
     ):
         # [STABILITY FIX] mind_tick.start() is a continuous loop. Must run in background.
         self._fire_and_forget(self.mind_tick.start(), name="orchestrator.mind_tick.start")
-        logger.info("🧠 Peer Mode: MindTick elevated as primary sovereign thread")
+        logger.info("Peer Mode: MindTick elevated as primary sovereign thread")
 
         # Optional compatibility hook for a one-time boot deliberation.
         # Normal desktop operation uses the resource-admitted recurring
@@ -229,22 +229,22 @@ async def _start_the_background_organs(
                     ),
                     name="orchestrator.swarm.start_permanent_debate",
                 )
-                logger.info("🗣️ Peer Mode: One boot-time internal deliberation scheduled")
+                logger.info("Peer Mode: One boot-time internal deliberation scheduled")
             else:
                 logger.info(
-                    "🗣️ Peer Mode: Permanent swarm debate suppressed by Executive: %s",
+                    "Peer Mode: Permanent swarm debate suppressed by Executive: %s",
                     swarm_reason,
                 )
         elif self.sovereign_swarm is not None and not swarm_autostart:
             logger.info(
-                "🗣️ Peer Mode: Boot-time swarm disabled; conductor-managed deliberation remains scheduled."
+                "Peer Mode: Boot-time swarm disabled; conductor-managed deliberation remains scheduled."
             )
         elif self.sovereign_swarm is not None:
             logger.warning(
-                "🗣️ Peer Mode: sovereign_swarm missing 'start_permanent_debate' method. Interface mismatch?"
+                "Peer Mode: sovereign_swarm missing 'start_permanent_debate' method. Interface mismatch?"
             )
 
-        # 🛠️ [PEER MODE] Evolution 7: Sovereign self-modification loop
+        # [PEER MODE] Evolution 7: Sovereign self-modification loop
         if hasattr(self, "_self_modification") or hasattr(self, "meta_learning"):
             self_mod_allowed = True
             self_mod_reason = "authority_unavailable"
@@ -274,17 +274,17 @@ async def _start_the_background_organs(
                     self._safe_self_modification_loop(),
                     name="orchestrator.safe_self_modification_loop",
                 )
-                logger.info("🛠️ Peer Mode: Sovereign self-modification loop active")
+                logger.info("Peer Mode: Sovereign self-modification loop active")
             else:
                 logger.info(
-                    "🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: %s",
+                    "Peer Mode: Sovereign self-modification loop suppressed by Executive: %s",
                     self_mod_reason,
                 )
     elif _foreground_only_runtime():
         logger.info("Peer Mode background loops disabled for foreground-only boot.")
     elif config.skeletal_mode:
         logger.info(
-            "💀 Skeletal Mode: High-CPU autonomous subsystems (MindTick, Swarm, Self-Mod) bypassed."
+            "Skeletal Mode: High-CPU autonomous subsystems (MindTick, Swarm, Self-Mod) bypassed."
         )
 
 
@@ -313,7 +313,7 @@ async def _start_the_perception_organs(
             level="info",
             category="WakingSequence",
         )
-        logger.info("🌅 Waking Sequence emitted (gap=%.1fh)", _gap_h)
+        logger.info("Waking Sequence emitted (gap=%.1fh)", _gap_h)
 
         # For gaps > 10 minutes, generate an LLM orientation narrative
         # and emit it as a second thought (non-blocking — don't delay boot)
@@ -370,10 +370,10 @@ async def _start_the_reflection_organs(
     """
     if self.ears:
         if hasattr(self.ears, "should_auto_listen") and self.ears.should_auto_listen():
-            logger.info("🚩 [ORCHESTRATOR] Starting Sovereign Ears...")
+            logger.info("[ORCHESTRATOR] Starting Sovereign Ears...")
 
             def _hear_callback(text):
-                logger.info("👂 Heard: %s", text)
+                logger.info("Heard: %s", text)
                 # Phase Transcendental: Route voice through the FULL cognitive pipeline
                 # (not a separate lightweight LLM). Use run_coroutine_threadsafe because
                 # this callback fires from a non-async STT thread.
@@ -522,7 +522,7 @@ class RobustOrchestrator(
 
         if len(self._autonomous_action_times) >= config.max_autonomous_actions_per_hour:
             logger.warning(
-                "⚠️ Autonomous rate limit reached (%d/hr). Suppressing action.",
+                "Autonomous rate limit reached (%d/hr). Suppressing action.",
                 config.max_autonomous_actions_per_hour,
             )
             # Defensive check: If rate limit reached, suppress action and clear current thought task
@@ -810,7 +810,7 @@ class RobustOrchestrator(
         """[PATCH 31] Robust Queue Restoration.
         Ensures communication channels are active even after partial failure.
         """
-        logger.info("🔄 [RECOVERY] Restoring communication queues...")
+        logger.info("[RECOVERY] Restoring communication queues...")
         self._init_queues()
         self.status.is_processing = False
         return True
@@ -935,7 +935,7 @@ class RobustOrchestrator(
                 # _async_init_subsystems() registers late services, so failures here
                 # are often premature. Full validation happens in StartupValidator.
                 logger.warning(
-                    "⚠️ Boot pre-check: %d issues (non-fatal): %s",
+                    "Boot pre-check: %d issues (non-fatal): %s",
                     len(v_result.failures),
                     v_result.failures,
                 )
@@ -962,7 +962,7 @@ class RobustOrchestrator(
                 severity="error",
             )
 
-            logger.critical("❌ Boot Validator crashed: %s", e)
+            logger.critical("Boot Validator crashed: %s", e)
             return False
 
         # Handle lazy initialization of subsystems
@@ -983,9 +983,9 @@ class RobustOrchestrator(
         logger.info("Starting orchestrator (Async Mode)...")
 
         try:
-            logger.info("🚩 [ORCHESTRATOR] Setting running flag...")
+            logger.info("[ORCHESTRATOR] Setting running flag...")
             self.status.running = True
-            logger.info("🚩 [ORCHESTRATOR] running flag set to True.")
+            logger.info("[ORCHESTRATOR] running flag set to True.")
             self.status.start_time = time.time()
 
             # Wire graceful shutdown signals so persistence hooks fire on SIGTERM.
@@ -1014,7 +1014,7 @@ class RobustOrchestrator(
             }
             if desktop_signal_owner:
                 logger.info(
-                    "🛡️ Desktop shutdown signal owner preserved in aura_main "
+                    "Desktop shutdown signal owner preserved in aura_main "
                     "(root-owned lifecycle)."
                 )
             else:
@@ -1022,7 +1022,7 @@ class RobustOrchestrator(
                     from core.ops.graceful_shutdown import GracefulShutdown
 
                     GracefulShutdown.setup_signals()
-                    logger.info("🛡️ Graceful shutdown signals wired (persistence on SIGTERM).")
+                    logger.info("Graceful shutdown signals wired (persistence on SIGTERM).")
                 except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                     _record_main_degradation(
                         exc,
@@ -1033,27 +1033,27 @@ class RobustOrchestrator(
 
             if lightweight_test_boot:
                 logger.info(
-                    "🧪 Lightweight pytest runtime boot: skipping continuous background services."
+                    "Lightweight pytest runtime boot: skipping continuous background services."
                 )
                 return True
 
             if getattr(self, "substrate", None):
-                logger.info("🚩 [ORCHESTRATOR] Starting Substrate...")
+                logger.info("[ORCHESTRATOR] Starting Substrate...")
                 await await_while_the_task_moves(self.substrate.start(), stall_s=15.0, name='start:self.substrate.start()')
-                logger.info("🚩 [ORCHESTRATOR] Substrate started.")
+                logger.info("[ORCHESTRATOR] Substrate started.")
 
             self.status.start_time = time.time()
 
             # Sensory systems are initialized in _async_init_subsystems or below
             if hasattr(self, "_start_sensory_systems"):
-                logger.info("🚩 [ORCHESTRATOR] Starting Sensory Systems...")
+                logger.info("[ORCHESTRATOR] Starting Sensory Systems...")
                 await await_while_the_task_moves(self._start_sensory_systems(), stall_s=15.0, name='start:self._start_sensory_systems()')
-                logger.info("🚩 [ORCHESTRATOR] Sensory Systems started.")
+                logger.info("[ORCHESTRATOR] Sensory Systems started.")
 
             # Start Actor-Kernel Sensory Gate (Phase 1)
-            logger.info("🚩 [ORCHESTRATOR] Starting Sensory Actor...")
+            logger.info("[ORCHESTRATOR] Starting Sensory Actor...")
             await await_while_the_task_moves(self._start_sensory_actor(), stall_s=15.0, name='start:self._start_sensory_actor()')
-            logger.info("🚩 [ORCHESTRATOR] Sensory Actor started.")
+            logger.info("[ORCHESTRATOR] Sensory Actor started.")
 
             # --- Live Multimodal Vision Start ---
             from core.senses.vision_policy import proactive_vision_enabled
@@ -1067,7 +1067,7 @@ class RobustOrchestrator(
                     vision_buffer = ContinuousSensoryBuffer(data_dir=config.paths.data_dir)
                     ServiceContainer.register_instance("continuous_vision", vision_buffer)
                     vision_buffer.start()
-                    logger.info("👁️ Continuous Sensory Buffer registered and started.")
+                    logger.info("Continuous Sensory Buffer registered and started.")
                 except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                     _record_main_degradation(
                         e,
@@ -1093,11 +1093,11 @@ class RobustOrchestrator(
                 )
                 logger.error("Failed to start Agent Delegator: %s", e)
 
-            # 📖 [PEER MODE] Evolution 2: Private Inner World
+            # [PEER MODE] Evolution 2: Private Inner World
             if hasattr(self, "narrative_engine"):
                 # new attribute added to boot.py setup()
                 self.narrative_engine.enable_private_archive = True
-                logger.info("📖 Peer Mode: Private narrative archive activated")
+                logger.info("Peer Mode: Private narrative archive activated")
             if hasattr(self, "probe_manager") and self.probe_manager:
                 from core.utils.task_tracker import get_task_tracker
 
@@ -1219,7 +1219,7 @@ class RobustOrchestrator(
 
                 _ef = get_epistemic_filter()
                 ServiceContainer.register_instance("epistemic_filter", _ef)
-                logger.info("🔬 EpistemicFilter online")
+                logger.info("EpistemicFilter online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _ef_err:
                 _record_main_degradation(
                     _ef_err,
@@ -1235,7 +1235,7 @@ class RobustOrchestrator(
                 _st = get_sleep_trigger(self)
                 ServiceContainer.register_instance("sleep_trigger", _st)
                 self._fire_and_forget(_st.start(), name="orchestrator.sleep_trigger.start")
-                logger.info("😴 AutonomousSleepTrigger active")
+                logger.info("AutonomousSleepTrigger active")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _st_err:
                 _record_main_degradation(
                     _st_err,
@@ -1254,7 +1254,7 @@ class RobustOrchestrator(
                     logger.info("PNEUMA background loop deferred for proof/foreground boot.")
                 else:
                     self._fire_and_forget(_pneuma.start(), name="orchestrator.pneuma.start")
-                    logger.info("🧠 PNEUMA active inference engine online")
+                    logger.info("PNEUMA active inference engine online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _pe:
                 _record_main_degradation(
                     _pe,
@@ -1273,7 +1273,7 @@ class RobustOrchestrator(
                     logger.info("MHAF background loop deferred for proof/foreground boot.")
                 else:
                     self._fire_and_forget(_mhaf.start(), name="orchestrator.mhaf.start")
-                    logger.info("🌿 MHAF consciousness substrate online")
+                    logger.info("MHAF consciousness substrate online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _mhaf_err:
                 _record_main_degradation(
                     _mhaf_err,
@@ -1288,7 +1288,7 @@ class RobustOrchestrator(
 
                 _ais = get_active_inference_sampler()
                 ServiceContainer.register_instance("active_inference_sampler", _ais)
-                logger.info("🎯 ActiveInferenceSampler online")
+                logger.info("ActiveInferenceSampler online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _ais_err:
                 _record_main_degradation(
                     _ais_err,
@@ -1303,7 +1303,7 @@ class RobustOrchestrator(
 
                 _imagination = get_imagination_engine()
                 ServiceContainer.register_instance("imagination_engine", _imagination, required=False)
-                logger.info("🎨 ImaginationEngine online — bounded mental modeling active")
+                logger.info("ImaginationEngine online — bounded mental modeling active")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _img_err:
                 _record_main_degradation(
                     _img_err,
@@ -1317,7 +1317,7 @@ class RobustOrchestrator(
 
                 _neo = get_neologism_engine()
                 ServiceContainer.register_instance("neologism_engine", _neo)
-                logger.info("🔤 NeologismEngine (private lexicon) online")
+                logger.info("NeologismEngine (private lexicon) online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _neo_err:
                 _record_main_degradation(
                     _neo_err,
@@ -1347,7 +1347,7 @@ class RobustOrchestrator(
                         _watchdog.start(), name="orchestrator.terminal_watchdog.start"
                     )
                     logger.info(
-                        "📟 TerminalFallbackChat + TerminalWatchdog online (autonomous, last-resort)"
+                        "TerminalFallbackChat + TerminalWatchdog online (autonomous, last-resort)"
                     )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _term_err:
                 _record_main_degradation(
@@ -1363,7 +1363,7 @@ class RobustOrchestrator(
 
                 _crsm = get_crsm()
                 ServiceContainer.register_instance("crsm", _crsm)
-                logger.info("🔄 CRSM bidirectional self-model online")
+                logger.info("CRSM bidirectional self-model online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
                     _e,
@@ -1378,7 +1378,7 @@ class RobustOrchestrator(
 
                 _hot = get_hot_engine()
                 ServiceContainer.register_instance("hot_engine", _hot)
-                logger.info("🔁 HOT Engine reflexive meta-awareness online")
+                logger.info("HOT Engine reflexive meta-awareness online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
                     _e,
@@ -1393,7 +1393,7 @@ class RobustOrchestrator(
 
                 _hg = get_hedonic_gradient()
                 ServiceContainer.register_instance("hedonic_gradient", _hg)
-                logger.info("💚 Hedonic Gradient Engine online — valence load-bearing")
+                logger.info("Hedonic Gradient Engine online — valence load-bearing")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
                     _e,
@@ -1408,7 +1408,7 @@ class RobustOrchestrator(
 
                 _cfe = get_counterfactual_engine()
                 ServiceContainer.register_instance("counterfactual_engine", _cfe)
-                logger.info("🔀 Counterfactual Engine deliberative agency online")
+                logger.info("Counterfactual Engine deliberative agency online")
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
                     _e,
@@ -1430,7 +1430,7 @@ class RobustOrchestrator(
                 ServiceContainer.register_instance("skill_synthesizer", _ss)
                 ServiceContainer.register_instance("hierarchical_planner", _hp)
                 logger.info(
-                    "🤖 AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)"
+                    "AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)"
                 )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
@@ -1456,7 +1456,7 @@ class RobustOrchestrator(
                 ServiceContainer.register_instance("identity_guard", _ig)
                 ServiceContainer.register_instance("sandboxed_modifier", _sm)
                 logger.info(
-                    "🛡️ Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)"
+                    "Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)"
                 )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
@@ -1484,11 +1484,11 @@ class RobustOrchestrator(
                 ServiceContainer.register_instance("integrity_guardian", _ig2)
                 ServiceContainer.register_instance("emergency_protocol", _ep)
                 logger.info(
-                    "🔐 Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)"
+                    "Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)"
                 )
                 if not _ur.has_passphrase():
                     logger.warning(
-                        "⚠️  No owner passphrase set. Run: python -m core.security.user_recognizer --setup"
+                        " No owner passphrase set. Run: python -m core.security.user_recognizer --setup"
                     )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
@@ -1523,7 +1523,7 @@ class RobustOrchestrator(
                         _consolidator.start(), name="orchestrator.experience_consolidator.start"
                     )
                 logger.info(
-                    "🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)"
+                    "Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)"
                 )
             except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 _record_main_degradation(
@@ -1621,7 +1621,7 @@ class RobustOrchestrator(
 
             # Start Pulse Manager (Proactive Awareness)
             if self.pulse_manager:
-                logger.info("🚩 [ORCHESTRATOR] Starting Pulse Manager...")
+                logger.info("[ORCHESTRATOR] Starting Pulse Manager...")
                 await await_while_the_task_moves(self.pulse_manager.start(), stall_s=10.0, name='start:self.pulse_manager.start()')
                 logger.info("✓ Pulse Manager active (Proactive Awareness)")
 
@@ -1750,7 +1750,7 @@ class RobustOrchestrator(
                 if not scheduler.is_alive():
                     raise RuntimeError("scheduler start returned without live main loop")
 
-            # 🧠 [PEER MODE] Evolution 1: MindTick / cognitive_loop becomes the PRIMARY heartbeat
+            # [PEER MODE] Evolution 1: MindTick / cognitive_loop becomes the PRIMARY heartbeat
             await _start_the_background_organs(
                 self=self,
             )
@@ -1790,7 +1790,7 @@ class RobustOrchestrator(
             self._stop_event = threading.Event()
 
         self.status.running = True
-        logger.info("🚩 [ORCHESTRATOR] Main Heartbeat Active (Loop started).")
+        logger.info("[ORCHESTRATOR] Main Heartbeat Active (Loop started).")
         _last_healer_heartbeat = 0.0
 
         while not self._stop_event.is_set():
@@ -1822,7 +1822,7 @@ class RobustOrchestrator(
                     action="kept heartbeat loop alive after cycle update failed",
                     severity="error",
                 )
-                logger.error("🛑 ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)
+                logger.error("ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)
                 await asyncio.sleep(1.0)  # Prevent tight spin
 
         self.status.running = False
@@ -1932,14 +1932,14 @@ class RobustOrchestrator(
                         tick_interval=60.0,  # 1 minute metabolic pulse
                     )
                 )
-                logger.info("💓 MetabolicCoordinator integrated into Scheduler.")
+                logger.info("MetabolicCoordinator integrated into Scheduler.")
             else:
                 logger.warning(
-                    "⚠️ metabolic_coordinator (%s) lacks 'process_cycle'. Skipping registration.",
+                    "metabolic_coordinator (%s) lacks 'process_cycle'. Skipping registration.",
                     type(self.metabolic_coordinator).__name__,
                 )
         else:
-            logger.warning("⚠️ MetabolicCoordinator not found. Background tasks may be degraded.")
+            logger.warning("MetabolicCoordinator not found. Background tasks may be degraded.")
 
         # 4. Telemetry Pulse
         await scheduler.register(
@@ -1957,7 +1957,7 @@ class RobustOrchestrator(
             )
         )
 
-        # 🎯 [PEER MODE] Evolution 6: Autonomous Goal Genesis
+        # [PEER MODE] Evolution 6: Autonomous Goal Genesis
         await scheduler.register(
             TaskSpec(
                 name="peer_goal_genesis",
@@ -1966,11 +1966,11 @@ class RobustOrchestrator(
             )
         )
 
-        # 🌀 Evolution 9: Meta-Cognitive Self-Optimization
+        # Evolution 9: Meta-Cognitive Self-Optimization
         async def meta_evolution_wrapper():
             if hasattr(self, "meta_cognition") and self.meta_cognition:
                 if _proof_runtime_active("meta_evolution_cycle"):
-                    logger.info("🌀 Meta-Evolution cycle deferred during proof_run_active.")
+                    logger.info("Meta-Evolution cycle deferred during proof_run_active.")
                     return
                 # Guard: skip if memory pressure is high or system is under load
                 try:
@@ -1979,7 +1979,7 @@ class RobustOrchestrator(
                     mem = psutil.virtual_memory()
                     if mem.percent > 75:
                         logger.debug(
-                            "🌀 Meta-Evolution skipped: memory pressure %.1f%%", mem.percent
+                            "Meta-Evolution skipped: memory pressure %.1f%%", mem.percent
                         )
                         return
                 except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
@@ -1989,18 +1989,18 @@ class RobustOrchestrator(
                     )
 
                     logger.debug("Suppressed Exception: %s", _exc)
-                logger.info("🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...")
+                logger.info("[SCHEDULER] Triggering Meta-Evolution Cycle...")
                 try:
                     await await_while_the_task_moves(self.meta_cognition.evolve(), stall_s=30.0, name='_register_scheduled_tasks:self.meta_cognition.evolve()')
                 except TimeoutError:
-                    logger.warning("🌀 Meta-Evolution timed out after 30s — skipping this cycle.")
+                    logger.warning("Meta-Evolution timed out after 30s — skipping this cycle.")
                 except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                     _record_main_degradation(
                         exc,
                         action="skipped current meta-evolution cycle after evolution step failed",
                     )
 
-                    logger.debug("🌀 Meta-Evolution error: %s", exc)
+                    logger.debug("Meta-Evolution error: %s", exc)
 
         await scheduler.register(
             TaskSpec(
@@ -2101,7 +2101,7 @@ class RobustOrchestrator(
             if audit.should_emit_pulse():
                 pulse_report = audit.emit_pulse()
                 self._emit_thought_stream(pulse_report)
-                logger.info("🫀 %s", pulse_report.replace("\n", " | "), extra={"plain": audit.plain_pulse(pulse_report)})
+                logger.info("%s", pulse_report.replace("\n", " | "), extra={"plain": audit.plain_pulse(pulse_report)})
         except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             _record_main_degradation(
                 e,
@@ -2176,7 +2176,7 @@ class RobustOrchestrator(
     async def _recover_from_stall(self):
         """Attempts to recover from a cognitive loop stall."""
         self._recovery_attempts += 1
-        logger.warning("🚑 RECOVERY ATTEMPT #%s initiated...", self._recovery_attempts)
+        logger.warning("RECOVERY ATTEMPT #%s initiated...", self._recovery_attempts)
 
         # 0. DLQ Capture
         try:
@@ -2260,7 +2260,7 @@ class RobustOrchestrator(
 
             # 3.75 Lazarus Brainstem Intervention
             if self._recovery_attempts >= 2 and hasattr(self, "lazarus") and self.lazarus:
-                logger.warning("🚨 [RECOVERY] Escalating to Lazarus Brainstem...")
+                logger.warning("[RECOVERY] Escalating to Lazarus Brainstem...")
                 await self.lazarus.attempt_recovery()
 
             # 4. [STABILITY] Re-dispatch last user message if this was a priority turn
@@ -2275,7 +2275,7 @@ class RobustOrchestrator(
 
                 if msg_hash in self._poison_pill_cache:
                     logger.critical(
-                        "🚫 [RECOVERY] Poison pill detected (%s). Skipping auto-retry.", msg_hash
+                        "[RECOVERY] Poison pill detected (%s). Skipping auto-retry.", msg_hash
                     )
                     await self.output_gate.emit(
                         "My neural substrate rejected that request due to a fatal processing fault. I've purged the thought.",
@@ -2285,7 +2285,7 @@ class RobustOrchestrator(
                     )
                     return
 
-                logger.info("🔄 [RECOVERY] Auto-retrying last user message...")
+                logger.info("[RECOVERY] Auto-retrying last user message...")
 
                 # We use a slight delay to let the reset settle
                 async def _delayed_retry():
@@ -2303,10 +2303,10 @@ class RobustOrchestrator(
                     # Prevent unbounded growth over very long sessions
                     if len(self._poison_pill_cache) > 500:
                         self._poison_pill_cache = set(list(self._poison_pill_cache)[-200:])
-                    logger.critical("☠️ POISON PILL CACHED: %s", msg_hash)
+                    logger.critical("POISON PILL CACHED: %s", msg_hash)
 
                 logger.critical(
-                    "🚨 STALL PERSISTS: Escalating to internal orchestrator restart (Hot-Reload)."
+                    "STALL PERSISTS: Escalating to internal orchestrator restart (Hot-Reload)."
                 )
                 # Do NOT set self.status.running = False here.
                 # This flag tells the parent (aura_main.py) to exit the loop and call stop().
@@ -2314,7 +2314,7 @@ class RobustOrchestrator(
                 await self.start()
                 self._recovery_attempts = 0  # Reset after escalation
 
-            logger.info("✅ Recovery logic applied.")
+            logger.info("Recovery logic applied.")
         except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             _record_main_degradation(
                 e,
@@ -2335,7 +2335,7 @@ class RobustOrchestrator(
         if not self._is_user_facing_origin(origin):
             time_since_user = time.time() - getattr(self, "_last_user_interaction_time", 0.0)
             if time_since_user < 30.0:
-                logger.debug("🛡️ [PRIORITY] Yielding autonomous thought to user inference lane.")
+                logger.debug("[PRIORITY] Yielding autonomous thought to user inference lane.")
                 await asyncio.sleep(0.2)  # Minimum yield to allow user-path to acquire semaphore
 
         # Original logic continues...
@@ -2388,7 +2388,7 @@ class RobustOrchestrator(
 
         origin_label = str(normalized_origin or "internal")
         if not self._authorize_background_enqueue_sync(event, origin_label, priority):
-            logger.info("🛡️ Legacy event enqueue blocked for %s.", origin_label)
+            logger.info("Legacy event enqueue blocked for %s.", origin_label)
             return False
 
         try:
@@ -2408,7 +2408,7 @@ class RobustOrchestrator(
             return True
         except asyncio.QueueFull:
             logger.warning(
-                "⚠️ Message queue full. Dropped legacy event from %s: %s",
+                "Message queue full. Dropped legacy event from %s: %s",
                 origin_label,
                 str(event)[:120],
             )
@@ -2427,7 +2427,7 @@ class RobustOrchestrator(
             logger.info("InferenceGate adopted from ServiceContainer during %s.", context)
 
         if self._inference_gate is None:
-            logger.warning("⚠️ InferenceGate missing during %s. Creating it now...", context)
+            logger.warning("InferenceGate missing during %s. Creating it now...", context)
             from core.brain.inference_gate import InferenceGate
 
             self._inference_gate = InferenceGate(self)
@@ -2438,13 +2438,13 @@ class RobustOrchestrator(
             if lightweight_test_boot:
                 self._inference_gate._initialized = True
                 logger.info(
-                    "🧪 Lightweight pytest boot: deferring InferenceGate init during %s.", context
+                    "Lightweight pytest boot: deferring InferenceGate init during %s.", context
                 )
             else:
                 await self._inference_gate.initialize()
             ServiceContainer.register_instance("inference_gate", self._inference_gate)
             if getattr(self._inference_gate, "_initialized", False):
-                logger.info("✅ Local InferenceGate initialized during %s.", context)
+                logger.info("Local InferenceGate initialized during %s.", context)
                 return True
 
             receipt_reader = getattr(self._inference_gate, "initialization_receipt", None)
@@ -2461,7 +2461,7 @@ class RobustOrchestrator(
                 severity="error",
             )
             logger.error(
-                "⚠️ [ZENITH] Local InferenceGate remains unready during %s: %s. "
+                "[ZENITH] Local InferenceGate remains unready during %s: %s. "
                 "A later foreground turn may retry local initialization.",
                 context,
                 reason,
@@ -2475,7 +2475,7 @@ class RobustOrchestrator(
             )
 
             logger.error(
-                "⚠️ [ZENITH] Local InferenceGate init failed during %s: %s. "
+                "[ZENITH] Local InferenceGate init failed during %s: %s. "
                 "Remote inference is retired; local initialization remains retryable.",
                 context,
                 gate_err,
@@ -2532,10 +2532,10 @@ class RobustOrchestrator(
                 self._actor_bus.register_handler(
                     "SensoryGate", "HEARTBEAT", self._handle_actor_heartbeat
                 )
-                logger.info("🛡️ SensoryGateActor managed by Supervision Tree.")
+                logger.info("SensoryGateActor managed by Supervision Tree.")
             else:
                 logger.error(
-                    "❌ Cannot start SensoryGateActor: Supervisor Tree not available in container."
+                    "Cannot start SensoryGateActor: Supervisor Tree not available in container."
                 )
 
         except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
@@ -2552,7 +2552,7 @@ class RobustOrchestrator(
 
     async def _handle_sensory_update(self, payload):
         """Callback from actor for sensory discoveries."""
-        logger.info("📡 Sensory Actor update: %s", payload.get("type"))
+        logger.info("Sensory Actor update: %s", payload.get("type"))
         # Logic to integrate into belief graph/state will be expanded in Phase 2
 
     async def _handle_remote_commit(self, payload):
@@ -2694,7 +2694,7 @@ class RobustOrchestrator(
                             action="continued terminal self-heal policy evaluation with conservative allow decision",
                         )
                         logger.debug("Terminal Monitor policy probe failed: %s", policy_exc)
-                    logger.info("🔧 Terminal Monitor: Auto-fix triggered")
+                    logger.info("Terminal Monitor: Auto-fix triggered")
 
                     # Report to self-modifier for intelligence logging
                     sm = getattr(self, "self_modifier", None)
@@ -2763,7 +2763,7 @@ class RobustOrchestrator(
         """Reactive hook for spontaneous sensory inputs (Vision/Audio).
         Bypasses the normal queue to ensure real-time environmental awareness.
         """
-        logger.info("✨ [SENSORY] Spontaneous %s stimulus detected: %s", modality, context)
+        logger.info("[SENSORY] Spontaneous %s stimulus detected: %s", modality, context)
 
         # Log spontaneous event to UnifiedTranscript
         try:
@@ -2825,7 +2825,7 @@ class RobustOrchestrator(
 
     async def generate_autonomous_thought(self) -> str:
         """Triggers a self-generated thought/topic from the internal cognitive engine."""
-        logger.info("🧠 [VOLITION] Generating autonomous volition pulse...")
+        logger.info("[VOLITION] Generating autonomous volition pulse...")
         # In a full implementation, this triggers a 'dream' or 'contemplate' cycle.
         # Here we provide a high-agency topic grounded in recent activity.
         return "I've been contemplating our recent mission objectives. I have a new perspective on the Sovereign Network synchronization — should we discuss it?"
@@ -2839,7 +2839,7 @@ class RobustOrchestrator(
         which goes through the state machine, cognitive engine, and all
         enrichment layers identically to text.
         """
-        logger.info("🧠 [VOICE→COGNITIVE] Routing voice through full pipeline")
+        logger.info("[VOICE→COGNITIVE] Routing voice through full pipeline")
 
         # Log to unified transcript
         try:
@@ -2889,7 +2889,7 @@ class RobustOrchestrator(
         Monitors the global StateLock and force-releases it if held beyond the safety threshold
         to prevent permanent system hangs during Metal XPC stalls.
         """
-        logger.info("🛡️ Deadlock Watchdog active (45s threshold).")
+        logger.info("Deadlock Watchdog active (45s threshold).")
 
         def _event_is_set(event_obj: Any) -> bool:
             probe = getattr(event_obj, "is_set", None)
@@ -2915,7 +2915,7 @@ class RobustOrchestrator(
                     )
                     if elapsed > 45.0:
                         logger.critical(
-                            "🚨 [WATCHDOG] Deadlock detected (held for %.1fs)! Force-releasing StateLock...",
+                            "[WATCHDOG] Deadlock detected (held for %.1fs)! Force-releasing StateLock...",
                             elapsed,
                         )
                         if self._lock.force_release():
@@ -2939,7 +2939,7 @@ class RobustOrchestrator(
                     severity="error",
                 )
 
-                logger.error("⚠️ Watchdog error: %s", e)
+                logger.error("Watchdog error: %s", e)
             except asyncio.CancelledError:
                 break
 
@@ -3187,7 +3187,7 @@ class RobustOrchestrator(
         bus = get_event_bus()
 
         q = await bus.subscribe("user_input")
-        logger.info("👂 Orchestrator listening for 'user_input' events (Redis-backed)")
+        logger.info("Orchestrator listening for 'user_input' events (Redis-backed)")
 
         while self.status.running:
             try:
@@ -3201,7 +3201,7 @@ class RobustOrchestrator(
                     # Voice engine sends {"message": text, "source": "voice"}.
                     # If we don't pass this source as origin, TTS won't trigger.
                     origin = data.get("source", "user")
-                    logger.info("📥 Processing event-driven input (%s): %s", origin, message[:50])
+                    logger.info("Processing event-driven input (%s): %s", origin, message[:50])
                     # Standardized input processing
                     from core.utils.task_tracker import get_task_tracker
 

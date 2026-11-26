@@ -87,13 +87,13 @@ if __name__ == "__main__":
     try:
         result = asyncio.run(test_file_operations())
         if result:
-            print("\n✅ All file operation tests PASSED")
+            print("\nAll file operation tests PASSED")
             sys.exit(0)
         else:
-            print("\n❌ File operation tests FAILED")
+            print("\nFile operation tests FAILED")
             sys.exit(1)
     except FILE_OPERATION_TEST_ERRORS as e:
-        print(f"\n❌ Test error: {e}")
+        print(f"\nTest error: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

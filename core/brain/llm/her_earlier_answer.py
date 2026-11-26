@@ -75,5 +75,5 @@ def install(tokenizer: Any, job: dict[str, Any], processors: list[Any]) -> int:
     if processor is None:
         return 0
     processors.append(processor)
-    logger.info("🔁 [WORKER] Asked again: her %d earlier answer(s) to this are not read back.", len(answers))
+    logger.info("[WORKER] Asked again: her %d earlier answer(s) to this are not read back.", len(answers))
     return len(answers)

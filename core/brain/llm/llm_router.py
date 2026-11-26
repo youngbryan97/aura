@@ -474,7 +474,7 @@ class LLMHealthMonitor:
         sanitized = _sanitize_health_reason(error)
         if is_rate_limit:
             logger.warning(
-                "🚫 Rate limit: immediate circuit break for '%s'. Cooldown for 60s.",
+                "Rate limit: immediate circuit break for '%s'. Cooldown for 60s.",
                 endpoint_name,
             )
         else:
@@ -913,7 +913,7 @@ async def _think_routed_try_each_endpoint(
 
                     if not success:
                         err = metadata.get("error", "Generation failed")
-                        logger.warning("❌ %s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
+                        logger.warning("%s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
                         endpoint_error = str(err)
                         endpoint_error_kind = (
                             str(metadata.get("error_kind")) if metadata.get("error_kind") else None
@@ -942,7 +942,7 @@ async def _think_routed_try_each_endpoint(
                     stripped_text = final_text_str.strip()
                     if not stripped_text or len(stripped_text) < 2:
                         logger.warning(
-                            "❌ %s (Attempt %d) returned empty/trivial response (%d chars). Treating as failure.",
+                            "%s (Attempt %d) returned empty/trivial response (%d chars). Treating as failure.",
                             endpoint_name, attempt + 1, len(stripped_text),
                         )
                         success = False
@@ -964,7 +964,7 @@ async def _think_routed_try_each_endpoint(
                         else None
                     )
                     if fatal_reason:
-                        logger.warning("❌ %s returned FATAL ERROR string. Failing over.", endpoint_name)
+                        logger.warning("%s returned FATAL ERROR string. Failing over.", endpoint_name)
                         success = False
                         endpoint_error = f"MLX/Metal Backend Failure: {fatal_reason}"
                         endpoint_error_kind = "backend"
@@ -988,7 +988,7 @@ async def _think_routed_try_each_endpoint(
                         self.last_user_tier = endpoint.tier.value
 
                     dur = time.monotonic() - start_time
-                    logger.info("✅ Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
+                    logger.info("Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
                     return final_text_str
 
                 except TimeoutError as e:
@@ -998,7 +998,7 @@ async def _think_routed_try_each_endpoint(
                         severity="degraded",
                         extra={"endpoint": endpoint_name, "attempt": attempt + 1},
                     )
-                    logger.error("⏱️ %s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
+                    logger.error("%s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
                     endpoint_error = f"timeout:{endpoint_name}"
                     endpoint_error_kind = "timeout"
                     last_error_str = endpoint_error
@@ -1010,7 +1010,7 @@ async def _think_routed_try_each_endpoint(
                         severity="degraded",
                         extra={"endpoint": endpoint_name, "attempt": attempt + 1},
                     )
-                    logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
+                    logger.error("Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
                     endpoint_error = str(e)
                     last_error_str = endpoint_error
                     backend_reason = self._backend_failure_reason(e)
@@ -1212,7 +1212,7 @@ class IntelligentLLMRouter:
 
     async def start(self) -> "IntelligentLLMRouter":
         """Async start method."""
-        logger.info("🧠 IntelligentLLMRouter: Sequential Routing Active")
+        logger.info("IntelligentLLMRouter: Sequential Routing Active")
         return self
 
     def clear_rate_limits(self) -> None:
@@ -1223,7 +1223,7 @@ class IntelligentLLMRouter:
         quota-limited providers. Unhealthy endpoints transition to half-open
         (one probe) and stay unhealthy until a real call succeeds.
         """
-        logger.info("⚡ Resetting rate limits; unhealthy endpoints move to half-open...")
+        logger.info("Resetting rate limits; unhealthy endpoints move to half-open...")
         for name, ep in self.endpoints.items():
             self.health_monitor.reset_to_half_open(name, reason="manual_rate_limit_clear")
 
@@ -1376,7 +1376,7 @@ class IntelligentLLMRouter:
         cooldown_until = time.time() + 15.0
         self._recovery_states[endpoint_name] = cooldown_until
         logger.warning(
-            "🧯 Triggered proactive LLM adapter reboot for %s after backend failure: %s",
+            "Triggered proactive LLM adapter reboot for %s after backend failure: %s",
             endpoint_name,
             reason,
         )
@@ -1858,7 +1858,7 @@ class IntelligentLLMRouter:
             cached_val = self.cache.get(cache_key)
             if cached_val is not None:
                 self.stats["cache_hits"] += 1
-                logger.info("🧠 Brain Cache HIT (background).")
+                logger.info("Brain Cache HIT (background).")
                 return cached_val
 
         with self._stats_lock:
@@ -1868,7 +1868,7 @@ class IntelligentLLMRouter:
         solver_guard = guard_solver_request(prefer_endpoint, deep_handoff=deep_handoff)
         if solver_guard["redirected"]:
             logger.info(
-                "🛡️ LegacyRouter: Redirecting non-deep Solver request to %s.",
+                "LegacyRouter: Redirecting non-deep Solver request to %s.",
                 solver_guard["endpoint"],
             )
             prefer_endpoint = str(solver_guard["endpoint"] or "")
@@ -1901,7 +1901,7 @@ class IntelligentLLMRouter:
                 else:
                     resolved_tier = LLMTier.SECONDARY if resolved_tier == LLMTier.PRIMARY else LLMTier.TERTIARY
                 
-                logger.warning("🩸 [AUTONOMIC REFLEX] System %s (CPU: %.1f%%, VRAM: %.1f%%, Latency: %.0fms). Tier: %s -> %s.", 
+                logger.warning("[AUTONOMIC REFLEX] System %s (CPU: %.1f%%, VRAM: %.1f%%, Latency: %.0fms). Tier: %s -> %s.", 
                                "PRESSURE" if self.high_pressure_mode else "EXHAUSTED",
                                cpu, vram, thought_ms, old_tier, resolved_tier.value)
 
@@ -1921,7 +1921,7 @@ class IntelligentLLMRouter:
             resolved_tier = LLMTier.TERTIARY
         elif cognitive_mode == CognitiveMode.DELIBERATE and not prefer_tier:
             resolved_tier = LLMTier.PRIMARY
-            logger.info("🚀 [BOOST MANAGER] Deliberate mode detected. Boosting to PRIMARY tier.")
+            logger.info("[BOOST MANAGER] Deliberate mode detected. Boosting to PRIMARY tier.")
         elif not prefer_tier and resolved_tier is None:
             resolved_tier = LLMTier.PRIMARY
 
@@ -1929,7 +1929,7 @@ class IntelligentLLMRouter:
             resolved_tier = LLMTier.PRIMARY
 
         if resolved_tier == LLMTier.SECONDARY and not deep_handoff:
-            logger.info("🛡️ LegacyRouter: suppressing implicit secondary request without explicit deep handoff.")
+            logger.info("LegacyRouter: suppressing implicit secondary request without explicit deep handoff.")
             resolved_tier = LLMTier.PRIMARY
 
         endpoints_to_try = self._get_ordered_endpoints(
@@ -2075,7 +2075,7 @@ class IntelligentLLMRouter:
             if cpu > 90.0 or vram > 95.0 or thought_ms > 2000.0:
                 old_tier = resolved_tier.value if resolved_tier else "unknown"
                 resolved_tier = LLMTier.SECONDARY if resolved_tier == LLMTier.PRIMARY else LLMTier.TERTIARY
-                logger.warning("🩸 [AUTONOMIC REFLEX] System exhausted in stream (CPU: %.1f%%). Downgrading from %s to %s.", cpu, old_tier, resolved_tier.value)
+                logger.warning("[AUTONOMIC REFLEX] System exhausted in stream (CPU: %.1f%%). Downgrading from %s to %s.", cpu, old_tier, resolved_tier.value)
 
         if solver_guard["redirected"] and resolved_tier == LLMTier.SECONDARY:
             resolved_tier = LLMTier.PRIMARY
@@ -2294,7 +2294,7 @@ class IntelligentLLMRouter:
         if not allow_secondary and DEEP_ENDPOINT in ordered:
             ordered = [name for name in ordered if name != DEEP_ENDPOINT]
             logger.debug(
-                "🛡️ Router: Solver excluded from the failover chain "
+                "Router: Solver excluded from the failover chain "
                 "(no explicit deep handoff)."
             )
         return ordered
@@ -2307,7 +2307,7 @@ class IntelligentLLMRouter:
         # The raw error stays in logs/degradations only — provider and
         # adapter errors can carry filesystem paths, model internals, or
         # request fragments, and this string goes straight to the user.
-        logger.critical("🚨 ULTIMATE FAILURE: All LLM tiers failed. Error: %s", last_error)
+        logger.critical("ULTIMATE FAILURE: All LLM tiers failed. Error: %s", last_error)
         return (
             "I can't reach any of my local language pathways right now. "
             "I'm still running and will keep trying to recover; please give "

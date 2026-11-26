@@ -361,7 +361,7 @@ class FlightRecorder:
         self._last_death_report = death_report
         self._started = True
         logger.info(
-            "🛬 Flight recorder ONLINE — ring %s (%d slots, %d KB)%s",
+            "Flight recorder ONLINE — ring %s (%d slots, %d KB)%s",
             self._ring_path,
             self._slot_count,
             (self._slot_count * _SLOT_SIZE + _HEADER_SIZE) // 1024,
@@ -784,7 +784,7 @@ class FlightRecorder:
                 await gateway.delete_path_async(
                     stale, source="flight_recorder.postmortem_prune"
                 )
-        logger.warning("🛬 Death report published: %s", artifact_path)
+        logger.warning("Death report published: %s", artifact_path)
 
     # ── consumers ──────────────────────────────────────────────────────
 

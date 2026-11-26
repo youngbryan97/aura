@@ -205,12 +205,12 @@ def _add_the_bound_logits_processor(
     if _bound is not None:
         logits_processors.append(_bound)
         logger.info(
-            "🧠 [WORKER] Private channel bounded at %d tokens.",
+            "[WORKER] Private channel bounded at %d tokens.",
             getattr(_bound, "budget_tokens", 0),
         )
     else:
         logger.info(
-            "🧠 [WORKER] Private channel NOT bounded; this "
+            "[WORKER] Private channel NOT bounded; this "
             "tokenizer has no single closing token."
         )
 
@@ -246,7 +246,7 @@ def _measure_the_final_pass(
             stream_seconds=generation_stream_elapsed_s,
         )
         logger.info(
-            "⏱️ [WORKER] generation performance: "
+            "[WORKER] generation performance: "
             "prefill=%d tokens/%.2fs (%.1f tok/s), "
             "decode=%d tokens/%.2fs (%.1f tok/s), "
             "first_token=%.2fs stream=%.2fs peak=%.2fGB",
@@ -284,7 +284,7 @@ def _take_the_repaired_user_surface(
 
     if shaped_surface != response_text:
         logger.info(
-            "🛡️ [WORKER] Repaired explicit user-surface "
+            "[WORKER] Repaired explicit user-surface "
             "shape before quality validation."
         )
         surface_control_state[
@@ -329,7 +329,7 @@ def _take_the_restored_newlines(
         not in unescaped_reasons
     ):
         logger.info(
-            "🛡️ [WORKER] Restored newlines the model "
+            "[WORKER] Restored newlines the model "
             "emitted as literal escapes."
         )
         append_text_mutation(
@@ -369,7 +369,7 @@ def _keep_a_complete_foreground_draft(
 
     if completed_surface and not completed_reasons:
         logger.info(
-            "🛡️ [WORKER] Kept complete foreground "
+            "[WORKER] Kept complete foreground "
             "sentences after a clipped tail."
         )
         append_text_mutation(
@@ -409,7 +409,7 @@ def _take_the_repaired_status_draft(
 
     if telemetry_surface and not telemetry_reasons:
         logger.info(
-            "🛡️ [WORKER] Repaired live status draft "
+            "[WORKER] Repaired live status draft "
             "with concrete runtime telemetry."
         )
         append_text_mutation(
@@ -455,7 +455,7 @@ def _take_a_revalidated_repair(
         != str(response_text or "").strip()
     ):
         logger.info(
-            "🛡️ [WORKER] Repaired %s and revalidated the "
+            "[WORKER] Repaired %s and revalidated the "
             "remaining authored answer.",
             _reason,
         )
@@ -490,7 +490,7 @@ def _say_the_inventory_draft_is_ungrounded(
     )
 
     logger.warning(
-        "⚠️ [WORKER] Clipped capability inventory draft lacks "
+        "[WORKER] Clipped capability inventory draft lacks "
         "minimum grounding (%s); keeping the gate failure.",
         ",".join(
             key

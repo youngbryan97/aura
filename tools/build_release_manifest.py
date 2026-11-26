@@ -207,12 +207,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Release manifest written to {args.out}")
     if problems:
         for problem in problems:
-            print(f"  ⚠️  {problem}")
+            print(f"   {problem}")
         if not args.allow_dirty:
-            print("❌ manifest not clean; rerun from a clean tagged checkout")
+            print("manifest not clean; rerun from a clean tagged checkout")
             return 1
     else:
-        print("✅ manifest clean")
+        print("manifest clean")
     return 0
 
 

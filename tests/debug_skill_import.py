@@ -20,18 +20,18 @@ print(f"Sys Path: {sys.path[:3]}")
 try:
     print("Attempting to import skills.web_search...")
     import skills.web_search
-    print("✅ SUCCESS: Imported skills.web_search")
+    print("SUCCESS: Imported skills.web_search")
     
     print("Checking class...")
     from skills.web_search import EnhancedWebSearchSkill
-    print(f"✅ Found class: {EnhancedWebSearchSkill}")
+    print(f"Found class: {EnhancedWebSearchSkill}")
     print(f"   Name: {EnhancedWebSearchSkill.name}")
 
 except ImportError as e:
-    print(f"❌ ImportError: {e}")
+    print(f"ImportError: {e}")
     raise SystemExit(1) from e
 except (AttributeError, RuntimeError, TypeError, ValueError) as e:
-    print(f"❌ Exception: {e}")
+    print(f"Exception: {e}")
     import traceback
     traceback.print_exc()
     raise SystemExit(1) from e

@@ -163,7 +163,7 @@ class ScratchpadEngine(AuraBaseModule):
 
         safe_objective = str(objective or "")[:MAX_OBJECTIVE_CHARS]
         nonce = f"{int(started * 1000) % 10**10:010d}"
-        self.logger.info("🧠 Scratchpad objective: %s...", safe_objective[:50])
+        self.logger.info("Scratchpad objective: %s...", safe_objective[:50])
 
         completed = 0
         try:

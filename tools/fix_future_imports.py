@@ -53,7 +53,7 @@ def fix_file(filepath: Path):
             removed_logging = True
     
     if not logging_lines:
-        print(f"  ⚠️  No misplaced logging found in {filepath.name}")
+        print(f"   No misplaced logging found in {filepath.name}")
         return
     
     # Find where to insert (after from __future__ and its blank line)
@@ -75,7 +75,7 @@ def fix_file(filepath: Path):
     if "import logging" in rest_content:
         # Already has logging import, just remove the duplicate at top
         filepath.write_text("\n".join(remaining), encoding="utf-8")
-        print(f"  ✅ Removed duplicate logging import from {filepath.name}")
+        print(f"  Removed duplicate logging import from {filepath.name}")
         return
     
     # Insert logging lines after __future__
@@ -83,7 +83,7 @@ def fix_file(filepath: Path):
         remaining.insert(insert_at + j, ll)
     
     filepath.write_text("\n".join(remaining), encoding="utf-8")
-    print(f"  ✅ Fixed import order in {filepath.name}")
+    print(f"  Fixed import order in {filepath.name}")
 
 
 def main():
@@ -94,7 +94,7 @@ def main():
         if filepath.exists():
             fix_file(filepath)
         else:
-            print(f"  ⚠️  Not found: {rel}")
+            print(f"   Not found: {rel}")
     
     # Compile check
     python = str(root / ".venv" / "bin" / "python")
@@ -113,16 +113,16 @@ def main():
             accelerator_capability="none",
         )
         if result.returncode != 0:
-            print(f"  ❌ STILL BROKEN: {rel}")
+            print(f"  STILL BROKEN: {rel}")
             print(f"     {result.stderr.strip()}")
             failures += 1
         else:
-            print(f"  ✅ Compiles: {rel}")
+            print(f"  Compiles: {rel}")
     
     if failures:
-        print(f"\n⚠️  {failures} files still broken.")
+        print(f"\n {failures} files still broken.")
     else:
-        print(f"\n✅ All {len(BROKEN_FILES)} files compile clean.")
+        print(f"\nAll {len(BROKEN_FILES)} files compile clean.")
 
 
 if __name__ == "__main__":

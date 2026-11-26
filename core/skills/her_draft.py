@@ -441,7 +441,7 @@ class OfferDraftSkill(BaseSkill):
         import logging
 
         logging.getLogger("Aura.HerGoalAtWork").warning(
-            "🛠️ Aura offers a draft toward '%s' (%s): %s. Answer with tools/her_goals.py approve|decline %s",
+            "Aura offers a draft toward '%s' (%s): %s. Answer with tools/her_goals.py approve|decline %s",
             record.goal[:80], head.strip()[:9], asked.summary.strip()[:200], record.slug)
         # Her own yes runs the gates when this pass ends (her_goal_at_work.the_gates_her_yes_asks), outside this
         # call: they take minutes, and a tool call has one.

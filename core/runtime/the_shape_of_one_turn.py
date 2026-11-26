@@ -319,7 +319,7 @@ def as_a_drawing(plan: TheShapeOfOneTurn) -> str:
     for at, one in enumerate(ran):
         node = f"p{at}"
         label = one.phase.replace('"', "'")
-        undeclared = " ⚠" if one.undeclared else ""
+        undeclared = " (no declared contract)" if one.undeclared else ""
         lines.append(f'  {node}["{label}{undeclared}"]')
         if at:
             lines.append(f"  p{at - 1} --> {node}")

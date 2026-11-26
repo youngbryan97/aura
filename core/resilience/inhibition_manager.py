@@ -22,7 +22,7 @@ class InhibitionManager:
         self._inhibited_sources: dict[str, float] = {}
         self._lock = asyncio.Lock()
         self._thread_lock = threading.Lock()
-        logger.info("🚫 InhibitionManager initialized. (Global Cross-Process Protection).")
+        logger.info("InhibitionManager initialized. (Global Cross-Process Protection).")
 
     async def inhibit(
         self,
@@ -52,7 +52,7 @@ class InhibitionManager:
             level = logging.WARNING if current_expiry <= now else logging.DEBUG
             logger.log(
                 level,
-                "🛑 [INHIBITION] Source '%s' inhibited for %.1fs. Reason: %s",
+                "[INHIBITION] Source '%s' inhibited for %.1fs. Reason: %s",
                 source, duration, reason or "unspecified"
             )
 
@@ -88,7 +88,7 @@ class InhibitionManager:
             with self._thread_lock:
                 removed = self._inhibited_sources.pop(source, None) is not None
             if removed:
-                logger.info("🔓 [INHIBITION] Manual release for source: %s", source)
+                logger.info("[INHIBITION] Manual release for source: %s", source)
 
     def get_remaining_time(self, source: str) -> float:
         """Synchronous check for remaining time (returns 0 if not inhibited)."""

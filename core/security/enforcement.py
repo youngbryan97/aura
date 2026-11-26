@@ -54,7 +54,7 @@ class AppLayerFirewall:
         with self._lock:
             self._blocked.add(origin)
             self._blocked_at[origin] = time.time() if now is None else now
-        logger.warning("🛡️ [Firewall] app-layer block on %s", origin)
+        logger.warning("[Firewall] app-layer block on %s", origin)
         self._try_pf_block(origin)
 
     def is_blocked(self, origin: str) -> bool:
@@ -148,7 +148,7 @@ class Quarantine:
                     type(exc).__name__,
                     exc,
                 )
-            logger.warning("🔒 [Quarantine] isolated %s → %s", path, dest)
+            logger.warning("[Quarantine] isolated %s → %s", path, dest)
             return str(dest)
         except (OSError, ValueError) as exc:
             logger.debug("Quarantine failed for %s: %s", path, exc)

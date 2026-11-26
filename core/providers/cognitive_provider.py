@@ -182,7 +182,7 @@ def register_cognitive_services(container, is_proxy: bool = False):
     # 1. Cognitive Engine
     def create_cognitive_engine():
         if is_proxy:
-            logger.info("📡 Proxy Mode: Skipping full CognitiveEngine.")
+            logger.info("Proxy Mode: Skipping full CognitiveEngine.")
             return None
         try:
             from core.brain.cognitive_engine import CognitiveEngine
@@ -233,7 +233,7 @@ def register_cognitive_services(container, is_proxy: bool = False):
     # 1.2 LLM Router
     def create_llm_router():
         if is_proxy:
-            logger.info("📡 Proxy Mode: Skipping LLM Router (Prevents MLX Load).")
+            logger.info("Proxy Mode: Skipping LLM Router (Prevents MLX Load).")
             return ProxyLLMRouter()
         
         try:
@@ -256,7 +256,7 @@ def register_cognitive_services(container, is_proxy: bool = False):
             return router
         except _COGNITIVE_PROVIDER_RECOVERABLE_ERRORS as e:
             record_degradation('cognitive_provider', e)
-            logger.error("🛑 LLMRouter Initialization Critical Failure: %s", e)
+            logger.error("LLMRouter Initialization Critical Failure: %s", e)
             # Do NOT return None; let the container know it failed so it can be re-attempted
             # or handled by the lazy-fetching LanguageCenter.
             raise
@@ -265,7 +265,7 @@ def register_cognitive_services(container, is_proxy: bool = False):
     # 1.2.1 Autonomous Brain (for LLM Router population)
     def create_autonomous_brain():
         if is_proxy:
-            logger.info("📡 Proxy Mode: Skipping AutonomousCognitiveEngine.")
+            logger.info("Proxy Mode: Skipping AutonomousCognitiveEngine.")
             return None
         try:
             # The actual instance is created within create_llm_router, this is just for registration

@@ -70,7 +70,7 @@ class NetworkDiscovery(BaseSkill):
 
         if action == "scan_hosts":
             target = params.get("target") or self._get_local_subnet()
-            logger.info("📡 Scanning network target: %s...", target)
+            logger.info("Scanning network target: %s...", target)
             
             # Ping scan (sn) to find live hosts
             self.nm.scan(hosts=target, arguments='-sn')
@@ -89,7 +89,7 @@ class NetworkDiscovery(BaseSkill):
             if not target_ip:
                 return {"ok": False, "error": "Target IP required for port scan."}
                 
-            logger.info("🔍 Deep scanning %s...", target_ip)
+            logger.info("Deep scanning %s...", target_ip)
             # Scan common services: 22 (SSH), 80 (HTTP), 443 (HTTPS), 3389 (RDP)
             self.nm.scan(target_ip, arguments='-p 22,80,443,3389,8080 -sV')
             

@@ -159,7 +159,7 @@ class NaturalFollowupEngine:
         decision.reason = f"{followup_type} (p={profile.followup_probability:.2f})"
 
         logger.info(
-            "💬 [Followup] Decision: %s in %.1fs, budget=%d words, reason=%s",
+            "[Followup] Decision: %s in %.1fs, budget=%d words, reason=%s",
             followup_type, delay, word_budget, decision.reason,
         )
 

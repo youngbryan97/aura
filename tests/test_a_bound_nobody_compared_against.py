@@ -2,7 +2,7 @@
 
 LIVE, 2026-09-21, in the verifier's own output:
 
-    🔎 VERIFIER [error] telemetry.no_channel_is_red @ morphogenesis.edges:
+    VERIFIER [error] telemetry.no_channel_is_red @ morphogenesis.edges:
        morphogenesis.edges is red_high at 258count and has been for 2302s
 
 258 bindings against ``MorphBounds.max_edges = 256``. The bound had been

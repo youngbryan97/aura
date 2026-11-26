@@ -110,7 +110,7 @@ class UnifiedTranscript:
         self._max_history = _MAX_HISTORY_DEFAULT
         self._lock = threading.Lock()
         self._listeners: list = []
-        logger.info("📝 UnifiedTranscript ONLINE")
+        logger.info("UnifiedTranscript ONLINE")
 
     @classmethod
     def get_instance(cls) -> UnifiedTranscript:
@@ -249,7 +249,7 @@ class UnifiedTranscript:
                 capture_and_log(e, {'module': __name__})
 
         logger.debug(
-            "📝 Transcript +%s [%s/%s]: %.60s",
+            "Transcript +%s [%s/%s]: %.60s",
             role, channel, modality, content
         )
         return entry

@@ -24,7 +24,7 @@ class ResultInterpreter:
         hypothesis: Hypothesis,
         simulation_result: Dict[str, Any],
     ) -> Dict[str, Any]:
-        logger.info("🎯 ResultInterpreter: analyzing hypothesis '%s'", hypothesis.hypothesis_id)
+        logger.info("ResultInterpreter: analyzing hypothesis '%s'", hypothesis.hypothesis_id)
 
         status = str(simulation_result.get("status", "inconclusive"))
         validated = bool(simulation_result.get("validated"))

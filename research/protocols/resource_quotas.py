@@ -71,7 +71,7 @@ class ComputeGovernor:
         return False
         
     def _unlock_tier_2(self):
-        logger.warning("🔓 GOVERNANCE: Promoting to TIER_2_NETWORKED")
+        logger.warning("GOVERNANCE: Promoting to TIER_2_NETWORKED")
         self.state.update({
             "current_tier": "TIER_2_NETWORKED",
             "max_tokens_per_hour": 500000,
@@ -82,7 +82,7 @@ class ComputeGovernor:
         self._save()
         
     def _unlock_tier_3(self):
-        logger.critical("🔓 GOVERNANCE: Promoting to TIER_3_TRANSCENDENT (FULL UNLOCK)")
+        logger.critical("GOVERNANCE: Promoting to TIER_3_TRANSCENDENT (FULL UNLOCK)")
         self.state.update({
             "current_tier": "TIER_3_TRANSCENDENT",
             "max_tokens_per_hour": 10000000,
@@ -120,15 +120,15 @@ class ComputeGovernor:
         max_allowed = self.state.get("max_concurrent_sims", 1)
         if len(self.active_simulations) >= max_allowed:
             msg = f"Quota exceeded: Max concurrent simulations is {max_allowed}. Attempted to start simulation '{simulation_id}'."
-            logger.error("🚫 GOVERNANCE: %s", msg)
+            logger.error("GOVERNANCE: %s", msg)
             raise QuotaExceededError(msg)
         self.active_simulations.add(simulation_id)
-        logger.info("📊 GOVERNANCE: Stateful simulation '%s' started. Active: %d/%d limit.", simulation_id, len(self.active_simulations), max_allowed)
+        logger.info("GOVERNANCE: Stateful simulation '%s' started. Active: %d/%d limit.", simulation_id, len(self.active_simulations), max_allowed)
 
     def end_simulation(self, simulation_id: str):
         """Statefully registers the completion of a simulation."""
         self.active_simulations.discard(simulation_id)
-        logger.info("📊 GOVERNANCE: Stateful simulation '%s' finished. Active: %d/%d limit.", simulation_id, len(self.active_simulations), self.state.get("max_concurrent_sims", 1))
+        logger.info("GOVERNANCE: Stateful simulation '%s' finished. Active: %d/%d limit.", simulation_id, len(self.active_simulations), self.state.get("max_concurrent_sims", 1))
 
     def enforce_quota(self, metric: str, amount: int):
         """Called by telemetry to check if a run should be killed."""
@@ -138,17 +138,17 @@ class ComputeGovernor:
             if now - self.last_reset_time >= 3600:
                 self.token_usage_hourly = 0
                 self.last_reset_time = now
-                logger.info("🔄 GOVERNANCE: Hourly token usage quota reset.")
+                logger.info("GOVERNANCE: Hourly token usage quota reset.")
 
             projected = self.token_usage_hourly + amount
             max_allowed = self.state.get("max_tokens_per_hour", 100000)
             if projected > max_allowed:
                 msg = f"Quota exceeded: Token limit of {max_allowed}/hr reached. Attempted to add {amount} (current: {self.token_usage_hourly})."
-                logger.error("🚫 GOVERNANCE: %s", msg)
+                logger.error("GOVERNANCE: %s", msg)
                 raise QuotaExceededError(msg)
             
             self.token_usage_hourly = projected
-            logger.debug("📊 GOVERNANCE: Tokens consumed: %d/%d hourly limit.", self.token_usage_hourly, max_allowed)
+            logger.debug("GOVERNANCE: Tokens consumed: %d/%d hourly limit.", self.token_usage_hourly, max_allowed)
 
         elif metric == "simulations":
             max_allowed = self.state.get("max_concurrent_sims", 1)
@@ -156,9 +156,9 @@ class ComputeGovernor:
             total_active = max(len(self.active_simulations), amount)
             if total_active > max_allowed:
                 msg = f"Quota exceeded: Max concurrent simulations is {max_allowed}. Attempted to run {total_active} simulations."
-                logger.error("🚫 GOVERNANCE: %s", msg)
+                logger.error("GOVERNANCE: %s", msg)
                 raise QuotaExceededError(msg)
-            logger.debug("📊 GOVERNANCE: Current active simulations: %d/%d limit.", total_active, max_allowed)
+            logger.debug("GOVERNANCE: Current active simulations: %d/%d limit.", total_active, max_allowed)
 
     def _save(self):
         try:
@@ -169,13 +169,13 @@ class ComputeGovernor:
                 source="research.resource_quotas.state",
             )
         except PermissionError as e:
-            logger.error("🚫 GOVERNANCE: Permission denied while writing state file %s: %s", self.state_file, e)
+            logger.error("GOVERNANCE: Permission denied while writing state file %s: %s", self.state_file, e)
             raise
         except OSError as e:
-            logger.error("🚫 GOVERNANCE: OS error writing state file %s: %s", self.state_file, e)
+            logger.error("GOVERNANCE: OS error writing state file %s: %s", self.state_file, e)
             raise
         except TypeError as e:
-            logger.error("🚫 GOVERNANCE: Type error serializing state: %s", e)
+            logger.error("GOVERNANCE: Type error serializing state: %s", e)
             raise
             
     def _load(self):
@@ -184,10 +184,10 @@ class ComputeGovernor:
                 with open(self.state_file, "r") as f:
                     self.state.update(json.load(f))
             except FileNotFoundError:
-                logger.warning("⚠️ GOVERNANCE: State file not found during load: %s", self.state_file)
+                logger.warning("GOVERNANCE: State file not found during load: %s", self.state_file)
             except json.JSONDecodeError as e:
-                logger.error("🚫 GOVERNANCE: Malformed state JSON at %s: %s", self.state_file, e)
+                logger.error("GOVERNANCE: Malformed state JSON at %s: %s", self.state_file, e)
             except PermissionError as e:
-                logger.error("🚫 GOVERNANCE: Permission denied reading state %s: %s", self.state_file, e)
+                logger.error("GOVERNANCE: Permission denied reading state %s: %s", self.state_file, e)
             except OSError as e:
-                logger.error("🚫 GOVERNANCE: OS error reading state %s: %s", self.state_file, e)
+                logger.error("GOVERNANCE: OS error reading state %s: %s", self.state_file, e)

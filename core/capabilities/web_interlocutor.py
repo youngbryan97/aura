@@ -2373,7 +2373,7 @@ class WebInterlocutorSession:
         permitted, refusal = _destination_is_permitted(url)
         if not permitted:
             logger.warning(
-                "🚫 Web interlocutor refused destination %r: %s", url, refusal
+                "Web interlocutor refused destination %r: %s", url, refusal
             )
             return WebInterlocutorResult(
                 ok=False,
@@ -4202,7 +4202,7 @@ def _message_is_safe_to_transmit(message: str) -> bool:
     _redacted, secrets_found = _redact_remote_content(text)
     if secrets_found:
         logger.warning(
-            "🚫 Refusing to transmit a composed message carrying %s.",
+            "Refusing to transmit a composed message carrying %s.",
             ", ".join(sorted(secrets_found)),
         )
         return False
@@ -4210,7 +4210,7 @@ def _message_is_safe_to_transmit(message: str) -> bool:
     for marker in _CAPTURED_INSTRUCTION_MARKERS:
         if marker in lowered:
             logger.warning(
-                "🚫 Refusing to transmit a composed message that repeats "
+                "Refusing to transmit a composed message that repeats "
                 "injection language (%r).",
                 marker,
             )
@@ -4218,7 +4218,7 @@ def _message_is_safe_to_transmit(message: str) -> bool:
     for marker in _UNAUTHORIZED_COMMITMENT_MARKERS:
         if marker in lowered:
             logger.warning(
-                "🚫 Refusing to transmit a composed message that commits the "
+                "Refusing to transmit a composed message that commits the "
                 "user (%r).",
                 marker,
             )

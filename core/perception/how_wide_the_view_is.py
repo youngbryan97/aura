@@ -164,7 +164,7 @@ async def turn_all_the_way_round(
                 "the view's width was not measured: nothing named came into view all the way round"
             )
             return HowWideTheViewIs()
-        logger.info("🔭 Following the %s round the room to see how wide the view is.", landmark)
+        logger.info("Following the %s round the room to see how wide the view is.", landmark)
     slid = 0.0
     was: tuple[float, float] | None = None
     crossings: list[float] = []
@@ -214,7 +214,7 @@ async def turn_all_the_way_round(
         known=True,
     )
     logger.info(
-        "🔭 The view is about %.0f degrees across: the %s came round to the middle of it after "
+        "The view is about %.0f degrees across: the %s came round to the middle of it after "
         "%.0f pixels of sliding, over %d turns of the mouse.",
         measured.degrees_across,
         landmark,

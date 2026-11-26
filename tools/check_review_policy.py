@@ -168,11 +168,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": not problems, "problems": problems}, indent=2))
         return 1 if problems else 0
     if problems:
-        print(f"❌ review policy: {len(problems)} problem(s)")
+        print(f"review policy: {len(problems)} problem(s)")
         for problem in problems:
             print(f"   • {problem}")
         return 1
-    print("✅ review policy holds")
+    print("review policy holds")
     return 0
 
 

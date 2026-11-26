@@ -87,7 +87,7 @@ class GitInitPatch(PatchStrategy):
             logger.warning("Git repair requires operator approval; proposal saved to %s", proposal)
             return False
 
-        logger.warning("⚙️ Autonomic Core engaging 'git init' self-repair...")
+        logger.warning("Autonomic Core engaging 'git init' self-repair...")
         try:
             await get_subprocess_gateway().run_async(
                 command,
@@ -97,10 +97,10 @@ class GitInitPatch(PatchStrategy):
                 source="maintenance_tooling:patch_library.git_init",
                 accelerator_capability="auto",
             )
-            logger.info("✅ Autonomic Core initialized local Git metadata; commit/add remain operator-governed.")
+            logger.info("Autonomic Core initialized local Git metadata; commit/add remain operator-governed.")
             return True
         except subprocess.CalledProcessError as e:
-            logger.error("❌ Git repair failed: %s", e.stderr.decode() if e.stderr else e)
+            logger.error("Git repair failed: %s", e.stderr.decode() if e.stderr else e)
             return False
 
 
@@ -128,7 +128,7 @@ class PipInstallPatch(PatchStrategy):
             }
             
             if module not in import_to_pip:
-                logger.error("🛑 SECURITY: Blocked autonomous installation of '%s'", module)
+                logger.error("SECURITY: Blocked autonomous installation of '%s'", module)
                 return False
 
             pip_package = import_to_pip[module]
@@ -143,7 +143,7 @@ class PipInstallPatch(PatchStrategy):
                 logger.warning("Dependency repair requires operator approval; proposal saved to %s", proposal)
                 return False
 
-            logger.warning("⚙️ Autonomic Core attempting to install missing module: %s (as %s)", module, pip_package)
+            logger.warning("Autonomic Core attempting to install missing module: %s (as %s)", module, pip_package)
             try:
                 await get_subprocess_gateway().run_async(
                     command,
@@ -153,10 +153,10 @@ class PipInstallPatch(PatchStrategy):
                     source="maintenance_tooling:patch_library.pip_install",
                     accelerator_capability="auto",
                 )
-                logger.info("✅ Autonomic Core successfully installed missing package '%s'", pip_package)
+                logger.info("Autonomic Core successfully installed missing package '%s'", pip_package)
                 return True
             except subprocess.CalledProcessError as e:
-                logger.error("❌ Autonomic Core failed to install '%s': %s", pip_package, e.stderr.decode() if e.stderr else e)
+                logger.error("Autonomic Core failed to install '%s': %s", pip_package, e.stderr.decode() if e.stderr else e)
                 return False
         return False
 

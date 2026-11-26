@@ -76,7 +76,7 @@ def live_data_dir() -> Path | None:
         path = Path(str(config.paths.data_dir)).expanduser()
         return path if path.is_dir() else None
     except Exception as exc:  # noqa: BLE001 — a backup tool reports; it does not stop on config
-        print(f"ℹ️  live data directory not resolved ({exc}); backing up repository roots only")
+        print(f" live data directory not resolved ({exc}); backing up repository roots only")
         return None
 SQLITE_MAGIC = b"SQLite format 3\x00"
 ARCHIVE_PREFIX = "aura_state_"
@@ -205,7 +205,7 @@ def _port_serving(port: int = 8000) -> bool:
 def create_backup(root: Path, out_dir: Path, keep: int = 7, live_data: Path | None = None) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     if _port_serving():
-        print("ℹ️  live instance detected on :8000 — SQLite stores are still "
+        print(" live instance detected on :8000 — SQLite stores are still "
               "snapshotted consistently via the backup API")
     # `live_data=None` means none: the CLI passes the configured directory,
     # and a caller that passes nothing gets the repository roots alone. The
@@ -221,7 +221,7 @@ def create_backup(root: Path, out_dir: Path, keep: int = 7, live_data: Path | No
         stage = Path(tmp)
         stats = _stage_tree(root, stage, live_data)
         if stats.files == 0:
-            raise SystemExit(f"❌ nothing to back up under {root} "
+            raise SystemExit(f"nothing to back up under {root} "
                              f"(state roots: {', '.join(STATE_ROOTS)})")
         with tarfile.open(archive, "w:gz") as tar:
             for entry in sorted(stage.iterdir()):
@@ -243,19 +243,19 @@ def create_backup(root: Path, out_dir: Path, keep: int = 7, live_data: Path | No
     with manifest.open("a") as fh:
         fh.write(json.dumps(manifest_entry) + "\n")
     pruned = prune_ring(out_dir, keep)
-    print(f"✅ backup {archive.name}: {stats.files} files, "
+    print(f"backup {archive.name}: {stats.files} files, "
           f"{stats.db_api_copies} consistent DB snapshots"
           + (f", {stats.db_raw_fallbacks} raw DB fallbacks" if stats.db_raw_fallbacks else "")
           + f", {archive.stat().st_size / 1e6:.0f}MB archive"
           + (f"; pruned {pruned} old ring archives" if pruned else "")
           + (f"; live data from {stats.live_data_root}" if stats.live_data_root else "; NO live data root"))
     for skipped in stats.skipped_over_bound:
-        print(f"⚠️  skipped {skipped['path']} ({skipped['bytes'] / 1e9:.1f}GB, over the "
+        print(f" skipped {skipped['path']} ({skipped['bytes'] / 1e9:.1f}GB, over the "
               f"{PER_FILE_BOUND_BYTES / 1e9:.0f}GB per-file bound) — named in the manifest")
     legacy = [p for p in out_dir.glob("aura_backup_*") if p.is_file()]
     if legacy:
         legacy_gb = sum(p.stat().st_size for p in legacy) / 1e9
-        print(f"ℹ️  {len(legacy)} legacy aura_backup_* archives ({legacy_gb:.1f}GB) "
+        print(f" {len(legacy)} legacy aura_backup_* archives ({legacy_gb:.1f}GB) "
               "left untouched — prune manually when confident")
     return archive
 
@@ -290,19 +290,19 @@ def verify_backup(out_dir: Path, archive: Path | None = None) -> int:
         ring = sorted(out_dir.glob(f"{ARCHIVE_PREFIX}*.tar.gz"),
                       key=lambda p: p.stat().st_mtime, reverse=True)
         if not ring:
-            print(f"❌ no {ARCHIVE_PREFIX}*.tar.gz archives in {out_dir}")
+            print(f"no {ARCHIVE_PREFIX}*.tar.gz archives in {out_dir}")
             return 1
         archive = ring[0]
     if not archive.exists():
-        print(f"❌ archive missing: {archive}")
+        print(f"archive missing: {archive}")
         return 1
 
     entry = _manifest_entry_for(out_dir, archive)
     if entry is None:
-        print(f"⚠️  no manifest entry for {archive.name} — hash provenance "
+        print(f" no manifest entry for {archive.name} — hash provenance "
               "unavailable; continuing with structural checks")
     elif _sha256(archive) != entry["sha256"]:
-        print(f"❌ sha256 mismatch for {archive.name} — archive corrupted "
+        print(f"sha256 mismatch for {archive.name} — archive corrupted "
               "or tampered since creation")
         return 1
 
@@ -326,15 +326,15 @@ def verify_backup(out_dir: Path, archive: Path | None = None) -> int:
             if verdict != "ok":
                 failed += 1
                 rel = path.relative_to(tmp)
-                print(f"❌ quick_check failed for {rel}: {verdict}")
+                print(f"quick_check failed for {rel}: {verdict}")
         if quarantined:
-            print(f"ℹ️  {quarantined} store(s) under quarantine carried as-is; the runtime "
+            print(f" {quarantined} store(s) under quarantine carried as-is; the runtime "
                   "set them aside as damaged and they are not checked")
     if failed:
-        print(f"❌ verify FAILED: {failed}/{checked} SQLite stores unhealthy "
+        print(f"verify FAILED: {failed}/{checked} SQLite stores unhealthy "
               f"in {archive.name}")
         return 1
-    print(f"✅ verify OK: {archive.name} — hash matches manifest, "
+    print(f"verify OK: {archive.name} — hash matches manifest, "
           f"{checked} SQLite stores pass quick_check")
     return 0
 
@@ -348,7 +348,7 @@ def restore_archive(archive: Path, root: Path, live_data: Path | None, *, force:
     left the runtime reading the stores it had before.
     """
     if not force and _port_serving():
-        print("❌ live Aura on :8000 — restoring under a running instance corrupts it; "
+        print("live Aura on :8000 — restoring under a running instance corrupts it; "
               "stop it (python aura_main.py --stop) or pass --force")
         return 1
     restored_live = 0
@@ -362,7 +362,7 @@ def restore_archive(archive: Path, root: Path, live_data: Path | None, *, force:
         tar.extractall(root, members=repo_members, filter="data")
         if live_members:
             if live_data is None:
-                print(f"❌ archive carries {len(live_members)} live-data entries and no live data "
+                print(f"archive carries {len(live_members)} live-data entries and no live data "
                       "directory is configured to receive them")
                 return 1
             with tempfile.TemporaryDirectory(prefix="aura_restore_live_") as tmp:
@@ -374,7 +374,7 @@ def restore_archive(archive: Path, root: Path, live_data: Path | None, *, force:
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(path, dest)
                         restored_live += 1
-    print(f"✅ restored {archive.name}: {len(repo_members)} repository entries under {root}"
+    print(f"restored {archive.name}: {len(repo_members)} repository entries under {root}"
           + (f", {restored_live} live-data files into {live_data}" if restored_live else ""))
     return 0
 
@@ -418,7 +418,7 @@ def drill(out_dir: Path, archive: Path | None = None, *, corrupt: int = 3) -> in
         ring = sorted(out_dir.glob(f"{ARCHIVE_PREFIX}*.tar.gz"),
                       key=lambda p: p.stat().st_mtime, reverse=True)
         if not ring:
-            print(f"❌ no {ARCHIVE_PREFIX}*.tar.gz archives in {out_dir}")
+            print(f"no {ARCHIVE_PREFIX}*.tar.gz archives in {out_dir}")
             return 1
         archive = ring[0]
     with tempfile.TemporaryDirectory(prefix="aura_restore_drill_") as tmp:
@@ -431,7 +431,7 @@ def drill(out_dir: Path, archive: Path | None = None, *, corrupt: int = 3) -> in
         before = _hash_tree(Path(tmp))
         scratch = Path(tmp)
         if not before:
-            print(f"❌ {archive.name} extracted to nothing")
+            print(f"{archive.name} extracted to nothing")
             return 1
         stores = [
             scratch / rel for rel in before
@@ -449,7 +449,7 @@ def drill(out_dir: Path, archive: Path | None = None, *, corrupt: int = 3) -> in
             if _sha256(path) != before[rel]:
                 visible += 1
         if visible != len(damage):
-            print(f"❌ drill: damaged {len(damage)} files and only {visible} changed hash")
+            print(f"drill: damaged {len(damage)} files and only {visible} changed hash")
             return 1
         unhealthy = 0
         for victim in victims:
@@ -481,10 +481,10 @@ def drill(out_dir: Path, archive: Path | None = None, *, corrupt: int = 3) -> in
         )
         if mismatched or failed_check:
             for rel in mismatched[:10]:
-                print(f"❌ not restored: {rel}")
-            print("❌ restore drill FAILED")
+                print(f"not restored: {rel}")
+            print("restore drill FAILED")
             return 1
-    print("✅ restore drill passed: damage was visible and the restore repaired it")
+    print("restore drill passed: damage was visible and the restore repaired it")
     return 0
 
 

@@ -32,7 +32,7 @@ class MissionProgressMonitor:
     def record_progress(self, campaign_id: str, milestone_id: str, event: str) -> None:
         entry = ProgressEntry(campaign_id=campaign_id, milestone_id=milestone_id, event=event)
         self.entries.append(entry)
-        logger.debug("📈 Progress [%s] %s: %s", campaign_id, milestone_id, event)
+        logger.debug("Progress [%s] %s: %s", campaign_id, milestone_id, event)
 
     def get_campaign_progress(self, campaign_id: str) -> List[ProgressEntry]:
         return [e for e in self.entries if e.campaign_id == campaign_id]

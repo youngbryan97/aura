@@ -193,7 +193,7 @@ def main() -> int:
 
     if all_missing:
         print(
-            f"❌ {len(all_missing)} path(s) named by shell scripts do not exist:",
+            f"failed {len(all_missing)} path(s) named by shell scripts do not exist:",
             file=sys.stderr,
         )
         for item in all_missing:
@@ -201,7 +201,7 @@ def main() -> int:
         return 1
 
     print(
-        f"✅ {len(all_resolved)} repo path(s) across {len(scripts)} shell script(s) exist"
+        f"ok {len(all_resolved)} repo path(s) across {len(scripts)} shell script(s) exist"
     )
     return 0
 

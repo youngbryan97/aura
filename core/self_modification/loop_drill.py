@@ -77,8 +77,8 @@ def run_the_drill_if_armed() -> bool:
         except Exception as exc:  # noqa: BLE001 - a planted fault of any kind is what the drill records
             record_degradation("loop_drill", exc, severity="warning",
                                action="a drill of her repair loop: this fault is planted, for her loop to mend")
-            logger.warning("🩹 A drill of her repair loop is armed: its planted fault in %s was raised in her running "
+            logger.warning("A drill of her repair loop is armed: its planted fault in %s was raised in her running "
                            "process.", name)
             return True
-    logger.info("🩹 A drill of her repair loop is armed, and every planted fault no longer raises: each was mended.")
+    logger.info("A drill of her repair loop is armed, and every planted fault no longer raises: each was mended.")
     return False

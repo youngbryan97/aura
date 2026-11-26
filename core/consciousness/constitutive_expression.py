@@ -210,12 +210,12 @@ class ConstitutiveExpressionLayer:
                 duration = now - self._last_external_times[0]
                 if duration < 10.0:
                     if not self._noise_suppression_active:
-                        logger.info("🔊 High-frequency audio input detected. Activating Noise Suppression/Ignoring.")
+                        logger.info("High-frequency audio input detected. Activating Noise Suppression/Ignoring.")
                     self._noise_suppression_active = True
                     self._noise_cooldown = now + 30.0 # 30s suppression
         
         if self._noise_suppression_active and now > self._noise_cooldown:
-            logger.info("🔇 Noise suppression expired. Resuming standard awareness.")
+            logger.info("Noise suppression expired. Resuming standard awareness.")
             self._noise_suppression_active = False
 
         # Check Reasoning Queue depth to avoid backlog

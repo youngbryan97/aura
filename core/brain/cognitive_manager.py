@@ -50,7 +50,7 @@ class CognitiveManager:
                     logger.debug("MockEmitter: %s %s", args, kwargs)
             get_emitter = lambda: MockEmitter()
 
-        get_emitter().emit("Thought 💭", f"Thinking about: {clean_msg}", level="info")
+        get_emitter().emit("Thought", f"Thinking about: {clean_msg}", level="info")
         
         context = {
             "role": "system",
@@ -64,8 +64,8 @@ class CognitiveManager:
             mode=ThinkingMode.DEEP
         )
         
-        logger.info("🧠 Autonomous Thought: %s...", thought.content[:100])
-        get_emitter().emit("Reflection 🧠", thought.content[:200], level="info")
+        logger.info("Autonomous Thought: %s...", thought.content[:100])
+        get_emitter().emit("Reflection", thought.content[:200], level="info")
         return thought
 
     def get_status(self) -> Dict[str, Any]:

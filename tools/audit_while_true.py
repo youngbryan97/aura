@@ -90,7 +90,7 @@ def main():
             if f["guarded"]:
                 guarded += 1
             else:
-                print(f"  ⚠️  UNGUARDED: {rel}:{f['line']}")
+                print(f"   UNGUARDED: {rel}:{f['line']}")
                 unguarded += 1
 
     print(f"\nTotal: {guarded + unguarded} while-True loops ({guarded} guarded, {unguarded} UNGUARDED)")

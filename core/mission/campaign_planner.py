@@ -23,7 +23,7 @@ class CampaignPlanner:
         plan_steps: Optional[List[str]] = None,
     ) -> List[str]:
         """Generate milestones from plan steps or decompose the objective automatically."""
-        logger.info("🎯 Planning campaign for: '%s'", objective[:60])
+        logger.info("Planning campaign for: '%s'", objective[:60])
 
         if plan_steps and len(plan_steps) > 1:
             # Build milestones from explicit plan steps

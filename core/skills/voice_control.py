@@ -56,7 +56,7 @@ class VoiceMuteSkill(BaseSkill):
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("skills.voice_control.mute", exc)
             return {"ok": False, "status": "mute_failed", "error": str(exc)}
-        logger.info("🔇 Voice muted by request.")
+        logger.info("Voice muted by request.")
         return {"ok": True, "status": "muted", "message": "Microphone and speech are off."}
 
 
@@ -79,7 +79,7 @@ class VoiceUnmuteSkill(BaseSkill):
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("skills.voice_control.unmute", exc)
             return {"ok": False, "status": "unmute_failed", "error": str(exc)}
-        logger.info("🔊 Voice unmuted by request.")
+        logger.info("Voice unmuted by request.")
         return {"ok": True, "status": "unmuted", "message": "Microphone and speech are on."}
 
 
@@ -105,7 +105,7 @@ class VoiceStopTtsSkill(BaseSkill):
         except (AttributeError, TypeError) as exc:
             record_degradation("skills.voice_control.stop_tts", exc)
             return {"ok": False, "status": "stop_failed", "error": str(exc)}
-        logger.info("🤐 Speech stopped by request; microphone left on.")
+        logger.info("Speech stopped by request; microphone left on.")
         return {
             "ok": True,
             "status": "speech_stopped",

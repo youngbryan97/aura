@@ -10,7 +10,7 @@ sys.path.append(str(root))
 async def test_cognition():
     import logging
     logging.basicConfig(level=logging.INFO)
-    print("🔬 Aura Crucible: Verification of Cognitive Upgrade (Zenith-HF2)")
+    print("Aura Crucible: Verification of Cognitive Upgrade (Zenith-HF2)")
     
     # Use ServiceContainer to get the registered Nucleus instance
     from core.service_registration import register_all_services
@@ -22,11 +22,11 @@ async def test_cognition():
     nucleus = container.get("nucleus")
     
     if not nucleus:
-        print("❌ Nucleus service not found in container.")
+        print("Nucleus service not found in container.")
         return
     
     # Ensure the adapter is loaded
-    print("⏳ Loading Nucleus with LoRA adapter...")
+    print("Loading Nucleus with LoRA adapter...")
     # The load_model call in generate will handle loading the adapter if present.
     # We force load cortex to verify.
     await nucleus.load_model("cortex")    
@@ -57,15 +57,15 @@ async def test_cognition():
         has_action = "<action>" in full_response and "</action>" in full_response
         
         if has_thought and has_action:
-            print("✅ Reasoning structure detected.")
+            print("Reasoning structure detected.")
             
             # Check for JSON syntax in action
             if "{" in full_response and "}" in full_response:
-                print("✅ JSON-like action detected.")
+                print("JSON-like action detected.")
             else:
-                print("⚠️ Action tag found but no JSON structure detected.")
+                print("Action tag found but no JSON structure detected.")
         else:
-            print("❌ Missing reasoning tags (<thought>/<action>).")
+            print("Missing reasoning tags (<thought>/<action>).")
 
 if __name__ == "__main__":
     asyncio.run(test_cognition())

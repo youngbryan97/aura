@@ -942,7 +942,7 @@ async def record_conversation_experience(
             
             # Check if facade actually saved it (not deferred or blocked)
             if memory_commit_result is None:
-                logger.warning("⚠️ Memory facade commit_interaction returned None (governance/deferral may have blocked it). Falling back to episodic...")
+                logger.warning("Memory facade commit_interaction returned None (governance/deferral may have blocked it). Falling back to episodic...")
                 used_memory_facade = False
             else:
                 logger.debug(f"✓ Conversation turn saved to memory facade: {memory_commit_result}")

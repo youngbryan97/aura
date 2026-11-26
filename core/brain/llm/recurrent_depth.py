@@ -746,7 +746,7 @@ def apply_recurrent_depth(
     try:
         _self_test_cache_snapshot()
     except CacheSnapshotError as exc:
-        logger.error("🚫 Recurrent depth DISABLED: %s", exc)
+        logger.error("Recurrent depth DISABLED: %s", exc)
         return False
 
     # ── Compute split points ─────────────────────────────────────────
@@ -761,7 +761,7 @@ def apply_recurrent_depth(
     recurrent_count = coda_start - prelude_end
 
     logger.info(
-        "🧠 Recurrent Depth: %d layers → Prelude[0:%d] Recurrent[%d:%d]×%d Coda[%d:%d]",
+        "Recurrent Depth: %d layers → Prelude[0:%d] Recurrent[%d:%d]×%d Coda[%d:%d]",
         num_layers, prelude_end,
         prelude_end, coda_start, n_loops,
         coda_start, num_layers,
@@ -858,7 +858,7 @@ def apply_recurrent_depth(
         inner.__class__ = patched_class
     except TypeError as exc:
         logger.error(
-            "🚫 Recurrent depth DISABLED: cannot install instance-scoped patch "
+            "Recurrent depth DISABLED: cannot install instance-scoped patch "
             "on %s: %s",
             original_class.__name__,
             exc,
@@ -881,7 +881,7 @@ def apply_recurrent_depth(
     }
 
     logger.info(
-        "✅ RECURRENT DEPTH ACTIVE: %d loops, α=%.2f, "
+        "RECURRENT DEPTH ACTIVE: %d loops, α=%.2f, "
         "recurrent block = %d layers [%d→%d], "
         "model now THINKS before answering",
         n_loops, residual_alpha,

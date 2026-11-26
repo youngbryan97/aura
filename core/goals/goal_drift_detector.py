@@ -45,7 +45,7 @@ REASON: [Brief explanation]
             
             if "DRIFTING" in response.upper():
                 self.drift_count += 1
-                logger.warning("⚠️ Goal Drift Detected (%d/%d): %s", self.drift_count, self.max_drift_tolerance, current_thought)
+                logger.warning("Goal Drift Detected (%d/%d): %s", self.drift_count, self.max_drift_tolerance, current_thought)
             else:
                 self.drift_count = max(0, self.drift_count - 1)
                 

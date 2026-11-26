@@ -1267,14 +1267,14 @@ async def _apply_strict_proof_answer_contract(
                 )
                 if _trust_level is TrustLevel.GUEST and downgraded_for_safety:
                     logger.info(
-                        "🎭 Guest recognized, but this request was already "
+                        "Guest recognized, but this request was already "
                         "downgraded; not re-promoting it to the protected lane."
                     )
                 elif requested_tier in ("", "primary"):
                     protected_foreground_lane = True
                     requested_tier = "primary"
                     logger.info(
-                        "🎭 %s user recognized. Enforcing primary cortex lane (%s).",
+                        "%s user recognized. Enforcing primary cortex lane (%s).",
                         _trust_level.name,
                         _primary_lane_label(),
                     )
@@ -1297,7 +1297,7 @@ async def _apply_strict_proof_answer_contract(
                     # override was found, because nothing reported that the
                     # preference had been discarded.
                     logger.info(
-                        "🎭 %s user recognized. Keeping the explicit %s handoff eligible for normal headroom checks.",
+                        "%s user recognized. Keeping the explicit %s handoff eligible for normal headroom checks.",
                         _trust_level.name,
                         requested_tier,
                     )
@@ -1397,7 +1397,7 @@ async def _recover_the_cortex_before_answering(
                         # contract: a lower lane's answer would misreport its
                         # own provenance, so refusing is the honest outcome.
                         logger.warning(
-                            "🧠 Cortex inline recovery was deferred and this turn's "
+                            "Cortex inline recovery was deferred and this turn's "
                             "contract names the primary lane; refusing lower-lane fallback."
                         )
                         return self._refuse_generation(
@@ -1417,7 +1417,7 @@ async def _recover_the_cortex_before_answering(
                     # someone is not a reason to hand them nothing.
                     if protected_foreground_lane:
                         logger.warning(
-                            "🧠 Cortex inline recovery deferred (%s) on a protected "
+                            "Cortex inline recovery deferred (%s) on a protected "
                             "foreground turn; serving from Brainstem rather than "
                             "returning nothing to a waiting person.",
                             inline_deferral,
@@ -1426,12 +1426,12 @@ async def _recover_the_cortex_before_answering(
                         context["fallback_lane_reason"] = str(inline_deferral)
                     else:
                         logger.warning(
-                            "🧠 Cortex inline recovery skipped by RAM admission; routing foreground turn to Brainstem."
+                            "Cortex inline recovery skipped by RAM admission; routing foreground turn to Brainstem."
                         )
                     requested_tier = "tertiary"
                 else:
                     logger.warning(
-                        "🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)..."
+                        "[STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)..."
                     )
                     try:
                         alive = await asyncio.wait_for(
@@ -1444,7 +1444,7 @@ async def _recover_the_cortex_before_answering(
                             timeout=15.0,
                         )
                         if alive:
-                            logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
+                            logger.info("[STABILITY] Inline fast-recovery succeeded.")
                     except (
                         TimeoutError,
                         RuntimeError,
@@ -1459,7 +1459,7 @@ async def _recover_the_cortex_before_answering(
                             severity="degraded",
                             action="downgraded foreground request after inline cortex recovery failure",
                         )
-                        logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
+                        logger.warning("[STABILITY] Inline fast-recovery failed: %s", inline_exc)
 
             # If cortex recovery was just triggered or is in progress, give it
             # a short window to complete before the user hits a dead endpoint.
@@ -1473,7 +1473,7 @@ async def _recover_the_cortex_before_answering(
                 for _ in range(5):  # Up to 5s of 1s slices
                     await asyncio.sleep(1.0)
                     if self._mlx_client.is_alive():
-                        logger.info("✅ InferenceGate: cortex recovered inline for user request.")
+                        logger.info("InferenceGate: cortex recovered inline for user request.")
                         break
             # If cortex is STILL dead after recovery wait, downgrade to secondary
             # tier rather than sending the user a fallback/"wound up" response.
@@ -1486,12 +1486,12 @@ async def _recover_the_cortex_before_answering(
             ):
                 if protected_foreground_lane:
                     logger.warning(
-                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait, "
+                        "InferenceGate: Primary cortex is still warming after the short inline wait, "
                         "but protected foreground mode will preserve the requested high-capability path."
                     )
                 else:
                     logger.warning(
-                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait. "
+                        "InferenceGate: Primary cortex is still warming after the short inline wait. "
                         "Downgrading to the fast tertiary lane for user responsiveness."
                     )
                     requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
@@ -1562,7 +1562,7 @@ async def _admit_the_foreground_request(
             _admitted, _admission_reason = admission_permits(admission_snapshot)
             if not _admitted and requested_tier == "secondary":
                 logger.warning(
-                    "🛡️ InferenceGate: deep local handoff exceeds safe headroom "
+                    "InferenceGate: deep local handoff exceeds safe headroom "
                     "(pressure=%s available=%s process=%s/%s). "
                     "Downgrading to the primary lane.",
                     format_metric(admission_snapshot, "pressure_pct", unit="%"),
@@ -1634,7 +1634,7 @@ async def _admit_the_foreground_request(
                     or process_over_limit
                 ):
                     logger.error(
-                        "🛑 InferenceGate: refusing primary foreground generation under critical "
+                        "InferenceGate: refusing primary foreground generation under critical "
                         "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
                         pressure,
                         available,
@@ -1689,7 +1689,7 @@ async def _admit_the_foreground_request(
                 )
                 if max_tokens > capped_tokens:
                     logger.warning(
-                        "🛡️ InferenceGate: capping primary foreground output to %d tokens under "
+                        "InferenceGate: capping primary foreground output to %d tokens under "
                         "memory pressure (pressure=%.1f%% available=%.1fGB process=%.1f/%.1fGB).",
                         capped_tokens,
                         pressure,
@@ -1851,7 +1851,7 @@ async def _refuse_a_cold_protected_lane(
                         mesh_decision.rationale or "unknown"
                     )
                     logger.info(
-                        "🕸️ Mesh handled the turn as %s; deferring to the governed "
+                        "Mesh handled the turn as %s; deferring to the governed "
                         "path so trust is recognized before self-report leaves.",
                         mesh_decision.rationale,
                     )
@@ -2236,7 +2236,7 @@ def fit_the_answer_to_the_time(
         # Cutting is the only option left, and saying so is the difference
         # between a measured limit and a protection that quietly did nothing.
         logger.warning(
-            "🕝 A protected answer floor of %d tokens does not fit the longest "
+            "A protected answer floor of %d tokens does not fit the longest "
             "request clock (%.0fs reading, %.1f tok/s); cutting to %d.",
             protected,
             reading,
@@ -2313,7 +2313,7 @@ def _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engin
         or desktop_cognitive_engine_contract
     ):
         logger.warning(
-            "🧠 Proof/evaluation request requires Cortex; refusing Brainstem fallback after primary warmup deferral."
+            "Proof/evaluation request requires Cortex; refusing Brainstem fallback after primary warmup deferral."
         )
         return self._refuse_generation(
             self.REFUSAL_PROOF_LANE,
@@ -2330,7 +2330,7 @@ def _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engin
             },
         )
     logger.warning(
-        "🧠 Cortex cold-load deferred by RAM admission; routing this foreground turn to %s.",
+        "Cortex cold-load deferred by RAM admission; routing this foreground turn to %s.",
         fallback_label,
     )
     return _FALL_THROUGH
@@ -2338,7 +2338,7 @@ def _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engin
 def _generate_with_metadata_sink_part_2_2(self, _is_user_facing, repairable_draft, text, visible_user_prompt):
     if repairable_draft is not None:
         logger.warning(
-            "🛡️ Preserving repairable Cortex draft for downstream response repair (len=%d).",
+            "Preserving repairable Cortex draft for downstream response repair (len=%d).",
             len(repairable_draft),
         )
         stabilized = self._stabilize_user_facing_text(
@@ -2389,7 +2389,7 @@ def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop
         )
     if health_probe:
         logger.warning(
-            "🧠 %s proof health probe returned no text; refusing local fallback for lane certification.",
+            "%s proof health probe returned no text; refusing local fallback for lane certification.",
             local_label,
         )
         return self._refuse_generation(
@@ -2404,7 +2404,7 @@ def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop
         or strict_primary_proof_lane
     ):
         logger.warning(
-            "🧠 Proof/evaluation request requires a valid Cortex response; refusing retry/fallback cascade after no text."
+            "Proof/evaluation request requires a valid Cortex response; refusing retry/fallback cascade after no text."
         )
         return self._refuse_generation(
             self.REFUSAL_PROOF_LANE,
@@ -2418,7 +2418,7 @@ def _generate_with_metadata_sink_primary_failure_metadata(self, context, desktop
 def _generate_with_metadata_sink_part_4_4(self, _is_user_facing, local_label, retry_attempt, text, visible_user_prompt):
     if text:
         logger.info(
-            "✅ %s retry %d succeeded (len=%d)",
+            "%s retry %d succeeded (len=%d)",
             local_label,
             retry_attempt,
             len(text),
@@ -2429,7 +2429,7 @@ def _generate_with_metadata_sink_part_4_4(self, _is_user_facing, local_label, re
         ) if _is_user_facing else None
         if repairable_draft is not None:
             logger.warning(
-                "🛡️ Preserving repairable Cortex retry draft for downstream response repair (len=%d).",
+                "Preserving repairable Cortex retry draft for downstream response repair (len=%d).",
                 len(repairable_draft),
             )
             return self._stabilize_user_facing_text(
@@ -2599,7 +2599,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             )
         )
         type(self)._instance_ref = weakref.ref(self)
-        logger.info("🛡️ InferenceGate created.")
+        logger.info("InferenceGate created.")
 
     def set_chat_dependencies_ready(
         self,
@@ -3090,7 +3090,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         except _INFERENCE_RECOVERABLE_ERRORS as exc:
             logger.debug("Refusal receipt not recorded on the turn ledger: %s", exc)
         logger.info(
-            "⛔ InferenceGate refused generation: kind=%s reason=%s origin=%s",
+            "InferenceGate refused generation: kind=%s reason=%s origin=%s",
             kind,
             reason,
             origin or "unknown",
@@ -3560,7 +3560,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 # Its last words, since a reason read off the end of a reply is checked against the end of the reply.
                 # LIVE 19 November 2026 a 624-character draft went to repair for truncated_tail, the whole answer was
                 # written again, and nothing in the log said where it had stopped.
-                logger.info("🛡️ The draft goes on to repair for: %s (it ends %r)", ", ".join(sorted(reasons)),
+                logger.info("The draft goes on to repair for: %s (it ends %r)", ", ".join(sorted(reasons)),
                             cleaned[-120:])
                 self._publish_downstream_repair_evidence(assessment)
                 return cleaned
@@ -3592,7 +3592,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         exc = task.exception()
         if exc is not None:
             logger.error(
-                "🚨 [STABILITY v53] Background task '%s' crashed: %s",
+                "[STABILITY v53] Background task '%s' crashed: %s",
                 task.get_name(),
                 exc,
                 exc_info=exc,
@@ -4011,7 +4011,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     severity="error",
                 )
                 logger.error(
-                    "🛑 Force-abort accepted but %s on %s — refusing to report "
+                    "Force-abort accepted but %s on %s — refusing to report "
                     "it as stopped.",
                     detail,
                     getattr(client, "model_path", "local client"),
@@ -4395,7 +4395,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             return wanted
         fits = max(1, int(wanted * (allowed / needed)))
         logger.info(
-            "⏱️ [GATE] %d tokens need %.0fs to decode and the turn has %.0fs; "
+            "[GATE] %d tokens need %.0fs to decode and the turn has %.0fs; "
             "asking for %d instead.",
             wanted,
             needed,
@@ -4415,7 +4415,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             return snapshot
 
         logger.warning(
-            "🛡️ Foreground admission tightening for %s "
+            "Foreground admission tightening for %s "
             "(pressure=%s available=%s process=%s/%s reason=%s).",
             requested_tier,
             format_metric(snapshot, "pressure_pct", unit="%"),
@@ -4429,7 +4429,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         tightened = self._headroom_snapshot(requested_tier)
         if not tightened["can_admit"] and protected_foreground and requested_tier != "secondary":
             logger.warning(
-                "🛡️ Protected foreground request proceeding under reduced headroom for tier=%s "
+                "Protected foreground request proceeding under reduced headroom for tier=%s "
                 "(pressure=%s available=%s process=%s/%s).",
                 requested_tier,
                 format_metric(tightened, "pressure_pct", unit="%"),
@@ -4455,7 +4455,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             )
             if background_deferral:
                 logger.debug(
-                    "⏸️ Skipping Solver hot spare warmup due to %s.",
+                    "Skipping Solver hot spare warmup due to %s.",
                     background_deferral,
                 )
                 return False
@@ -4517,7 +4517,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 severity="warning",
             )
             logger.warning(
-                "⏱️ Hot-spare warmup for %s exceeded %.0fs — leaving it cold.",
+                "Hot-spare warmup for %s exceeded %.0fs — leaving it cold.",
                 endpoint_name,
                 _HOT_SPARE_WARMUP_BUDGET_S,
             )
@@ -4545,7 +4545,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 continue
             try:
                 if recycle_predicate(max_uptime_s=max_uptime_s, min_idle_s=min_idle_s):
-                    logger.info("♻️ Recycling idle local runtime to reduce fragmentation.")
+                    logger.info("Recycling idle local runtime to reduce fragmentation.")
                     if hasattr(client, "reboot_worker"):
                         await client.reboot_worker(
                             reason="scheduled_fragmentation_recycle",
@@ -4600,7 +4600,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
                 # [STABILITY v53] Upgraded from debug to warning — silent maintenance
                 # failures can cascade into cortex death without visibility.
-                logger.warning("⚠️ InferenceGate maintenance loop error: %s", exc, exc_info=True)
+                logger.warning("InferenceGate maintenance loop error: %s", exc, exc_info=True)
 
     async def _proactive_cortex_watchdog(self) -> None:
         """[STABILITY v53] Proactive cortex health check — runs every maintenance cycle.
@@ -4676,7 +4676,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
             elif lane_state not in ("cold", "failed") and not self._cortex_recovery_in_progress:
                 logger.warning(
-                    "🔍 [WATCHDOG] Cortex is dead (state=%s, not-alive %.0fs) and past the warmup "
+                    "[WATCHDOG] Cortex is dead (state=%s, not-alive %.0fs) and past the warmup "
                     "deadline. Triggering recovery.",
                     lane_state, not_alive_age_s,
                 )
@@ -4688,7 +4688,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 # not start underneath it.
                 if getattr(self._mlx_client, "_warmup_in_flight", False):
                     logger.warning(
-                        "🔍 [WATCHDOG] Force-clearing wedged warmup_in_flight before recovery."
+                        "[WATCHDOG] Force-clearing wedged warmup_in_flight before recovery."
                     )
                     self._clear_wedged_cortex_warmup(
                         "watchdog_pre_recovery", owner="watchdog"
@@ -4708,14 +4708,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             # takes ~150s; 90s was guaranteed to force-kill a healthy loading worker.
             if transition_at > 0 and (time.time() - transition_at) > 300.0:
                 logger.warning(
-                    "🔍 [WATCHDOG] MLX warmup_in_flight stuck for >300s. Force-clearing."
+                    "[WATCHDOG] MLX warmup_in_flight stuck for >300s. Force-clearing."
                 )
                 receipt = self._clear_wedged_cortex_warmup(
                     "watchdog_stuck_warmup", owner="watchdog"
                 )
                 if receipt.get("cancelled_prewarm"):
                     logger.warning(
-                        "🔍 [WATCHDOG] Stuck prewarm task cancelled; waiting for it to stop."
+                        "[WATCHDOG] Stuck prewarm task cancelled; waiting for it to stop."
                     )
                 # Cancelling is a request. Waiting is how we know a 20GB load
                 # is not still running under the next warmup.
@@ -4727,7 +4727,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 exc = self._prewarm_task.exception()
                 if exc:
                     logger.warning(
-                        "🔍 [WATCHDOG] Stale failed prewarm task found: %s. Clearing.", exc
+                        "[WATCHDOG] Stale failed prewarm task found: %s. Clearing.", exc
                     )
             except (asyncio.CancelledError, asyncio.InvalidStateError) as exc:
                 logger.debug("Prewarm task state was unavailable during watchdog cleanup: %s", exc)
@@ -4738,7 +4738,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             alive = self._mlx_client.is_alive()
             if not alive and lane_state == "ready":
                 logger.warning(
-                    "🔍 [WATCHDOG] Cortex reports ready but is_alive() is False. Correcting state."
+                    "[WATCHDOG] Cortex reports ready but is_alive() is False. Correcting state."
                 )
                 if hasattr(self._mlx_client, "note_lane_recovering"):
                     self._mlx_client.note_lane_recovering("watchdog_state_correction")
@@ -4974,7 +4974,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                                     reason="failed_prewarm_observed",
                                 )
                                 logger.info(
-                                    "🔄 [STABILITY v53] Auto-scheduling cortex recovery after failed prewarm: %s",
+                                    "[STABILITY v53] Auto-scheduling cortex recovery after failed prewarm: %s",
                                     exc,
                                 )
                         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
@@ -5042,7 +5042,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
                 if transition_age > 300.0:
                     logger.warning(
-                        "🔍 [WATCHDOG] Prewarm task is active for >300s (stuck). Cancelling task."
+                        "[WATCHDOG] Prewarm task is active for >300s (stuck). Cancelling task."
                     )
                     self._prewarm_task.cancel()
                     self._prewarm_task = None
@@ -5066,7 +5066,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     if (_now_mono - _last_log) > 30.0:
                         self._last_stale_reset_log_at = _now_mono
                         logger.warning(
-                            "🚨 [HARDENING v54] Lane stuck in '%s' for >90s with no active task. "
+                            "[HARDENING v54] Lane stuck in '%s' for >90s with no active task. "
                             "Resetting to 'cold' and scheduling recovery.",
                             lane_state,
                         )
@@ -5238,13 +5238,13 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     # this model prewarmer to do for either warming or failed
                     # dependency states.
                     logger.info(
-                        "⏸️ Deferred cortex prewarm standing down while the "
+                        "Deferred cortex prewarm standing down while the "
                         "foreground chat-dependency owner finishes."
                     )
                     return
                 if self._lane_reports_active_generation(lane):
                     logger.info(
-                        "⏸️ Deferred cortex prewarm postponed while foreground generation is active."
+                        "Deferred cortex prewarm postponed while foreground generation is active."
                     )
                     next_delay = min(20.0, max(6.0, next_delay))
                     continue
@@ -5258,14 +5258,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         _REARMABLE_LANE_FAILURE_PREFIXES
                     ):
                         logger.info(
-                            "⏸️ Deferred cortex prewarm postponing while runtime lane is still unavailable (%s).",
+                            "Deferred cortex prewarm postponing while runtime lane is still unavailable (%s).",
                             lane.get("last_failure_reason") or "unknown",
                         )
                         next_delay = min(45.0, max(12.0, next_delay * 1.5))
                         continue
                     else:
                         logger.warning(
-                            "⏸️ Deferred cortex prewarm cancelled: lane is in a failed state (%s).",
+                            "Deferred cortex prewarm cancelled: lane is in a failed state (%s).",
                             lane.get("last_failure_reason") or "unknown",
                         )
                         return
@@ -5285,7 +5285,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     critical_available = available_gb < (6.0 if total_gb >= 60.0 else 10.0)
                     if critical_pressure or critical_available:
                         logger.warning(
-                            "⏸️ Deferred cortex prewarm postponed (attempt=%d pressure=%.1f%% available=%.1fGB).",
+                            "Deferred cortex prewarm postponed (attempt=%d pressure=%.1f%% available=%.1fGB).",
                             attempt,
                             vm.percent,
                             available_gb,
@@ -5309,18 +5309,18 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     # as foreground chat so it does not half-warm then strand
                     # the next user turn in recovery.
                     await self.ensure_foreground_ready(timeout=300.0)
-                    logger.info("✅ Deferred cortex prewarm completed.")
+                    logger.info("Deferred cortex prewarm completed.")
                     return
                 except _INFERENCE_RECOVERABLE_ERRORS as exc:
                     if _exception_reports_active_generation(exc):
                         logger.info(
-                            "⏸️ Deferred cortex prewarm postponed while foreground generation is active."
+                            "Deferred cortex prewarm postponed while foreground generation is active."
                         )
                         next_delay = min(20.0, max(6.0, next_delay))
                         continue
                     if "visible_conversation_probe_missing" in str(exc):
                         logger.info(
-                            "⏸️ Deferred cortex prewarm loaded the lane, but visible "
+                            "Deferred cortex prewarm loaded the lane, but visible "
                             "conversation readiness is still unproven; the next "
                             "foreground user turn will prove or fail it."
                         )
@@ -5333,12 +5333,12 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         action="backed off deferred cortex prewarm and will retry",
                     )
                     logger.warning(
-                        "⚠️ Deferred cortex prewarm failed (attempt=%d): %s", attempt, exc
+                        "Deferred cortex prewarm failed (attempt=%d): %s", attempt, exc
                     )
                     next_delay = min(45.0, max(12.0, next_delay * 1.5))
 
             logger.warning(
-                "⚠️ Deferred cortex prewarm exhausted retries; foreground turn will retry on demand."
+                "Deferred cortex prewarm exhausted retries; foreground turn will retry on demand."
             )
 
         runner_coro = _runner()
@@ -5388,7 +5388,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
 
         if rearmed:
             logger.info(
-                "♻️ InferenceGate: re-armed the Cortex lane after transient runtime failure (%s).",
+                "InferenceGate: re-armed the Cortex lane after transient runtime failure (%s).",
                 lane_reason,
             )
         return rearmed
@@ -5648,7 +5648,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 self._note_cortex_warmup_overrun()
             else:
                 logger.info(
-                    "🧠 Foreground recovery handoff after %.0fs — cortex keeps "
+                    "Foreground recovery handoff after %.0fs — cortex keeps "
                     "warming in the background, this turn uses the ready lane.",
                     timeout,
                 )
@@ -5809,7 +5809,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
 
             if self._cortex_recovery_attempts + 1 == 3:
                 logger.warning(
-                    "🧹 [RECOVERY] 3 failed attempts. Forcing deep GC and stale process cleanup..."
+                    "[RECOVERY] 3 failed attempts. Forcing deep GC and stale process cleanup..."
                 )
                 import gc
 
@@ -5883,7 +5883,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     await self.await_abandoned_cortex_loads()
                     if self.unproven_cortex_loads():
                         logger.warning(
-                            "♻️ [RECOVERY] Deferring warmup: a cancelled Cortex load has not stopped."
+                            "[RECOVERY] Deferring warmup: a cancelled Cortex load has not stopped."
                         )
                         return
                 # A load is about to be attempted. THIS is an attempt.
@@ -5891,14 +5891,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 attempt_counted = True
                 if cold_start_recovery:
                     logger.info(
-                        "♻️ [STARTUP] Primary %s cortex is cold. Starting warmup "
+                        "[STARTUP] Primary %s cortex is cold. Starting warmup "
                         "(Attempt %d/5)...",
                         _primary_lane_label(),
                         self._cortex_recovery_attempts,
                     )
                 else:
                     logger.warning(
-                        "♻️ [RECOVERY] Primary %s cortex is dead. Triggering background "
+                        "[RECOVERY] Primary %s cortex is dead. Triggering background "
                         "respawn (Attempt %d/5)...",
                         _primary_lane_label(),
                         self._cortex_recovery_attempts,
@@ -5921,12 +5921,12 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 if not ready:
                     if is_shutdown_requested():
                         logger.info(
-                            "🛑 [RECOVERY] Primary %s cortex warmup stopped during runtime shutdown.",
+                            "[RECOVERY] Primary %s cortex warmup stopped during runtime shutdown.",
                             _primary_lane_label(),
                         )
                     else:
                         logger.warning(
-                            "⚠️ [RECOVERY] Primary %s cortex warmup did not establish readiness "
+                            "[RECOVERY] Primary %s cortex warmup did not establish readiness "
                             "(state=%s, reason=%s).",
                             _primary_lane_label(),
                             recovered_lane.get("state", "unknown"),
@@ -5935,12 +5935,12 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     return
                 if cold_start_recovery:
                     logger.info(
-                        "✅ [STARTUP] Primary %s cortex warmup complete.",
+                        "[STARTUP] Primary %s cortex warmup complete.",
                         _primary_lane_label(),
                     )
                 else:
                     logger.info(
-                        "✅ [RECOVERY] Primary %s cortex restored after disruption.",
+                        "[RECOVERY] Primary %s cortex restored after disruption.",
                         _primary_lane_label(),
                     )
                 self._cortex_recovery_attempts = 0
@@ -5952,14 +5952,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
                 if cold_start_recovery:
                     logger.error(
-                        "⚠️ [STARTUP] Primary %s cortex warmup failed (Attempt %d/5): %s",
+                        "[STARTUP] Primary %s cortex warmup failed (Attempt %d/5): %s",
                         _primary_lane_label(),
                         self._cortex_recovery_attempts,
                         exc,
                     )
                 else:
                     logger.error(
-                        "⚠️ [RECOVERY] Primary %s cortex is dead. Triggering background "
+                        "warning [RECOVERY] Primary %s cortex is dead. Triggering background "
                         "respawn (Attempt %d/5): %s",
                         _primary_lane_label(),
                         self._cortex_recovery_attempts,
@@ -5968,7 +5968,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             finally:
                 if not attempt_counted:
                     logger.debug(
-                        "♻️ [RECOVERY] No load was attempted; recovery attempt not counted."
+                        "[RECOVERY] No load was attempted; recovery attempt not counted."
                     )
                 # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
                 self._cortex_recovery_in_progress = False
@@ -6032,7 +6032,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         if self._cortex_recovery_in_progress:
             logger.debug("_respawn_cortex_if_needed: recovery already in progress.")
             return  # Already recovering — don't double-spawn
-        logger.info("🔄 _respawn_cortex_if_needed: cortex is dead, delegating to recovery.")
+        logger.info("_respawn_cortex_if_needed: cortex is dead, delegating to recovery.")
         await self._ensure_cortex_recovery()
 
     def tier_health_receipt(self) -> dict[str, Any]:
@@ -6519,7 +6519,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             fallback_reserve_gb = self._env_float("AURA_FALLBACK_RESIDENT_RESERVE_GB", 8.0)
             if available_gb >= cortex_reserve_gb + fallback_reserve_gb:
                 logger.info(
-                    "🛡️ InferenceGate: keeping fallback workers resident "
+                    "InferenceGate: keeping fallback workers resident "
                     "(%.1fGB free ≥ %.1fGB cortex + %.1fGB fallback); shed skipped.",
                     available_gb,
                     cortex_reserve_gb,
@@ -6593,7 +6593,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 continue
             if client_path in ladder_paths:
                 logger.info(
-                    "🛡️ InferenceGate: keeping %s resident — it is this "
+                    "InferenceGate: keeping %s resident — it is this "
                     "protected turn's fallback lane.",
                     os.path.basename(client_path),
                 )
@@ -6617,7 +6617,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 # only thing the shed gains is the destroyed answer.
                 if getattr(client, "generation_in_flight", None) and client.generation_in_flight():
                     logger.info(
-                        "🛡️ InferenceGate: keeping %s resident — it is producing "
+                        "InferenceGate: keeping %s resident — it is producing "
                         "an answer right now.",
                         os.path.basename(client_path),
                     )
@@ -6654,7 +6654,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 if not self._worker_is_unloaded(client):
                     unverified_sheds.append(client_path)
                     logger.warning(
-                        "🧹 InferenceGate: %s did not report unloaded after reboot; "
+                        "InferenceGate: %s did not report unloaded after reboot; "
                         "not counting it as reclaimed memory.",
                         os.path.basename(client_path),
                     )
@@ -6671,7 +6671,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 if callable(note_denial):
                     note_denial("memory_pressure_shed", receipt_id=str(reason))
                 logger.warning(
-                    "🧹 InferenceGate: unloaded %s to protect the foreground lane (%s).",
+                    "InferenceGate: unloaded %s to protect the foreground lane (%s).",
                     os.path.basename(client_path),
                     reason,
                 )
@@ -6686,7 +6686,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             # This warning describes a completed action, not merely a low-memory
             # guess or an unload attempt that may have failed.
             logger.warning(
-                "🪂 InferenceGate: memory was too short for the cold primary lane "
+                "InferenceGate: memory was too short for the cold primary lane "
                 "to load; shed %d live fallback worker(s) so the cortex can come back.",
                 shed_ladder_count,
             )
@@ -6710,7 +6710,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         }
         if shed_count:
             logger.info(
-                "✅ InferenceGate: shed %d background local worker(s) (%s).",
+                "InferenceGate: shed %d background local worker(s) (%s).",
                 shed_count,
                 reason,
             )
@@ -7545,10 +7545,10 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 raise RuntimeError(
                     str(lane.get("last_error") or "primary_restore_not_conversation_ready")
                 )
-            logger.info("♻️ Restored %s after deep handoff.", PRIMARY_ENDPOINT)
+            logger.info("Restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except TimeoutError:
             logger.error(
-                "⚠️ Failed to restore %s after deep handoff: warmup timed out (300s)",
+                "Failed to restore %s after deep handoff: warmup timed out (300s)",
                 PRIMARY_ENDPOINT,
             )
             # Schedule deferred recovery so next request doesn't hit dead cortex
@@ -7558,7 +7558,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 exc,
                 action="left primary restore on normal foreground-demand recovery path",
             )
-            logger.error("⚠️ Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
+            logger.error("Failed to restore %s after deep handoff: %s", PRIMARY_ENDPOINT, exc)
             self._schedule_background_cortex_prewarm(delay=5.0)
 
     def _schedule_primary_restore_after_deep_handoff(self) -> None:
@@ -7603,11 +7603,11 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             stripped.startswith(token) and len(stripped) - len(token) <= 8
         ):
             # Model chose not to speak — respect it
-            logger.info("🤫 Silence Protocol: model chose not to respond.")
+            logger.info("Silence Protocol: model chose not to respond.")
             return InferenceGate.SILENCE_SENTINEL
         if token in text:
             logger.info(
-                "🤫 Silence token appeared inside a substantive response; "
+                "Silence token appeared inside a substantive response; "
                 "scrubbing the token instead of suppressing the reply."
             )
             return text.replace(token, "").strip()
@@ -7655,7 +7655,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         _protected_overrides = set(gen_kwargs) & set(kwargs)
         if _protected_overrides:
             logger.warning(
-                "🛡️ Dropping caller kwargs that would overwrite protected "
+                "Dropping caller kwargs that would overwrite protected "
                 "generation fields for %s: %s",
                 label,
                 sorted(_protected_overrides),
@@ -7705,7 +7705,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         except TimeoutError:
             reason = f"inference_gate_generation_timeout:{label}:{generation_timeout_s:.1f}s"
             logger.error(
-                "🛑 %s generation exceeded inference-gate timeout %.1fs; aborting local client.",
+                "%s generation exceeded inference-gate timeout %.1fs; aborting local client.",
                 label,
                 generation_timeout_s,
             )
@@ -7850,7 +7850,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 )
                 if proof_evaluation_contract:
                     logger.warning(
-                        "🛡️ %s produced repairable proof/evaluation draft (%s, len=%d). "
+                        "%s produced repairable proof/evaluation draft (%s, len=%d). "
                         "Passing it to the proof contract repair layer.",
                         label,
                         ",".join(integrity.reasons) or "unknown",
@@ -7869,7 +7869,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     # model's time went to nothing and the lane was counted as
                     # failed (live, 2026-09-23, a plan of 1,138 characters).
                     logger.info(
-                        "🛡️ %s answer for code ran into its budget (len=%d); "
+                        "%s answer for code ran into its budget (len=%d); "
                         "handing its reader what it has.",
                         label,
                         len(cleaned),
@@ -7877,7 +7877,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     return self._strip_silence(cleaned)
                 if benchmark_integrity_context:
                     logger.info(
-                        "🛡️ %s produced non-conforming benchmark draft (%s, len=%d). "
+                        "%s produced non-conforming benchmark draft (%s, len=%d). "
                         "Scoring it as-is for benchmark evidence without treating the live Cortex lane as failed.",
                         label,
                         ",".join(integrity.reasons) or "unknown",
@@ -7891,7 +7891,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     allow_memory_state_thin_status=allow_memory_state_thin_status,
                 ):
                     logger.warning(
-                        "🛡️ %s produced repairable user-facing draft shape (%s, len=%d). "
+                        "%s produced repairable user-facing draft shape (%s, len=%d). "
                         "Passing it to downstream chat repair instead of retrying the Cortex lane.",
                         label,
                         ",".join(integrity.reasons) or "unknown",
@@ -7918,7 +7918,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     except (ImportError, RuntimeError, TypeError, ValueError) as exc:
                         _leak_sentence = f"(the sentence could not be found: {type(exc).__name__}: {exc})"
                 logger.warning(
-                    "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.%s",
+                    "%s produced malformed model text (%s, len=%d). Treating it as failed generation.%s",
                     label,
                     ",".join(integrity.reasons) or "unknown",
                     len(cleaned),
@@ -7961,7 +7961,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         allow_memory_state_thin_status=allow_memory_state_thin_status,
                     ):
                         logger.warning(
-                            "🛡️ %s produced repairable user-facing draft (%s, len=%d). "
+                            "%s produced repairable user-facing draft (%s, len=%d). "
                             "Passing it to downstream chat repair instead of retrying the Cortex lane.",
                             label,
                             ",".join(assessment.reasons) or "unknown",
@@ -7978,7 +7978,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         )
                         return self._strip_silence(cleaned)
                     logger.warning(
-                        "🛡️ %s produced an unsafe user-facing draft (%s, len=%d). Treating it as failed generation.",
+                        "%s produced an unsafe user-facing draft (%s, len=%d). Treating it as failed generation.",
                         label,
                         ",".join(assessment.reasons) or "unknown",
                         len(cleaned),
@@ -7990,7 +7990,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     )
                     return None
                 self._record_user_generation_endpoint(label)
-            logger.info("✅ %s response received (len=%d)", label, len(cleaned))
+            logger.info("%s response received (len=%d)", label, len(cleaned))
             self._say_when_the_thinking_ate_the_answer(label, origin, cleaned)
             return self._strip_silence(cleaned)
         return None
@@ -8248,7 +8248,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
 
             halt = current(whose="inference_gate.generate").stopping
             if halt.stopped:
-                logger.info("🛑 generation not started: %s", halt.why)
+                logger.info("generation not started: %s", halt.why)
                 # Through the receipt, like every other policy exit here.
                 #
                 # A bare None is the same value the model returns when it
@@ -8404,7 +8404,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 self._a_user_turn_is_in_flight() or _a_turn_ledger_is_bound()
             )
             logger.info(
-                "🫱 Serves-current-turn claim %s for origin=%s",
+                "Serves-current-turn claim %s for origin=%s",
                 "honoured" if explicit_foreground else "unsupported",
                 origin,
             )
@@ -8420,7 +8420,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         if deep_probe_request and (explicit_foreground or self._origin_is_user_facing(origin)):
             if _FLAG_EMBODIED_CHALLENGE.value():
                 logger.info(
-                    "🛡️ InferenceGate: Suppressing deep-probe logic for Embodied Challenge priority."
+                    "InferenceGate: Suppressing deep-probe logic for Embodied Challenge priority."
                 )
                 deep_probe_request = False
             else:
@@ -8581,7 +8581,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             local_deep_block = self._local_deep_solver_block_reason()
             if local_deep_block:
                 logger.warning(
-                    "🛡️ InferenceGate: local 70B Solver handoff blocked (%s). Staying on Cortex.",
+                    "InferenceGate: local 70B Solver handoff blocked (%s). Staying on Cortex.",
                     local_deep_block,
                 )
                 context["local_deep_block_reason"] = local_deep_block
@@ -8705,7 +8705,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 _cortex_state = str(_cortex_lane.get("state", "") or "").lower()
                 if _cortex_state in {"warming", "handshaking", "recovering"}:
                     logger.info(
-                        "🛡️ InferenceGate: cortex is %s; refusing secondary handoff to avoid "
+                        "InferenceGate: cortex is %s; refusing secondary handoff to avoid "
                         "%s/Solver memory thrash. Staying on primary.",
                         _cortex_state,
                         _primary_lane_label(),
@@ -8845,7 +8845,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 ):
                     phi_scale = max(0.6, 0.6 + 0.4 * (phi_val / 0.8))
                     max_tokens = max(512, int(max_tokens * phi_scale))
-                    logger.info("🧠 [PHI CONTROL] Integration Φ=%.3f -> scaling token budget by %.2f (max_tokens=%d)", 
+                    logger.info("[PHI CONTROL] Integration Φ=%.3f -> scaling token budget by %.2f (max_tokens=%d)", 
                                 phi_val, phi_scale, max_tokens)
             except _INFERENCE_RECOVERABLE_ERRORS as exc:
                 _record_inference_degradation(
@@ -8888,7 +8888,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         somatic_temperature = round(somatic_temperature * _temp_factor, 3)
                     max_tokens = max(384, int(max_tokens * _depth_factor))
                     logger.debug(
-                        "🫀 HomeostaticCoupling: temp_mod=%.2f depth_mod=%.2f → temp=%.3f tokens=%d",
+                        "HomeostaticCoupling: temp_mod=%.2f depth_mod=%.2f → temp=%.3f tokens=%d",
                         _mods.temperature_mod,
                         _mods.depth_mod,
                         somatic_temperature or 0.0,
@@ -9002,7 +9002,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         if _tc_token_mult > 1.0:
                             max_tokens = int(min(max_tokens * _tc_token_mult, 4096))
                         logger.debug(
-                            "🕐 TemporalContinuity: temp_d=%.3f token_mult=%.2f",
+                            "TemporalContinuity: temp_d=%.3f token_mult=%.2f",
                             _tc_temp_d, _tc_token_mult,
                         )
             except _INFERENCE_RECOVERABLE_ERRORS as _tc_e:
@@ -9049,7 +9049,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         # Nudge toward deeper tier if available
                         if not deep_handoff:
                             logger.debug(
-                                "⚡ FE urgency (F=%.2f, action=%s): consider deeper reasoning",
+                                "FE urgency (F=%.2f, action=%s): consider deeper reasoning",
                                 _fe_state.free_energy,
                                 _fe_state.dominant_action,
                             )
@@ -9083,7 +9083,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             max_tokens = min(max_tokens, foreground_cap)
             if max_tokens < foreground_floor:
                 logger.info(
-                    "🧠 Foreground chat compute profile raised budget %d→%d "
+                    "Foreground chat compute profile raised budget %d→%d "
                     "(cap=%d, loops=%d, origin=%s).",
                     max_tokens,
                     foreground_floor,
@@ -9113,7 +9113,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             )
             if applied_bias["temperature_delta"] or applied_bias["max_tokens_factor"] != 1.0:
                 logger.debug(
-                    "🧠 Runtime sampling bias: temp_delta=%.3f token_factor=%.3f max_tokens=%d",
+                    "Runtime sampling bias: temp_delta=%.3f token_factor=%.3f max_tokens=%d",
                     applied_bias["temperature_delta"],
                     applied_bias["max_tokens_factor"],
                     max_tokens,
@@ -9137,7 +9137,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 _floor = 0
             if 0 < _floor and max_tokens < _floor:
                 logger.info(
-                    "🧠 Completion floor restored after sampling bias: %d→%d.",
+                    "Completion floor restored after sampling bias: %d→%d.",
                     max_tokens,
                     _floor,
                 )
@@ -9159,7 +9159,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             bounded = min(max_tokens, foreground_cap)
             if bounded < foreground_floor:
                 logger.info(
-                    "🧠 Foreground chat post-bias budget floor raised %d→%d "
+                    "Foreground chat post-bias budget floor raised %d→%d "
                     "(cap=%d, origin=%s).",
                     bounded,
                     foreground_floor,
@@ -9571,7 +9571,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             # cancelled mid-prefill looked identical to one the clock had
             # examined and left alone.
             logger.info(
-                "🧠 [ANSWER CLOCK] not consulted for this turn: %s",
+                "[ANSWER CLOCK] not consulted for this turn: %s",
                 ",".join(_clock_blocked_by),
             )
         else:
@@ -9729,7 +9729,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     _affordable = min(_affordable, explicit_max_tokens_cap)
                 if _affordable > max_tokens:
                     logger.info(
-                        "🧠 [ANSWER BUDGET] %d tokens fit this turn's clock at the "
+                        "[ANSWER BUDGET] %d tokens fit this turn's clock at the "
                         "measured rate and within the %d this model has been seen "
                         "to need; raising the ceiling from %d.",
                         _affordable,
@@ -9851,7 +9851,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         local_label = fallback_label
                         skip_initial_primary_attempt = False
                     logger.info(
-                        "🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...",
+                        "Routing to %s (timeout=%.0fs, user_facing=%s)...",
                         local_label,
                         float(timeout_val),
                         _is_user_facing,
@@ -9967,7 +9967,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                                 same_lane_retry_count=0,
                             )
                             logger.warning(
-                                "🧠 %s consumed %.1fs without usable text; skipping repeated "
+                                "%s consumed %.1fs without usable text; skipping repeated "
                                 "same-lane retries.",
                                 local_label,
                                 primary_attempt_elapsed,
@@ -9975,14 +9975,14 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         for retry_attempt, wait_sec in enumerate(retry_schedule, 1):
                             if is_shutdown_requested():
                                 logger.info(
-                                    "🛑 %s retry loop aborted: runtime is shutting down.",
+                                    "%s retry loop aborted: runtime is shutting down.",
                                     local_label,
                                 )
                                 return ""
                             lane_status = self.get_conversation_status()
                             if not self._lane_can_attempt_visible_conversation_turn(lane_status):
                                 logger.warning(
-                                    "🧠 %s is not ready after the failed attempt (state=%s); "
+                                    "%s is not ready after the failed attempt (state=%s); "
                                     "skipping same-lane retry %d.",
                                     local_label,
                                     lane_status.get("state", "unknown"),
@@ -9991,13 +9991,13 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                                 break
                             if is_shutdown_requested():
                                 logger.info(
-                                    "🛑 %s retry wait skipped: runtime is shutting down.",
+                                    "%s retry wait skipped: runtime is shutting down.",
                                     local_label,
                                 )
                                 return ""
 
                             logger.warning(
-                                "🧠 %s returned no text on user-facing request. "
+                                "%s returned no text on user-facing request. "
                                 "Retrying once after %ds pause...",
                                 local_label,
                                 wait_sec,
@@ -10005,7 +10005,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                             await asyncio.sleep(wait_sec)
                             if is_shutdown_requested():
                                 logger.info(
-                                    "🛑 %s retry generation skipped: runtime is shutting down.",
+                                    "%s retry generation skipped: runtime is shutting down.",
                                     local_label,
                                 )
                                 return ""
@@ -10064,7 +10064,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                                 primary_attempt_elapsed=primary_attempt_elapsed,
                                 same_lane_retry_count=len(retry_schedule),
                             )
-                            logger.warning("🧠 %s bounded retry failed.", local_label)
+                            logger.warning("%s bounded retry failed.", local_label)
                         if (
                             proof_evaluation_contract or strict_primary_proof_lane
                             or operator_evidence_contract
@@ -10077,7 +10077,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                             or bool(context.get("her_own_turn"))
                         ):
                             logger.warning(
-                                "🧠 Proof/operator request requires a valid Cortex response; refusing lower-lane fallback."
+                                "Proof/operator request requires a valid Cortex response; refusing lower-lane fallback."
                             )
                             return self._refuse_generation(
                                 self.REFUSAL_PROOF_LANE,
@@ -10087,20 +10087,20 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                                 detail={"lane": local_label},
                             )
                         logger.warning(
-                            "🧠 %s is still recovering. Falling back to %s for this %s foreground turn.",
+                            "%s is still recovering. Falling back to %s for this %s foreground turn.",
                             local_label,
                             fallback_label,
                             "protected" if protected_deep_fallback else "local-only",
                         )
                     else:
                         logger.warning(
-                            "🧠 %s returned no text. Trying local fallback.", local_label
+                            "%s returned no text. Trying local fallback.", local_label
                         )
                         if is_background and not bool(
                             context.get("allow_background_local_fallback", False)
                         ):
                             logger.info(
-                                "🧠 Background %s request returned no text; suppressing local fallback to protect foreground latency.",
+                                "Background %s request returned no text; suppressing local fallback to protect foreground latency.",
                                 local_label,
                             )
                             return self._refuse_generation(
@@ -10152,13 +10152,13 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                             visible_user_prompt,
                             is_user_facing=_is_user_facing,
                         )
-                    logger.warning("🧠 Local fallback returned no text.")
+                    logger.warning("Local fallback returned no text.")
                 finally:
                     if restore_primary and not primary_restored_inline:
                         self._schedule_primary_restore_after_deep_handoff()
 
             except TimeoutError as timeout_exc:
-                logger.warning("🛑 Local inference TIMED OUT (Budget: %.0fs).", timeout_val)
+                logger.warning("Local inference TIMED OUT (Budget: %.0fs).", timeout_val)
                 if (
                     not is_background
                     and self._origin_is_user_facing(origin)
@@ -10176,7 +10176,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     # 2026-07-18 soak, which is what tripped
                     # `critical_incident_active` while the runtime served.
                     logger.info(
-                        "🧠 Local tier declined by admission/backoff; descending "
+                        "Local tier declined by admission/backoff; descending "
                         "the ladder: %s",
                         e,
                     )
@@ -10187,7 +10187,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                         severity="degraded",
                         action="fell through to a lower local lane after local inference failure",
                     )
-                    logger.warning("🛑 Local inference FAILURE: %s", e)
+                    logger.warning("Local inference FAILURE: %s", e)
 
         # 1.5. EMERGENCY REFLEX FALLBACK — tiny 1.5B model on CPU as absolute last local resort.
         # If Cortex AND Brainstem both failed for a user-facing request, the 1.5B Reflex
@@ -10231,7 +10231,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 reflex_client = get_mlx_client(model_path=str(get_fallback_path()), device="cpu")
                 if reflex_client:
                     logger.warning(
-                        "🆘 [REFLEX] Cortex + Brainstem both failed. Trying 1.5B CPU Reflex..."
+                        "[REFLEX] Cortex + Brainstem both failed. Trying 1.5B CPU Reflex..."
                     )
                     # 15s hard limit for the tiny model, and never more than
                     # what the caller still has.
@@ -10255,7 +10255,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                     )
                     if reflex_text:
                         logger.info(
-                            "🆘 [REFLEX] 1.5B CPU model produced response. Cortex recovery in background."
+                            "[REFLEX] 1.5B CPU model produced response. Cortex recovery in background."
                         )
                         if not self._cortex_recovery_in_progress:
                             get_task_tracker().create_task(self._ensure_cortex_recovery())
@@ -10404,7 +10404,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
         is_running = _worker_process_is_running(proc)
         if self._cortex_worker_is_legitimately_loading(client):
             logger.info(
-                "⏳ [CASCADE CLEANUP] Cortex worker pid=%s is warming; "
+                "[CASCADE CLEANUP] Cortex worker pid=%s is warming; "
                 "NOT killing a loading model.",
                 getattr(proc, "pid", "unknown"),
             )
@@ -10417,7 +10417,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             # fallback needs.
             if self._cortex_worker_is_actively_generating(client):
                 logger.info(
-                    "🛡️ [CASCADE CLEANUP] Not killing pid=%s: the worker is "
+                    "[CASCADE CLEANUP] Not killing pid=%s: the worker is "
                     "actively generating. A slow answer is not a wedged lane, "
                     "and killing it costs a cold reload the next turn pays for.",
                     getattr(proc, "pid", "unknown"),
@@ -10425,7 +10425,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 return
             if self._cortex_worker_just_answered(client):
                 logger.info(
-                    "🛡️ [CASCADE CLEANUP] Not killing pid=%s: it finished a "
+                    "[CASCADE CLEANUP] Not killing pid=%s: it finished a "
                     "generation within the generation deadline. What it said "
                     "may have been refused; a worker that answers is not wedged.",
                     getattr(proc, "pid", "unknown"),
@@ -10448,7 +10448,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
                 # between the liveness check above and here.
                 return
             logger.warning(
-                "🧹 [CASCADE CLEANUP] Force-killing stuck cortex worker %s",
+                "[CASCADE CLEANUP] Force-killing stuck cortex worker %s",
                 cleanup_identity.describe() if cleanup_identity else "pid=unknown",
             )
             proc.kill()
@@ -10461,7 +10461,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             # replacement is scheduled.
             if _worker_process_is_running(proc):
                 logger.error(
-                    "🧟 [CASCADE CLEANUP] Worker pid=%s survived kill+join; "
+                    "[CASCADE CLEANUP] Worker pid=%s survived kill+join; "
                     "keeping ownership so it cannot orphan.",
                     getattr(proc, "pid", "unknown"),
                 )
@@ -10476,7 +10476,7 @@ class InferenceGate(_KnowsWhatTheCortexNeeds, _GateInitializationMixin, _Thinkin
             replace_queues()
         client._process = None
         client._init_done = False
-        logger.info("🧹 [CASCADE CLEANUP] Stuck worker killed, queues replaced.")
+        logger.info("[CASCADE CLEANUP] Stuck worker killed, queues replaced.")
 
     def _post_inference_update(self, response_text: str):
         """Update downstream systems after each inference completes.

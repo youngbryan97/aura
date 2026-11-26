@@ -394,10 +394,10 @@ def _record(
     # report and last_results() still carry every standing violation.
     for violation in report.errors:
         if str(violation) not in already:
-            logger.error("🔎 VERIFIER %s", violation)
+            logger.error("VERIFIER %s", violation)
     for violation in report.warnings:
         if str(violation) not in already:
-            logger.warning("🔎 verifier %s", violation)
+            logger.warning("verifier %s", violation)
     if not report.errors:
         return
     try:
@@ -456,7 +456,7 @@ def verify_after(*scopes: str, label: str = "") -> Iterator[None]:
     report = verify(*scopes)
     if not report.ok:
         logger.error(
-            "🔎 VERIFIER after %s: %s",
+            "VERIFIER after %s: %s",
             label or "/".join(scopes) or "mutation",
             report.summary(),
         )

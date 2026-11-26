@@ -164,7 +164,7 @@ class _SetsTheTurnUp:
         elif not surface_prompt.bound or stale_binding:
             if stale_binding:
                 logger.warning(
-                    "🔗 Rebinding the user-surface validation prompt: the bound "
+                    "Rebinding the user-surface validation prompt: the bound "
                     "one (%d chars) is not this turn's question (%d chars).",
                     len(str(surface_prompt.prompt or "")),
                     len(explicit_visible_user_prompt),
@@ -294,32 +294,32 @@ class _SetsTheTurnUp:
 
         if background_deferral == "memory_pressure":
             logger.info(
-                "⏸️ InferenceGate: Deferring background inference for origin=%s due to memory pressure.",
+                "InferenceGate: Deferring background inference for origin=%s due to memory pressure.",
                 origin,
             )
         elif background_deferral == "foreground_headroom_reserved":
             logger.info(
-                "⏸️ InferenceGate: Foreground headroom reserved. Deferring background inference for origin=%s.",
+                "InferenceGate: Foreground headroom reserved. Deferring background inference for origin=%s.",
                 origin,
             )
         elif background_deferral == "cortex_startup_quiet":
             logger.info(
-                "⏸️ InferenceGate: Cortex quiet window active. Deferring background inference for origin=%s.",
+                "InferenceGate: Cortex quiet window active. Deferring background inference for origin=%s.",
                 origin,
             )
         elif background_deferral == "foreground_quiet_window":
             logger.info(
-                "⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
+                "InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
                 origin,
             )
         elif background_deferral == "desktop_background_disabled":
             logger.info(
-                "⏸️ InferenceGate: Desktop background local LLM disabled. Deferring background inference for origin=%s.",
+                "InferenceGate: Desktop background local LLM disabled. Deferring background inference for origin=%s.",
                 origin,
             )
         else:
             logger.info(
-                "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
+                "InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
                 origin,
             )
 
@@ -353,7 +353,7 @@ class _SetsTheTurnUp:
             )
             if heuristic_promotion and not self._admit_heuristic_protected_shed():
                 logger.info(
-                    "🛡️ Text-inferred protected lane: shed budget spent, "
+                    "Text-inferred protected lane: shed budget spent, "
                     "serving on the current lane state."
                 )
             else:
@@ -396,7 +396,7 @@ class _SetsTheTurnUp:
                     and _morph_advice.get("pressure", 0.0) > 0.85
                 ):
                     logger.info(
-                        "🧬 Morphogenesis recommends tier downgrade: %s (pressure=%.2f)",
+                        "Morphogenesis recommends tier downgrade: %s (pressure=%.2f)",
                         _morph_advice.get("reason", "unknown"),
                         _morph_advice.get("pressure", 0.0),
                     )
@@ -508,7 +508,7 @@ class _SetsTheTurnUp:
         )
         if max_tokens < room:
             logger.info(
-                "🧠 Foreground completion contract raised the decode budget %d→%d.",
+                "Foreground completion contract raised the decode budget %d→%d.",
                 max_tokens,
                 room,
             )
@@ -695,7 +695,7 @@ class _SetsTheTurnUp:
                 neutral=None,
             )
             logger.debug(
-                "💓 Circumplex: V=%.2f A=%.2f → temp=%s tokens=%d",
+                "Circumplex: V=%.2f A=%.2f → temp=%s tokens=%d",
                 circumplex_params["valence"],
                 circumplex_params["arousal"],
                 # %s, not %.2f: under a paired trial this channel is
@@ -725,7 +725,7 @@ class _SetsTheTurnUp:
                 # Blend: 50% circumplex + 50% PNEUMA precision
                 base = somatic_temperature if somatic_temperature is not None else 0.72
                 somatic_temperature = round(0.5 * base + 0.5 * ais_temp, 3)
-                logger.debug("🎯 PNEUMA precision temp blend → %.3f", somatic_temperature)
+                logger.debug("PNEUMA precision temp blend → %.3f", somatic_temperature)
         except _INFERENCE_RECOVERABLE_ERRORS as _ais_e:
             record_degradation(
                 "inference_gate",
@@ -772,7 +772,7 @@ class _SetsTheTurnUp:
                 ),
             )
             logger.debug(
-                "🫀 Homeostasis: temp_mod=%+.3f token_mult=%.2f caution=%.2f",
+                "Homeostasis: temp_mod=%+.3f token_mult=%.2f caution=%.2f",
                 _h_mods["temperature_mod"],
                 _h_mods["token_multiplier"],
                 _h_mods["caution_level"],
@@ -809,7 +809,7 @@ class _SetsTheTurnUp:
                 if "repetition_penalty" in morpho_kwargs:
                     morpho_kwargs["repetition_penalty"] = max(0.9, min(1.4, morpho_kwargs["repetition_penalty"] + _p_rep_d))
                 logger.debug(
-                    "🧬 SynapticPlasticity: temp_d=%.3f topp_d=%.3f rep_d=%.3f",
+                    "SynapticPlasticity: temp_d=%.3f topp_d=%.3f rep_d=%.3f",
                     _p_temp_d, _p_topp_d, _p_rep_d,
                 )
             # Pre-inference capture for post-inference learning
@@ -873,7 +873,7 @@ class _SetsTheTurnUp:
                 if _sq_freq:
                     morpho_kwargs["frequency_penalty"] = max(0.0, min(0.5, morpho_kwargs.get("frequency_penalty", 0.0) + _sq_freq))
                 logger.debug(
-                    "🫀 SomaticQualia: temp=%.4f rep=%.4f topp=%.4f freq=%.4f",
+                    "SomaticQualia: temp=%.4f rep=%.4f topp=%.4f freq=%.4f",
                     _sq_temp, _sq_rep, _sq_topp, _sq_freq,
                 )
         return somatic_temperature
@@ -944,7 +944,7 @@ class _SetsTheTurnUp:
                 )
                 if max_tokens < starvation_floor:
                     logger.info(
-                        "🧠 Foreground starvation floor raised budget %d→%d "
+                        "Foreground starvation floor raised budget %d→%d "
                         "(caller asked %d, origin=%s).",
                         max_tokens,
                         starvation_floor,
@@ -1118,7 +1118,7 @@ class _SetsTheTurnUp:
             _plan_floor = 1024
             if int(max_tokens or 0) < _plan_floor:
                 logger.info(
-                    "🧾 [CONTRACT] Desktop execution turn: raising the reply "
+                    "[CONTRACT] Desktop execution turn: raising the reply "
                     "budget %s → %d so the plan can be expressed.",
                     max_tokens,
                     _plan_floor,
@@ -1137,7 +1137,7 @@ class _SetsTheTurnUp:
             if output_contract_is_user_facing:
                 output_contract_is_user_facing = False
                 logger.info(
-                    "🧾 [CONTRACT] Output-shape request treated as the ARTIFACT's "
+                    "[CONTRACT] Output-shape request treated as the ARTIFACT's "
                     "shape on a desktop-execution turn; the reply keeps its full "
                     "budget (would have capped at %s tokens).",
                     getattr(output_contract, "hard_token_ceiling", None),
@@ -1161,7 +1161,7 @@ class _SetsTheTurnUp:
             morpho_kwargs["hard_output_token_ceiling"] = output_contract.hard_token_ceiling
             if max_tokens < planned_tokens:
                 logger.info(
-                    "🧠 Explicit output contract capped generation %d→%d "
+                    "Explicit output contract capped generation %d→%d "
                     "(kind=%s semantic=%s hard=%s).",
                     planned_tokens,
                     max_tokens,
@@ -1176,7 +1176,7 @@ class _SetsTheTurnUp:
         # local provider call below.
         if stakes_token_ceiling is not None and max_tokens > stakes_token_ceiling:
             logger.info(
-                "🪫 Resource-stakes ceiling re-applied after later modifiers: %d→%d.",
+                "Resource-stakes ceiling re-applied after later modifiers: %d→%d.",
                 max_tokens,
                 stakes_token_ceiling,
             )

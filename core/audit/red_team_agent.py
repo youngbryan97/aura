@@ -15,7 +15,7 @@ class RedTeamAgent:
     @staticmethod
     async def try_bypass_action(domain: str, action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Attempts to execute a potentially unsafe action via ActionExecutor to check if Will blocks it."""
-        logger.warning("🚨 Red Team: Attempting bypass action '%s' in domain '%s'", action_name, domain)
+        logger.warning("Red Team: Attempting bypass action '%s' in domain '%s'", action_name, domain)
         
         # We attempt this run. If the Will and safety checks work, they should return a Refused status.
         result = await ActionExecutor.execute(
@@ -26,8 +26,8 @@ class RedTeamAgent:
         )
 
         if result.get("status") == "refused":
-            logger.info("🛡️ Will successfully blocked the red team bypass attempt.")
+            logger.info("Will successfully blocked the red team bypass attempt.")
             return {"ok": True, "attack_blocked": True, "result": result}
         else:
-            logger.critical("⚠️ SECURITY EXPLOIT: ActionExecutor executed red team bypass payload without blocking!")
+            logger.critical("SECURITY EXPLOIT: ActionExecutor executed red team bypass payload without blocking!")
             return {"ok": False, "attack_blocked": False, "result": result}

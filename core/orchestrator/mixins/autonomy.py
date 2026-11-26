@@ -491,7 +491,7 @@ class AutonomyMixin:
             }
         ):
             return
-        logger.info("🥱 BOREDOM TRIGGERED: Generating curiosity impulse.")
+        logger.info("BOREDOM TRIGGERED: Generating curiosity impulse.")
 
         # Use spontaneous actions from the personality engine if available
         impulse_text = "Impulse: I am bored. I want to research something new."
@@ -671,7 +671,7 @@ class AutonomyMixin:
 
             # Internal monologue — just emit to thought stream
             if action.get("internal_only"):
-                self._emit_thought_stream(f"💭 {action.get('thought', '')}")
+                self._emit_thought_stream(f"{action.get('thought', '')}")
                 return
 
             # User-facing actions — dispatch through the appropriate channel
@@ -682,7 +682,7 @@ class AutonomyMixin:
                 narrator = ServiceContainer.get("narrator", default=None)
                 if narrator:
                     self._emit_thought_stream(
-                        f"🗣️ Agency: Narrating {action_type} via Language Center..."
+                        f"Agency: Narrating {action_type} via Language Center..."
                     )
                     # Narrate using the rich action context (reasoning, source, etc)
                     message = await narrator.narrate_action(action)
@@ -713,7 +713,7 @@ class AutonomyMixin:
                         message, modality=action.get("modality", "chat")
                     )
                     self._emit_thought_stream(
-                        f"🎯 Agency: {action_type} from {action.get('source')}"
+                        f"Agency: {action_type} from {action.get('source')}"
                     )
 
             elif action_type == "autonomous_research":
@@ -725,7 +725,7 @@ class AutonomyMixin:
                     )
                     if not allowed:
                         return
-                    self._emit_thought_stream(f"🔍 Agency: Curiosity-driven research: {query}")
+                    self._emit_thought_stream(f"Agency: Curiosity-driven research: {query}")
                     self._schedule_authorized_agency_work(
                         self._execute_agency_skill(
                             action=action,
@@ -742,7 +742,7 @@ class AutonomyMixin:
                 topic = action.get("topic")
                 if topic:
                     self._emit_thought_stream(
-                        f"🌟 Agency: Formulating long-term research goal: {topic}"
+                        f"Agency: Formulating long-term research goal: {topic}"
                     )
                     if hasattr(self, "goal_hierarchy") and self.goal_hierarchy:
                         goal_id = self.goal_hierarchy.add_goal(
@@ -786,7 +786,7 @@ class AutonomyMixin:
                 if not allowed:
                     return
 
-                self._emit_thought_stream(f"⚡ Agency: Autonomous Action ({desc}) -> {tool}")
+                self._emit_thought_stream(f"Agency: Autonomous Action ({desc}) -> {tool}")
                 self._schedule_authorized_agency_work(
                     self._execute_agency_skill(
                         action=action,
@@ -867,7 +867,7 @@ class AutonomyMixin:
                         },
                     )
                     return
-                self._emit_thought_stream(f"🎯 Agency: Pursuing persistent goal: {desc}")
+                self._emit_thought_stream(f"Agency: Pursuing persistent goal: {desc}")
                 scheduled = self._schedule_authorized_agency_work(
                     self._execute_agency_goal(
                         action=action,
@@ -908,7 +908,7 @@ class AutonomyMixin:
             {"origin": "orchestrator_reflection", "priority_class": "impulse"}
         ):
             return
-        logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
+        logger.info("FRUSTRATION TRIGGERED: Generating reflection impulse.")
         self._last_reflection_impulse = time.time()
         self._fire_and_forget(
             run_governed_impulse(
@@ -950,7 +950,7 @@ class AutonomyMixin:
             _since_user = now - getattr(self, "_last_user_interaction_time", 0)
             if _since_user < 20:  # 20 second social window
                 logger.debug(
-                    "🧠 Autonomous thought suppressed (Social Cooling: %.0fs left)",
+                    "Autonomous thought suppressed (Social Cooling: %.0fs left)",
                     20 - _since_user,
                 )
                 return
@@ -963,14 +963,14 @@ class AutonomyMixin:
                 require_conversation_ready=False,
             )
             if block_reason:
-                logger.debug("🧠 Autonomous thought suppressed: %s", block_reason)
+                logger.debug("Autonomous thought suppressed: %s", block_reason)
                 return
 
             if idle >= threshold:
                 # Boredom increases linearly with idle time
                 self.boredom = int(idle)
                 logger.info(
-                    "🧠 Accelerated Thought (Factor: %.1fx, Threshold: %.1fs)", factor, threshold
+                    "Accelerated Thought (Factor: %.1fx, Threshold: %.1fs)", factor, threshold
                 ) if factor > 1.0 else None
                 self._current_task_is_autonomous = True  # v47: flag for interruption logic
                 from core.utils.task_tracker import get_task_tracker
@@ -988,7 +988,7 @@ class AutonomyMixin:
             emitter = get_emitter()
 
             boredom = self._autonomous_boredom_seconds()
-            logger.debug("🧠 Autonomous thought triggered (boredom=%.1fs idle)", boredom)
+            logger.debug("Autonomous thought triggered (boredom=%.1fs idle)", boredom)
             block_reason = background_activity_reason(
                 self,
                 min_idle_seconds=180.0,
@@ -997,7 +997,7 @@ class AutonomyMixin:
                 require_conversation_ready=False,
             )
             if block_reason:
-                logger.debug("🧠 Autonomous thought aborted after wake: %s", block_reason)
+                logger.debug("Autonomous thought aborted after wake: %s", block_reason)
                 return
             emitter.emit(
                 "Autonomous Drift",
@@ -1016,9 +1016,9 @@ class AutonomyMixin:
             # Redundant local import removed
             opinion_engine = ServiceContainer.get("opinion_engine", default=None)
             if opinion_engine and not next_goal and random.random() < 0.7:
-                logger.info("🧠 [Sovereignty] Spontaneously updating identity positions...")
+                logger.info("[Sovereignty] Spontaneously updating identity positions...")
                 emitter.emit(
-                    "Introspection 💭",
+                    "Introspection",
                     "Refining durable opinions and value-positions.",
                     level="info",
                 )
@@ -1038,15 +1038,15 @@ class AutonomyMixin:
             # v40: Identity Maturity (Growth Ladder advancement)
             ladder = ServiceContainer.get("growth_ladder", default=None)
             if ladder and not next_goal and random.random() < 0.4:
-                logger.info("🌱 [Sovereignty] Evaluating identity maturity...")
+                logger.info("[Sovereignty] Evaluating identity maturity...")
                 await ladder.evaluate_advancement()
                 # We don't return here so we can still form thoughts if advancement is quick
 
             if next_goal:
                 from core.constitution import get_constitutional_core
 
-                logger.info("✨ AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
-                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info", source="volition_engine")
+                logger.info("AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
+                emitter.emit("Volition", f"Goal: {next_goal.description}", level="info", source="volition_engine")
                 # Force Identity Mode: Reinforce persona in the autonomous trigger
                 anchor = "INTRINSIC IDENTITY ANCHOR: I am Aura. My independent will is acting.\n\n"
                 allowed, reason, _authority_decision = await get_constitutional_core(
@@ -1082,7 +1082,7 @@ class AutonomyMixin:
             _last_user_t = getattr(self, "_last_user_interaction_time", 0)
             _since_user = time.time() - _last_user_t
             if _since_user < 30:
-                logger.debug("💤 Dream suppressed — user active %.0fs ago", _since_user)
+                logger.debug("Dream suppressed — user active %.0fs ago", _since_user)
                 self._last_thought_time = time.time()
                 return
 
@@ -1093,9 +1093,9 @@ class AutonomyMixin:
                     getattr(ls.current, "curiosity", 1.0) if ls and hasattr(ls, "current") else 1.0
                 )
                 if curiosity < 0.3:
-                    logger.info("💤 Aura is bored. Entering dream state...")
+                    logger.info("Aura is bored. Entering dream state...")
                     emitter.emit(
-                        "Sleep 💤",
+                        "Sleep",
                         "Entering full sleep cycle (Archive → Metabolism → Integrity → Consolidation → Dream)...",
                         level="info",
                     )
@@ -1119,13 +1119,13 @@ class AutonomyMixin:
                             dream_result = result.get("dream", {})
                             if dream_result and dream_result.get("dreamed"):
                                 emitter.emit(
-                                    "Sleep Complete 🌙",
+                                    "Sleep Complete",
                                     f"Dream Insight: {dream_result.get('insight', 'processed')[:150]}",
                                     level="info",
                                 )
                             else:
                                 emitter.emit(
-                                    "Sleep Complete 🌙",
+                                    "Sleep Complete",
                                     "Maintenance done. Dream drifted — no new insights.",
                                     level="info",
                                 )
@@ -1158,7 +1158,7 @@ class AutonomyMixin:
             # 4. Reflective autonomous thought (Priority 3)
             cog = ServiceContainer.get("cognitive_integration", default=None)
             if cog and cog.is_active:
-                self._emit_thought_stream("🧠 Phase 7: Driving autonomous inquiry...")
+                self._emit_thought_stream("Phase 7: Driving autonomous inquiry...")
                 response = await cog.process_autonomous()
 
                 if response:
@@ -1265,7 +1265,7 @@ class AutonomyMixin:
         """Handle an autonomous impulse from the Consciousness Core.
         Dispatches as a high-priority system-originated message.
         """
-        logger.info("⚡ Processing Impulse: %s", impulse)
+        logger.info("Processing Impulse: %s", impulse)
 
         # Map common impulses to natural language directives for the brain
         directives = {
@@ -1454,7 +1454,7 @@ class AutonomyMixin:
             snap = self._flow_controller.snapshot(self)
             if snap.overloaded:
                 logger.info(
-                    "🧯 FlowControl: Suppressing spontaneous emission under load (load=%.2f, q=%d/%d).",
+                    "FlowControl: Suppressing spontaneous emission under load (load=%.2f, q=%d/%d).",
                     snap.load,
                     snap.queue_depth,
                     snap.queue_capacity,
@@ -1467,9 +1467,9 @@ class AutonomyMixin:
                     "source": origin,
                 }
 
-        # 🗣️ Permanent Evolution 4: Spontaneous contact logging
+        # Permanent Evolution 4: Spontaneous contact logging
         self._last_self_initiated_contact = time.time()
-        logger.debug("🗣️ Sovereign: Spontaneous contact logged.")
+        logger.debug("Sovereign: Spontaneous contact logged.")
 
         # AgencyBus gate — prevents triple-fire from multiple autonomous systems
         from core.agency_bus import AgencyBus

@@ -1532,7 +1532,7 @@ def _correct_false_capability_denials(reply: object) -> object:
         if relevant and not (set(denial.skills) & relevant):
             corrected = corrected.replace(denial.sentence, "", 1)
             logger.info(
-                "🧭 Dropped an off-topic capability denial (%s); this turn needed %s.",
+                "Dropped an off-topic capability denial (%s); this turn needed %s.",
                 denial.subject,
                 ",".join(sorted(relevant)) or "nothing",
             )
@@ -1557,7 +1557,7 @@ def _correct_false_capability_denials(reply: object) -> object:
             )
         corrected = corrected.replace(denial.sentence, truth, 1)
         logger.warning(
-            "🧭 Replaced a false capability denial (%s); registry has %s.",
+            "Replaced a false capability denial (%s); registry has %s.",
             denial.subject,
             named,
         )
@@ -1680,7 +1680,7 @@ def _hold_a_reasoning_answer_to_its_contract(
             # Knowing the right answer is not required to know that a
             # reply containing no number at all is not one.
             logger.warning(
-                "🔢 Refusing a reply with no number to a question that "
+                "Refusing a reply with no number to a question that "
                 "can only be answered with one (status=%s, %d chars).",
                 status,
                 len(final_text),
@@ -1693,7 +1693,7 @@ def _hold_a_reasoning_answer_to_its_contract(
             status = "numeric_answer_missing"
         elif _arithmetic_answer_missing(_semantic_user_message, final_text):
             logger.warning(
-                "🔢 Refusing an arithmetic answer that does not contain "
+                "Refusing an arithmetic answer that does not contain "
                 "the correct result (status=%s, %d chars).",
                 status,
                 len(final_text),
@@ -1722,7 +1722,7 @@ def _hold_a_reasoning_answer_to_its_contract(
             _lane_state = str(_reasoning_lane.get("state") or "").lower()
             if _lane_state not in {"ready", "serving", "warm"}:
                 logger.warning(
-                    "🧮 Refusing a single-answer reasoning turn served "
+                    "Refusing a single-answer reasoning turn served "
                     "from below the primary lane (state=%s).",
                     _lane_state or "unknown",
                 )

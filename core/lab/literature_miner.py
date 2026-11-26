@@ -14,7 +14,7 @@ class LiteratureMiner:
     """Extracts key claims, contradictions, and data tables from academic papers."""
 
     def mine_documents(self, documents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        logger.info("🔬 Mining %d documents for claims...", len(documents))
+        logger.info("Mining %d documents for claims...", len(documents))
         findings = []
 
         for doc in documents:

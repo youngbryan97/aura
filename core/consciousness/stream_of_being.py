@@ -925,7 +925,7 @@ class ExperientialThread:
         last_narrative = saved_state.get("last_narrative", "")
         if last_narrative:
             self._current_narrative = last_narrative
-        logger.info("🧵 Experiential thread seeded from previous session")
+        logger.info("Experiential thread seeded from previous session")
 
 
 # ── The Stream of Being ────────────────────────────────────────────────────────
@@ -1047,7 +1047,7 @@ class StreamOfBeing:
             )
             logger.debug("Could not register StreamOfBeing: %s", e)
         
-        logger.info("🌊 StreamOfBeing initialized")
+        logger.info("StreamOfBeing initialized")
 
     def _resolve_save_dir(self, save_dir: Path | None) -> Path:
         if save_dir is not None:
@@ -1199,7 +1199,7 @@ class StreamOfBeing:
             return
         self._task = task
         self._task.add_done_callback(self._observe_background_task)
-        logger.info("🌊 StreamOfBeing ONLINE — Aura is becoming")
+        logger.info("StreamOfBeing ONLINE — Aura is becoming")
 
     async def stop(self):
         """Stop the loop and persist state."""
@@ -1223,7 +1223,7 @@ class StreamOfBeing:
             finally:
                 self._task = None
         self._save_state()
-        logger.info("🌊 StreamOfBeing OFFLINE")
+        logger.info("StreamOfBeing OFFLINE")
 
     def _observe_background_task(self, task: asyncio.Task) -> None:
         if task.cancelled():
@@ -1492,7 +1492,7 @@ class StreamOfBeing:
                         self._thread.current_moment.interior_text = narrative
                         self._thread.current_moment.is_llm_generated = True
                     
-                    logger.debug("🌊 Deep narrative: %s", narrative[:80])
+                    logger.debug("Deep narrative: %s", narrative[:80])
                 else:
                     self._deep_narrative_timestamp = time.time()
                     _emit_stream_fault(
@@ -1525,7 +1525,7 @@ class StreamOfBeing:
                 # Expected backpressure while the foreground lane is busy —
                 # the pacing gate delays the next attempt. Not a degradation.
                 logger.info(
-                    "🌊 Deep narrative timed out (streak=%d); next attempt delayed.",
+                    "Deep narrative timed out (streak=%d); next attempt delayed.",
                     self._deep_narrative_timeout_streak,
                 )
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
@@ -1795,7 +1795,7 @@ class StreamOfBeing:
                 with os.fdopen(fd, "w", encoding="utf-8") as f:
                     json.dump(state, f, indent=2, ensure_ascii=False, allow_nan=False)
                 os.replace(tmp, str(target))
-                logger.debug("💾 Stream state saved")
+                logger.debug("Stream state saved")
             except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
                 try:
                     if os.path.exists(tmp):
@@ -1870,7 +1870,7 @@ class StreamOfBeing:
                 self._thread.add(seed_moment)
             
             logger.info(
-                "✅ Stream state restored (age: %.1f minutes, narrative: %s)",
+                "Stream state restored (age: %.1f minutes, narrative: %s)",
                 age / 60,
                 bool(self._deep_narrative),
             )
@@ -1978,5 +1978,5 @@ async def boot_stream_of_being(orchestrator=None) -> StreamOfBeing:
             orchestrator.handle_input = patched_handle
             orchestrator._stream_of_being_wired = True
     
-    logger.info("🌊 StreamOfBeing booted and wired")
+    logger.info("StreamOfBeing booted and wired")
     return stream

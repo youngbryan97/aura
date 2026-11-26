@@ -866,7 +866,7 @@ class AffectiveSteeringHook:
         block.__class__ = SteeredBlock
         self._installed = True
         logger.info(
-            "🎯 Steering hook installed at layer %d (alpha=%.1f, %d vectors via %s)",
+            "Steering hook installed at layer %d (alpha=%.1f, %d vectors via %s)",
             self._layer_idx,
             self._alpha,
             len(self._vectors),
@@ -878,7 +878,7 @@ class AffectiveSteeringHook:
         # Python's method patching: difficult to perfectly uninstall
         # Best approach: disable via flag
         self._active = False
-        logger.info("🔕 Steering hook disabled at layer %d", self._layer_idx)
+        logger.info("Steering hook disabled at layer %d", self._layer_idx)
 
     def get_diagnostics(self) -> dict[str, Any]:
         with self._substrate_lock:
@@ -936,7 +936,7 @@ class SubstrateSyncThread:
         )
         self._thread.start()
         logger.info(
-            "🔄 SubstrateSyncThread started (%d hooks, shared=%s)",
+            "SubstrateSyncThread started (%d hooks, shared=%s)",
             len(self._hooks),
             self._shared_state is not None,
         )
@@ -1418,7 +1418,7 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
         self._model_info["target_layers"] = self._compute_target_layers(n_layers)
         target_layers = self._model_info["target_layers"]
         logger.info(
-            "🧠 Model geometry: %d layers, d_model=%d → targeting layers %s",
+            "Model geometry: %d layers, d_model=%d → targeting layers %s",
             n_layers,
             d_model,
             target_layers,
@@ -1581,7 +1581,7 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
         self._attached_model_id = id(model)
         self._model_info.pop("attachment_error", None)
         logger.info(
-            "✅ AffectiveSteeringEngine attached: %d hooks, %d layer-vectors, α=%.1f (%s)",
+            "AffectiveSteeringEngine attached: %d hooks, %d layer-vectors, α=%.1f (%s)",
             len(self._hooks),
             sum(len(vectors) for vectors in vectors_by_layer.values()),
             self._alpha,
@@ -1612,7 +1612,7 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
             self._sync_thread.stop()
         for hook in self._hooks:
             hook.uninstall()
-        logger.info("🔕 AffectiveSteeringEngine stopped")
+        logger.info("AffectiveSteeringEngine stopped")
 
     def detach(self) -> None:
         """Remove authority from hooks bound to the previously loaded model."""
@@ -1663,12 +1663,12 @@ class AffectiveSteeringEngine(_FindsTheModelsGeometry):
             hook._alpha = effective_alpha
         if surface_override is not None and effective_alpha != float(alpha):
             logger.info(
-                "⚙️  Steering alpha set to %.3f (surface clamp; requested %.3f)",
+                " Steering alpha set to %.3f (surface clamp; requested %.3f)",
                 effective_alpha,
                 float(alpha),
             )
         else:
-            logger.info("⚙️  Steering alpha set to %.1f", alpha)
+            logger.info(" Steering alpha set to %.1f", alpha)
 
     def set_surface_alpha_override(self, alpha: float | None):
         """Clamp hook alpha for user-facing surface generations."""
@@ -1872,7 +1872,7 @@ def attach_steering_to_mlx_client():
 
         # Register in container for monitoring
         ServiceContainer.register_instance("affective_steering_engine", engine)
-        logger.info("✅ Affective steering attached to MLX client")
+        logger.info("Affective steering attached to MLX client")
 
     except (ImportError, AttributeError, RuntimeError) as e:
         _emit_affective_fault(

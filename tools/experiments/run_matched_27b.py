@@ -138,22 +138,22 @@ def main() -> int:
 
     for path in (BASE, AURA):
         if not path.is_dir():
-            print(f"❌ model not found: {path}")
+            print(f"model not found: {path}")
             return 1
     if not args.task_file.is_file():
-        print(f"❌ no task file at {args.task_file}")
+        print(f"no task file at {args.task_file}")
         print("   One JSON object per line: {\"id\", \"prompt\", \"answer\", \"author\"}")
         return 1
 
     tasks = load_tasks(args.task_file, args.tasks)
-    print(f"📋 {len(tasks)} tasks from {args.task_file}")
+    print(f"{len(tasks)} tasks from {args.task_file}")
 
     budget = Budget(
         tokens=args.max_tokens,
         seconds=args.minutes * 60.0 / max(1, len(tasks) * 2),
         tool_calls=0,
     )
-    print(f"⚖️  matched allowance per task: {budget.to_dict()}")
+    print(f" matched allowance per task: {budget.to_dict()}")
 
     built = [
         mlx_arm("base_27b", BASE),
@@ -166,20 +166,20 @@ def main() -> int:
     for _arm, free in built:
         free()
 
-    print(f"\n⏱  {time.time() - started:.1f}s")
-    print(f"🔒 seal {report.seal}")
+    print(f"\n {time.time() - started:.1f}s")
+    print(f"seal {report.seal}")
     for result in report.arms:
         print(f"  {result.arm:12s} {result.to_dict()}")
     for rung in report.ladder:
         print(f"  {rung.arm} over {rung.over}: {rung.to_dict()}")
-    print(f"\n🧾 {report.verdict}")
+    print(f"\n{report.verdict}")
 
     out = args.out or (
         ROOT / "docs" / "evidence" / "matched_experiment" / f"run_{int(started)}.json"
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report.to_dict(), indent=2) + "\n", encoding="utf-8")
-    print(f"📄 {out}")
+    print(f"{out}")
     return 0
 
 

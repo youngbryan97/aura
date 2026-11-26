@@ -112,10 +112,10 @@ class AbstractionEngine:
 
         if abstracted_principle and (training_contamination_reasons(abstracted_principle)
                                      or self._already_kept(abstracted_principle)):
-            logger.info("🧠 Not kept as a principle (a holding line or one already kept): %s...", abstracted_principle[:50])
+            logger.info("Not kept as a principle (a holding line or one already kept): %s...", abstracted_principle[:50])
             abstracted_principle = ""
         if abstracted_principle:
-            logger.info("🧠 First Principle Abstracted: %s...", abstracted_principle[:50])
+            logger.info("First Principle Abstracted: %s...", abstracted_principle[:50])
             await self._commit_principle(abstracted_principle)
             
         # The feedback loop that used to live here incremented the application

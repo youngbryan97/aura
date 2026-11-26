@@ -27,7 +27,7 @@ class TimelineEngine:
 
     def record_event(self, event: WorldEvent) -> None:
         self.events[event.event_id] = event
-        logger.info("📅 Event recorded: %s (Time: %.1f)", event.title, event.timestamp)
+        logger.info("Event recorded: %s (Time: %.1f)", event.title, event.timestamp)
 
     def get_timeline(self, entity_id: Optional[str] = None) -> List[WorldEvent]:
         """Returns sorted chronologically list of events, optionally filtered by entity."""

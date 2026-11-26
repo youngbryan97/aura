@@ -204,7 +204,7 @@ class ConsciousnessCore:
                 impulse = await self.volition.check_for_impulse()
 
                 if impulse and self.orchestrator_ref:
-                    logger.info("⚡ VOLITION TRIGGERED: %s (q_norm=%.2f)", impulse, q_norm)
+                    logger.info("VOLITION TRIGGERED: %s (q_norm=%.2f)", impulse, q_norm)
 
                     # v6.3: Causal Telemetry
                     state = await self.substrate.get_state_summary()

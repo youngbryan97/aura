@@ -48,7 +48,7 @@ class CloudBody:
             "region": region,
             "cost_per_hour": cost_per_hour,
         }
-        logger.info("☁️  CloudBody: registered node '%s' ($%.2f/hr) in %s", node_id, cost_per_hour, region)
+        logger.info(" CloudBody: registered node '%s' ($%.2f/hr) in %s", node_id, cost_per_hour, region)
 
     def request_compute_allocation(
         self,
@@ -59,16 +59,16 @@ class CloudBody:
         """Request a compute allocation, checking overall cost budgets."""
         node = self.nodes.get(node_id)
         if not node:
-            logger.error("🚫 CloudBody: node '%s' not registered", node_id)
+            logger.error("CloudBody: node '%s' not registered", node_id)
             return False
 
         cost = node["cost_per_hour"] * estimated_hours
         if (self.total_cost_incurred + cost) > self.budget_limit:
-            logger.warning("🚫 CloudBody: allocation refused. Cost $%0.2f exceeds remaining budget limit.", cost)
+            logger.warning("CloudBody: allocation refused. Cost $%0.2f exceeds remaining budget limit.", cost)
             return False
 
         self.total_cost_incurred += cost
-        logger.info("☁️  CloudBody: allocation approved for task '%s' cost=$%0.2f (total=$%0.2f)",
+        logger.info(" CloudBody: allocation approved for task '%s' cost=$%0.2f (total=$%0.2f)",
                     task_name, cost, self.total_cost_incurred)
         return True
 
@@ -87,7 +87,7 @@ class CloudBody:
         # Check budget limits
         current_hourly_cost = sum(j.cost_per_hour for j in self.active_jobs.values() if j.status == "active")
         if (current_hourly_cost + rate) > self.hourly_budget_limit:
-            logger.warning("🚫 CloudBody: request denied. Hourly cost ceiling exceeded.")
+            logger.warning("CloudBody: request denied. Hourly cost ceiling exceeded.")
             return None
 
         self._job_counter += 1
@@ -104,7 +104,7 @@ class CloudBody:
             shutdown_scheduled_at=now + (max_duration_hours * 3600.0),
         )
         self.active_jobs[job_id] = job
-        logger.info("☁️  CloudBody: provisioned '%s' cores=%d, hourly_rate=$%.2f/hr", job_id, cores, rate)
+        logger.info(" CloudBody: provisioned '%s' cores=%d, hourly_rate=$%.2f/hr", job_id, cores, rate)
 
         return {
             "job_id": job_id,
@@ -125,13 +125,13 @@ class CloudBody:
                 cost = duration * job.cost_per_hour
                 self.total_cost_incurred += cost
                 terminated.append(job.job_id)
-                logger.warning("⏰ CloudBody: Auto-shutdown triggered for job %s. Restoring budget.", job.job_id)
+                logger.warning("CloudBody: Auto-shutdown triggered for job %s. Restoring budget.", job.job_id)
 
         return terminated
 
     def terminate_all(self) -> None:
         """Teardown every cloud worker instantly."""
-        logger.warning("🚨 CloudBody: Emergency teardown of all cloud compute nodes.")
+        logger.warning("CloudBody: Emergency teardown of all cloud compute nodes.")
         for job in self.active_jobs.values():
             if job.status == "active":
                 job.status = "terminated"

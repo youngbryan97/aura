@@ -82,7 +82,7 @@ class DriveController:
 
     def _trigger_boredom_impulse(self):
         """Inject a curiosity-driven autonomous goal anchored to hardware entropy."""
-        logger.info("🥱 BOREDOM TRIGGERED: Generating entropy-anchored curiosity impulse.")
+        logger.info("BOREDOM TRIGGERED: Generating entropy-anchored curiosity impulse.")
         
         # Phase 21: Entropy Anchor integration
         entropy_val = 0.5
@@ -131,13 +131,13 @@ class DriveController:
             if pending and hasattr(pending, 'cognition'):
                 queued = [i for i in (pending.cognition.pending_initiatives or []) if i.get("origin") == "drive_controller"]
                 if queued:
-                    logger.debug("😤 Frustration reflection already queued (%d pending). Skipping.", len(queued))
+                    logger.debug("Frustration reflection already queued (%d pending). Skipping.", len(queued))
                     return
         except (OSError, ConnectionError, TimeoutError) as _exc:
             record_degradation('drive_controller', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
-        logger.info("😤 FRUSTRATION TRIGGERED: Generating reflection impulse.")
+        logger.info("FRUSTRATION TRIGGERED: Generating reflection impulse.")
         self._last_reflection_impulse = time.time()
         try:
             task = get_task_tracker().create_task(

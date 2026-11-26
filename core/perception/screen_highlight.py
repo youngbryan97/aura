@@ -347,7 +347,7 @@ async def highlight(
 
     looked = time.monotonic()
     rect = await asyncio.to_thread(locate_on_screen, needle)  # a walk of the window's tree, off her event loop
-    logger.info("🖍️ %r located %s in %.2fs", needle, "at " + str(rect) if rect else "nowhere", time.monotonic() - looked)
+    logger.info("%r located %s in %.2fs", needle, "at " + str(rect) if rect else "nowhere", time.monotonic() - looked)
     # Which window it was in, said with what came of it: LIVE 16 November 2026, 20:18, drawn around Finder's back
     # button, her reply put it "in the browser toolbar ... right next to the address bar".
     window = ": ".join(part for part in (str(app or "").strip(), str(title or "").strip()) if part)
@@ -460,7 +460,7 @@ async def _again(needle: str) -> None:
     except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
         record_degradation("screen_highlight", exc, severity="info", action="her reply went out without the ring again")
         return
-    logger.info("🖍️ %r again as her words land: %s", needle, result.reason)
+    logger.info("%r again as her words land: %s", needle, result.reason)
 
 
 async def point_as_asked(objective: str) -> dict[str, Any] | None:
@@ -478,7 +478,7 @@ async def point_as_asked(objective: str) -> dict[str, Any] | None:
         return None
     began = time.monotonic()
     result = await highlight(needle, requested=True)
-    logger.info("🖍️ asked to point at %r: %s in %.2fs", needle, result.reason, time.monotonic() - began)
+    logger.info("asked to point at %r: %s in %.2fs", needle, result.reason, time.monotonic() - began)
     receipt = pointing_receipt(needle, result)
     # "pointing" says what came of it: her capability engine writes its own verdict over "status" on the way back.
     came_to = "pointed_on_screen" if result.shown else "pointing_refused"

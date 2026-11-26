@@ -50,7 +50,7 @@ server.AgentThread = MockAgentThread
 @pytest.mark.asyncio
 async def test_server_globals(monkeypatch):
     """Verify server lifespan uses the current no-double-boot runtime contract."""
-    print("🧪 Testing Server Lifespan Runtime Contract...")
+    print("Testing Server Lifespan Runtime Contract...")
 
     monkeypatch.setenv("AURA_GUI_PROXY", "1")
 

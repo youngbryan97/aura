@@ -22,7 +22,7 @@ WEB_SEARCH_VERIFY_ERRORS = (
 )
 
 async def test_enhanced_search():
-    logger.info("🚀 Starting Enhanced Web Search verification...")
+    logger.info("Starting Enhanced Web Search verification...")
     skill = EnhancedWebSearchSkill()
     ok = True
     
@@ -33,12 +33,12 @@ async def test_enhanced_search():
         result = await skill.execute(goal, {})
         
         if result.get("ok"):
-            logger.info("✅ Deep Search SUCCESS")
+            logger.info("Deep Search SUCCESS")
             logger.info(f"Source: {result.get('source')}")
             logger.info(f"Mode: {result.get('mode')}")
             logger.info(f"Snippet: {result.get('result')[:200]}...")
         else:
-            logger.error(f"❌ Deep Search FAILED: {result.get('error')}")
+            logger.error(f"Deep Search FAILED: {result.get('error')}")
             ok = False
 
         # 2. Test Standard Search (Parsing duckduckgo snippets)
@@ -47,11 +47,11 @@ async def test_enhanced_search():
         result = await skill.execute(goal, {})
         
         if result.get("ok"):
-            logger.info("✅ Standard Search SUCCESS")
+            logger.info("Standard Search SUCCESS")
             logger.info(f"Mode: {result.get('mode')}")
             logger.info(f"Result count: {len(result.get('result'))}")
         else:
-            logger.error(f"❌ Standard Search FAILED: {result.get('error')}")
+            logger.error(f"Standard Search FAILED: {result.get('error')}")
             ok = False
 
         # 3. Test Robust Clicking in PhantomBrowser
@@ -60,9 +60,9 @@ async def test_enhanced_search():
         # Try to click 'About' link or similar
         click_success = await skill.browser.click(text_match="About")
         if click_success:
-            logger.info("✅ Robust click SUCCESS")
+            logger.info("Robust click SUCCESS")
         else:
-            logger.warning("⚠️ Robust click 'About' failed (might be dynamic or hidden)")
+            logger.warning("Robust click 'About' failed (might be dynamic or hidden)")
             ok = False
 
     except WEB_SEARCH_VERIFY_ERRORS as e:

@@ -61,7 +61,7 @@ class ScenarioForge:
     def __init__(self, orchestrator: Any = None):
         self.orchestrator = orchestrator
         self._forged = 0
-        logger.info("🎪 ScenarioForge initialized (Caine lineage)")
+        logger.info("ScenarioForge initialized (Caine lineage)")
 
     @staticmethod
     def _keywords(text: str, limit: int = 6) -> list[str]:

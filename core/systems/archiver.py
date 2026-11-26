@@ -43,7 +43,7 @@ class ArchiveEngine:
 
     async def archive_vital_logs(self) -> Dict:
         """Compress vital logs into a timestamped ZIP. Returns summary dict."""
-        logger.info("📦 Archive sweep starting in %s", self.log_dir)
+        logger.info("Archive sweep starting in %s", self.log_dir)
         self.archive_dir.mkdir(parents=True, exist_ok=True)
 
         found: List[Path] = []
@@ -53,7 +53,7 @@ class ArchiveEngine:
                 found.append(candidate)
 
         if not found:
-            logger.info("📦 No vital logs to archive.")
+            logger.info("No vital logs to archive.")
             return {"archived": 0, "path": None}
 
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -78,7 +78,7 @@ class ArchiveEngine:
 
         self._prune_old_archives()
         mb = total_bytes / (1024 * 1024)
-        logger.info("📦 Archived %d logs (%.2f MB) → %s", archived_count, mb, zip_path.name)
+        logger.info("Archived %d logs (%.2f MB) → %s", archived_count, mb, zip_path.name)
         return {"archived": archived_count, "path": str(zip_path), "bytes_original": total_bytes}
 
     def _prune_old_archives(self) -> None:

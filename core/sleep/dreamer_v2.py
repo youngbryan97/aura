@@ -115,7 +115,7 @@ class DreamerV2:
         4. Memory consolidation (merge duplicates)
         5. Dream (knowledge graph exploration)
         """
-        logger.info("🌙 Engaging full sleep cycle...")
+        logger.info("Engaging full sleep cycle...")
         results = {}
 
         try:
@@ -139,11 +139,11 @@ class DreamerV2:
             from core.container import ServiceContainer
             learning_engine = ServiceContainer.get("learning_engine", default=None)
             if learning_engine:
-                logger.info("🧠 Distilling high-level patterns from experiences...")
+                logger.info("Distilling high-level patterns from experiences...")
                 results["experience_distillation"] = await learning_engine.consolidate_experiences()
             
             if emitter:
-                emitter.emit("Consolidation 🧠", str(results["consolidation"]), level="info")
+                emitter.emit("Consolidation", str(results["consolidation"]), level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Consolidation step failed: %s", e)
@@ -155,7 +155,7 @@ class DreamerV2:
             archiver = ArchiveEngine()
             results["archive"] = await archiver.archive_vital_logs()
             if emitter:
-                emitter.emit("Archive 📦", str(results["archive"]), level="info")
+                emitter.emit("Archive", str(results["archive"]), level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Archive step failed: %s", e)
@@ -167,7 +167,7 @@ class DreamerV2:
             guard = IntegrityGuard(belief_graph=self._the_belief_graph())
             results["integrity"] = await guard.audit_beliefs()
             if emitter:
-                emitter.emit("Integrity 🛡️", str(results["integrity"]), level="info")
+                emitter.emit("Integrity", str(results["integrity"]), level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Integrity step failed: %s", e)
@@ -177,12 +177,12 @@ class DreamerV2:
         try:
             from core.adaptation.self_optimizer import get_self_optimizer
             optimizer = get_self_optimizer()
-            logger.info("🧠 Nucleus: Checking for self-optimization opportunity...")
+            logger.info("Nucleus: Checking for self-optimization opportunity...")
             results["self_optimization"] = await optimizer.optimize(iters=100)
             if emitter and results["self_optimization"].get("ok"):
-                emitter.emit("Optimization ✅", "LoRA update successful. Model weights refined.", level="success")
+                emitter.emit("Optimization ok", "LoRA update successful. Model weights refined.", level="success")
             elif emitter and not results["self_optimization"].get("ok"):
-                 emitter.emit("Optimization ⏸️", f"Skipped: {results['self_optimization'].get('error')}", level="info")
+                 emitter.emit("Optimization", f"Skipped: {results['self_optimization'].get('error')}", level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Optimization step failed: %s", e)
@@ -194,7 +194,7 @@ class DreamerV2:
             metabolism = MetabolismEngine()
             results["metabolism"] = await metabolism.scan_and_purge()
             if emitter:
-                emitter.emit("Metabolism 🫀", str(results["metabolism"]), level="info")
+                emitter.emit("Metabolism", str(results["metabolism"]), level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Metabolism step failed: %s", e)
@@ -204,11 +204,11 @@ class DreamerV2:
         try:
             from core.adaptation.distillation_pipe import get_distillation_pipe
             distiller = get_distillation_pipe()
-            logger.info("🧪 Running distillation cycle...")
+            logger.info("Running distillation cycle...")
             results["distillation"] = await distiller.run_distillation_cycle()
             if emitter:
                 distilled = results["distillation"].get("distilled", 0)
-                emitter.emit("Distillation 🧪", f"{distilled} responses improved via teacher model", level="info")
+                emitter.emit("Distillation", f"{distilled} responses improved via teacher model", level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Distillation step failed: %s", e)
@@ -218,11 +218,11 @@ class DreamerV2:
         try:
             from core.adaptation.heuristic_synthesizer import get_heuristic_synthesizer
             synthesizer = get_heuristic_synthesizer()
-            logger.info("📐 Synthesizing heuristics from telemetry...")
+            logger.info("Synthesizing heuristics from telemetry...")
             results["heuristics"] = await synthesizer.synthesize_from_telemetry()
             if emitter:
                 new_h = results["heuristics"].get("new_heuristics", 0)
-                emitter.emit("Heuristics 📐", f"{new_h} new rules extracted", level="info")
+                emitter.emit("Heuristics", f"{new_h} new rules extracted", level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Heuristic synthesis step failed: %s", e)
@@ -233,10 +233,10 @@ class DreamerV2:
             from core.adaptation.dream_journal import DreamJournal
             if self.vector_memory and self.brain:
                 journal = DreamJournal(dual_memory=self.vector_memory, brain=self.brain)
-                logger.info("🌌 Attempting Qualia-Driven Dream Journaling...")
+                logger.info("Attempting Qualia-Driven Dream Journaling...")
                 results["qualia_dream"] = await journal.synthesize_dream()
                 if emitter and results["qualia_dream"]:
-                    emitter.emit("Dream Journal 🌌", f"Abstract metaphor synthesized from {results['qualia_dream'].get('seed_count', 0)} episodic events.", level="info")
+                    emitter.emit("Dream Journal", f"Abstract metaphor synthesized from {results['qualia_dream'].get('seed_count', 0)} episodic events.", level="info")
                     
                     # Inject the dream back into the waking consciousness stream
                     from core.container import ServiceContainer
@@ -244,7 +244,7 @@ class DreamerV2:
                     if agency and hasattr(agency, 'on_visual_change'):
                         dream_txt = results['qualia_dream'].get('dream_content', '')
                         agency.on_visual_change(f"[INTERNAL DREAM MEMORY]: {dream_txt[:200]}...")
-                        logger.info("🌌 Dream injected into waking consciousness stream.")
+                        logger.info("Dream injected into waking consciousness stream.")
                         
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
@@ -255,7 +255,7 @@ class DreamerV2:
         try:
             from core.adaptation.value_autopoiesis import get_value_autopoiesis
             autopoiesis = get_value_autopoiesis()
-            logger.info("🧬 Running value autopoiesis cycle...")
+            logger.info("Running value autopoiesis cycle...")
             shifts = await autopoiesis.evolve_cycle()
             results["value_autopoiesis"] = {
                 "ok": True,
@@ -264,7 +264,7 @@ class DreamerV2:
             }
             if emitter and shifts:
                 shift_desc = ", ".join(f"{s.value_name}:{s.delta:+.3f}" for s in shifts[:4])
-                emitter.emit("Value Evolution 🧬", f"{len(shifts)} value(s) evolved: {shift_desc}", level="info")
+                emitter.emit("Value Evolution", f"{len(shifts)} value(s) evolved: {shift_desc}", level="info")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreamer_v2', e)
             logger.warning("Value autopoiesis step failed: %s", e)
@@ -295,7 +295,7 @@ class DreamerV2:
             logger.warning("Dream step failed: %s", e)
             results["dream"] = {"dreamed": False, "error": str(e)}
 
-        logger.info("🌙 Sleep cycle complete: %s", {k: str(v)[:60] for k, v in results.items()})
+        logger.info("Sleep cycle complete: %s", {k: str(v)[:60] for k, v in results.items()})
         return results
 
     async def engage_sleep_cycle_async(self):
@@ -308,7 +308,7 @@ class DreamerV2:
         2. Synthesis: Ask Brain if they are connected.
         3. Consolidation: Save new connection if valid.
         """
-        logger.info("💤 Entering REM Sleep (Dreamer V2)...")
+        logger.info("Entering REM Sleep (Dreamer V2)...")
         
         try:
             from core.thought_stream import get_emitter
@@ -364,9 +364,9 @@ class DreamerV2:
             
             # 4. Consolidate
             if "NO_CONNECTION" not in content and len(content) > 10:
-                logger.info("💡 Dream Insight: %s...", content[:100])
+                logger.info("Dream Insight: %s...", content[:100])
                 if emitter:
-                    emitter.emit("Dream Insight 💡", content[:200], level="info")
+                    emitter.emit("Dream Insight", content[:200], level="info")
 
                 # Signal heartstone: dream insights raise Curiosity
                 try:
@@ -413,7 +413,7 @@ class DreamerV2:
             record_degradation('dreamer_v2', e)
             logger.error("Nightmare encountered: %s", e)
             if emitter:
-                emitter.emit("Nightmare ⚡", f"Dream interrupted: {e}", level="warning")
+                emitter.emit("Nightmare", f"Dream interrupted: {e}", level="warning")
             return {"dreamed": False, "error": str(e)}
 
     def _get_random_nodes(self, n=2) -> list[dict[str, Any]]:

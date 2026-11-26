@@ -523,7 +523,7 @@ class NucleusManager(LLMProvider):
         self.cortex_path = str(artifact)
         self._adapter_dir = ""
         logger.info(
-            "🧠 [NUCLEUS] Promoted Cortex artifact adopted (%s -> %s); unloading for reload.",
+            "[NUCLEUS] Promoted Cortex artifact adopted (%s -> %s); unloading for reload.",
             os.path.basename(previous or "unknown"),
             artifact.name,
         )
@@ -681,7 +681,7 @@ class NucleusManager(LLMProvider):
         path_exists = await asyncio.to_thread(Path(path).exists)
         if not path_exists:
             logger.debug("PATH MISSING: %s", path)
-            logger.warning("⚠️ Model path missing: %s. Background fetch may still be running...", path)
+            logger.warning("Model path missing: %s. Background fetch may still be running...", path)
             error = FileNotFoundError(path)
             entry.update({"loaded": False, "last_error": str(error), "cache": None})
             _record_nucleus_degradation(
@@ -715,7 +715,7 @@ class NucleusManager(LLMProvider):
                 if verdict["compatible"]:
                     adapter_path = self._adapter_dir
                     logger.info(
-                        "🧠 [NUCLEUS] Attaching LoRA adapter for Cortex: %s (%s)",
+                        "[NUCLEUS] Attaching LoRA adapter for Cortex: %s (%s)",
                         adapter_path,
                         verdict["reason"],
                     )
@@ -747,7 +747,7 @@ class NucleusManager(LLMProvider):
             entry["lane_lease"] = lane_lease
             sentinel = get_gpu_sentinel()
             
-            logger.info("🧠 [NUCLEUS] Loading %s from disk (Adapter: %s)...", name.upper(), adapter_path)
+            logger.info("[NUCLEUS] Loading %s from disk (Adapter: %s)...", name.upper(), adapter_path)
             
             def _load_locked():
                 acquired = sentinel.acquire(timeout=90) # Loading is slow, give it more time
@@ -799,10 +799,10 @@ class NucleusManager(LLMProvider):
                     "governance from labels alone."
                 )
                 self._tokens_seen = 0 # Reset token count for new conversation/load
-                logger.debug("🧠 [NUCLEUS] Cortex loaded. Anchor text set and token counter reset.")
+                logger.debug("[NUCLEUS] Cortex loaded. Anchor text set and token counter reset.")
 
             logger.info(
-                "✅ [NUCLEUS] %s ready (%s).", name.upper(), readiness["reason"]
+                "[NUCLEUS] %s ready (%s).", name.upper(), readiness["reason"]
             )
             return True
         except asyncio.CancelledError:
@@ -865,7 +865,7 @@ class NucleusManager(LLMProvider):
                 ),
                 extra={"model": name, "path": path, "adapter_path": adapter_path},
             )
-            logger.error("❌ [NUCLEUS] Load failed for %s: %s", name, e)
+            logger.error("[NUCLEUS] Load failed for %s: %s", name, e)
             logger.error("Failed to load internal model %s: %s", name, e)
             return False
 
@@ -945,7 +945,7 @@ class NucleusManager(LLMProvider):
         self._tokens_seen += current_prompt_tokens
 
         if self._tokens_seen >= self._refresh_threshold:
-            logger.debug("🧠 [NUCLEUS] Re-injecting semantic anchor for Cortex (tokens seen: %d).", self._tokens_seen)
+            logger.debug("[NUCLEUS] Re-injecting semantic anchor for Cortex (tokens seen: %d).", self._tokens_seen)
             # Re-inject by ensuring the anchor is the system prompt
             actual_system = f"{self._anchor_text}\n\n{system_prompt}" if system_prompt else self._anchor_text
             self._tokens_seen = 0 # Reset after re-injection
@@ -984,7 +984,7 @@ class NucleusManager(LLMProvider):
                 self._last_lane_substituted = True
                 model_type = alt_type
             else:
-                logger.error("❌ Both Nucleus models failed to load.")
+                logger.error("Both Nucleus models failed to load.")
                 _record_nucleus_degradation(
                     RuntimeError("both nucleus model lanes are offline"),
                     action=(
@@ -1192,7 +1192,7 @@ class NucleusManager(LLMProvider):
                             and sentinel.should_yield()
                         ):
                             logger.warning(
-                                "🧠 [NUCLEUS] Pre-empted by REFLEX task. Yielding GPU."
+                                "[NUCLEUS] Pre-empted by REFLEX task. Yielding GPU."
                             )
                             yield "... [Pausing for sensory reflex] ..."
                             break
@@ -1380,7 +1380,7 @@ class NucleusManager(LLMProvider):
 
     async def unload_models(self):
         """Force unload all internal models and clear caches."""
-        logger.info("🧠 [NUCLEUS] Unloading all internal models...")
+        logger.info("[NUCLEUS] Unloading all internal models...")
         for name in tuple(self.models):
             await self._unload_model_entry(name, reason="unload_all")
         

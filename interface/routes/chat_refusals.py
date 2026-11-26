@@ -228,7 +228,7 @@ async def _anything_better_than_giving_up(
         return ""
     if said:
         logger.info(
-            "🪜 The ladder answered where the turn was about to give up (%s).",
+            "The ladder answered where the turn was about to give up (%s).",
             reason[:80],
         )
     return said
@@ -422,7 +422,7 @@ def _fail_closed_on_an_unproven_full_mind_contract(
                 # couldn't get my full attention onto that one" under
                 # `retry_exhausted`, which is a fact about the retry counter.
                 logger.warning(
-                    "⚠️ Full-mind contract unproven on bookkeeping alone "
+                    "Full-mind contract unproven on bookkeeping alone "
                     "(missing=%s); serving the answer she wrote, disclosed as "
                     "bounded rather than replaced.",
                     ",".join(missing) or "unrecorded",
@@ -451,7 +451,7 @@ def _fail_closed_on_an_unproven_full_mind_contract(
                     status_code=503 if is_benchmark else 200,
                 )
             logger.warning(
-                "⚠️ Required desktop full-mind contract was not proven; failing "
+                "Required desktop full-mind contract was not proven; failing "
                 "closed instead of serving partial/raw speech (path=%s, missing=%s).",
                 final_live_turn_contract.get("response_path") or "",
                 # WHICH proof failed is the whole diagnosis. Without it this

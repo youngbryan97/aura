@@ -173,7 +173,7 @@ Respond in JSON only:
             self._save()
 
             logger.info(
-                "💭 [Opinion] Formed on '%s' (confidence: %.0f%%): %s",
+                "[Opinion] Formed on '%s' (confidence: %.0f%%): %s",
                 topic,
                 opinion.confidence * 100,
                 opinion.position[:80],

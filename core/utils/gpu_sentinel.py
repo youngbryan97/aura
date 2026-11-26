@@ -52,7 +52,7 @@ class GPUSentinel:
         # Stale lock watchdog (150s)
         now = time.monotonic()
         if self._lock_time_mono > 0 and (now - self._lock_time_mono > 150):
-            logger.critical("🚨 GPU Sentinel: LOCK STALE (>150s). Forcible override initiated.")
+            logger.critical("GPU Sentinel: LOCK STALE (>150s). Forcible override initiated.")
             self.release()
 
         try:

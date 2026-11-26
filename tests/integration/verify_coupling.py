@@ -20,7 +20,7 @@ class MockOrchestrator:
         self.impulses = []
     
     async def handle_impulse(self, impulse):
-        print(f"🚀 Local orchestrator harness received impulse: {impulse}")
+        print(f"Local orchestrator harness received impulse: {impulse}")
         self.impulses.append(impulse)
 
 async def test_coupling():
@@ -40,7 +40,7 @@ async def test_coupling():
     try:
         # Force a state into the "Boredom" Basin
         # v < -0.1, a < -0.2
-        print("💉 Injecting 'Boredom' stimulus...")
+        print("Injecting 'Boredom' stimulus...")
         # valence is idx 0, arousal is idx 1
         boredom_vec = np.zeros(64)
         boredom_vec[0] = -0.5 # Negative valence
@@ -49,7 +49,7 @@ async def test_coupling():
         await core.substrate.inject_stimulus(boredom_vec, weight=2.0)
         
         # Wait for the volition loop to trigger (it runs at 1Hz)
-        print("⏳ Waiting for volition to emerge from substrate...")
+        print("Waiting for volition to emerge from substrate...")
         # Check for 5 seconds
         for _ in range(10):
             await asyncio.sleep(0.5)
@@ -62,12 +62,12 @@ async def test_coupling():
         core.stop()
         
     if orchestrator.impulses:
-        print(f"✅ Causal Impulse Triggered: {orchestrator.impulses[0]}")
+        print(f"Causal Impulse Triggered: {orchestrator.impulses[0]}")
         # Run analysis (AFTER core is stopped and files are closed)
         from scripts.prove_coupling import analyze_coupling
         analyze_coupling()
     else:
-        print("❌ No impulse triggered. Check refractory periods or basin definitions.")
+        print("No impulse triggered. Check refractory periods or basin definitions.")
 
 if __name__ == "__main__":
     asyncio.run(test_coupling())

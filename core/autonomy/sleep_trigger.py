@@ -50,7 +50,7 @@ class AutonomousSleepTrigger:
     async def start(self):
         self.running = True
         self._task = get_task_tracker().create_task(self._watch_loop(), name="SleepTrigger")
-        logger.info("😴 SleepTrigger active (idle=%.0fm, cooldown=%.0fh)",
+        logger.info("SleepTrigger active (idle=%.0fm, cooldown=%.0fh)",
                     _IDLE_THRESHOLD_SEC / 60, _SLEEP_COOLDOWN_SEC / 3600)
 
     async def stop(self):
@@ -118,7 +118,7 @@ class AutonomousSleepTrigger:
         self._sleeping = True
         idle_min = idle_sec / 60
 
-        logger.info("🌙 SleepTrigger: %.0f min idle — initiating consolidation.", idle_min)
+        logger.info("SleepTrigger: %.0f min idle — initiating consolidation.", idle_min)
 
         try:
             from core.thought_stream import get_emitter
@@ -147,7 +147,7 @@ class AutonomousSleepTrigger:
                     )
                 else:
                     consolidated = getattr(consolidation, "duplicates_merged", 0)
-                logger.info("🌅 Sleep cycle complete: dreamed=%s consolidated=%s",
+                logger.info("Sleep cycle complete: dreamed=%s consolidated=%s",
                             dreamed, consolidated)
                 try:
                     from core.thought_stream import get_emitter

@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
 
     files = args.files if args.files is not None else changed_files(args.base)
     if not files:
-        print("✅ no production Python files changed")
+        print("no production Python files changed")
         return 0
 
     known = allowlisted()
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             continue
         marker = "already on the allowlist" if path in known else "not yet typed"
-        print(f"\n❌ {path} ({marker})")
+        print(f"\n{path} ({marker})")
         print("\n".join(f"   {line}" for line in output.splitlines()[:12]))
 
     if args.adopt:
@@ -213,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
 
     clean = len(passing)
     print(
-        f"✅ {len(files)} changed file(s): {clean} clean, "
+        f"{len(files)} changed file(s): {clean} clean, "
         f"{len(files) - clean} unchanged in error count"
     )
     return 0

@@ -101,7 +101,7 @@ class SystemHealthReport:
         )
         logger.info("  Tick rate: %sHz  Mean tick: %sms", f"{self.tick_rate_hz:.2f}", f"{self.mean_tick_ms:.0f}")
         for c in self.checks:
-            icon = "✓" if c.healthy else ("⚠" if c.severity in ("warning", "info") else "✗")
+            icon = "✓" if c.healthy else ("warning" if c.severity in ("warning", "info") else "✗")
             logger.info("  %s %s: %s", icon, c.name, c.message)
             if c.action_taken:
                 logger.info("     → %s", c.action_taken)
@@ -598,7 +598,7 @@ class StabilityGuardian(_ChecksEachSubsystem):
                 ordered_blocks.append(main_block)
             ordered_blocks.extend(sorted(blocks, key=len, reverse=True)[:6])
             dump = "\n\n".join(ordered_blocks)
-            logger.error("🚨 [StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:6000])
+            logger.error("[StabilityGuardian] %s. THREAD DUMP:%s\n%s", label, task_block, dump[:6000])
         except (ImportError, AttributeError, RuntimeError) as exc:
             _record_guardian_degradation(exc)
             logger.debug("StabilityGuardian thread dump failed: %s", exc)
@@ -691,7 +691,7 @@ class StabilityGuardian(_ChecksEachSubsystem):
             backup_1 = self._log_path.with_suffix(".jsonl.1")
             if self._log_path.exists():
                 self._log_path.rename(backup_1)
-            logger.info("🧹 [StabilityGuardian] Rotated health_log.jsonl (exceeded %dMB).",
+            logger.info("[StabilityGuardian] Rotated health_log.jsonl (exceeded %dMB).",
                         self._HEALTH_LOG_MAX_BYTES // (1024 * 1024))
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _record_guardian_degradation(e)

@@ -197,7 +197,7 @@ async def search(design: Design, code: str, tests: str, failing: Sequence[Result
     # What mends the most and breaks the least; of those, what changes least of what came of the tests that hold (Xiong and
     # others 2018: what a right mend leaves alone is how it is told from one that only fits its test); then the likeliest.
     given.mends.sort(key=lambda m: (len(m.breaks) - len(m.mends), m.other, order.get((m.way.start, m.way.end, m.way.text), 0)))
-    logger.info("🔎 %s: %s, %d mend something.", design.name, given.says(), len(given.mends))
+    logger.info("%s: %s, %d mend something.", design.name, given.says(), len(given.mends))
     return given
 
 
@@ -222,9 +222,9 @@ async def _in_page(design: Design, program: str, tests: str, blocks: int, browse
         if act is not None:
             await act(page)
     except TimeoutError:
-        logger.info("🔎 %s: a batch of ways did not end.", design.name)
+        logger.info("%s: a batch of ways did not end.", design.name)
     except Exception as exc:  # noqa: BLE001 - what a page raises with a way let through is no fault of the search's
-        logger.info("🔎 %s: the search broke off: %s %s", design.name, str(exc)[:200], "; ".join(problems)[:200] if "problems" in locals() else "")
+        logger.info("%s: the search broke off: %s %s", design.name, str(exc)[:200], "; ".join(problems)[:200] if "problems" in locals() else "")
     finally:
         await context.close()
         await asyncio.to_thread(governed, "delete_file", where)

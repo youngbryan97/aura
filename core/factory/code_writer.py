@@ -27,7 +27,7 @@ class CodeWriter:
         """Draft a code patch for a planned change and apply it."""
         module = change.get("module", "unknown")
         rationale = change.get("rationale", "")
-        logger.info("✏️  CodeWriter drafting patch for module '%s'", module)
+        logger.info(" CodeWriter drafting patch for module '%s'", module)
 
         repo_root = Path(repo_path).expanduser().resolve()
         file_path = (repo_root / str(module)).resolve()

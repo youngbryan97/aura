@@ -1172,7 +1172,7 @@ class AllostasisEngine:
             "model_settle_until": round(self._model_settle_until, 3),
         })
         logger.info(
-            "🫁 [Allostasis] resource lifecycle %s → %s; RSS trend evidence reset.",
+            "[Allostasis] resource lifecycle %s → %s; RSS trend evidence reset.",
             previous,
             target,
         )
@@ -1291,7 +1291,7 @@ class AllostasisEngine:
                     note=f"regime_change:{direction}",
                 )
         logger.info(
-            "🌡️ [Allostasis] regime change on %s (%s, %.1fσ) — trend window re-anchored.",
+            "[Allostasis] regime change on %s (%s, %.1fσ) — trend window re-anchored.",
             key, direction, magnitude,
         )
         return RegimeEvent(vital=key, at_unix=now, direction=direction,
@@ -1428,7 +1428,7 @@ class AllostasisEngine:
                 issued.append(forecast.forecast_id)
                 self._pending_events.append({"kind": "issued", **forecast.to_dict()})
                 logger.warning(
-                    "🔮 [Allostasis] forecast %s: %s → %s line (%.1f %s) at %s "
+                    "[Allostasis] forecast %s: %s → %s line (%.1f %s) at %s "
                     "(band %s–%s, slope %.3f %s/h, p=%.4f).",
                     forecast.forecast_id, key, threshold_name, threshold, spec.unit,
                     _fmt_eta(eta_mid - now), _fmt_eta(eta_lower - now), _fmt_eta(eta_upper - now),
@@ -1617,7 +1617,7 @@ class AllostasisEngine:
             else logger.warning
         )
         log(
-            "📒 [Allostasis] forecast %s on %s resolved %s (%s). Coverage now %s.",
+            "[Allostasis] forecast %s on %s resolved %s (%s). Coverage now %s.",
             fc.forecast_id, fc.vital, outcome.value, note,
             book.coverage if book.coverage is not None else "n/a",
         )
@@ -1783,7 +1783,7 @@ class AllostasisEngine:
             })
         logger.log(
             logging.WARNING if new >= AllostasisTier.CONSERVING else logging.INFO,
-            "🫁 [Allostasis] tier %s → %s: %s",
+            "[Allostasis] tier %s → %s: %s",
             old.name.lower(), new.name.lower(), reason,
         )
 
@@ -1910,7 +1910,7 @@ class AllostasisEngine:
         # correct behaviour and, for fail-closed subsystems, escalating it.
         # Anticipatory protection is logged as the designed transition it is.
         logger.warning(
-            "🛡️ [Allostasis] anticipatory protection engaged (designed tier "
+            "[Allostasis] anticipatory protection engaged (designed tier "
             "transition, not a fault): %s",
             reason,
         )
@@ -1954,7 +1954,7 @@ class AllostasisEngine:
                     "confidence": confidence,
                 },
             )
-            logger.warning("🚨 [Allostasis] anticipatory imperative published: %s", reason)
+            logger.warning("[Allostasis] anticipatory imperative published: %s", reason)
         except _BOUNDARY_ERRORS as exc:
             # A publish FAILURE is a real degradation — unlike the tier change.
             record_degradation(_SUBSYSTEM, exc, action="existential-threat publish failed")
@@ -1962,7 +1962,7 @@ class AllostasisEngine:
     def _clear_protecting(self, reason: str, reading: AllostasisReading) -> None:
         """Publish the recovery event that ends an anticipatory emergency."""
         logger.info(
-            "🌤️ [Allostasis] anticipatory protection released: %s", reason,
+            "[Allostasis] anticipatory protection released: %s", reason,
         )
         try:
             from core.event_bus import get_event_bus

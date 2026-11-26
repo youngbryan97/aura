@@ -2096,7 +2096,7 @@ class AuthorityGateway(_AuthorisesAMemoryWrite):
             # FAIL-CLOSED: if substrate authority is required but not available,
             # block the action regardless of boot state. No "blind spot" bypass.
             logger.warning(
-                "🛡️ Substrate Authority not registered — BLOCKING action (fail-closed). "
+                "Substrate Authority not registered — BLOCKING action (fail-closed). "
                 "domain=%s, source=%s", domain or category.name.lower(), source,
             )
             return (

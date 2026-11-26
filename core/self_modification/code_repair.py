@@ -735,7 +735,7 @@ class SandboxTester:
         try:
             from core.resilience.diagnostic_hub import get_diagnostic_hub
             hub = get_diagnostic_hub()
-            logger.info("🛡️ [NEURO] Running Pyright validation on sandbox fix...")
+            logger.info("[NEURO] Running Pyright validation on sandbox fix...")
             
             # We must run pyright on the specific file in the sandbox
             # Pyright usually needs a config, but we can run it on a single file
@@ -745,10 +745,10 @@ class SandboxTester:
                 if issues:
                     # Filter for errors only if desired, or report all
                     results["errors"].append(f"Pyright type mismatch: {issues[0].get('message')}")
-                    logger.warning("❌ [NEURO] Pyright rejected the fix.")
+                    logger.warning("[NEURO] Pyright rejected the fix.")
                     return results
             results["integrity_check"] = True
-            logger.info("✅ [NEURO] Pyright validation passed.")
+            logger.info("[NEURO] Pyright validation passed.")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_code_repair_degradation(
                 e,
@@ -1073,7 +1073,7 @@ class AutonomousCodeRepair:
 
         # Step 1: Generate a candidate. Mechanical repair is attempted first,
         # but only against a disposable shadow and never against live source.
-        logger.info("🔧 [NEURO] Attempting shadow mechanical repair with Ruff...")
+        logger.info("[NEURO] Attempting shadow mechanical repair with Ruff...")
         fix: CodeFix | None = None
         try:
             fix = await self._generate_ruff_candidate(file_path, line_number)
@@ -1170,7 +1170,7 @@ class AutonomousCodeRepair:
             )
             return False, fix, {"error": eval_msg, "deep_repair": deep_repair}
             
-        logger.info("✅ Fix passed Evaluation Harness")
+        logger.info("Fix passed Evaluation Harness")
         
         # Fix is ready to apply!
         return True, fix, test_results

@@ -419,7 +419,7 @@ class EvictionManager:
                 self._refusals.append(
                     {"at": time.time(), "victim": candidate.name, "reason": blocked}
                 )
-                logger.warning("🛑 eviction of %s refused: %s", candidate.name, blocked)
+                logger.warning("eviction of %s refused: %s", candidate.name, blocked)
                 actions.append({"victim": candidate.name, "action": "refused", "reason": blocked})
                 continue
             if dry_run:
@@ -454,7 +454,7 @@ class EvictionManager:
             if len(self._events) > 128:
                 del self._events[:-128]
         logger.warning(
-            "♻️ eviction %s: %s (%s) freed %.1fMB — %s",
+            "eviction %s: %s (%s) freed %.1fMB — %s",
             event.action,
             event.victim,
             event.qos_class,

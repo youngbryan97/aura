@@ -63,7 +63,7 @@ class AutonomicCore:
             logger.error("Autonomic Core heartbeat failed to start: %s", exc)
             raise
         self.running = True
-        logger.info("🛡️ Autonomic Core online. Unified survival heartbeat started.")
+        logger.info("Autonomic Core online. Unified survival heartbeat started.")
 
     async def stop(self):
         """Shutdown the autonomic heartbeat and prove termination."""

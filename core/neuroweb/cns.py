@@ -76,7 +76,7 @@ class CentralNervousSystem:
             
             # Phase 27: Aggressive Memory Override
             if mem.percent > 85:
-                logger.info("🧠 CNS: Critical Memory (%s%%) - Bypassing intent extraction.", mem.percent)
+                logger.info("CNS: Critical Memory (%s%%) - Bypassing intent extraction.", mem.percent)
                 intent = Intent(text=text, confidence=1.0)
             else:
                 # Reduced timeouts for Phase 27 stability

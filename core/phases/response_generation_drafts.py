@@ -63,7 +63,7 @@ def _keep_a_repairable_draft_or_reject_it(
             # say?" — neither answerable from a number. The
             # file sink redacts, and this stays local.
             logger.warning(
-                "🛡️ ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d): %r",
+                "ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d): %r",
                 ",".join(reliability.reasons) or "unknown",
                 len(response_text_s),
                 response_text_s[:_REJECTED_DRAFT_LOG_CHARS],
@@ -82,7 +82,7 @@ def _keep_a_repairable_draft_or_reject_it(
                 )
         else:
             logger.warning(
-                "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",
+                "ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",
                 ",".join(reliability.reasons) or "unknown",
                 len(str(response_text or "")),
                 str(response_text or "")[:_REJECTED_DRAFT_LOG_CHARS],
@@ -148,7 +148,7 @@ def _repair_the_instruction_shape_after_voice(
                 "method": "deterministic_instruction_shape",
             }
             logger.info(
-                "🛡️ ResponseGeneration repaired instruction shape after voice shaping (%s).",
+                "ResponseGeneration repaired instruction shape after voice shaping (%s).",
                 ",".join(repair_reasons) or "unknown",
             )
     return cleaned_response

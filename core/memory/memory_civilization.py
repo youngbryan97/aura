@@ -50,7 +50,7 @@ class MemoryCivilization:
         failed_steps: List[str],
     ) -> DurableLesson:
         """Post-mission narrative compression: distills logs into structured lessons."""
-        logger.info("📦 MemoryCivilization: compressing logs for mission %s...", mission_id)
+        logger.info("MemoryCivilization: compressing logs for mission %s...", mission_id)
 
         # Ingest recent raw logs related to the mission
         mission_raw = [r for r in self.raw_logs if mission_id in r["details"]]
@@ -78,7 +78,7 @@ class MemoryCivilization:
         )
 
         self.lessons[lesson.lesson_id] = lesson
-        logger.info("💾 Compressed %d raw events into lesson %s", len(mission_raw), lesson.lesson_id)
+        logger.info("Compressed %d raw events into lesson %s", len(mission_raw), lesson.lesson_id)
         return lesson
 
     def get_lessons(self) -> List[DurableLesson]:

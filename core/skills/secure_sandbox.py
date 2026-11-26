@@ -103,6 +103,6 @@ class SecureDockerSandbox:
         if is_safe:
             logger.info("Sandbox Safety Verified: Network access blocked.")
         else:
-            logger.critical("🛡️ SANDBOX SAFETY CHECK FAILED: Network may be accessible!")
+            logger.critical("SANDBOX SAFETY CHECK FAILED: Network may be accessible!")
             
         return is_safe

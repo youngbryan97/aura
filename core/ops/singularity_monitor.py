@@ -38,12 +38,12 @@ class SingularityMonitor:
                 # If health is high and improvement is positive, we enter Accelerated state
                 if health > 0.9 and self.improvement_rate > -0.01:
                     if not self.is_accelerated:
-                        logger.info("⚡ [SINGULARITY] Accelerated Cognition Enabled.")
+                        logger.info("[SINGULARITY] Accelerated Cognition Enabled.")
                         self.is_accelerated = True
                         self._apply_acceleration(1.5)
                 elif health < 0.7:
                     if self.is_accelerated:
-                        logger.warning("📉 [SINGULARITY] Accelerated Cognition Suspended due to recursive instability.")
+                        logger.warning("[SINGULARITY] Accelerated Cognition Suspended due to recursive instability.")
                         self.is_accelerated = False
                         self._apply_acceleration(1.0)
                         
@@ -58,7 +58,7 @@ class SingularityMonitor:
         if ce:
              # Inject deep-seated bias into thinking modes
              # This is a 'latent' shift in how Aura perceives her own throughput
-             logger.info("🧠 Injecting Acceleration Factor: %.1fx", factor)
+             logger.info("Injecting Acceleration Factor: %.1fx", factor)
              # We can't directly modify LLM params easily here without a hook,
              # so we'll set a state flag that the CognitiveEngine can check.
              setattr(ce, "singularity_factor", factor)

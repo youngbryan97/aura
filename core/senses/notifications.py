@@ -98,7 +98,7 @@ class DesktopNotifier:
         window, and she said so. Turning notifications off (notify.enabled) still refuses it.
         """
         if not bool(get_runtime_setting("notify.enabled", True)):
-            logger.debug("🔕 Notification suppressed: notifications disabled in settings: %s", title)
+            logger.debug("Notification suppressed: notifications disabled in settings: %s", title)
             return DeliveryResult(
                 delivered=False,
                 status="disabled",
@@ -109,7 +109,7 @@ class DesktopNotifier:
             get_runtime_setting("notify.quiet_hours_start", "22:00"),
             get_runtime_setting("notify.quiet_hours_end", "08:00"),
         ):
-            logger.debug("🔕 Notification suppressed by quiet hours: %s", title)
+            logger.debug("Notification suppressed by quiet hours: %s", title)
             return DeliveryResult(
                 delivered=False,
                 status="suppressed_quiet_hours",

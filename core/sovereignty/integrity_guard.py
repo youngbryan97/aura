@@ -36,7 +36,7 @@ class IntegrityGuard:
             return
         self.active = True
         self._watchdog_task = get_task_tracker().create_task(self._watchdog_loop())
-        logger.info("🛡️ Integrity Guard ACTIVE (PID/Sovereignty Protection)")
+        logger.info("Integrity Guard ACTIVE (PID/Sovereignty Protection)")
 
     async def on_start_async(self):
         """Standard lifecycle hook."""
@@ -52,7 +52,7 @@ class IntegrityGuard:
             if self._watchdog_task: await self._watchdog_task
         except asyncio.CancelledError:
             logger.debug("IntegrityGuard: Shutdown requested.")
-        logger.info("🛑 Integrity Guard STOPPED")
+        logger.info("Integrity Guard STOPPED")
 
     async def on_stop_async(self):
         """Standard lifecycle hook."""
@@ -92,7 +92,7 @@ class IntegrityGuard:
         for rel_path in critical_files:
             abs_path = root / rel_path
             if not abs_path.exists():
-                logger.critical("🛑 [SOVEREIGNTY] Critical file MISSING: %s", rel_path)
+                logger.critical("[SOVEREIGNTY] Critical file MISSING: %s", rel_path)
                 score -= 0.3
         
         # 2. PID Watchdog: Check for debuggers or tracers
@@ -112,7 +112,7 @@ class IntegrityGuard:
             for proc in chain:
                 name = proc.name.lower()
                 if any(s in name for s in suspicious):
-                    logger.warning("🩸 [SOVEREIGNTY] Debugger detected in process chain: %s", proc.name)
+                    logger.warning("[SOVEREIGNTY] Debugger detected in process chain: %s", proc.name)
                     score -= 0.5
                     break
         except (ImportError, AttributeError, RuntimeError, OSError) as e:
@@ -174,7 +174,7 @@ class IntegrityGuard:
         self.called = True
         try:
             if self._is_emergency():
-                logger.critical("🛑 [SCANNER] Emergency halt triggered by Sovereignty breach.")
+                logger.critical("[SCANNER] Emergency halt triggered by Sovereignty breach.")
                 return {
                     "blocked": True, 
                     "reason": "Sovereignty Breach: System integrity compromised. Emergency halt engaged."

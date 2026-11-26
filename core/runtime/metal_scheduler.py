@@ -53,9 +53,9 @@ class MetalScheduler:
         """Enable 'Boost Mode' for ultra-low latency interaction."""
         self._boost_mode = active
         if active:
-            logger.info("🚀 [METAL] Boost Mode active. Throttling background substrate.")
+            logger.info("[METAL] Boost Mode active. Throttling background substrate.")
         else:
-            logger.info("⚖️ [METAL] Standard distribution restored.")
+            logger.info("[METAL] Standard distribution restored.")
 
     def get_stats(self) -> Dict[str, int]:
         return {tier.name: count for tier, count in self._active_counts.items()}

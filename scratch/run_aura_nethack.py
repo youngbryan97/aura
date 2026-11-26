@@ -42,7 +42,7 @@ def _map_glyph(glyph: str):
     return "item", True
 
 async def run_game():
-    logger.info("⚔️ Launching Aura into the Dungeons of Doom...")
+    logger.info("Launching Aura into the Dungeons of Doom...")
     env = NetHackEnv()
     reflex = get_reflex_engine()
     atlas = get_spatial_atlas()
@@ -71,7 +71,7 @@ async def run_game():
         obs, reward, done, info = await env.step(action)
         
         if done:
-            logger.warning("💀 Aura has died. Triggering Post-Mortem...")
+            logger.warning("Aura has died. Triggering Post-Mortem...")
             # Distill first principles from death (Mocked)
             antigen = Antigen(
                 antigen_id=f"death_turn_{turn}",

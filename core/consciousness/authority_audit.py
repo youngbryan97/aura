@@ -145,7 +145,7 @@ class AuthorityAudit:
             else:
                 self._unmatched_count += 1
                 logger.warning(
-                    "⚠️ UNMATCHED EFFECT: type=%s source=%s receipt_id=%s",
+                    "UNMATCHED EFFECT: type=%s source=%s receipt_id=%s",
                     effect_type, source, receipt_id,
                 )
 

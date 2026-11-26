@@ -84,7 +84,7 @@ async def execute_write_with_backoff(conn: aiosqlite.Connection | sqlite3.Connec
         except sqlite3.OperationalError as e:
             if "locked" in str(e).lower() and attempt < max_retries - 1:
                 sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0, 0.05)
-                logger.warning(f"⚠️ DB locked conflict. Attempt {attempt+1}/{max_retries}. Sleeping {sleep_time:.3f}s")
+                logger.warning(f"DB locked conflict. Attempt {attempt+1}/{max_retries}. Sleeping {sleep_time:.3f}s")
                 await asyncio.sleep(sleep_time)
             else:
                 raise e

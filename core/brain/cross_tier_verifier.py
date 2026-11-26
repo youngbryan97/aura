@@ -351,7 +351,7 @@ class CrossTierVerifier:
             )
 
         if correction:
-            logger.info("🔬 [CrossTier] strong tier proposed a correction.")
+            logger.info("[CrossTier] strong tier proposed a correction.")
             return _verdict(
                 CrossTierStatus.CORRECTION_PROPOSED,
                 correction,

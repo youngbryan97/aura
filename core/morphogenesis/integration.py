@@ -355,13 +355,13 @@ def _seed_topology(rt: MorphogeneticRuntime) -> None:
         rt.graph.transaction(seed, cause="boot_topology")
         if clipped:
             logger.info(
-                "🧬 Morphogenesis seed left %d reverse binding(s) unmade at the "
+                "Morphogenesis seed left %d reverse binding(s) unmade at the "
                 "envelope of %d.", clipped, envelope,
             )
         for edge in rt.graph.edges():
             rt.substrate.bind(edge)
         logger.info(
-            "🧬 Morphogenesis topology seeded: %d cell(s), %d binding(s), %d component(s).",
+            "Morphogenesis topology seeded: %d cell(s), %d binding(s), %d component(s).",
             rt.graph.node_count, rt.graph.edge_count, len(rt.graph.components()),
         )
     except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -429,7 +429,7 @@ async def start_morphogenesis_runtime(runtime: MorphogeneticRuntime | None = Non
     # happens to need them first and none at all.
     try:
         warmed = await asyncio.to_thread(_warm_lazy_imports)
-        logger.info("🧬 Morphogenesis warmed %d lazy import(s).", len(warmed))
+        logger.info("Morphogenesis warmed %d lazy import(s).", len(warmed))
     except (ImportError, RuntimeError, TypeError) as exc:
         _record_morphogenesis_integration_degradation(
             exc,

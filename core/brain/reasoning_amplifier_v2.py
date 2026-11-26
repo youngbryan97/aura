@@ -869,7 +869,7 @@ class ReasoningAmplifierV2:
                     )
                     if _calibration_diverged:
                         logger.info(
-                            "🧠 [AmplifyV2] cached the VERIFIED text; the "
+                            "[AmplifyV2] cached the VERIFIED text; the "
                             "calibrated rewrite was not re-verified and is "
                             "not persisted as truth."
                         )
@@ -964,14 +964,14 @@ class ReasoningAmplifierV2:
                 )
                 if _cache_refusal:
                     logger.info(
-                        "🧠 [AmplifyV2] solved-cache hit REFUSED task=%s: %s",
+                        "[AmplifyV2] solved-cache hit REFUSED task=%s: %s",
                         problem.task_type, _cache_refusal,
                     )
                     fallbacks.append(f"solved_cache_refused:{_cache_refusal}")
                     cached = None
             if cached is not None and cached.answer:
                 logger.info(
-                    "🧠 [AmplifyV2] solved-cache HIT task=%s conf=%.2f (hits=%d)",
+                    "[AmplifyV2] solved-cache HIT task=%s conf=%.2f (hits=%d)",
                     problem.task_type, cached.confidence, cached.hits,
                 )
                 receipt = ReasoningReceipt(
@@ -1106,7 +1106,7 @@ class ReasoningAmplifierV2:
                     verifiers_run = (getattr(esc_verdict, "engine", "") or "").split("+")
                     fallbacks.append("tier_escalated")
                     logger.info(
-                        "🧠 [AmplifyV2] tier escalation produced a verifier-clean "
+                        "[AmplifyV2] tier escalation produced a verifier-clean "
                         "answer (checked=%s).",
                         verifier_checked,
                     )
@@ -1293,7 +1293,7 @@ class ReasoningAmplifierV2:
         if promotion_authority == "independent_executable_consensus" and delivered_pass:
             await _note_what_independent_programs_agreed(problem.objective, calibrated_answer, request.context)
         logger.info(
-            "🧠 [AmplifyV2] mode=%s task=%s cands=%d verifier=%s conf=%.2f status=%s",
+            "[AmplifyV2] mode=%s task=%s cands=%d verifier=%s conf=%.2f status=%s",
             mode.value,
             problem.task_type,
             n_cand,

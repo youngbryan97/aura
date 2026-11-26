@@ -96,7 +96,7 @@ class EmotionalState:
         self.intensity = max(0.0, min(100.0, self.intensity + amount))
         self.last_trigger = time.time()
         self.trigger_count += 1
-        logger.debug("💫 %s +%s → %.1f (%s)", self.name.upper(), amount, self.intensity, reason)
+        logger.debug("%s +%s → %.1f (%s)", self.name.upper(), amount, self.intensity, reason)
 
     def decay(self, delta_time: float):
         """Natural decay towards base level"""
@@ -201,7 +201,7 @@ class PersonalityEngine:
         # rather than a sentence in a log nobody queries.
         self.identity_verified = bool(self._verify_cryptographic_seal())
         if not self.identity_verified:
-            logger.critical("🚨 IDENTITY TAMPER DETECTED: Kernel seal mismatch.")
+            logger.critical("IDENTITY TAMPER DETECTED: Kernel seal mismatch.")
             _record_personality_degradation(
                 PersistenceCorruption("identity seal did not verify"),
                 action=(
@@ -532,7 +532,7 @@ class PersonalityEngine:
                 return self._write_identity_seal(signature, reason="missing seal during trusted bootstrap")
             else:
                 # Key exists but seal missing -> Possible tamper by deletion
-                logger.warning("🚨 Identity key exists but seal file is missing. Possible tamper.")
+                logger.warning("Identity key exists but seal file is missing. Possible tamper.")
                 _record_personality_degradation(
                     PersistenceCorruption("identity key exists but seal file is missing"),
                     action="failed closed identity verification until seal is restored",
@@ -580,7 +580,7 @@ class PersonalityEngine:
             # Enterprise Recovery: In DEV mode, if seal mismatches (e.g. version update),
             # we allow auto-resealing to prevent boot hangs, while logging the event.
             if config.env == "dev":
-                logger.warning("🧠 Identity seal mismatch in DEV. Auto-resealing for version: %s", getattr(self.soul, 'version', 'unknown'))
+                logger.warning("Identity seal mismatch in DEV. Auto-resealing for version: %s", getattr(self.soul, 'version', 'unknown'))
                 return self._write_identity_seal(signature, reason="dev seal mismatch")
 
             _record_personality_degradation(
@@ -1173,7 +1173,7 @@ class PersonalityEngine:
         
         try:
             atomic_write_text(evolved_path, json.dumps(data, indent=4, sort_keys=True))
-            logger.info("✅ Evolved persona persisted to %s", evolved_path)
+            logger.info("Evolved persona persisted to %s", evolved_path)
             return True
         except _PERSONALITY_RECOVERABLE_ERRORS as e:
             _record_personality_degradation(
@@ -1342,14 +1342,14 @@ class PersonalityEngine:
                 self.interests.append(new_topic)
                 if len(self.interests) > 10:
                     self.interests.pop(0)
-                logger.info("🧠 Sovereign Evolution: Developed new interest in %s", new_topic)
+                logger.info("Sovereign Evolution: Developed new interest in %s", new_topic)
 
     def setup_hooks(self, orchestrator):
         """
         Unified integration hook (Phase 14).
         Replaces legacy persona_integration.py and personality_integration.py.
         """
-        logger.info("🎭 PersonalityEngine: Integrating with system hooks...")
+        logger.info("PersonalityEngine: Integrating with system hooks...")
         
         # 1. Output Filtering (Anti-Assistant Leak + Lexical Style)
         if hasattr(orchestrator, 'reply_queue'):
@@ -1446,7 +1446,7 @@ class PersonalityEngine:
                 self.traits[trait] = max(0.1, min(0.95, new_val))
                 
         if any(shifts.values()):
-            logger.info("🧬 Trait Mutation: Personality evolved slightly based on inner monologue.")
+            logger.info("Trait Mutation: Personality evolved slightly based on inner monologue.")
             self.persist() # Save the new baseline
 
 # Service Registration

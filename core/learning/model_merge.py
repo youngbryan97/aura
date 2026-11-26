@@ -394,7 +394,7 @@ def transplant_model_dirs_streaming(
         encoding="utf-8",
     )
     logger.info(
-        "🧬 Streaming transplant wrote %d tensors across %d shards → %s",
+        "Streaming transplant wrote %d tensors across %d shards → %s",
         written_tensors,
         len(grouped),
         out,
@@ -443,7 +443,7 @@ def merge_model_dirs(
         json.dumps(manifest, indent=2),
         encoding="utf-8",
     )
-    logger.info("🧬 Merged %d tensors via %s → %s", len(merged), method, out)
+    logger.info("Merged %d tensors via %s → %s", len(merged), method, out)
     return manifest
 
 

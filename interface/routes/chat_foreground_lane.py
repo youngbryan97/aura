@@ -392,7 +392,7 @@ async def _answer_from_fallback_ladder(
             # says — and the alternative is a wait message, which answers
             # nothing and is the thing this ladder exists to avoid.
             logger.info(
-                "🪜 Fallback ladder declined a question about her own nature; "
+                "Fallback ladder declined a question about her own nature; "
                 "the smaller model cannot read her self-model and no reading "
                 "was available to stand in for it."
             )
@@ -516,7 +516,7 @@ async def _answer_from_fallback_ladder(
             if left <= 1.0:
                 break
             logger.info(
-                "🪜 Nothing to ask yet — every endpoint is still loading. "
+                "Nothing to ask yet — every endpoint is still loading. "
                 "Waiting %.0fs more rather than refusing.",
                 left,
             )
@@ -574,7 +574,7 @@ async def _answer_from_fallback_ladder(
         # the small model has nothing else to say about this. Waiting is the
         # honest answer, which is what "" asks the caller for.
         logger.info(
-            "🪜 Fallback ladder answer was entirely self-denials the record refutes; "
+            "Fallback ladder answer was entirely self-denials the record refutes; "
             "declined rather than served."
         )
         return ""
@@ -585,7 +585,7 @@ async def _answer_from_fallback_ladder(
     # copied from a reply about a 2048 game, when no tool had run that turn.
     if _mostly_an_earlier_reply(answer, dialogue):
         logger.warning(
-            "🪜 Fallback ladder answer repeated an earlier reply of hers; declined rather than served."
+            "Fallback ladder answer repeated an earlier reply of hers; declined rather than served."
         )
         return ""
     # Nor work it did not do: the check the Cortex's replies meet, held
@@ -596,13 +596,13 @@ async def _answer_from_fallback_ladder(
 
         if _has_unfounded_tool_execution_claim(answer, tool_receipts=turn_tool_receipts()):
             logger.warning(
-                "🪜 Fallback ladder answer claimed work no tool did this turn; declined rather than served."
+                "Fallback ladder answer claimed work no tool did this turn; declined rather than served."
             )
             return ""
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.fallback_ladder", exc, severity="info", action="served without the tool-claim check")
     logger.info(
-        "🪜 Fallback ladder answered while the cortex was unavailable (%s)%s.",
+        "Fallback ladder answered while the cortex was unavailable (%s)%s.",
         reason[:80],
         "; cut short at its time limit" if cut_short else "",
     )
@@ -624,7 +624,7 @@ async def _wait_while_it_is_still_answering(task: Any, budget_s: float) -> Any:
     measured rate had not seen. The turn was granted 122s, this wait had 30s
     of it left, and the generation finished at about 106s — one second after
     the wait gave up. The 667-character answer landed in the log
-    (``✅ Brainstem response received (len=667)``) and the person was told
+    (``Brainstem response received (len=667)``) and the person was told
     "That answer took too long to finish cleanly."
 
     So this stops waiting when the generation stops PRODUCING, not when a
@@ -656,7 +656,7 @@ async def _wait_while_it_is_still_answering(task: Any, budget_s: float) -> Any:
             renewals += 1
             remaining = max(2.0, quiet_for)
             logger.info(
-                "⏳ Budget spent but tokens are still arriving (%.0fs since the "
+                "Budget spent but tokens are still arriving (%.0fs since the "
                 "last one is still normal); holding the turn open (renewal %d).",
                 quiet_for,
                 renewals,
@@ -702,7 +702,7 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
             break
         if not announced:
             logger.info(
-                "⏳ Chat turn arrived before the inference gate registered; "
+                "Chat turn arrived before the inference gate registered; "
                 "waiting up to %.0fs for boot rather than failing the turn.",
                 budget_s,
             )
@@ -710,7 +710,7 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
         await asyncio.sleep(0.25)
         gate = resolve_inference_gate()
         if gate is not None and hasattr(gate, "ensure_foreground_ready"):
-            logger.info("✅ Inference gate registered mid-turn; the turn proceeds normally.")
+            logger.info("Inference gate registered mid-turn; the turn proceeds normally.")
             return gate
 
     return resolve_inference_gate()
@@ -882,7 +882,7 @@ async def _admit_to_foreground_lane(
             ) and not _a_smaller_lane_already_fits():
                 retry_deadline = monotonic_time() + max(0.0, admission_budget - 2.0)
                 logger.info(
-                    "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
+                    "Foreground lane deferred (%s); waiting up to %.0fs "
                     "for it to clear rather than refusing the turn.",
                     str(admission_exc)[:120],
                     max(0.0, admission_budget - 2.0),
@@ -903,7 +903,7 @@ async def _admit_to_foreground_lane(
                         break
                     if bool(lane.get("conversation_ready", False)):
                         logger.info(
-                            "✅ Foreground lane cleared its deferral mid-turn; "
+                            "Foreground lane cleared its deferral mid-turn; "
                             "the turn proceeds normally."
                         )
                         admission_exc = None
@@ -966,7 +966,7 @@ def _a_smaller_lane_already_fits() -> bool:
     if not bool(snapshot.get("can_admit")):
         return False
     logger.info(
-        "🪜 The cortex is deferred and the smaller lane fits already "
+        "The cortex is deferred and the smaller lane fits already "
         "(%.1fGB available, needs %.1fGB; pressure %.1f%%, needs under %.1f%%). "
         "Answering from the ladder rather than waiting.",
         float(snapshot.get("available_gb") or 0.0),
@@ -1055,7 +1055,7 @@ async def _protected_foreground_reply(
         session_id=_chat_session_id,
     )
     logger.warning(
-        "⚡ Protected foreground lane engaged (%s, tier=%s, budget=%.0fs).",
+        "Protected foreground lane engaged (%s, tier=%s, budget=%.0fs).",
         reason,
         route.get("prefer_tier", "primary"),
         direct_budget,
@@ -1278,7 +1278,7 @@ async def _await_the_sovereign_kernel_reply(
                         # Cortex is alive — it's just slow. Wait for kernel
                         # to finish instead of competing for the same LLM.
                         logger.info(
-                            "⏳ Kernel soft deadline missed but cortex is alive and generating. "
+                            "Kernel soft deadline missed but cortex is alive and generating. "
                             "Waiting %.0fs for kernel to finish (no competing request).",
                             hard_budget,
                         )

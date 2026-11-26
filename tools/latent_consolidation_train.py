@@ -188,7 +188,7 @@ def _run(args: argparse.Namespace, *, model_lane_lease: object) -> int:
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(report, indent=1, sort_keys=True, default=str))
-    print(f"📄 report → {out_path}")
+    print(f"report → {out_path}")
     return 0
 
 

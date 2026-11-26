@@ -154,7 +154,7 @@ async def _route_by_heuristic_while_bootstrapping(
         try:
             cycle = getattr(getattr(self.kernel, "orchestrator", None), "cycle_count", 0)
             if cycle < 10:
-                logger.debug("🧭 Routing: Bootstrap mode active (cycle < 10). Using heuristics.")
+                logger.debug("Routing: Bootstrap mode active (cycle < 10). Using heuristics.")
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
                 self._stamp_llm_route(
                     new_state,
@@ -169,7 +169,7 @@ async def _route_by_heuristic_while_bootstrapping(
             await self._execute_llm(analysis, is_user_facing, new_state, objective, priority, route_meta)
 
         except RuntimeError:
-            logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")
+            logger.warning("Routing: LLM Organ not ready, defaulting to CHAT.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -185,7 +185,7 @@ async def _route_by_heuristic_while_bootstrapping(
                 action="fell back to governed reactive chat route after classifier failed",
                 severity="error",
             )
-            logger.error("🧭 Routing: Classification error: %s", e)
+            logger.error("Routing: Classification error: %s", e)
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -229,7 +229,7 @@ def _route_a_question_about_her(
             or contract.requires_aura_question
             or (contract.requires_memory_grounding and memory_salience > 0.55)
         ):
-            logger.info("🧭 Routing: affect-coupled reflective path engaged.")
+            logger.info("Routing: affect-coupled reflective path engaged.")
             reflective_mode = CognitiveMode.REACTIVE
             if (
                 analysis.suggests_deliberate_mode
@@ -293,7 +293,7 @@ def _route_simple_dialogue(
                 else CognitiveMode.REACTIVE
             )
             logger.info(
-                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+                "Routing: inline dialogue kept on CHAT lane with %s cognition "
                 "(%d typed obligations, floor=%d).",
                 selected_mode.name,
                 semantic_work.obligation_count,
@@ -338,7 +338,7 @@ def _route_to_the_mcp_client(
         if any(sig in lower_obj for sig in _mcp_signals) and (
             not is_user_facing or analysis.request_mood == "directive"
         ):
-            logger.info("🧭 Routing: MCP Client autonomous trigger detected.")
+            logger.info("Routing: MCP Client autonomous trigger detected.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
                 new_state,
@@ -387,7 +387,7 @@ def _route_a_directive_or_sensory_feed(
             or "[sensory feed" in _lower_obj
         ):
             logger.info(
-                "🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass."
+                "Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass."
             )
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             new_state.response_modifiers["intent_type"] = "CHAT"
@@ -425,7 +425,7 @@ def _route_reasoning_only(
             new_state.response_modifiers["deep_handoff"] = False
             new_state.response_modifiers.pop("matched_skills", None)
             logger.info(
-                "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
+                "Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
             )
             return new_state
         return _SEAM_FELL_THROUGH
@@ -454,7 +454,7 @@ def _route_self_protection(
     """
     def _block() -> Any:
         if contract.requires_self_preservation or contract.requires_identity_defense:
-            logger.info("🧭 Routing: self-protective deliberate path engaged.")
+            logger.info("Routing: self-protective deliberate path engaged.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
                 new_state,
@@ -500,7 +500,7 @@ def _route_a_required_search(
             and contract.required_skill
             and analysis.request_mood != "mention"
         ):
-            logger.info("🧭 Routing: Response contract requires grounded search.")
+            logger.info("Routing: Response contract requires grounded search.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -537,7 +537,7 @@ def _route_the_default_chat(
     """
     def _block() -> Any:
         if is_user_facing:
-            logger.info("🧭 Routing: governed default chat route for user-facing turn.")
+            logger.info("Routing: governed default chat route for user-facing turn.")
             new_state.cognition.current_mode = (
                 CognitiveMode.DELIBERATE
                 if analysis.suggests_deliberate_mode
@@ -835,7 +835,7 @@ class CognitiveRoutingPhase(Phase):
             "followup_coding": bool(metadata.get("followup_coding")),
         }
         logger.info(
-            "🧠 CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s, Coding=%s, Complexity=%.2f",
+            "CognitiveRouting: Mode=%s, Tier=%s, DeepHandoff=%s, Coding=%s, Complexity=%.2f",
             state.cognition.current_mode.name,
             model_tier,
             deep_handoff,
@@ -933,7 +933,7 @@ class CognitiveRoutingPhase(Phase):
             }
         )
         logger.info(
-            "🧭 Routing: LLM classified → %s", new_state.response_modifiers["intent_type"]
+            "Routing: LLM classified → %s", new_state.response_modifiers["intent_type"]
         )
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
@@ -967,7 +967,7 @@ class CognitiveRoutingPhase(Phase):
             if state.cognition.current_mode is CognitiveMode.REACTIVE:
                 state.cognition.current_mode = CognitiveMode.DELIBERATE
                 logger.info(
-                    "🧭 Routing: the last frames compounded (%s); observing rather than reacting.",
+                    "Routing: the last frames compounded (%s); observing rather than reacting.",
                     ", ".join(getattr(report, "reasons", ()) or ()) or "no reason given",
                 )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
@@ -1048,7 +1048,7 @@ class CognitiveRoutingPhase(Phase):
 
         if is_benchmark:
             logger.info(
-                "🧭 Routing: benchmark/proof artifact turn kept out of TASK/SKILL dispatch."
+                "Routing: benchmark/proof artifact turn kept out of TASK/SKILL dispatch."
             )
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             new_state.response_modifiers.pop("matched_skills", None)
@@ -1117,7 +1117,7 @@ class CognitiveRoutingPhase(Phase):
         )
 
         if is_user_facing and (bool(route_meta.get("coding_request")) or technical_task):
-            logger.info("🧭 Routing: coding-aware technical lane engaged.")
+            logger.info("Routing: coding-aware technical lane engaged.")
             new_state.cognition.current_mode = (
                 CognitiveMode.DELIBERATE
                 if technical_task or state.cognition.current_mode is CognitiveMode.DELIBERATE
@@ -1137,7 +1137,7 @@ class CognitiveRoutingPhase(Phase):
         is_deep_mind_probe = looks_like_deep_mind_probe(objective)
 
         if analysis.intent_type == "SYSTEM":
-            logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
+            logger.info("Routing: SYSTEM intent detected via heuristics.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -1187,7 +1187,7 @@ class CognitiveRoutingPhase(Phase):
         if _seam_early_response is not _SEAM_FELL_THROUGH:
             return _seam_early_response
         if not is_deep_mind_probe and analysis.intent_type == "TASK":
-            logger.info("🧭 Routing: TASK detected semantically for: %s", objective[:60])
+            logger.info("Routing: TASK detected semantically for: %s", objective[:60])
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
                 new_state,
@@ -1219,13 +1219,13 @@ class CognitiveRoutingPhase(Phase):
                 if matched:
                     if looks_like_execution_report(skill_objective):
                         logger.info(
-                            "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
+                            "Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched[:3],
                         )
                     elif looks_like_multi_step_skill_request(skill_objective, matched):
                         new_state.response_modifiers["matched_skills"] = matched
                         logger.info(
-                            "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
+                            "Routing: multi-step skill-backed task detected → TASK via %s",
                             matched[:3],
                         )
                         new_state.cognition.current_mode = CognitiveMode.DELIBERATE
@@ -1248,7 +1248,7 @@ class CognitiveRoutingPhase(Phase):
                         return new_state
                     else:
                         new_state.response_modifiers["matched_skills"] = matched
-                        logger.info("🧭 Routing: SKILL detected via patterns → %s", matched[:3])
+                        logger.info("Routing: SKILL detected via patterns → %s", matched[:3])
                         new_state.cognition.current_mode = CognitiveMode.REACTIVE
                         self._stamp_llm_route(
                             new_state,
@@ -1273,10 +1273,10 @@ class CognitiveRoutingPhase(Phase):
                 action="continued with deterministic routing after capability intent detection failed",
                 severity="error",
             )
-            logger.debug("🧭 Routing: detect_intent check failed: %s", e)
+            logger.debug("Routing: detect_intent check failed: %s", e)
 
         if is_user_facing and analysis.intent_type == "TASK" and not is_deep_mind_probe:
-            logger.info("🧭 Routing: Deterministic task route for user-facing turn.")
+            logger.info("Routing: Deterministic task route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
                 new_state,
@@ -1289,7 +1289,7 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         if is_user_facing and analysis.intent_type == "SKILL":
-            logger.info("🧭 Routing: Deterministic skill route for user-facing turn.")
+            logger.info("Routing: Deterministic skill route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -1305,7 +1305,7 @@ class CognitiveRoutingPhase(Phase):
             analysis.suggests_deliberate_mode
             or state.cognition.current_mode is CognitiveMode.DELIBERATE
         ):
-            logger.info("🧭 Routing: Deliberate governed route for user-facing turn.")
+            logger.info("Routing: Deliberate governed route for user-facing turn.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
                 new_state,
@@ -1318,7 +1318,7 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         if is_user_facing and analysis.requires_live_aura_voice:
-            logger.info("🧭 Routing: Live Aura voice required. Keeping governed reactive lane.")
+            logger.info("Routing: Live Aura voice required. Keeping governed reactive lane.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,
@@ -1331,7 +1331,7 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         if is_user_facing and self._looks_like_everyday_chat(objective):
-            logger.info("🧭 Routing: Everyday chat fast-path detected.")
+            logger.info("Routing: Everyday chat fast-path detected.")
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
                 new_state,

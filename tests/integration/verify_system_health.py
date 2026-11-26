@@ -24,7 +24,7 @@ async def verify_health():
     Verification script for Phase 14.
     Boots the Orchestrator and checks all critical subsystems.
     """
-    logger.info("🚀 STARTING TOTAL SYSTEM HEALTH CHECK (Phase 14)...")
+    logger.info("STARTING TOTAL SYSTEM HEALTH CHECK (Phase 14)...")
     
     orchestrator = create_orchestrator()
     
@@ -45,29 +45,29 @@ async def verify_health():
         
         logger.info("Checking Memory...")
         if orchestrator.memory:
-            logger.info(f"✅ Memory Online: {type(orchestrator.memory).__name__}")
+            logger.info(f"Memory Online: {type(orchestrator.memory).__name__}")
         else:
-            logger.error("❌ Memory Offline!")
+            logger.error("Memory Offline!")
 
         # 2. Check Subsystems
         logger.info("Checking Cognitive Engine...")
         if orchestrator.cognitive_engine:
-            logger.info("✅ Cognitive Engine Online.")
+            logger.info("Cognitive Engine Online.")
         else:
-            logger.error("❌ Cognitive Engine Offline!")
+            logger.error("Cognitive Engine Offline!")
 
         logger.info("Checking Personality Engine...")
         if orchestrator.personality_engine:
             context = orchestrator.personality_engine.get_emotional_context_for_response()
-            logger.info(f"✅ Personality Engine Online (Mood: {context.get('mood')})")
+            logger.info(f"Personality Engine Online (Mood: {context.get('mood')})")
         else:
-            logger.error("❌ Personality Engine Offline!")
+            logger.error("Personality Engine Offline!")
 
         logger.info("Checking Immune System...")
         if orchestrator.immune_system:
-            logger.info("✅ Immune System Online.")
+            logger.info("Immune System Online.")
         else:
-            logger.error("❌ Immune System Offline!")
+            logger.error("Immune System Offline!")
 
         # 3. Check Service Container
         container = ServiceContainer()
@@ -76,16 +76,16 @@ async def verify_health():
         logger.info(json.dumps(report, indent=2))
         
         if report.get("status") != "operational":
-            logger.warning(f"⚠️ Container status: {report.get('status')}")
+            logger.warning(f"Container status: {report.get('status')}")
 
         # 4. Check Mycelial Network (Soul Graph)
         logger.info("\nChecking Mycelial Network...")
         from core.mycelium import MycelialNetwork
         mycelium = MycelialNetwork()
         topology = mycelium.get_network_topology()
-        logger.info(f"✅ Mycelium Online. Pathways: {topology['pathway_count']}, Hyphae: {topology['hyphae_summary']['total']}")
+        logger.info(f"Mycelium Online. Pathways: {topology['pathway_count']}, Hyphae: {topology['hyphae_summary']['total']}")
         if topology['hyphae_summary']['total'] == 0:
-            logger.warning("⚠️ Mycelium Soul Graph is EMPTY. Infrastructure mapping may be stalled or failed.")
+            logger.warning("Mycelium Soul Graph is EMPTY. Infrastructure mapping may be stalled or failed.")
 
         # 5. Verify Cognitive Flow (Message -> Thought -> State)
         logger.info("\nVerifying end-to-end cognitive flow...")
@@ -107,11 +107,11 @@ async def verify_health():
                     break
         
         if final_state and recent_msgs:
-            logger.info(f"✅ Response Generated: {recent_msgs[-1]['content'][:100]}...")
-            logger.info("\n🏆 TOTAL SYSTEM SYNTHESIS VERIFIED.")
+            logger.info(f"Response Generated: {recent_msgs[-1]['content'][:100]}...")
+            logger.info("\nTOTAL SYSTEM SYNTHESIS VERIFIED.")
             return True
         else:
-            logger.error("❌ Cognitive flow FAILED: No assistant response generated in time.")
+            logger.error("Cognitive flow FAILED: No assistant response generated in time.")
             logger.info(f"Current Objective in state: {final_state.cognition.current_objective if final_state else 'None'}")
             logger.info(f"Current Mode: {final_state.cognition.current_mode if final_state else 'Unknown'}")
         
@@ -120,7 +120,7 @@ async def verify_health():
         return False
 
     except (AttributeError, ImportError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
-        logger.error(f"❌ SYSTEM HEALTH CHECK FAILED: {e}")
+        logger.error(f"SYSTEM HEALTH CHECK FAILED: {e}")
         import traceback
         traceback.print_exc()
         return False

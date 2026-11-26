@@ -638,7 +638,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     words = first_thought(words, about=observation) if as_it_plays else whole_paragraphs(words)
     words = _without_words_put_in_their_mouth(words, request, exchanges)
     if remark and tells_of_herself(words, observation):
-        logger.info("👀 not said, as herself told in the third person: %r", words[:160])
+        logger.info("not said, as herself told in the third person: %r", words[:160])
         return ""
     if not remark:
         # Her answer before or after it plays keeps what it says, less a sentence telling of her as "she".
@@ -648,7 +648,7 @@ async def her_turn(request: str, observation: str, said: list[str], *, seconds: 
     from core.utils.an_answer import talks_about_the_asking
 
     if talks_about_the_asking(words, "" if remark else request):
-        logger.info("👀 not said, her working out of what she was given: %r", words[:160])
+        logger.info("not said, her working out of what she was given: %r", words[:160])
         return ""
     return words
 
@@ -679,7 +679,7 @@ def _without_words_put_in_their_mouth(words: str, request: str, exchanges: Any =
     kept = str(words)
     for sentence in offending:
         kept = kept.replace(sentence, "")
-    logger.info("👀 left out of her turn, words put in the person's mouth: %s", "; ".join(item[:80] for item in offending))
+    logger.info("left out of her turn, words put in the person's mouth: %s", "; ".join(item[:80] for item in offending))
     return "\n\n".join(" ".join(part.split()) for part in re.split(r"\n\s*\n", kept) if part.strip())
 
 
@@ -758,7 +758,7 @@ def without_their_place_taken(words: str, shown: str) -> str:
         sentences = re.split(r"(?<=[.!?])\s+", paragraph)
         left = [sentence for sentence in sentences if not takes_their_place(sentence)]
         if len(left) < len(sentences):
-            logger.info("👀 not said, a person on screen's doing told as hers: %r",
+            logger.info("not said, a person on screen's doing told as hers: %r",
                         " ".join(sentence for sentence in sentences if sentence not in left)[:160])
         kept.append(" ".join(left))
     return re.sub(r"(\n\s*\n){2,}", "\n\n", "".join(kept)).strip()
@@ -996,7 +996,7 @@ async def say_it(words: str) -> bool:
     # event_bridge.py), and kept in her record of the watching as a remark, which she would read back as her own.
     leaks = internal_leak_reasons(words)
     if leaks:
-        logger.warning("👀 not said, as machinery (%s): %r", ",".join(leaks), words[:120])
+        logger.warning("not said, as machinery (%s): %r", ",".join(leaks), words[:120])
         return False
     # A commentary the person asked for: LIVE 20 October 2026 every remark was withheld from the chat as a second
     # answer to the request that started the watching (interface/event_bridge.py), and Bryan saw none of them.

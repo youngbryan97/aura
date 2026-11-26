@@ -169,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
 
     new_gaps = sorted(untyped - grandfathered)
     if new_gaps:
-        print(f"❌ typed surface: {len(new_gaps)} module(s) lost their annotations")
+        print(f"typed surface: {len(new_gaps)} module(s) lost their annotations")
         for rel in new_gaps[: args.limit]:
             tree = ast.parse((ROOT / rel).read_text("utf-8", errors="ignore"))
             gaps = unannotated_definitions(tree)
@@ -182,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
 
     paid = sorted(grandfathered - untyped)
     if paid:
-        print(f"❌ typed surface: {len(paid)} baseline entries are now annotated")
+        print(f"typed surface: {len(paid)} baseline entries are now annotated")
         for rel in paid[: args.limit]:
             print(f"   • {rel}")
         print(
@@ -192,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"✅ typed surface at baseline: {len(typed)}/{total} modules annotated "
+        f"typed surface at baseline: {len(typed)}/{total} modules annotated "
         f"({len(typed) / max(total, 1):.1%}), {len(grandfathered)} grandfathered"
     )
     return 0

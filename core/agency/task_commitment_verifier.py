@@ -175,15 +175,7 @@ class TaskAcceptance:
 
     def to_working_memory_message(self) -> str:
         """Format for injection into state.cognition.working_memory."""
-        icon = {
-            DispatchOutcome.COMPLETED:      "✅",
-            DispatchOutcome.STARTED:        "🔄",
-            DispatchOutcome.FAILED:         "⚠️",
-            DispatchOutcome.CAPABILITY_GAP: "❌",
-            DispatchOutcome.DENIED:         "🔒",
-        }.get(self.outcome, "ℹ️")
-
-        parts = [f"[TASK_RESULT:{self.outcome.value}] {icon} {self.summary}"]
+        parts = [f"[TASK_RESULT:{self.outcome.value}] {self.summary}"]
         if self.task_id:
             parts.append(f"task_id={self.task_id}")
         if self.commitment_id:
@@ -366,7 +358,7 @@ class TaskCommitmentVerifier(_KeepsTheTaskLedger):
 
                 if asks_to_be_accompanied(requested_objective or objective):
                     logger.info(
-                        "🎯 Kept in the foreground: the person asked to be told as it happens."
+                        "Kept in the foreground: the person asked to be told as it happens."
                     )
                     is_long = False
             except (ImportError, AttributeError, TypeError, ValueError) as exc:

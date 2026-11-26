@@ -121,11 +121,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": not problems, "problems": problems}, indent=2))
         return 1 if problems else 0
     if problems:
-        print(f"❌ release readiness: {len(problems)} problem(s)")
+        print(f"release readiness: {len(problems)} problem(s)")
         for problem in problems:
             print(f"   • {problem}")
         return 1
-    print("✅ the release lane is fail-closed and its channels name gates that exist")
+    print("the release lane is fail-closed and its channels name gates that exist")
     return 0
 
 

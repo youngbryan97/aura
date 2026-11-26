@@ -440,7 +440,7 @@ class ImageGenSkill(BaseSkill):
             "blur, low quality, distortion, watermark, text, ugly, bad anatomy, deformed"
         )
 
-        logger.info("🎨 Generating image: '%s'...", params.prompt[:60])
+        logger.info("Generating image: '%s'...", params.prompt[:60])
 
         try:
             import torch
@@ -520,7 +520,7 @@ class ImageGenSkill(BaseSkill):
             "blur, low quality, distortion, watermark, text"
         )
 
-        logger.info("🖌️ Editing image: '%s'...", params.prompt[:60])
+        logger.info("Editing image: '%s'...", params.prompt[:60])
 
         try:
             pipeline = self._img2img_pipeline

@@ -25,7 +25,7 @@ class GodCouncil:
         memory_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Runs the parliament debate loop, resolves consensus, and logs dissents."""
-        logger.info("🏛️  God Council convened for objective: '%s'", objective)
+        logger.info(" God Council convened for objective: '%s'", objective)
         
         debate = ParliamentDebate(objective)
         result = await debate.conduct(

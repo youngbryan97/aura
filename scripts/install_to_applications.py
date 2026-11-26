@@ -56,7 +56,7 @@ def _apply_app_metadata(target_path: Path) -> None:
     write_entitlements_plist(contents_dir / "Resources" / "aura.entitlements")
 
 def install(target_path=TARGET_APP_PATH):
-    print(f"🚀 Installing Aura to {target_path}...")
+    print(f"Installing Aura to {target_path}...")
 
     contents_dir = target_path / "Contents"
     macos_dir = contents_dir / "MacOS"
@@ -116,7 +116,7 @@ def install(target_path=TARGET_APP_PATH):
     # 6. Touch the app bundle to refresh Finder
     target_path.touch()
 
-    print(f"\n✅ Aura is now installed in {target_path}!")
+    print(f"\nAura is now installed in {target_path}!")
 
 if __name__ == "__main__":
     # Install to both Applications and Desktop

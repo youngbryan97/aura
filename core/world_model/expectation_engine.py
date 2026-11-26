@@ -295,7 +295,7 @@ Return ONLY the number.
                 contradiction = belief_graph.detect_contradiction(entity, relation, target)
                 if contradiction:
                     logger.warning(
-                        "🚨 REALITY CONTRADICTION: %s -[%s]-> %s conflicts with %s",
+                        "REALITY CONTRADICTION: %s -[%s]-> %s conflicts with %s",
                         entity,
                         relation,
                         target,
@@ -332,7 +332,7 @@ Return ONLY the pipes data, one per line.
                     # Contradiction check
                     contradiction = belief_graph.detect_contradiction(parts[0], parts[1], parts[2])
                     if contradiction:
-                        logger.warning("🚨 REALITY CONTRADICTION: %s -[%s]-> %s conflicts with %s", parts[0], parts[1], parts[2], contradiction)
+                        logger.warning("REALITY CONTRADICTION: %s -[%s]-> %s conflicts with %s", parts[0], parts[1], parts[2], contradiction)
                         
                     belief_graph.update_belief(parts[0], parts[1], parts[2], confidence_score=confidence)
                     

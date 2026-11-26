@@ -302,7 +302,7 @@ class ReasoningSelfImprovement:
                 t.fed = True
             self._stats["fed"] += len(pending)
             self._persist()
-        logger.info("🧠 [SelfImprove] fed %d verifier-clean traces to the governed train pipe.", len(pending))
+        logger.info("[SelfImprove] fed %d verifier-clean traces to the governed train pipe.", len(pending))
         return {"status": "fed", "count": len(pending), "feed_result": result}
 
     async def _default_feed(self, examples: list[dict[str, str]]) -> dict[str, Any]:

@@ -30,7 +30,7 @@ def test_the_one_datum_asked_for_is_still_given_as_it_is():
 
 
 def test_a_search_line_in_her_working_memory_is_not_her_reply():
-    line = {"role": "system", "content": "[SKILL RESULT: web_search] ✅ Outages hit airlines and banks.",
+    line = {"role": "system", "content": "[SKILL RESULT: web_search] Outages hit airlines and banks.",
             "metadata": {"type": "skill_result", "skill": "web_search", "ok": True}}
     state = SimpleNamespace(cognition=SimpleNamespace(working_memory=[line]), response_modifiers={})
     contract = SimpleNamespace(requires_search=True)

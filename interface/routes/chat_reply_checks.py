@@ -66,7 +66,7 @@ async def checked_reply(
     # question was answered.
     if numeric_answer_missing(visible, text):
         logger.warning(
-            "🔢 CognitiveEngine reply carried no number for a question that "
+            "CognitiveEngine reply carried no number for a question that "
             "can only be answered with one (%d chars); refusing it rather "
             "than serving an answer to a different question.",
             len(text),
@@ -115,13 +115,13 @@ async def _against_its_sources(visible: str, text: str, retry: Retry) -> str | N
         claims = claims_with_years(text, visible)
         if claims:
             logger.info(
-                "📚 Read %d dated claim(s) of her draft against %d source(s); none dated otherwise.",
+                "Read %d dated claim(s) of her draft against %d source(s); none dated otherwise.",
                 len(claims), len(sources),
             )
         return None
     for one in found:
         logger.warning(
-            "📚 Her draft dates a claim otherwise than her sources: %r — %s says %r (%.3f).",
+            "Her draft dates a claim otherwise than her sources: %r — %s says %r (%.3f).",
             one.claim[:160], one.title[:80], one.says[:200], one.score,
         )
     rendered = WorldEvidence(sources=[

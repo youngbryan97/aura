@@ -468,7 +468,7 @@ def terminate_heavy_child_workers(
         identity = capture_identity(process, label=name)
         if identity is None or not identity.bound:
             logger.warning(
-                "🛡️ [MEMWATCH] Refused unbound model-worker reclaim pid=%s name=%s",
+                "[MEMWATCH] Refused unbound model-worker reclaim pid=%s name=%s",
                 pid,
                 name,
             )
@@ -503,7 +503,7 @@ def terminate_heavy_child_workers(
         killed += 1
         freed += footprint
         logger.warning(
-            "🛑 [MEMWATCH] Terminated declared model worker pid=%s "
+            "[MEMWATCH] Terminated declared model worker pid=%s "
             "footprint=%dMB name=%s qos_rank=%d active=%s",
             process.pid,
             footprint >> 20,
@@ -632,7 +632,7 @@ class MemoryWatchdog(threading.Thread):
 
     def run(self) -> None:
         logger.info(
-            "🛡️ MemoryWatchdog active (soft=%.0fMB hard=%.0fMB lethal=%.0fMB "
+            "MemoryWatchdog active (soft=%.0fMB hard=%.0fMB lethal=%.0fMB "
             "swap_hard=%.1fGB interval=%.1fs lethal_action=%s)",
             self.thresholds.soft_mb,
             self.thresholds.hard_mb,
@@ -825,7 +825,7 @@ class MemoryWatchdog(threading.Thread):
         self._soft_incident_system_percent = sample.system_percent
         self._remember("soft", sample, "scheduled governor sweep")
         logger.warning(
-            "⚠️ [MEMWATCH] Soft ceiling: managed RSS %.0fMB (sys %.1f%%). "
+            "[MEMWATCH] Soft ceiling: managed RSS %.0fMB (sys %.1f%%). "
             "Scheduling governor sweep.",
             sample.managed_rss_mb,
             sample.system_percent,
@@ -842,7 +842,7 @@ class MemoryWatchdog(threading.Thread):
         reason = "swap exhaustion" if swap_escalation else "hard RSS ceiling"
         self._dump_thread_stacks(f"hard tier at {sample.managed_rss_mb:.0f}MB")
         logger.critical(
-            "🚨 [MEMWATCH] %s: managed RSS %.0fMB swap %.1fGB. "
+            "[MEMWATCH] %s: managed RSS %.0fMB swap %.1fGB. "
             "Out-of-band reclaim (terminate heavy workers + gc).",
             reason,
             sample.managed_rss_mb,
@@ -925,7 +925,7 @@ class MemoryWatchdog(threading.Thread):
             # line was the operator's only view of the last action before
             # the process exited, and it described a third of it.
             logger.critical(
-                "🚨 [MEMWATCH] LETHAL ceiling: managed RSS %.0fMB ≥ %.0fMB. "
+                "[MEMWATCH] LETHAL ceiling: managed RSS %.0fMB ≥ %.0fMB. "
                 "Reclaimed: shed=%d organs/%dMB killed=%d gc=%d. "
                 "Next confirmation aborts.",
                 sample.managed_rss_mb,
@@ -947,7 +947,7 @@ class MemoryWatchdog(threading.Thread):
                 "boot grace" if in_boot_grace else "lethal_action=off",
             )
             logger.critical(
-                "🚨 [MEMWATCH] Lethal ceiling persists (%.0fMB) but abort is "
+                "[MEMWATCH] Lethal ceiling persists (%.0fMB) but abort is "
                 "suppressed (%s).",
                 sample.managed_rss_mb,
                 "boot grace" if in_boot_grace else "lethal_action=off",
@@ -964,7 +964,7 @@ class MemoryWatchdog(threading.Thread):
         self._write_tombstone(sample)
         self._remember("lethal_exit", sample, f"exit({MEMORY_ABORT_EXIT_CODE})")
         logger.critical(
-            "💀 [MEMWATCH] Managed RSS %.0fMB exceeded lethal ceiling %.0fMB "
+            "[MEMWATCH] Managed RSS %.0fMB exceeded lethal ceiling %.0fMB "
             "after reclaim attempts. Aborting with exit code %d to protect "
             "the host (tombstone written).",
             sample.managed_rss_mb,
@@ -1067,9 +1067,9 @@ class MemoryWatchdog(threading.Thread):
                 schema_version=1,
                 schema_name="aura.memory_watchdog.tombstone",
             )
-            logger.critical("💀 [MEMWATCH] Tombstone written: %s", path)
+            logger.critical("[MEMWATCH] Tombstone written: %s", path)
         except (OSError, RuntimeError, ImportError, TypeError, ValueError) as exc:
-            logger.critical("💀 [MEMWATCH] Tombstone write failed: %s", exc)
+            logger.critical("[MEMWATCH] Tombstone write failed: %s", exc)
 
     @staticmethod
     def _default_process_exit(code: int) -> None:

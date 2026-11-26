@@ -171,7 +171,7 @@ class ContinuousSelfPlay:
             succeeded, confidence, reason = self._evaluate_solution_quality(solution)
             if not succeeded:
                 logger.info(
-                    "❌ Self-Play Solver failed quality gate (%s, confidence=%.2f). Routing to Distillation Pipe.",
+                    "Self-Play Solver failed quality gate (%s, confidence=%.2f). Routing to Distillation Pipe.",
                     reason,
                     confidence,
                 )
@@ -189,7 +189,7 @@ class ContinuousSelfPlay:
                         confidence=max(0.05, confidence),
                     )
             else:
-                logger.info("✅ Self-Play Solver succeeded (confidence=%.2f).", confidence)
+                logger.info("Self-Play Solver succeeded (confidence=%.2f).", confidence)
                 
                 # Optional: Send highly successful complex logic to the Abstraction Engine
                 abstraction = get_runtime_service("abstraction_engine", default=None)

@@ -219,7 +219,7 @@ async def get_device_info() -> DeviceInfo:
         info.uptime_hours = max(0.0, time.time() - compute.boot_time) / 3600
     
     summary_str = await info.summary()
-    logger.info("📱 Device: %s", summary_str)
+    logger.info("Device: %s", summary_str)
     return info
 
 
@@ -289,7 +289,7 @@ async def get_location_from_ip() -> LocationInfo:
             loc.accuracy_meters = 5000.0  # IP geolocation ~5km accuracy
             
             summary_str = await loc.summary()
-            logger.info("📍 Location: %s", summary_str)
+            logger.info("Location: %s", summary_str)
         else:
             logger.warning("IP geolocation failed")
     except (OSError, ConnectionError, TimeoutError, json.JSONDecodeError, ValueError) as e:
@@ -411,7 +411,7 @@ class UserIdentityManager:
                     for key, value in payload.items()
                     if _safe_text(key, max_chars=64) and _safe_text(value, max_chars=128)
                 }
-                logger.info("👤 Loaded %d known device fingerprints", len(self._known_fingerprints))
+                logger.info("Loaded %d known device fingerprints", len(self._known_fingerprints))
         except _ENVIRONMENT_ERRORS as e:
             _record_environment_degradation(
                 e,
@@ -495,7 +495,7 @@ class UserIdentityManager:
                 session.confidence = 0.0
         
         self.active_sessions[fingerprint] = session
-        logger.info("👤 Session: %s", session.summary())
+        logger.info("Session: %s", session.summary())
         return session
     
     def _match_known_device(self, user_agent: str, ip_address: str) -> str:
@@ -539,7 +539,7 @@ class UserIdentityManager:
             self.active_sessions[fingerprint].confidence = 1.0
             self.active_sessions[fingerprint].is_kin = name.lower() in ("bryan", "tatiana")
         
-        logger.info("👤 Registered: %s on device %s...", name, fingerprint[:8])
+        logger.info("Registered: %s on device %s...", name, fingerprint[:8])
     
     def get_current_user_context(self, user_agent: str = "", ip_address: str = "") -> str:
         """Get a context string about who's talking for injection into prompts."""

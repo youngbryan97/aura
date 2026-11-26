@@ -44,14 +44,14 @@ class ToolForge:
         risk_tier: str = "low",
     ) -> bool:
         """Static capability check class method for automated installation tests."""
-        logger.info("🛠️ Class-level forge_and_install: forging '%s'", name)
+        logger.info("Class-level forge_and_install: forging '%s'", name)
 
         sandbox = ToolSandbox()
         sandbox_res = sandbox.validate_tool_code(code)
         if not sandbox_res.get("compiles", False):
             return False
         if not sandbox_res.get("safe", False):
-            logger.warning("🛠️ ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
+            logger.warning("ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
             return False
 
         manifest = ForgedToolManifest(
@@ -77,7 +77,7 @@ class ToolForge:
         requirements: str,
     ) -> Optional[ForgedToolManifest]:
         """Generate, test, sandbox, and draft manifest for a new tool."""
-        logger.info("🛠️  ToolForge: forging new tool '%s' - %s", name, description)
+        logger.info(" ToolForge: forging new tool '%s' - %s", name, description)
 
         # 1. Generate tool code (via LLM router if online)
         router = ServiceContainer.get("llm_router", default=None)
@@ -106,10 +106,10 @@ class ToolForge:
         # 2. Compile and test in sandbox
         sandbox_res = self.sandbox.validate_tool_code(code)
         if not sandbox_res.get("compiles", False):
-            logger.error("❌ ToolForge: tool compilation failed in sandbox.")
+            logger.error("ToolForge: tool compilation failed in sandbox.")
             return None
         if not sandbox_res.get("safe", False):
-            logger.warning("🛠️ ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
+            logger.warning("ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
             return None
 
         # 3. Create Manifest
@@ -126,6 +126,6 @@ class ToolForge:
 
         # 4. Register tool
         self.registry.register_tool(name, manifest)
-        logger.info("✅ ToolForge: tool '%s' screened and registered; it runs under the kernel sandbox.", name)
+        logger.info("ToolForge: tool '%s' screened and registered; it runs under the kernel sandbox.", name)
 
         return manifest

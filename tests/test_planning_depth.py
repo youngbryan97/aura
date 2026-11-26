@@ -47,4 +47,4 @@ async def test_planning_depth():
     assert result.approved
     assert "Step 1" in result.winner["goal"]
     
-    print("   ✅ Planning depth test passed!")
+    print("   Planning depth test passed!")

@@ -242,7 +242,7 @@ def run_preflight(
 
 
 def _render(report: PreflightReport) -> str:
-    icon = {"pass": "✅", "fail": "❌", "skipped": "⏭️ "}
+    icon = {"pass": "ok", "fail": "failed", "skipped": "skipped "}
     lines = [f"preflight — {report.verdict}"]
     for result in report.results:
         duration = f"{result.duration_s:6.1f}s" if result.status != "skipped" else "      -"

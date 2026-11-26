@@ -28,7 +28,7 @@ async def test_cartesian_object_permanence():
     result = atlas.find_nearest(kind="altar", dlvl=2, x=0, y=0)
     
     assert result == (1, 12, 14), "Failed to remember altar on Dlvl 1 while on Dlvl 2"
-    print("   ✅ Cartesian Object Permanence: PASSED")
+    print("   Cartesian Object Permanence: PASSED")
 
 @pytest.mark.asyncio
 async def test_reflexive_spinal_cord():
@@ -48,7 +48,7 @@ async def test_reflexive_spinal_cord():
     state["vitals"]["hp_percent"] = 0.1
     action = reflex.decide(state)
     assert action == "pray", f"Reflex failed to trigger panic response: {action}"
-    print("   ✅ Reflexive Spinal Cord: PASSED")
+    print("   Reflexive Spinal Cord: PASSED")
 
 @pytest.mark.asyncio
 async def test_immune_domain_isolation():
@@ -89,7 +89,7 @@ async def test_immune_domain_isolation():
     report = await immunity._maybe_execute_artifact(artifact, antigen)
     assert artifact.suppressed is True, "Immune system failed to suppress substrate repair for environment antigen"
     assert "environmental antigen forbidden" in artifact.notes
-    print("   ✅ Immune Domain Isolation: PASSED")
+    print("   Immune Domain Isolation: PASSED")
 
 @pytest.mark.asyncio
 async def test_sensory_distrust():
@@ -105,4 +105,4 @@ async def test_sensory_distrust():
     
     assert obs["sensory_reliability"] == 0.0, "Failed to flag hallucination as unreliable"
     assert "Hallu" in obs["status_flags"]
-    print("   ✅ Sensory Distrust: PASSED")
+    print("   Sensory Distrust: PASSED")

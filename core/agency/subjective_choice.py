@@ -755,7 +755,7 @@ class SubjectiveChoiceEngine:
             self._mirror_choice_to_identity_ledger(receipt)
         if influenced:
             self._note_what_she_passed_over(receipt)
-        logger.info("🧭 [SubjectiveChoice] %s", receipt.rationale)
+        logger.info("[SubjectiveChoice] %s", receipt.rationale)
 
     def _held_and_not_lived(self) -> dict[str, float]:
         """How far each value she holds falls short of what holding a value usually means in what she does.

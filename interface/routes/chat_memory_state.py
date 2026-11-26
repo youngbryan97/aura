@@ -1290,7 +1290,7 @@ async def _build_memory_state_fastpath_reply(
                 session_id=session_id,
             )
             logger.info(
-                "🧷 Pinned an explicit memory item (chars=%d) and left "
+                "Pinned an explicit memory item (chars=%d) and left "
                 "the reply to the mind: this turn asks for more than the memory "
                 "template can answer.",
                 len(deferred_pin),

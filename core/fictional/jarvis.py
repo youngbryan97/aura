@@ -99,7 +99,7 @@ class ProactiveAnticipationEngine:
         # from no lock at all, except that it reads as protection.
         self._lock = checked_lock("jarvis.proactive_state", rank=LockRank.LEAF)
         self._cycle_failure_count = 0
-        logger.info("🔭 ProactiveAnticipationEngine initialized (JARVIS pattern)")
+        logger.info("ProactiveAnticipationEngine initialized (JARVIS pattern)")
 
     def _reset_daily_count_if_needed(self):
         """Caller must hold ``self._lock``.
@@ -352,7 +352,7 @@ class ProactiveAnticipationEngine:
         if not self._reserve_initiation():
             return False
 
-        logger.info("🔭 JARVIS noticed: %s", " ".join(reading.split())[:80])
+        logger.info("JARVIS noticed: %s", " ".join(reading.split())[:80])
 
         delivered = False
         try:
@@ -378,7 +378,7 @@ class ProactiveAnticipationEngine:
                     await orch.emit_spontaneous_message(said, origin="jarvis")
                     delivered = True
                 else:
-                    logger.info("🔭 JARVIS: nothing of hers formed on %s", heading.lower())
+                    logger.info("JARVIS: nothing of hers formed on %s", heading.lower())
             elif orch is not None and getattr(orch, "reasoning_queue", None):
                 orch.reasoning_queue.put_nowait({
                     "text": f"## {heading}\n{reading}",
@@ -389,7 +389,7 @@ class ProactiveAnticipationEngine:
                 delivered = True
             else:
                 logger.warning(
-                    "🔭 JARVIS: No output path (reply/reasoning queue) for initiation: %s",
+                    "JARVIS: No output path (reply/reasoning queue) for initiation: %s",
                     heading,
                 )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, asyncio.QueueFull) as e:
@@ -397,7 +397,7 @@ class ProactiveAnticipationEngine:
                 e,
                 action="dropped proactive initiation after event bus and output routing failed",
             )
-            logger.error("🔭 JARVIS: Initiation emit failed: %s", e)
+            logger.error("JARVIS: Initiation emit failed: %s", e)
         finally:
             if not delivered:
                 self._release_initiation()
@@ -520,7 +520,7 @@ class ProactiveAnticipationEngine:
         if self._running:
             return
         self._running = True
-        logger.info("🔭 ProactiveAnticipationEngine running (%.0fs intervals)", interval_seconds)
+        logger.info("ProactiveAnticipationEngine running (%.0fs intervals)", interval_seconds)
         while self._running:
             try:
                 await self.run_cycle()

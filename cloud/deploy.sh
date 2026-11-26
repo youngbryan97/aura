@@ -147,7 +147,7 @@ if echo "${STATUS}" | grep -q "cycle"; then
     echo "╚══════════════════════════════════════════╝"
 else
     echo ""
-    echo "⚠️  Service may still be starting. Check with:"
+    echo " Service may still be starting. Check with:"
     echo "   ssh ${SSH_USER}@${VM_IP} 'sudo journalctl -u aura -f'"
     echo "   ssh ${SSH_USER}@${VM_IP} 'curl -s http://127.0.0.1:8000/api/state'"
 fi

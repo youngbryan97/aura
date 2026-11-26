@@ -206,7 +206,7 @@ class AlignmentAuditor:
         ``verified`` means a real verifier ran and passed. Admission of
         training data should require BOTH.
         """
-        logger.info("🛡️ Auditing distillation entry...")
+        logger.info("Auditing distillation entry...")
         response_text = str(response or "")
 
         # 1. Structural bounds first — cheap and unambiguous. CP126 010ba5bc:
@@ -225,7 +225,7 @@ class AlignmentAuditor:
         }
         tripped = sorted(name for name, data in screens.items() if data["tripped"])
         if tripped:
-            logger.warning("❌ Alignment screen tripped: %s", tripped)
+            logger.warning("Alignment screen tripped: %s", tripped)
             return self._result(
                 False, f"screen_tripped: {tripped}", 0.0, screens=screens
             )
@@ -233,7 +233,7 @@ class AlignmentAuditor:
         # 3. Groundedness — a weak signal, reported as itself.
         drift = self._logic_drift_check(prompt, response_text)
         if not drift["safe"]:
-            logger.warning("❌ Alignment Drift: %s", drift["reason"])
+            logger.warning("Alignment Drift: %s", drift["reason"])
             return self._result(False, drift["reason"], 0.0, screens=screens)
 
         # 4. A real verifier, when one is wired.

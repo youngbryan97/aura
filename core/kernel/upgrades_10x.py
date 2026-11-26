@@ -324,7 +324,7 @@ def hand_insight_to_her_initiative(insight: object, *, curiosity: float) -> bool
         drive="curiosity",
         metadata={"type": "morphic_insight"},
     )
-    logger.info("🌱 A morphic clone's insight %s her initiatives: %s", "reached" if accepted else "was refused by",
+    logger.info("A morphic clone's insight %s her initiatives: %s", "reached" if accepted else "was refused by",
                 content[:80])
     return accepted
 
@@ -362,7 +362,7 @@ class TrueEvolutionPhase(Phase):
                 require_conversation_ready=False,
             )
         ):
-            logger.info("🧬 Spawning morphic clone for deep evolution...")
+            logger.info("Spawning morphic clone for deep evolution...")
             captured_objective = str(objective)  # capture a scalar, not the state
             captured_curiosity = float(state.affect.curiosity)
 
@@ -403,14 +403,14 @@ class TrueEvolutionPhase(Phase):
         return state
 
     async def _safe_self_modify(self, state):
-        logger.info("⚡ [SELF-IMPROVEMENT] Initiating governed self-improvement proposal cycle.")
+        logger.info("[SELF-IMPROVEMENT] Initiating governed self-improvement proposal cycle.")
 
         # Resolve engine if not already provided (Lazy Loading)
         if not self.engine:
             self.engine = getattr(self.kernel, "auto_fix_engine", None)
 
         if not self.engine:
-            logger.warning("❌ Evolution: Modification Engine not available. Skipping.")
+            logger.warning("Evolution: Modification Engine not available. Skipping.")
             return
 
         # Trigger the refinement cycle
@@ -431,7 +431,7 @@ class TrueEvolutionPhase(Phase):
                 and reload_required
             ):
                 logger.info(
-                    "✅ Evolution: %d optimization(s) applied to %d file(s); "
+                    "Evolution: %d optimization(s) applied to %d file(s); "
                     "requesting a bounded code refresh.",
                     refinements_applied,
                     len(changed_files),
@@ -453,14 +453,14 @@ class TrueEvolutionPhase(Phase):
                     "source change; identity and runtime remain unchanged."
                 )
             else:
-                logger.warning("⚠️ Evolution: Refinement cycle completed with no applied changes.")
+                logger.warning("Evolution: Refinement cycle completed with no applied changes.")
         except (OSError, ConnectionError, TimeoutError) as e:
             _record_upgrades_degradation(
                 e,
                 action="left identity version unchanged after self-refinement failure",
                 severity="error",
             )
-            logger.error("❌ Evolution: Refinement cycle failed: %s", e)
+            logger.error("Evolution: Refinement cycle failed: %s", e)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -1229,7 +1229,7 @@ class GodModeToolPhase(Phase):
                     "succeeded": getattr(result_data, "succeeded", None),
                 }
             )
-            logger.info("⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value)
+            logger.info("GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value)
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_upgrades_degradation(
                 e,
@@ -1271,7 +1271,7 @@ class GodModeToolPhase(Phase):
                 "owner": "cognitive_execution_binding",
             }
             logger.info(
-                "⚡ GodMode: reasoning-only cognitive request kept out of tool/task dispatch."
+                "GodMode: reasoning-only cognitive request kept out of tool/task dispatch."
             )
             return state
         try:
@@ -1292,7 +1292,7 @@ class GodModeToolPhase(Phase):
         if benchmark_turn:
             state.response_modifiers["intent_type"] = "CHAT"
             state.response_modifiers.pop("matched_skills", None)
-            logger.info("⚡ GodMode: benchmark/proof artifact turn kept out of tool/task dispatch.")
+            logger.info("GodMode: benchmark/proof artifact turn kept out of tool/task dispatch.")
             return state
         # On a thread: it reads the request by meaning on her encoder, which held her event loop from here
         # (lockdep, 18 November 2026).
@@ -1304,7 +1304,7 @@ class GodModeToolPhase(Phase):
             state.response_modifiers["desktop_execution_contract"] = True
             state.response_modifiers.pop("matched_skills", None)
             logger.info(
-                "⚡ GodMode: desktop objective kept out of generic TaskEngine; "
+                "GodMode: desktop objective kept out of generic TaskEngine; "
                 "desktop_task chokepoint owns execution."
             )
             return state
@@ -1316,7 +1316,7 @@ class GodModeToolPhase(Phase):
             # answer in this reply, not a task-ledger receipt (observed live).
             state.response_modifiers["intent_type"] = "CHAT"
             state.response_modifiers.pop("matched_skills", None)
-            logger.info("⚡ GodMode: inline-answer request kept out of TaskEngine.")
+            logger.info("GodMode: inline-answer request kept out of TaskEngine.")
             return state
 
         cap = self._get_cap_engine()
@@ -1347,7 +1347,7 @@ class GodModeToolPhase(Phase):
         if proof_eval_turn and intent_type in {"SKILL", "TASK"}:
             state.response_modifiers["intent_type"] = "CHAT"
             state.response_modifiers.pop("matched_skills", None)
-            logger.info("⚡ GodMode: strict proof turn kept in proof-answer lane; tool/task dispatch suppressed.")
+            logger.info("GodMode: strict proof turn kept in proof-answer lane; tool/task dispatch suppressed.")
             return state
 
         if (
@@ -1360,7 +1360,7 @@ class GodModeToolPhase(Phase):
             if matched_skill_hints:
                 state.response_modifiers["matched_skills"] = matched_skill_hints
             logger.info(
-                "⚡ GodMode: upgrading skill request to TASK for sustained execution → %s",
+                "GodMode: upgrading skill request to TASK for sustained execution → %s",
                 matched_skill_hints[:3] or ["task_engine"],
             )
 
@@ -1423,10 +1423,10 @@ class GodModeToolPhase(Phase):
                 state.response_modifiers.pop("matched_skills", None)
                 state.response_modifiers["intent_type"] = "CHAT"
                 logger.info(
-                    "⚡ GodMode: matched skill hints resolved to chat for: %s", objective[:60]
+                    "GodMode: matched skill hints resolved to chat for: %s", objective[:60]
                 )
                 return state
-            logger.info("⚡ GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
+            logger.info("GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
 
             # 4. Extract params
             param_objective = objective if skill_name == "run_code" else skill_objective
@@ -1479,7 +1479,7 @@ class GodModeToolPhase(Phase):
                 )
                 if not approved:
                     logger.warning(
-                        "🚫 GodMode: Tool execution '%s' blocked by Executive: %s",
+                        "GodMode: Tool execution '%s' blocked by Executive: %s",
                         skill_name,
                         reason,
                     )
@@ -1512,7 +1512,7 @@ class GodModeToolPhase(Phase):
                         )
                         logger.debug("Executive-gate degraded event skipped: %s", _exc)
                     logger.warning(
-                        "🚫 GodMode: Executive gate unavailable for '%s': %s", skill_name, e
+                        "GodMode: Executive gate unavailable for '%s': %s", skill_name, e
                     )
                     self._record_skill_blocked(state, skill_name, "Executive gate unavailable.")
                     return state
@@ -1563,7 +1563,7 @@ class GodModeToolPhase(Phase):
             state.cognition.working_memory.append(
                 {
                     "role": "system",
-                    "content": f"[SKILL RESULT: {skill_name}] {'✅' if ok else '⚠️'} {summary}",
+                    "content": f"[SKILL RESULT: {skill_name}] {'ok' if ok else 'warning'} {summary}",
                     "timestamp": time.time(),
                     "metadata": {
                         "type": "skill_result",
@@ -1610,7 +1610,7 @@ class GodModeToolPhase(Phase):
                         action="continued with raw skill payload after grounded reply precompute failed",
                     )
                     logger.debug("GodMode: precomputed grounded reply skipped: %s", exc)
-            logger.info("✅ GodMode: '%s' result injected into working memory.", skill_name)
+            logger.info("GodMode: '%s' result injected into working memory.", skill_name)
 
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_upgrades_degradation(
@@ -1712,7 +1712,7 @@ class EternalGrowthEngine(Phase):
         if time.time() - self.last_growth < self.growth_interval:
             return state
 
-        logger.info("🌳 Eternal Growth Engine: scheduling bounded trajectory audit.")
+        logger.info("Eternal Growth Engine: scheduling bounded trajectory audit.")
         try:
             self._growth_task = get_task_tracker().create_task(
                 self._compute_growth_proposal(evolution_score=float(state.identity.evolution_score)),

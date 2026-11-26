@@ -74,7 +74,7 @@ class NeedToKnowPolicy:
     def __init__(self):
         self._decisions = 0
         self._fields_withheld = 0
-        logger.info("🔢 NeedToKnowPolicy initialized (The Machine lineage)")
+        logger.info("NeedToKnowPolicy initialized (The Machine lineage)")
 
     def minimize(
         self,

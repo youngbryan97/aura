@@ -344,7 +344,7 @@ class Tracer:
         except Exception:  # noqa: BLE001 — a trace is evidence, never a dependency
             logger.warning("trace write failed", exc_info=True)
             return None
-        logger.info("🔭 trace written: %s (%d events)", target, self.emitted)
+        logger.info("trace written: %s (%d events)", target, self.emitted)
         return target
 
     def report(self) -> dict[str, Any]:

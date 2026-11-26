@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Audit.Consciousness")
 
 async def audit_consciousness():
-    print(colored("\n🧠 Starting Consciousness Contract Audit...", "cyan", attrs=["bold"]))
+    print(colored("\nStarting Consciousness Contract Audit...", "cyan", attrs=["bold"]))
     
     # 1. Dependency Check
     print(colored("1. Checking Dependencies...", "yellow"))
@@ -93,7 +93,7 @@ async def audit_consciousness():
     except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Identity check failed: {e}", "red"))
 
-    print(colored("\n✨ Audit Complete.", "cyan", attrs=["bold"]))
+    print(colored("\nAudit Complete.", "cyan", attrs=["bold"]))
 
 if __name__ == "__main__":
     asyncio.run(audit_consciousness())

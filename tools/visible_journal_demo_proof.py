@@ -199,9 +199,9 @@ class VisibleJournalProof(JournalDemoProof):
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
                 (
-                    "✅ VISIBLE JOURNAL DEMO PROOF PASSED"
+                    "VISIBLE JOURNAL DEMO PROOF PASSED"
                     if verdict["passed"]
-                    else "❌ VISIBLE JOURNAL DEMO PROOF FAILED"
+                    else "VISIBLE JOURNAL DEMO PROOF FAILED"
                 )
                 + f" → {self.verdict_path}"
             )

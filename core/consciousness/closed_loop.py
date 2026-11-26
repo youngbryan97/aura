@@ -813,7 +813,7 @@ class ClosedCausalLoop:
 
         self._setup_save_dir()
 
-        logger.info("🔄 ClosedCausalLoop initialized")
+        logger.info("ClosedCausalLoop initialized")
         logger.info("   ├─ OutputReceptor  : ✓ (LLM→substrate feedback)")
         logger.info("   ├─ SelfPredictive  : ✓ (substrate self-prediction + FE)")
         logger.info("   └─ PhiWitness      : ✓ (transfer entropy Φ estimator)")
@@ -893,7 +893,7 @@ class ClosedCausalLoop:
             )
             logger.debug("Closed loop container registration failed: %s", exc)
 
-        logger.info("🔄 ClosedCausalLoop ONLINE — the loop is closed")
+        logger.info("ClosedCausalLoop ONLINE — the loop is closed")
 
     async def stop(self):
         """Stop the loop."""
@@ -904,7 +904,7 @@ class ClosedCausalLoop:
         self._task = None
         self._phi_core_task = None
         self._hphi_task = None
-        logger.info("🔄 ClosedCausalLoop OFFLINE")
+        logger.info("ClosedCausalLoop OFFLINE")
 
     async def _cancel_task(self, task: asyncio.Task | None, label: str) -> None:
         if task is None or task.done():
@@ -1121,7 +1121,7 @@ class ClosedCausalLoop:
 
                 if cycle.free_energy > 0.3:
                     logger.debug(
-                        "🌊 Self-surprise: F=%.4f — %s",
+                        "Self-surprise: F=%.4f — %s",
                         cycle.free_energy,
                         cycle.surprise_narrative,
                     )
@@ -1563,4 +1563,4 @@ def register_inference_callback(mlx_client):
         return result
 
     mlx_client.generate = patched_generate
-    logger.info("✅ Closed loop inference callback registered on MLX client")
+    logger.info("Closed loop inference callback registered on MLX client")

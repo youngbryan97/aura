@@ -278,7 +278,7 @@ class AdmissionChain:
                 # object depend on hook ordering. Report, and treat the
                 # edit as not having happened for ordering purposes.
                 logger.error(
-                    "🚦 admission: validating hook %r mutated the object; "
+                    "admission: validating hook %r mutated the object; "
                     "validators must not mutate",
                     hook.name,
                 )
@@ -351,7 +351,7 @@ class AdmissionChain:
                 del self._recent[:-128]
         if not allowed:
             logger.info(
-                "🚦 admission denied %s/%s by %s: %s",
+                "admission denied %s/%s by %s: %s",
                 request.kind,
                 request.name,
                 denied_by,

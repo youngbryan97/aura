@@ -139,7 +139,7 @@ class ToggleSensesSkill(BaseSkill):
                 pid = int(process.pid)
                 self._script_pids[sense] = pid
                 _save_pid(sense, pid) 
-                get_emitter().emit("Senses", f"👁️ {sense.title()} Activated (PID: {pid})", level="success")
+                get_emitter().emit("Senses", f"{sense.title()} Activated (PID: {pid})", level="success")
                 return {"ok": True, "message": f"{sense} activated.", "pid": pid}
             except (subprocess.SubprocessError, OSError) as e:
                 record_degradation('toggle_senses', e)
@@ -167,7 +167,7 @@ class ToggleSensesSkill(BaseSkill):
                 self._script_pids.pop(sense, None)
                 _clear_pid(sense)
                 if stopped:
-                    get_emitter().emit("Senses", f"👁️ {sense.title()} Deactivated.", level="warning")
+                    get_emitter().emit("Senses", f"{sense.title()} Deactivated.", level="warning")
                     return {"ok": True, "message": f"{sense} deactivated (PID {target_pid} stopped)."}
                 return {
                     "ok": False,

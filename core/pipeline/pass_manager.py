@@ -295,7 +295,7 @@ class PassInstrumentation:
         """
         with self._lock:
             self._bisect_limit = limit
-        logger.info("🔬 pass bisect limit set to %s", "off" if limit is None else limit)
+        logger.info("pass bisect limit set to %s", "off" if limit is None else limit)
 
     def bisect_limit(self) -> int | None:
         return self._bisect_limit
@@ -344,7 +344,7 @@ class PassInstrumentation:
         """
         _RUN_ORDINAL.set([0])
         if self._trace and label:
-            logger.info("🔬 BISECT begin run %s", label)
+            logger.info("BISECT begin run %s", label)
 
     def reset_ordinals(self) -> None:
         """Restart pass numbering, whichever counter is in force.
@@ -370,7 +370,7 @@ class PassInstrumentation:
             self.skips += 1
             reason = f"opt-bisect: ordinal {ordinal} > limit {limit}"
             if self._trace:
-                logger.info("🔬 BISECT NOT running pass (%s) on %s", reason, name)
+                logger.info("BISECT NOT running pass (%s) on %s", reason, name)
             return False, ordinal, reason
         with self._lock:
             hooks = list(self._before_hooks)
@@ -382,7 +382,7 @@ class PassInstrumentation:
             except Exception:  # noqa: BLE001 — a broken hook must not stop the pipeline
                 logger.debug("pass before-hook failed", exc_info=True)
         if self._trace:
-            logger.info("🔬 BISECT running pass (%d) %s", ordinal, name)
+            logger.info("BISECT running pass (%d) %s", ordinal, name)
         return True, ordinal, ""
 
     def after_pass(self, record: PassRecord) -> None:
@@ -603,7 +603,7 @@ class PassManager(Generic[Unit]):
                 report = verify(self.verify_each)
                 if not report.ok:
                     logger.error(
-                        "🔎 VERIFIER after pass %s/%s: %s", self.name, name, report.summary()
+                        "VERIFIER after pass %s/%s: %s", self.name, name, report.summary()
                     )
         return overall
 

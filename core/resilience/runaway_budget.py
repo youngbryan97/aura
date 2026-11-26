@@ -358,7 +358,7 @@ class RunawayDetector:
             # CRITICAL, not warning. This is the hard failure the receipt-only
             # path could never produce.
             logger.critical(
-                "🚨 RUNAWAY [%s]: %s", self.name, verdict.reason,
+                "RUNAWAY [%s]: %s", self.name, verdict.reason,
             )
             try:
                 from core.runtime.errors import record_degradation
@@ -380,11 +380,11 @@ class RunawayDetector:
             except (ImportError, AttributeError, TypeError, ValueError) as exc:
                 logger.error("Could not record runaway degradation: %s", exc)
         elif verdict.state is RunawayState.DRIFT:
-            logger.warning("📈 DRIFT [%s]: %s", self.name, verdict.reason)
+            logger.warning("DRIFT [%s]: %s", self.name, verdict.reason)
         elif verdict.state in {RunawayState.LEVEL_SHIFT, RunawayState.UNKNOWN}:
-            logger.info("ℹ️ [%s] %s: %s", self.name, verdict.state.value, verdict.reason)
+            logger.info("[%s] %s: %s", self.name, verdict.state.value, verdict.reason)
         else:
-            logger.info("✅ [%s] trend back to nominal: %s", self.name, verdict.reason)
+            logger.info("[%s] trend back to nominal: %s", self.name, verdict.reason)
 
 
 def _recent_slope_per_hour(

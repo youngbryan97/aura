@@ -94,7 +94,7 @@ class JoySocialCoordinator:
         self._last_decay = now
         self._tick_task: asyncio.Task | None = None
 
-        logger.info("🌟 JoySocialCoordinator initialised")
+        logger.info("JoySocialCoordinator initialised")
 
     def _background_autonomy_allowed(self) -> bool:
         reason = background_activity_reason(
@@ -155,14 +155,14 @@ class JoySocialCoordinator:
                 try:
                     await self.tick()
                 except asyncio.CancelledError:
-                    logger.info("🌟 JoySocial background tick cancelled — exiting")
+                    logger.info("JoySocial background tick cancelled — exiting")
                     return
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     logger.error("JoySocial background tick error: %s", exc, exc_info=True)
                 await asyncio.sleep(interval)
 
         self._tick_task = get_task_tracker().track(_loop())
-        logger.info("🌟 JoySocialCoordinator background tick started (%.0fs interval)", interval)
+        logger.info("JoySocialCoordinator background tick started (%.0fs interval)", interval)
 
     def stop_background_tick(self) -> None:
         if self._tick_task:
@@ -182,7 +182,7 @@ class JoySocialCoordinator:
             if session and session.joy_signals:
                 total_joy = session.total_joy()
                 logger.info(
-                    "🎨 Hobby session done: %s | total_joy=%.2f",
+                    "Hobby session done: %s | total_joy=%.2f",
                     session.hobby_name, total_joy,
                 )
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
@@ -198,7 +198,7 @@ class JoySocialCoordinator:
             activity = await self._social_engine.autonomous_cycle(affect_state)
             summary = {k: v for k, v in activity.items() if v}
             if summary:
-                logger.info("📱 Social cycle: %s", summary)
+                logger.info("Social cycle: %s", summary)
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             logger.error("JoySocial._maybe_social_cycle: %s", exc, exc_info=True)
 
@@ -437,7 +437,7 @@ def integrate_joy_social(
 
     # Idempotency guard
     if getattr(orchestrator, "joy_social", None) is not None:
-        logger.info("🌟 JoySocial already wired — returning existing coordinator")
+        logger.info("JoySocial already wired — returning existing coordinator")
         _register_runtime_service(orchestrator.joy_social)
         return orchestrator.joy_social
 
@@ -457,7 +457,7 @@ def integrate_joy_social(
     ctx_mgr = getattr(orchestrator, "context_manager", None)
     if ctx_mgr and hasattr(ctx_mgr, "register_context_provider"):
         ctx_mgr.register_context_provider("joy_social", coordinator.get_context_injection)
-        logger.info("✅ JoySocial: context injection registered with CognitiveContextManager")
+        logger.info("JoySocial: context injection registered with CognitiveContextManager")
     else:
         # Hook-based registration (no monkey-patching)
         _register_context_hook(orchestrator, coordinator)
@@ -466,7 +466,7 @@ def integrate_joy_social(
     if not bind_joy_social_agency(orchestrator=orchestrator):
         logger.info("JoySocial: AgencyCore not ready yet — pathway hooks will bind after AgencyCore boot")
 
-    logger.info("🌟 JoySocialCoordinator fully wired into orchestrator")
+    logger.info("JoySocialCoordinator fully wired into orchestrator")
     return coordinator
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -547,7 +547,7 @@ def _register_context_hook(orchestrator: Any, coordinator: JoySocialCoordinator)
         from core.container import ServiceContainer
         registered = ServiceContainer.get("joy_social", default=None)
         if registered is coordinator:
-            logger.info("✅ JoySocial: context available via canonical conversation context service")
+            logger.info("JoySocial: context available via canonical conversation context service")
             return
 
         bus = ServiceContainer.get("mycelium", default=None)
@@ -557,7 +557,7 @@ def _register_context_hook(orchestrator: Any, coordinator: JoySocialCoordinator)
                 if ctx and isinstance(event_data, dict):
                     event_data.setdefault("context_blocks", []).append(ctx)
             bus.on("context_assembly", _joy_context_hook)
-            logger.info("✅ JoySocial: context registered via event bus hook")
+            logger.info("JoySocial: context registered via event bus hook")
             return
     except (ImportError, AttributeError, RuntimeError) as exc:
         logger.debug("JoySocial: event bus registration failed: %s", exc)
@@ -566,7 +566,7 @@ def _register_context_hook(orchestrator: Any, coordinator: JoySocialCoordinator)
     hooks = getattr(orchestrator, "_context_hooks", None)
     if isinstance(hooks, list):
         hooks.append(coordinator.get_context_injection)
-        logger.info("✅ JoySocial: context registered via orchestrator._context_hooks")
+        logger.info("JoySocial: context registered via orchestrator._context_hooks")
         return
 
     logger.info("JoySocial: no legacy context hook available; using canonical service path when present")
@@ -583,7 +583,7 @@ def _register_agency_hooks(agency: Any, coordinator: JoySocialCoordinator) -> bo
         agency.register_pathway_hook("aesthetic_creation", coordinator.propose_hobby_action)
         agency.register_pathway_hook("curiosity_drive", coordinator.propose_hobby_action)
         agency.register_pathway_hook("social_hunger", coordinator.propose_social_action)
-        logger.info("✅ JoySocial: agency pathway hooks registered")
+        logger.info("JoySocial: agency pathway hooks registered")
         return True
 
     # Fallback: register as proposal sources in the agency's provider list
@@ -594,8 +594,8 @@ def _register_agency_hooks(agency: Any, coordinator: JoySocialCoordinator) -> bo
             "hobby": coordinator.propose_hobby_action,
             "social": coordinator.propose_social_action,
         })
-        logger.info("✅ JoySocial: agency proposal providers registered")
+        logger.info("JoySocial: agency proposal providers registered")
         return True
 
-    logger.info("⚠ JoySocial: no agency hook mechanism — proposals inactive")
+    logger.info("JoySocial: no agency hook mechanism — proposals inactive")
     return False

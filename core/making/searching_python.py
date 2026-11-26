@@ -338,7 +338,7 @@ def _search(code: str, cases: list[Case], rules: list[Result], lines: list[set[i
     given.seconds = time.monotonic() - began
     order = {(way.start, way.end, way.text): n for n, way in reversed(list(enumerate(chosen)))}
     given.mends.sort(key=lambda m: (len(m.breaks) - len(m.mends), m.other, order.get((m.way.start, m.way.end, m.way.text), 0)))
-    logger.info("🔎 A tool: %s, %d mend something.", given.says(), len(given.mends))
+    logger.info("A tool: %s, %d mend something.", given.says(), len(given.mends))
     return given
 
 
@@ -356,7 +356,7 @@ def _ran_with(code: str, cases: list[Case], some: Sequence[Way], failing: list[i
         try:
             _run([sys.executable, "-I", str(runner), str(given), str(told)], folder, timeout=seconds + 20.0)
         except Exception as exc:  # noqa: BLE001 - a way that takes the process with it ends the search, with what it had found
-            logger.info("🔎 A tool: the search broke off (%s).", str(exc)[:200])
+            logger.info("A tool: the search broke off (%s).", str(exc)[:200])
         rows = []
         for line in told.read_text(encoding="utf-8").splitlines() if told.is_file() else ():
             try:

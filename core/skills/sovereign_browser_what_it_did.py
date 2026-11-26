@@ -213,7 +213,7 @@ async def _go_back_to_the_last_good_page(
         # The page being momentarily unreadable is not the end of the
         # task — go back to where the work was and look again.
         logger.info(
-            "🌐 Pursuit lost the page; returning to %s to continue.",
+            "Pursuit lost the page; returning to %s to continue.",
             last_good_url,
         )
         if await self._safe_browse(browser, last_good_url):

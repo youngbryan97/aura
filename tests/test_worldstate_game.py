@@ -22,4 +22,4 @@ def test_worldstate_game_coverage():
     assert any("minotaur" in d for d in event_descs), "Minotaur event not found"
     assert any("Low health" in d for d in event_descs), "Low health auto-event not found"
     
-    print("   ✅ WorldState game coverage test passed!")
+    print("   WorldState game coverage test passed!")

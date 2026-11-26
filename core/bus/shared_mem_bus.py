@@ -84,7 +84,7 @@ class SharedMemoryTransport:
             ReaperManifest().deregister_shm(name)
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('shared_mem_bus', exc)
-            logger.warning("🚌 SharedMem: Failed to deregister from Reaper during close: %s", exc)
+            logger.warning("SharedMem: Failed to deregister from Reaper during close: %s", exc)
 
     @staticmethod
     def _finalize_owner_segment(name: str, shm: Any) -> None:
@@ -276,11 +276,11 @@ class SharedMemoryTransport:
                     self._attach_file_backed_segment()
                     return
                 if attempt < max_retries - 1:
-                    logger.debug("⏳ SHM '%s' not found. Retrying in %ss... (Attempt %s/%s)", self.name, retry_delay, attempt+1, max_retries)
+                    logger.debug("SHM '%s' not found. Retrying in %ss... (Attempt %s/%s)", self.name, retry_delay, attempt+1, max_retries)
                     await asyncio.sleep(retry_delay) # Async sleep
                     retry_delay = min(retry_delay * 1.5, 5.0) # Exponential backoff with cap
                 else:
-                    logger.error("❌ Shared memory segment not found after %s attempts: %s", max_retries, self.name)
+                    logger.error("Shared memory segment not found after %s attempts: %s", max_retries, self.name)
                     raise
             except (RuntimeError, AttributeError, TypeError, OSError) as e:
                 record_degradation('shared_mem_bus', e)
@@ -292,7 +292,7 @@ class SharedMemoryTransport:
                         await asyncio.sleep(retry_delay)
                         retry_delay = min(retry_delay * 1.5, 5.0)
                         continue
-                logger.error("❌ Failed to attach to shared memory %s: %s", self.name, e)
+                logger.error("Failed to attach to shared memory %s: %s", self.name, e)
                 raise
 
     def write(self, data: Any):
@@ -413,9 +413,9 @@ class SharedMemoryTransport:
                 # 2. If version is ODD, a write is in progress. Wait and retry.
                 if v1 % 2 != 0:
                     if attempt > 7:
-                        logger.warning("⚠️ SHM %s: Persistent ODD version (%s) detected. Possible dead writer.", self.name, v1)
+                        logger.warning("SHM %s: Persistent ODD version (%s) detected. Possible dead writer.", self.name, v1)
                         if self._is_owner:
-                            logger.info("🛠️ SHM %s: Owner repairing stale version lock.", self.name)
+                            logger.info("SHM %s: Owner repairing stale version lock.", self.name)
                             buf[0:8] = (v1 + 1).to_bytes(8, byteorder='big')
                             if hasattr(buf, 'obj') and isinstance(buf.obj, mmap.mmap):
                                 buf.obj.flush()

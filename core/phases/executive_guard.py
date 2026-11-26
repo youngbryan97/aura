@@ -93,7 +93,7 @@ class ExecutiveGuard:
                     prose = pattern.sub(_HER_NAME_IN(match.group()), prose, count=1)
                     corrected.append(match.group())
                     self._corrections_applied += 1
-                    logger.warning("🛡️ EXECUTIVE GUARD: false identity '%s' corrected to her name.", match.group())
+                    logger.warning("EXECUTIVE GUARD: false identity '%s' corrected to her name.", match.group())
                 if fatal:
                     from core.event_bus import get_event_bus
                     bus = get_event_bus()

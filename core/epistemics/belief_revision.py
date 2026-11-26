@@ -208,7 +208,7 @@ class BeliefRevisionEngine:
                 name="BeliefRevisionEngine.loop",
             )
 
-            logger.info("✅ Consolidated Belief System ONLINE (Self-Model + Revision Loop active).")
+            logger.info("Consolidated Belief System ONLINE (Self-Model + Revision Loop active).")
 
             event_registered = False
             try:
@@ -246,7 +246,7 @@ class BeliefRevisionEngine:
                     self._revision_task, owner="core.epistemics.belief_revision", timeout=_STOP_TIMEOUT_S
                 )
             await self._async_save()
-            logger.info("🛑 Belief System STOPPED.")
+            logger.info("Belief System STOPPED.")
 
     def _resolve_dependencies(self) -> None:
         try:
@@ -441,7 +441,7 @@ class BeliefRevisionEngine:
             if "logical_conflict" not in weaker.supporting_evidence:
                 weaker.supporting_evidence.append("logical_conflict")
             logger.warning(
-                "🧮 [Beliefs] demoting weaker side of logical conflict: \"%s\" %.2f→%.2f",
+                "[Beliefs] demoting weaker side of logical conflict: \"%s\" %.2f→%.2f",
                 weaker.content, old, weaker.confidence,
             )
 

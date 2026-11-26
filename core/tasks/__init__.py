@@ -138,7 +138,7 @@ def process_user_input(message: str):
     """
     Dispatches user input to the running orchestrator via message queue or global state.
     """
-    logger.info("📥 Received user input: %s...", message[:50])
+    logger.info("Received user input: %s...", message[:50])
 
     # Bridge to the running orchestrator via EventBus
     from core.event_bus import get_event_bus
@@ -160,7 +160,7 @@ def process_user_input(message: str):
 @celery_app.task(name="core.tasks.run_rl_training")
 def run_rl_training():
     """Executes RL training as a managed Celery task."""
-    logger.info("🧠 RL: Starting policy optimization...")
+    logger.info("RL: Starting policy optimization...")
     result = run_project_python("core/learning/rl_train.py")
     payload = result.status_payload()
     if not result.ok:
@@ -171,7 +171,7 @@ def run_rl_training():
 @celery_app.task(name="core.tasks.run_self_update")
 def run_self_update():
     """Executes self-evolution update as a managed Celery task."""
-    logger.info("🧬 EVO: Starting self-update cycle...")
+    logger.info("EVO: Starting self-update cycle...")
     result = run_project_python("scripts/self_update.py")
     payload = result.status_payload()
     if not result.ok:
@@ -185,7 +185,7 @@ def execute_skill_task(skill_name: str, params: dict):
     Zenith Zenith: Background execution for heavy/long-running skills.
     M-11 FIX: Use asyncio.run() for efficient loop management.
     """
-    logger.info("⚡ Background execution for skill: %s", skill_name)
+    logger.info("Background execution for skill: %s", skill_name)
 
     async def _run_skill():
         from core.runtime import CoreRuntime
@@ -200,7 +200,7 @@ def execute_skill_task(skill_name: str, params: dict):
         return asyncio.run(_run_skill())
     except _RECOVERABLE_TASK_ERRORS as exc:
         record_degradation("tasks", exc)
-        logger.error("❌ Background execution failed for '%s': %s", skill_name, exc)
+        logger.error("Background execution failed for '%s': %s", skill_name, exc)
         return {"ok": False, "error": str(exc)}
 
 

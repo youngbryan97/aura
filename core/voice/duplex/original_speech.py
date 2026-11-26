@@ -47,10 +47,10 @@ class OriginalSpeech:
             raise RuntimeError("Original speech worker is not loaded")
         self.close(for_good=False)
         started = time.monotonic()
-        logger.warning("🗣️ her voice worker stopped mid-session; starting a new one")
+        logger.warning("her voice worker stopped mid-session; starting a new one")
         if not self.load() or self.process is None:
             raise RuntimeError("Original speech worker is not loaded and did not start again")
-        logger.info("🗣️ her voice worker is back after %.1f s", time.monotonic() - started)
+        logger.info("her voice worker is back after %.1f s", time.monotonic() - started)
         return self.process
 
     def _receive(self, timeout: float) -> dict[str, Any]:
@@ -163,7 +163,7 @@ class OriginalSpeech:
                     result = self._receive(45)
                     more = result.get("more") is True
                     if isinstance(result.get("timing"), dict):
-                        logger.info("🗣️ her voice made a sentence: %s", result["timing"])  # real_time < 1: it ran late
+                        logger.info("her voice made a sentence: %s", result["timing"])  # real_time < 1: it ran late
                     audio = np.frombuffer(base64.b64decode(result["audio"], validate=True), dtype="<f4").copy()
                     if not np.isfinite(audio).all():
                         raise ValueError("Original speech returned nonfinite audio")

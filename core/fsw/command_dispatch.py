@@ -414,7 +414,7 @@ class CommandDispatcher:
             if not result.ok and step.on_failure is not FailurePolicy.CONTINUE:
                 aborted_at = index
                 logger.warning(
-                    "🛑 sequence %s aborted at step %d (%s): %s",
+                    "sequence %s aborted at step %d (%s): %s",
                     sequence.name,
                     index + 1,
                     step.command,

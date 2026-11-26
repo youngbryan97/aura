@@ -361,7 +361,7 @@ class IdentityService:
             if len(self.state.inner_insights) > _MAX_LIST_ITEMS:
                 self.state.inner_insights.pop(0)
             saved = self.save()
-            logger.info("✨ New Inner Insight recorded: %s...", f"{insight[:50]}")
+            logger.info("New Inner Insight recorded: %s...", f"{insight[:50]}")
             return "saved" if saved else "persist_failed"
 
     def score_goal(self, goal_text: str) -> float:

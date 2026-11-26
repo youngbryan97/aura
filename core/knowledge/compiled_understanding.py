@@ -482,7 +482,7 @@ class CompiledUnderstandingService:
         self._cache_hits = 0
         self._compiles = 0
         self._bridge_cycles = 0
-        logger.info("📚 CompiledUnderstandingService initialized")
+        logger.info("CompiledUnderstandingService initialized")
 
     def _corpus_search(self, query: str, limit: int = 3) -> list[dict[str, Any]]:
         corpus = self._corpus

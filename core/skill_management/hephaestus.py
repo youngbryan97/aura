@@ -73,7 +73,7 @@ class HephaestusEngine(AuraBaseModule):
         super().__init__("Hephaestus")
         self.skills_dir = config.paths.project_root / "skills"
         self.skills_dir.mkdir(parents=True, exist_ok=True)
-        self.logger.info("🔨 Hephaestus Engine Online (Autogenesis Forge Ready)")
+        self.logger.info("Hephaestus Engine Online (Autogenesis Forge Ready)")
 
     async def synthesize_skill(
         self,
@@ -86,7 +86,7 @@ class HephaestusEngine(AuraBaseModule):
 
         @self.error_boundary
         async def _synthesize_wrapped():
-            self.logger.info("🔨 Forging skill: %s for objective: %s", capability_name, objective)
+            self.logger.info("Forging skill: %s for objective: %s", capability_name, objective)
 
             # 0. Consent, before anything is drafted.
             ladder = ServiceContainer.get("growth_ladder", default=None)
@@ -105,7 +105,7 @@ class HephaestusEngine(AuraBaseModule):
                     # alike, which sends anyone debugging this to the wrong
                     # place.
                     self.logger.info(
-                        "🚫 Hephaestus: Skill synthesis refused by the growth ladder (%s).",
+                        "Hephaestus: Skill synthesis refused by the growth ladder (%s).",
                         granted.status,
                     )
                     return {
@@ -120,7 +120,7 @@ class HephaestusEngine(AuraBaseModule):
             if report is None or not report.passed:
                 detail = report.feedback() if report is not None else "no draft was produced"
                 self.logger.warning(
-                    "🔨 Forge of '%s' produced nothing that runs: %s", capability_name, detail
+                    "Forge of '%s' produced nothing that runs: %s", capability_name, detail
                 )
                 return {
                     "ok": False,
@@ -163,7 +163,7 @@ class HephaestusEngine(AuraBaseModule):
             )
 
             self.logger.info(
-                "✅ Skill '%s' forged, verified under %s, and installed.",
+                "Skill '%s' forged, verified under %s, and installed.",
                 capability_name,
                 report.boundary,
             )
@@ -247,12 +247,12 @@ class HephaestusEngine(AuraBaseModule):
 
             signature = f"{report.stage}:{report.reason}"
             self.logger.info(
-                "🔨 Forge attempt %d/%d for '%s' failed at %s: %s",
+                "Forge attempt %d/%d for '%s' failed at %s: %s",
                 attempt, max_attempts, capability_name, report.stage, report.reason,
             )
             if signature == last_signature:
                 self.logger.info(
-                    "🔨 Forge stopping early: attempt %d repeated the previous failure.", attempt
+                    "Forge stopping early: attempt %d repeated the previous failure.", attempt
                 )
                 break
             last_signature = signature
@@ -286,7 +286,7 @@ class HephaestusEngine(AuraBaseModule):
                 await gateway.write_text_async(
                     archive, previous, source="skill_management.hephaestus"
                 )
-                self.logger.info("🗄️ Archived previous %s to %s", skill_file.name, archive.name)
+                self.logger.info("Archived previous %s to %s", skill_file.name, archive.name)
             await gateway.write_text_async(
                 skill_file, text, source="skill_management.hephaestus"
             )
@@ -295,7 +295,7 @@ class HephaestusEngine(AuraBaseModule):
         """[DEEP FORGING] Generates a logic patch for an existing core file."""
         @self.error_boundary
         async def _patch_wrapped():
-            self.logger.info("🔨 Deep Forging patch for %s: %s", target_file, objective)
+            self.logger.info("Deep Forging patch for %s: %s", target_file, objective)
             
             # 0. v40: Check Growth Ladder for consent
             ladder = ServiceContainer.get("growth_ladder", default=None)
@@ -314,7 +314,7 @@ class HephaestusEngine(AuraBaseModule):
                     # alike, which sends anyone debugging this to the wrong
                     # place.
                     self.logger.info(
-                        "🚫 Hephaestus: Logic patch refused by the growth ladder (%s).",
+                        "Hephaestus: Logic patch refused by the growth ladder (%s).",
                         granted.status,
                     )
                     return {
@@ -389,14 +389,14 @@ class HephaestusEngine(AuraBaseModule):
                 try:
                     ast.parse(patched_code, filename=str(file_path))
                 except SyntaxError as e:
-                    self.logger.warning("🚨 Patch rejected — syntax error: %s", e)
+                    self.logger.warning("Patch rejected — syntax error: %s", e)
                     return {"ok": False, "error": f"Syntax error in patched code: {e}"}
                 
                 from core.resilience.sandbox import ASTGuard
                 guard = ASTGuard()
                 if not guard.validate(patched_code):
                     error_msg = f"Security validation failed for patch: {', '.join(guard.get_errors())}"
-                    self.logger.critical("🚨 %s", error_msg)
+                    self.logger.critical("%s", error_msg)
                     return {"ok": False, "error": error_msg}
                 
                 # ── Infinite loop detection ──
@@ -431,9 +431,9 @@ class HephaestusEngine(AuraBaseModule):
                         soak_seconds=15,
                     )
                     if not shadow_result.passed:
-                        self.logger.warning("🔮 Shadow test FAILED: %s", shadow_result.errors[:2])
+                        self.logger.warning("Shadow test FAILED: %s", shadow_result.errors[:2])
                         return {"ok": False, "error": f"Shadow runtime test failed: {shadow_result.errors[0]}"}
-                    self.logger.info("🔮 Shadow test passed (%.1fs)", shadow_result.runtime_seconds)
+                    self.logger.info("Shadow test passed (%.1fs)", shadow_result.runtime_seconds)
                 except ImportError:
                     self.logger.debug("Shadow runtime not available — skipping soak test")
                 except (AttributeError, RuntimeError) as shadow_err:
@@ -621,7 +621,7 @@ class HephaestusEngine(AuraBaseModule):
         """[DEEP FORGING] Refactor and optimize an existing skill."""
         @self.error_boundary
         async def _refine_wrapped():
-            self.logger.info("🔨 Refining existing skill: %s. Goal: %s", skill_name, objective)
+            self.logger.info("Refining existing skill: %s. Goal: %s", skill_name, objective)
             
             engine = ServiceContainer.get("capability_engine", default=None)
             if not engine or skill_name not in engine.skills:
@@ -658,7 +658,7 @@ class HephaestusEngine(AuraBaseModule):
             success = await sme.apply_fix(proposal, force=False)
             
             if success:
-                self.logger.info("✅ Skill '%s' refined successfully.", skill_name)
+                self.logger.info("Skill '%s' refined successfully.", skill_name)
                 engine.reload_skills()
                 return {"ok": True, "skill": skill_name}
             

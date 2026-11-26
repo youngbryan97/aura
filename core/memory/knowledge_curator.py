@@ -61,16 +61,16 @@ class KnowledgeCurator:
 
     async def consolidate_and_curate(self) -> Dict[str, Any]:
         """Runs one full cycle of defragmentation, purging, and promoting memory."""
-        logger.info("⚡ [CURATOR] Starting scheduled knowledge consolidation...")
+        logger.info("[CURATOR] Starting scheduled knowledge consolidation...")
         
         # 1. Run standard cluster defragmentation using SemanticDefragmenter
         defrag_stats = {}
         try:
             defrag_stats = await self._defragmenter.run_defrag_cycle()
-            logger.info("⚡ [CURATOR] Defragmenter completed: %s", defrag_stats)
+            logger.info("[CURATOR] Defragmenter completed: %s", defrag_stats)
         except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as e:
             record_degradation("knowledge_curator", e, severity="warning", action="continued curation without defrag results")
-            logger.error("⚡ [CURATOR] Defragmenter failed: %s", e)
+            logger.error("[CURATOR] Defragmenter failed: %s", e)
 
         # 2. Perform purging and promotion
         purged = 0
@@ -126,10 +126,10 @@ class KnowledgeCurator:
                                 try:
                                     delete(ids=to_delete)
                                     purged += len(to_delete)
-                                    logger.info("⚡ [CURATOR] Purged %d low-relevance outdated memories.", len(to_delete))
+                                    logger.info("[CURATOR] Purged %d low-relevance outdated memories.", len(to_delete))
                                 except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as ex:
                                     record_degradation("knowledge_curator", ex, severity="warning", action="kept stale memories after delete failure")
-                                    logger.error("⚡ [CURATOR] Failed to delete purged memories: %s", ex)
+                                    logger.error("[CURATOR] Failed to delete purged memories: %s", ex)
                             elif update and callable(update):
                                 try:
                                     purge_metadata = []
@@ -140,13 +140,13 @@ class KnowledgeCurator:
                                         metadata["purge_candidate_at"] = now
                                         purge_metadata.append(metadata)
                                     update(ids=to_delete, metadatas=purge_metadata)
-                                    logger.info("⚡ [CURATOR] Marked %d stale memories as purge candidates.", len(to_delete))
+                                    logger.info("[CURATOR] Marked %d stale memories as purge candidates.", len(to_delete))
                                 except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as ex:
                                     record_degradation("knowledge_curator", ex, severity="warning", action="kept stale memories after purge-candidate marking failure")
                                     logger.debug("Failed to mark purge candidates: %s", ex)
             except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as e:
                 record_degradation("knowledge_curator", e, severity="warning", action="left memory collection unchanged after curation failure")
-                logger.error("⚡ [CURATOR] Purging/Promotion loop failed: %s", e)
+                logger.error("[CURATOR] Purging/Promotion loop failed: %s", e)
 
         return {
             "defrag_stats": defrag_stats,

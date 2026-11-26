@@ -155,7 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     for s in verdict.get("steps", []):
         print(f"  [{s.get('rc')}] {s['step']} ({s.get('secs', '?')}s)")
     print(
-        ("✅ CLEAN ENV INSTALL PROOF PASSED" if verdict["passed"] else "❌ CLEAN ENV INSTALL PROOF FAILED")
+        ("CLEAN ENV INSTALL PROOF PASSED" if verdict["passed"] else "CLEAN ENV INSTALL PROOF FAILED")
         + f" install={verdict.get('install_ok')} imports={verdict.get('imports_ok')} collect={verdict.get('collect_ok')}"
     )
     return 0 if verdict["passed"] else 1

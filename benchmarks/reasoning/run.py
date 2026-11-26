@@ -125,8 +125,8 @@ async def _main_async(args: argparse.Namespace) -> int:
         result = await ReasoningBenchmark().run(generate=generate)
         print(result.summary())
         for o in result.outcomes:
-            flag = "✅" if o.correct else "❌"
-            fc = " ⚠️false-confidence" if o.false_confidence else ""
+            flag = "ok" if o.correct else "failed"
+            fc = "false-confidence" if o.false_confidence else ""
             print(
                 f"  {flag} {o.case_id:<12} verified={o.verified!s:<5} "
                 f"conf={o.confidence:.2f} lat={o.latency_ms:.0f}ms{fc}"

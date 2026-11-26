@@ -453,7 +453,7 @@ async def probe_ontological_stakes_temporal_obligation() -> tuple[bool, str]:
 # Orchestration
 # ---------------------------------------------------------------------------
 async def main() -> int:
-    print("🔬 Aura Live Personhood & Agency Harness")
+    print("Aura Live Personhood & Agency Harness")
     print(f"   project_root: {PROJECT_ROOT}")
     print(f"   harness_home: {_HARNESS_HOME}")
     print(f"   python:       {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")

@@ -341,12 +341,12 @@ class Migrator:
                 ),
             )
             con.commit()
-            logger.info("✅ Migration v%d applied.", migration.version)
+            logger.info("Migration v%d applied.", migration.version)
         except (sqlite3.Error, OSError) as e:
             record_degradation("migrations", e)
             con.rollback()
             logger.error(
-                "❌ Migration v%d FAILED: %s — the ledger records it as unfinished.",
+                "Migration v%d FAILED: %s — the ledger records it as unfinished.",
                 migration.version,
                 e,
             )
@@ -367,11 +367,11 @@ class Migrator:
                 cursor.execute("PRAGMA table_info(knowledge)")
                 columns = {row[1] for row in cursor.fetchall()}
                 if "learned_at" in columns and "created_at" not in columns:
-                    logger.warning("⚠️ Legacy 'learned_at' column detected. Reconciling...")
+                    logger.warning("Legacy 'learned_at' column detected. Reconciling...")
                     try:
                         con.execute("ALTER TABLE knowledge RENAME COLUMN learned_at TO created_at")
                         con.commit()  # Commit immediately after each DDL
-                        logger.info("✅ Renamed 'learned_at' to 'created_at'.")
+                        logger.info("Renamed 'learned_at' to 'created_at'.")
                     except sqlite3.OperationalError:
                         logger.warning("ALTER RENAME failed, trying manual migration...")
                         con.execute("BEGIN")
@@ -390,7 +390,7 @@ class Migrator:
                         """)
                         con.execute("DROP TABLE knowledge_old")
                         con.commit()
-                        logger.info("✅ Manual reconciliation complete.")
+                        logger.info("Manual reconciliation complete.")
                 # Re-fetch columns after potential rename
                 cursor.execute("PRAGMA table_info(knowledge)")
                 columns = {row[1] for row in cursor.fetchall()}
@@ -398,7 +398,7 @@ class Migrator:
                     con.execute("ALTER TABLE knowledge ADD COLUMN updated_at REAL DEFAULT 0.0")
                     con.execute("UPDATE knowledge SET updated_at = created_at WHERE updated_at = 0.0")
                     con.commit()
-                    logger.info("✅ Added 'updated_at' column.")
+                    logger.info("Added 'updated_at' column.")
         except (sqlite3.Error, OSError) as e:
             record_degradation('migrations', e)
             logger.error("Failed to reconcile legacy schema: %s", e)

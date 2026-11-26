@@ -41,7 +41,7 @@ class HeuristicSynthesizer:
                 with open(self.heuristics_path) as f:
                     data = json.load(f)
                 self._active_heuristics = data.get("heuristics", [])[:MAX_ACTIVE_HEURISTICS]
-                logger.info("📐 Loaded %d active heuristics", len(self._active_heuristics))
+                logger.info("Loaded %d active heuristics", len(self._active_heuristics))
             except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('heuristic_synthesizer', e)
                 logger.error("Failed to load heuristics: %s", e)
@@ -184,7 +184,7 @@ class HeuristicSynthesizer:
                         record_degradation('heuristic_synthesizer', e)
                         capture_and_log(e, {'module': __name__})
                         
-                    logger.info("📐 Synthesized %d new heuristics (%d total active)", added, len(self._active_heuristics))
+                    logger.info("Synthesized %d new heuristics (%d total active)", added, len(self._active_heuristics))
                     return {"ok": True, "new_heuristics": added, "total": len(self._active_heuristics)}
 
             return {"ok": True, "new_heuristics": 0, "reason": "no_parseable_rules"}
@@ -225,7 +225,7 @@ class HeuristicSynthesizer:
         })
         self._trim_heuristics()
         self._save()
-        logger.info("📐 Ingested external heuristic from %s: %s", source, rule[:80])
+        logger.info("Ingested external heuristic from %s: %s", source, rule[:80])
         return True
 
     def get_active_heuristics_prompt(self) -> str:

@@ -39,7 +39,7 @@ def test_vector_memory():
         assert results[0].score > 0.99
         assert 0.69 < results[1].score < 0.72
 
-    print("\n✅ Matrix Search Verified.")
+    print("\nMatrix Search Verified.")
 
 
 if __name__ == "__main__":

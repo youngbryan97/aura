@@ -129,7 +129,7 @@ async def read_what_this_turn_asks(said: str, *, session_id: str, attachments: S
         asked = await asyncio.wait_for(reads.read(attached(said, names), beside, client=client), timeout=READ_WITHIN_S)
         hold_ways(await asyncio.wait_for(get_what_of_hers().read(attached(said, names), beside, client=client), timeout=READ_WITHIN_S) if asked is not None else None)
     except TimeoutError:
-        logger.info("🧭 This turn was not read for what it asks within %.0f s.", READ_WITHIN_S)
+        logger.info("This turn was not read for what it asks within %.0f s.", READ_WITHIN_S)
         return None
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("what_is_asked", exc, severity="warning", action="this turn was not read for what it asks")

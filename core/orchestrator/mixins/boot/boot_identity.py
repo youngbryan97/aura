@@ -52,10 +52,10 @@ class BootIdentityMixin:
     async def _init_fictional_synthesis(self):
         """Initialize the JARVIS, Cortana, EDI, Ava, Skynet, and MIST engines."""
         if getattr(self, "_fictional_synthesis_initialized", False):
-            logger.info("🎬 Fictional Engine Synthesis already initialized.")
+            logger.info("Fictional Engine Synthesis already initialized.")
             return
         if getattr(self, "_fictional_synthesis_initializing", False):
-            logger.info("🎬 Fictional Engine Synthesis initialization already in progress.")
+            logger.info("Fictional Engine Synthesis initialization already in progress.")
             return
         self._fictional_synthesis_initializing = True
         try:
@@ -64,7 +64,7 @@ class BootIdentityMixin:
             existing_engines = getattr(self, "fictional_engines", None)
             if existing_engines:
                 self.fictional_engines = existing_engines
-                logger.info("🎬 Fictional engines already registered; reusing supervised instances.")
+                logger.info("Fictional engines already registered; reusing supervised instances.")
             else:
                 self.fictional_engines = register_all_fictional_engines(orchestrator=self)
 
@@ -75,7 +75,7 @@ class BootIdentityMixin:
             existing_derived = getattr(self, "derived_engines", None)
             if existing_derived:
                 self.derived_engines = existing_derived
-                logger.info("🎬 Derived engines already registered; reusing instances.")
+                logger.info("Derived engines already registered; reusing instances.")
             else:
                 from core.brain.llm.semantic_neural_serving import prepare_semantic_neural_serving
 
@@ -95,11 +95,11 @@ class BootIdentityMixin:
                 memory_provider=ServiceContainer.get("memory_provider", default=None)
             )
 
-            logger.info("🎬 Fictional Engine Synthesis Complete (JARVIS-class online)")
+            logger.info("Fictional Engine Synthesis Complete (JARVIS-class online)")
             self._fictional_synthesis_initialized = True
         except _BOOT_IDENTITY_BOUNDARY_ERRORS as e:
             _record_identity_degradation(e, action="continued boot without registering JARVIS-class fictional engines", severity="error")
-            logger.error("🎬 Fictional Engine Synthesis failed: %s", e)
+            logger.error("Fictional Engine Synthesis failed: %s", e)
         finally:
             self._fictional_synthesis_initializing = False
 
@@ -130,15 +130,15 @@ class BootIdentityMixin:
                 # validates, and quarantines repairs produced from real faults.
                 modifier.start_monitoring()
                 if modifier.runtime_promotion_enabled():
-                    logger.info("🧬 Self-Modification Engine active with supervised promotion")
+                    logger.info("Self-Modification Engine active with supervised promotion")
                 else:
                     logger.info(
-                        "🧬 Self-Modification Engine active in validation/quarantine mode; "
+                        "Self-Modification Engine active in validation/quarantine mode; "
                         "source promotion requires a supervised operator profile."
                     )
         except _BOOT_IDENTITY_BOUNDARY_ERRORS as e:
             _record_identity_degradation(e, action="continued boot with disabled self-modification engine", severity="error")
-            logger.warning("🧬 Self-Modification Engine init failed: %s", e)
+            logger.warning("Self-Modification Engine init failed: %s", e)
             self.self_modifier = None
 
     async def _init_identity_gate(self):
@@ -152,7 +152,7 @@ class BootIdentityMixin:
                 identity = ServiceContainer.get("narrative_identity", default=None)
                 if identity:
                     gate.identity_guard.identity = identity
-                logger.info("🛡️  Identity Guard Gate active on OutputGate")
+                logger.info(" Identity Guard Gate active on OutputGate")
         except _BOOT_IDENTITY_BOUNDARY_ERRORS as e:
             _record_identity_degradation(e, action="continued boot with unguarded OutputGate", severity="error")
             logger.error("Identity Guard initialization failed: %s", e)
@@ -164,13 +164,13 @@ class BootIdentityMixin:
 
             self.persona_evolver = PersonaEvolver(self)
             ServiceContainer.register_instance("persona_evolver", self.persona_evolver)
-            logger.info("🧬 Persona Evolver initialized (waiting for heartbeat)")
+            logger.info("Persona Evolver initialized (waiting for heartbeat)")
         except _BOOT_IDENTITY_BOUNDARY_ERRORS as e:
             _record_identity_degradation(e, action="continued boot with disabled persona evolution", severity="error")
             logger.error("Failed to init Persona Evolver: %s", e)
             self.persona_evolver = None
 
-        logger.info("🛠️  _init_autonomous_evolution complete")
+        logger.info(" _init_autonomous_evolution complete")
 
     def _initialize_moral_systems(self):
         """Integrate moral agency and sensory systems."""
@@ -223,7 +223,7 @@ class BootIdentityMixin:
 
     def _init_architecture(self):
         """Initialize the Unified Core Architecture."""
-        logger.info("🧠 Initializing Unified Core Architecture...")
+        logger.info("Initializing Unified Core Architecture...")
 
         try:
             # 1. Identity & Self-Model (The 'Who')
@@ -279,7 +279,7 @@ class BootIdentityMixin:
 
     async def _integrate_systems(self):
         """Integrate moral, sensory, personality, and preservation systems (Async)."""
-        logger.info("🧠 Initializing Core System Integrations...")
+        logger.info("Initializing Core System Integrations...")
 
         self._initialize_moral_systems()
         self._initialize_execution_hardened()
@@ -317,4 +317,4 @@ class BootIdentityMixin:
         personality.setup_hooks(self)  # Connect to orchestrator for output filtering
         ServiceContainer.register_instance("personality_engine", personality)
         ServiceContainer.register_instance("personality", personality)
-        logger.info("🎭 Personality Engine RESTORED & Hooked")
+        logger.info("Personality Engine RESTORED & Hooked")

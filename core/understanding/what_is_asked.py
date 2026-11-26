@@ -81,7 +81,7 @@ class WhatIsAsked(FittedOnHerModel):
         if p is None:
             return None
         effect, decision, asking = decide(p)
-        logger.info("🧭 Read as %s (%.2f), asking %.2f: %s, in %.2f s over %d characters.", effect, p.get(effect, 0.0),
+        logger.info("Read as %s (%.2f), asking %.2f: %s, in %.2f s over %d characters.", effect, p.get(effect, 0.0),
                     asking, decision, time.monotonic() - began, len(said))
         return Asked(said=str(said), effect=effect, decision=decision, sure=p.get(effect, 0.0), asking=asking,
                      by_effect=p, at=time.time())

@@ -103,7 +103,7 @@ class DistributedResilienceCore:
         if became_unhealthy:
             status.last_reported_at = now
             logger.error(
-                "🛡️  Skynet: Subsystem '%s' became UNHEALTHY after %d consecutive probes: %s",
+                " Skynet: Subsystem '%s' became UNHEALTHY after %d consecutive probes: %s",
                 name,
                 status.failure_count,
                 error,
@@ -114,7 +114,7 @@ class DistributedResilienceCore:
             if status.failure_count == 1:
                 status.last_reported_at = now
                 logger.warning(
-                    "🛡️  Skynet: Subsystem '%s' health probe failed (1/%d): %s",
+                    " Skynet: Subsystem '%s' health probe failed (1/%d): %s",
                     name,
                     self._failure_threshold,
                     error,
@@ -123,7 +123,7 @@ class DistributedResilienceCore:
         if now - status.last_reported_at >= self._reminder_interval_s:
             status.last_reported_at = now
             logger.error(
-                "🛡️  Skynet: Subsystem '%s' remains UNHEALTHY for %.0fs: %s",
+                " Skynet: Subsystem '%s' remains UNHEALTHY for %.0fs: %s",
                 name,
                 max(0.0, now - status.last_transition_at),
                 error,
@@ -188,7 +188,7 @@ class DistributedResilienceCore:
             "requested_at": now,
             "reason": f"calling {label}()",
         }
-        logger.warning("🛡️  Skynet: asking '%s' to %s() after repeated failures.", name, label)
+        logger.warning(" Skynet: asking '%s' to %s() after repeated failures.", name, label)
         try:
             result = callable_method()
         except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
@@ -233,7 +233,7 @@ class DistributedResilienceCore:
             status.last_reported_at = recovered_at
             self._pending_repairs.pop(name, None)
             logger.info(
-                "🛡️  Skynet: Subsystem '%s' RECOVERED after %.0fs.",
+                " Skynet: Subsystem '%s' RECOVERED after %.0fs.",
                 name,
                 max(0.0, recovered_at - unhealthy_since),
             )
@@ -263,7 +263,7 @@ class DistributedResilienceCore:
         for target in core_targets:
             self.register_subsystem(target)
 
-        logger.info("🛡️  Skynet ResilienceCore monitoring %d subsystems.", len(core_targets))
+        logger.info(" Skynet ResilienceCore monitoring %d subsystems.", len(core_targets))
         
         # Event-driven interval so stop() is honored immediately rather than
         # after a full monitor period.

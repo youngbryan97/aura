@@ -242,7 +242,7 @@ class AuraSelfProfile:
         log = logger.critical if is_live_identity else logger.warning
         if self._publish_attestation_verdict:
             log(
-                "🛡️ A self-profile was modified outside Aura's own write path and has "
+                "A self-profile was modified outside Aura's own write path and has "
                 "NOT been loaded (%s). Identity facts from it: none. Evidence: %s",
                 self._storage_path,
                 quarantined,

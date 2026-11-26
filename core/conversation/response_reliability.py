@@ -6115,7 +6115,7 @@ def _quotes_a_screen_it_did_not_read(prompt: Any, reply_text: Any) -> bool:
 
         unasked = not asks_to_read_the_screen(prompt)
         matched = what_reads_as_a_screen_reading(reply_text, display_binding_required=unasked)
-        logger.info("👁️ a reply read as a claim to have read the screen: %r", matched)
+        logger.info("a reply read as a claim to have read the screen: %r", matched)
     except (ImportError, TypeError, ValueError, AttributeError) as exc:
         logger.debug("the screen claim's words could not be said: %s", exc)
 

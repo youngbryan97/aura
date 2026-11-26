@@ -146,7 +146,7 @@ class MessageHandlingMixin:
             # Legacy tuple formatting is removed in Zenith. We expect strictly typed IPCMessage.
             # Any remaining tuple formats are caught by unpack_priority_message.
 
-            logger.info("📦 Decoded message from queue: %s", str(message)[:60])
+            logger.info("Decoded message from queue: %s", str(message)[:60])
 
             return message
 
@@ -270,7 +270,7 @@ class MessageHandlingMixin:
         safety_vetoed = any(m in reason_str for m in hard_safety_markers)
         if (origin or "").strip().lower() in trusted_internal and not safety_vetoed:
             logger.info(
-                "🛡️ Internal volition admitted at reduced priority: %s (gate reason: %s)",
+                "Internal volition admitted at reduced priority: %s (gate reason: %s)",
                 origin,
                 reason_str or "unspecified",
             )
@@ -313,7 +313,7 @@ class MessageHandlingMixin:
             decision = self._flow_controller.admit(self, origin=origin, priority=priority)
             if not decision.allow:
                 logger.info(
-                    "🧯 FlowControl: Dropped message from %s (%s).",
+                    "FlowControl: Dropped message from %s (%s).",
                     origin,
                     decision.reason,
                 )
@@ -334,7 +334,7 @@ class MessageHandlingMixin:
                         name="message_handling.deferred_enqueue",
                     )
                     logger.debug(
-                        "⏳ FlowControl: Deferred message from %s for %.2fs.",
+                        "FlowControl: Deferred message from %s for %.2fs.",
                         origin,
                         decision.defer_seconds,
                     )
@@ -342,7 +342,7 @@ class MessageHandlingMixin:
                 except RuntimeError as _exc:
                     logger.debug("Suppressed RuntimeError: %s", _exc)
 
-        logger.info("📩 Incoming Input [%s]: %s...", origin, str(message)[:100])
+        logger.info("Incoming Input [%s]: %s...", origin, str(message)[:100])
         if self._is_user_facing_origin(origin):
             # User-facing work should be dispatched once, not also enqueued for later re-processing.
             self._dispatch_message(message, origin=origin)
@@ -352,7 +352,7 @@ class MessageHandlingMixin:
         if not _authority_checked and not self._authorize_background_enqueue_sync(
             message, origin, priority
         ):
-            logger.info("🛡️ Background enqueue blocked for %s.", origin)
+            logger.info("Background enqueue blocked for %s.", origin)
             return False
 
         defer_reason = (
@@ -362,7 +362,7 @@ class MessageHandlingMixin:
         )
         if defer_reason:
             logger.debug(
-                "🛡️ Background enqueue deferred for %s: %s",
+                "Background enqueue deferred for %s: %s",
                 origin,
                 defer_reason,
             )
@@ -402,7 +402,7 @@ class MessageHandlingMixin:
             self.message_queue.put_nowait(item)
         except asyncio.QueueFull:
             logger.warning(
-                "⚠️ Message queue full. Dropped %s message from %s: %s",
+                "Message queue full. Dropped %s message from %s: %s",
                 "SYSTEM" if priority <= 20 else "AUTONOMOUS",
                 origin,
                 str(message)[:120],
@@ -421,7 +421,7 @@ class MessageHandlingMixin:
             decision = self._flow_controller.admit(self, origin=origin, priority=priority)
             if not decision.allow:
                 logger.info(
-                    "🧯 FlowControl: Dropped threaded message from %s (%s).",
+                    "FlowControl: Dropped threaded message from %s (%s).",
                     origin,
                     decision.reason,
                 )
@@ -432,13 +432,13 @@ class MessageHandlingMixin:
             defer_reason = self._background_enqueue_defer_reason(origin, priority)
             if defer_reason:
                 logger.debug(
-                    "🛡️ Background threaded enqueue deferred for %s: %s",
+                    "Background threaded enqueue deferred for %s: %s",
                     origin,
                     defer_reason,
                 )
                 return
             if not self._authorize_background_enqueue_sync(message, origin, priority):
-                logger.info("🛡️ Background threaded enqueue blocked for %s.", origin)
+                logger.info("Background threaded enqueue blocked for %s.", origin)
                 return
 
         # Zenith v47 Hardening: Deeply sanitize all messages before they enter the queue
@@ -603,9 +603,9 @@ class MessageHandlingMixin:
             get_emitter().emit("dispatch", f"Processing message: {safe_msg}")
 
             if safe_msg.startswith("Impulse:"):
-                label = "Impulse ⚡"
+                label = "Impulse"
             elif safe_msg.startswith("Thought:"):
-                label = "Thought 💭"
+                label = "Thought"
             else:
                 label = "User"
             get_emitter().emit(
@@ -681,13 +681,13 @@ class MessageHandlingMixin:
                             )
                             if replaceable:
                                 logger.info(
-                                    "🛑 Cancelling stale %s task for direct user input...",
+                                    "Cancelling stale %s task for direct user input...",
                                     getattr(self, "_current_origin", "background"),
                                 )
                                 await cancel_and_join(in_flight, owner="core.orchestrator.mixins.message_handling")
                         return await self._process_user_input_core(message, origin)
                 except TimeoutError:
-                    logger.error("⌛ Priority processing TIMEOUT for: %s...", message[:50])
+                    logger.error("Priority processing TIMEOUT for: %s...", message[:50])
                     if self._is_user_facing_origin(origin):
                         return _user_visible_live_timeout(timeout_sec)
                     # Background/internal callers still use an empty result as a retry/escalation signal.
@@ -698,7 +698,7 @@ class MessageHandlingMixin:
                         action="returned empty priority response so caller can retry or escalate",
                         severity="error",
                     )
-                    logger.error("❌ Priority processing FAILED: %s", e)
+                    logger.error("Priority processing FAILED: %s", e)
                     # [STABILITY v55] Return empty so chat.py can retry/escalate.
                     return ""
         finally:
@@ -717,7 +717,7 @@ class MessageHandlingMixin:
                 async with asyncio.timeout(timeout_sec):
                     return await self._process_user_input_core(message, origin)
             except TimeoutError:
-                logger.warning("⌛ Input processing timed out after %ss", timeout_sec)
+                logger.warning("Input processing timed out after %ss", timeout_sec)
                 return None
         return await self._process_user_input_core(message, origin)
 
@@ -750,7 +750,7 @@ class MessageHandlingMixin:
                 )
                 if not will_decision.is_approved():
                     logger.info(
-                        "🛡️ Unified Will %s message from %s: %s",
+                        "Unified Will %s message from %s: %s",
                         will_decision.outcome.value,
                         origin,
                         will_decision.reason,
@@ -941,7 +941,7 @@ class MessageHandlingMixin:
         return continuation_count, response
 
     async def _process_user_input_core_part_5(self, message, origin):
-        logger.info("🤫 Silence Protocol honoured — suppressing output.")
+        logger.info("Silence Protocol honoured — suppressing output.")
         try:
             from core.thought_stream import get_emitter
 
@@ -989,7 +989,7 @@ class MessageHandlingMixin:
             ring.append(fp)
             if consecutive_dupes >= 2:
                 logger.warning(
-                    "🔄 Response Repetition Detected: %d consecutive near-identical responses.",
+                    "Response Repetition Detected: %d consecutive near-identical responses.",
                     consecutive_dupes + 1,
                 )
                 metacognitive_warning = (
@@ -1065,9 +1065,9 @@ class MessageHandlingMixin:
         normalized_message = str(message or "").strip()
         if not normalized_message:
             if self._is_user_facing_origin(origin):
-                logger.info("🫥 Ignoring empty foreground message from origin=%s.", origin)
+                logger.info("Ignoring empty foreground message from origin=%s.", origin)
             else:
-                logger.debug("🫥 Dropping empty internal message from origin=%s.", origin)
+                logger.debug("Dropping empty internal message from origin=%s.", origin)
             return None
         has_contract, message = self._process_user_input_core_message(normalized_message, origin)
 
@@ -1079,7 +1079,7 @@ class MessageHandlingMixin:
         # Deduplication Guard (FINGERPRINTING)
         msg_hash = self._get_fingerprint(f"{message}_{origin}")
         if msg_hash == self._last_emitted_fingerprint:
-            logger.info("♻️ Deduplication: Same fingerprint. Skipping.")
+            logger.info("Deduplication: Same fingerprint. Skipping.")
             return None
         verdict = await self._process_user_input_core_part_2(message, msg_hash, origin)
         if verdict is not _ADMITTED:
@@ -1103,7 +1103,7 @@ class MessageHandlingMixin:
             # generate() on a gate whose initialization contract failed.
             if self._inference_gate is None or not gate_ready:
                 logger.error(
-                    "🛑 Local InferenceGate is unavailable after ensure_ready(). "
+                    "Local InferenceGate is unavailable after ensure_ready(). "
                     "Cannot process this user message."
                 )
                 return ""
@@ -1120,7 +1120,7 @@ class MessageHandlingMixin:
                 ki = KernelInterface.get_instance()
                 if ki.is_ready():
                     logger.info(
-                        "🧠 Constitutional: Routing user message through KernelInterface..."
+                        "Constitutional: Routing user message through KernelInterface..."
                     )
                     response = await ki.process(message, origin=origin, priority=True)
                     if response:
@@ -1161,7 +1161,7 @@ class MessageHandlingMixin:
 
                 # 2. GENERATION (Unlocked Phase)
                 # This allows the rest of the system (WebSockets, Bus) to continue pulsing.
-                logger.info("🧠 Fallback: Calling InferenceGate directly (kernel not ready)...")
+                logger.info("Fallback: Calling InferenceGate directly (kernel not ready)...")
                 _brief_text = (
                     brief.to_briefing_text() if hasattr(brief, "to_briefing_text") else str(brief)
                 )
@@ -1170,7 +1170,7 @@ class MessageHandlingMixin:
                     last_char = response.strip()[-1] if response.strip() else ""
                     if last_char not in ".!?\"'”’*)\\]}>~`\\n":
                         logger.info(
-                            "⚡ Auto-Continuation triggered! Response appears truncated (ended with '%s').",
+                            "Auto-Continuation triggered! Response appears truncated (ended with '%s').",
                             last_char,
                         )
                         continuation_count += 1
@@ -1233,12 +1233,12 @@ class MessageHandlingMixin:
         block_reason = self._background_message_block_reason(origin)
         if block_reason:
             logger.info(
-                "🛡️ Deferring internal message [%s] while runtime is protected (%s).",
+                "Deferring internal message [%s] while runtime is protected (%s).",
                 origin,
                 block_reason,
             )
             return None
-        logger.info("📩 Processing internal message [%s]: %s...", origin, message[:80])
+        logger.info("Processing internal message [%s]: %s...", origin, message[:80])
         await self._handle_incoming_message(message, origin=origin)
         return None
 
@@ -1250,7 +1250,7 @@ class MessageHandlingMixin:
 
         trace_id = str(uuid.uuid4())[:8]
         if os.environ.get("AURA_TRACE_MODE") == "1":
-            logger.info("🧠 [TRACE] [%s] Orchestrator received: %s", trace_id, message[:50])
+            logger.info("[TRACE] [%s] Orchestrator received: %s", trace_id, message[:50])
 
         # This method is used by the synchronous-style CLI loop in main.py
         # We need to wait for the response to appear in the reply_queue

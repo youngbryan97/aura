@@ -32,7 +32,7 @@ class TheGauntlet:
 
     async def setup(self):
         """Initialize core engines for testing."""
-        logger.info("🥊 Setting up The Gauntlet...")
+        logger.info("Setting up The Gauntlet...")
         
         # Register Base Services
         self.container.register('capability_engine', lambda: CapabilityEngine(), lifetime=ServiceLifetime.SINGLETON)
@@ -48,7 +48,7 @@ class TheGauntlet:
 
     async def test_concurrency_stress(self, cycles: int = 50):
         """Spawns many parallel skill execution and learning cycles."""
-        logger.info(f"🔥 Stressing Concurrency: {cycles} parallel cycles...")
+        logger.info(f"Stressing Concurrency: {cycles} parallel cycles...")
         
         async def _single_cycle(i: int):
             try:
@@ -80,7 +80,7 @@ class TheGauntlet:
 
     async def test_memory_deluge(self, items: int = 1000):
         """Floods the experience store with rapid injections."""
-        logger.info(f"🌊 Stressing Memory: {items} rapid injections...")
+        logger.info(f"Stressing Memory: {items} rapid injections...")
         start = time.time()
         
         success = 0
@@ -103,7 +103,7 @@ class TheGauntlet:
 
     async def test_hardware_flicker(self, toggles: int = 20):
         """Rapidly checks hardware permissions while engines are busy."""
-        logger.info(f"⚡ Stressing Hardware: {toggles} pre-flight toggles...")
+        logger.info(f"Stressing Hardware: {toggles} pre-flight toggles...")
         
         success = 0
         for i in range(toggles):
@@ -138,10 +138,10 @@ class TheGauntlet:
         # Verify success
         total_fails = sum(v["fail"] for v in self.results.values())
         if total_fails == 0:
-            logger.info("🏆 PERFECT SCORE. Aura is hardened.")
+            logger.info("PERFECT SCORE. Aura is hardened.")
             return True
         else:
-            logger.error(f"❌ FAILS DETECTED: {total_fails}")
+            logger.error(f"FAILS DETECTED: {total_fails}")
             return False
 
 if __name__ == "__main__":

@@ -698,7 +698,7 @@ class _AnswersTheDesktopDirectly:
                                action="did not keep the answer a person gave as a solved example")
             return None
         if noted:
-            logger.info("🧠 CognitiveEngine: kept %r, the answer a person gave, as a solved example for %r.",
+            logger.info("CognitiveEngine: kept %r, the answer a person gave, as a solved example for %r.",
                         answer, request[:120])
         return (request, answer)
 
@@ -721,7 +721,7 @@ class _AnswersTheDesktopDirectly:
             return None
         from .cognitive_engine import logger
 
-        logger.info("🧠 CognitiveEngine: the answer a person gave (%r) is not what her %s procedure says (%r).",
+        logger.info("CognitiveEngine: the answer a person gave (%r) is not what her %s procedure says (%r).",
                     stated, planted["family"], planted["answer"])
         return (
             f"[SKILL RESULT: kept_procedure] For the earlier request \"{request[:300]}\", the procedure she keeps for "
@@ -789,7 +789,7 @@ class _AnswersTheDesktopDirectly:
             return None
         if planted is not None:
             logger.info(
-                "🧠 CognitiveEngine: kept procedure for %s answered before the draft (%s).",
+                "CognitiveEngine: kept procedure for %s answered before the draft (%s).",
                 planted["family"], planted["form"],
             )
         return planted
@@ -920,7 +920,7 @@ class _AnswersTheDesktopDirectly:
         elif authority == "independent_executable_consensus":
             promoted = str(result.source_answer or result.answer or "").strip()
         logger.info(
-            "🧠 [AmplifyV2-chat] task=%s mode=%s candidates=%s authority=%s -> %s",
+            "[AmplifyV2-chat] task=%s mode=%s candidates=%s authority=%s -> %s",
             task_type, receipt.get("mode"), receipt.get("num_candidates"), authority,
             "adopted" if promoted and promoted != draft else "kept her draft",
         )
@@ -1289,7 +1289,7 @@ class _AnswersTheDesktopDirectly:
                 *task_grounding_blocks,
                 *ambient_grounding_blocks,
             ]
-            logger.info("🧾 This turn is given %s.", what_it_is_given(system_prompt, history_messages, grounding_blocks))
+            logger.info("This turn is given %s.", what_it_is_given(system_prompt, history_messages, grounding_blocks))
             if grounding_blocks:
                 messages.append(
                     stamp_grounding(
@@ -1543,7 +1543,7 @@ class _AnswersTheDesktopDirectly:
 
             stated, voice = after_the_draft(text, kept_planted)
             logger.info(
-                "🧠 CognitiveEngine: kept answer for %s, %s (known answers agreed: %s).",
+                "CognitiveEngine: kept answer for %s, %s (known answers agreed: %s).",
                 kept_planted.get("family"), voice, kept_planted.get("agreed_known"),
             )
             if not stated:

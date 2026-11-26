@@ -49,7 +49,7 @@ class CircuitBreaker:
             elapsed = time.time() - (self.last_failure_time or 0)
             if elapsed > self.reset_timeout:
                 self.state = CircuitState.HALF_OPEN
-                logger.info("⚡ Circuit [%s] Transition: OPEN -> HALF_OPEN (Cooldown finished)", self.name)
+                logger.info("Circuit [%s] Transition: OPEN -> HALF_OPEN (Cooldown finished)", self.name)
                 return True
             return False
             
@@ -95,7 +95,7 @@ class CircuitBreaker:
         previous = self.state
         self.state = CircuitState.HALF_OPEN
         logger.info(
-            "⚡ Circuit [%s] Transition: %s -> HALF_OPEN (probe requested: %s, cooldown %.0fs)",
+            "Circuit [%s] Transition: %s -> HALF_OPEN (probe requested: %s, cooldown %.0fs)",
             self.name,
             previous.value,
             str(reason or "unspecified"),
@@ -106,7 +106,7 @@ class CircuitBreaker:
     def record_success(self):
         """Reset failures on successful call."""
         if self.state != CircuitState.CLOSED:
-            logger.info("✅ Circuit [%s] Transition: %s -> CLOSED (Success detected)", self.name, self.state.value)
+            logger.info("Circuit [%s] Transition: %s -> CLOSED (Success detected)", self.name, self.state.value)
         self.failure_count = 0
         self.state = CircuitState.CLOSED
         self.last_failure_time = None
@@ -144,9 +144,9 @@ async def run_with_watchdog(task_name: str, coro_or_fn: Any, timeout: float = 5.
         else:
             return await asyncio.wait_for(coro_or_fn, timeout=timeout)
     except asyncio.TimeoutError:
-        logger.error("⏰ Task [%s] Timed Out (>%ds)", task_name, timeout)
+        logger.error("Task [%s] Timed Out (>%ds)", task_name, timeout)
         return fallback
     except (RuntimeError, TimeoutError, AttributeError) as e:
         record_degradation('resilience', e)
-        logger.error("💥 Task [%s] Failed: %s", task_name, e)
+        logger.error("Task [%s] Failed: %s", task_name, e)
         return fallback

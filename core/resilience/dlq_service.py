@@ -53,7 +53,7 @@ class DeadLetterQueue:
                 json.dumps(entry) + "\n",
                 source="resilience.dlq.failure",
             )
-            logger.info("💀 DLQ: Captured cognitive failure (%s)", err_key)
+            logger.info("DLQ: Captured cognitive failure (%s)", err_key)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dlq_service', e)
             logger.error("Failed to write to DLQ: %s", e)

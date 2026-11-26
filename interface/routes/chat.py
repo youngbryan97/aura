@@ -1475,7 +1475,7 @@ def _store_conversation_resume_handle(
     # A refusal nobody can see is a conversation that re-reads its own history
     # every turn. Rejecting is often right; being silent about it is not.
     logger.info(
-        "🔗 conversation resume handle %s%s",
+        "conversation resume handle %s%s",
         "kept" if accepted else "refused",
         "" if accepted else ": " + "; ".join(reasons),
     )
@@ -7262,7 +7262,7 @@ def _api_chat_turn__turn_sensory_evidence(_preflight, request):
             from core.brain.aura_persona import leave_out
 
             _kept_out = leave_out(_leave_out.split(","), measurement=True)
-            logger.info("🔬 A measurement turn; prompt parts left out: %s", sorted(_kept_out) or "none")
+            logger.info("A measurement turn; prompt parts left out: %s", sorted(_kept_out) or "none")
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _leave_out_exc:
         logger.debug("the prompt-part switch could not be set for this turn: %s", _leave_out_exc)
     try:
@@ -7272,7 +7272,7 @@ def _api_chat_turn__turn_sensory_evidence(_preflight, request):
 
             set_ablated_section(_ablate_section)
             logger.info(
-                "🔬 Identity-anchor ablation active for this turn: %s",
+                "Identity-anchor ablation active for this turn: %s",
                 _ablate_section[:60],
             )
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -7562,7 +7562,7 @@ def _api_chat_turn_proactive_recovery_consecutive(_qualified_exact_delivery, _se
     degradation_streak = _conversation_degradation_streak()
     if degradation_streak >= 3:
         logger.warning(
-            "🚨 Degradation streak=%d — triggering proactive compaction + stale reset.",
+            "Degradation streak=%d — triggering proactive compaction + stale reset.",
             degradation_streak,
         )
         with _conversation_quality_lock:
@@ -7574,7 +7574,7 @@ def _api_chat_turn_proactive_recovery_consecutive(_qualified_exact_delivery, _se
             live_state = _chat_preflight._resolve_live_aura_state()
             if live_state and hasattr(live_state, "compact"):
                 live_state.compact(trigger_threshold=20, keep_turns=15)
-                logger.info("🗜️ Proactive compaction completed after degradation streak.")
+                logger.info("Proactive compaction completed after degradation streak.")
         except _CHAT_RECOVERABLE_ERRORS as _streak_exc:
             record_degradation("chat", _streak_exc)
             logger.debug("Degradation streak compaction failed: %s", _streak_exc)
@@ -8437,7 +8437,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     return None
 
             logger.info(
-                "✅ Degraded desktop turn recovered through CognitiveEngine full-mind path."
+                "Degraded desktop turn recovered through CognitiveEngine full-mind path."
             )
             _live_turn_trace.update(recovery_trace)
             _live_turn_trace["cognitive_engine_grounded_recovery"] = True
@@ -8523,7 +8523,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _raw = raw_model_draft()
                 if _raw:
                     logger.warning(
-                        "🧱 Gate veto, not a generation failure: the model "
+                        "Gate veto, not a generation failure: the model "
                         "produced %d chars this turn and the pipeline is about "
                         "to withhold them (path=%s reason=%s).",
                         len(_raw),
@@ -9274,7 +9274,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # The cooldown is only 1s — let the request flow through the
                 # normal kernel path instead of showing a canned error message.
                 logger.info(
-                    "🛡️ Recovery cooldown: skipping protected foreground, proceeding to kernel."
+                    "Recovery cooldown: skipping protected foreground, proceeding to kernel."
                 )
 
         if allow_chat_fastpaths and not bool(lane.get("conversation_ready", False)):
@@ -10260,7 +10260,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 reply_text = direct_reply
                 reply_source = "protected_foreground"
                 logger.info(
-                    "✅ [STABILITY] Protected foreground bypass succeeded after kernel timeout (len=%d)",
+                    "[STABILITY] Protected foreground bypass succeeded after kernel timeout (len=%d)",
                     len(reply_text),
                 )
                 kernel_timed_out = False
@@ -10390,7 +10390,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 reply_text = second_try
                 reply_source = reply_source or "protected_foreground"
                 logger.info(
-                    "✅ Empty canonical reply answered on a second attempt (len=%d)",
+                    "Empty canonical reply answered on a second attempt (len=%d)",
                     len(reply_text),
                 )
             else:
@@ -10479,7 +10479,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
         ):
             logger.warning(
-                "🧭 Replacing inadequate capability inventory reply with grounded live catalog summary."
+                "Replacing inadequate capability inventory reply with grounded live catalog summary."
             )
             reply_text = _chat_desktop_repair._build_grounded_capability_inventory_reply(
                 _semantic_user_message
@@ -10577,7 +10577,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             response_confidence = "degraded"
             degradation_streak = _increment_conversation_degradation_streak()
             logger.warning(
-                "⚠️ Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, semantic_glitch=%s, context_contract=%s, memory_state_contract=%s, assessment_requires_repair=%s, assessment=%s, assessment_ok=%s, retryable=%s, hard_failure=%s, reply_len=%d, streak=%d, reason=%s)",
+                "Response confidence: degraded (stale=%s, same_answer_diff_prompt=%s, off_topic=%s, semantic_glitch=%s, context_contract=%s, memory_state_contract=%s, assessment_requires_repair=%s, assessment=%s, assessment_ok=%s, retryable=%s, hard_failure=%s, reply_len=%d, streak=%d, reason=%s)",
                 is_stale,
                 is_same_diff,
                 is_off_topic,
@@ -10708,7 +10708,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 ):
                     response_confidence = "high"
                     _set_conversation_degradation_streak(0)
-                    logger.info("✅ Final reply quality gate repaired degraded output.")
+                    logger.info("Final reply quality gate repaired degraded output.")
                 else:
                     response_confidence = "degraded"
 
@@ -10781,7 +10781,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if _downgrade.lane_warning:
                 lane_status["response_lane_warning"] = _downgrade.lane_warning
             logger.warning(
-                "⚠️ Response confidence lowered to %r: %s%s",
+                "Response confidence lowered to %r: %s%s",
                 _downgrade.confidence,
                 _downgrade.reason,
                 f" ({_downgrade.lane_warning})" if _downgrade.lane_warning else "",
@@ -10822,7 +10822,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             _arithmetic_note = ""
         if _arithmetic_note:
             _final_reply = f"{str(_final_reply).rstrip()}\n\n{_arithmetic_note}"
-            logger.warning("🔢 %s", _arithmetic_note)
+            logger.warning("%s", _arithmetic_note)
             _append_turn_text_mutation(
                 _live_turn_trace,
                 stage="chat.the_arithmetic_in_the_answer",

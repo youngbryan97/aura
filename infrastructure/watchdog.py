@@ -149,7 +149,7 @@ class SystemWatchdog:
             
             for name in stalled_components:
                 logger.critical(
-                    "🔥 SYSTEM STALL DETECTED: Component '%s' has not responded for %.1fs!",
+                    "SYSTEM STALL DETECTED: Component '%s' has not responded for %.1fs!",
                     name, now - self._heartbeats[name]
                 )
                 
@@ -180,7 +180,7 @@ class SystemWatchdog:
                 # automatic rollback is attempted.
                 if name in ("orchestrator", "cognitive_engine", "server"):
                     logger.critical(
-                        "🚨 CRITICAL COMPONENT STALL: %r. No automatic state "
+                        "CRITICAL COMPONENT STALL: %r. No automatic state "
                         "rollback is attempted — snapshot restore is a governed "
                         "action and is not a watchdog's call. Recorded as a "
                         "degradation for the recovery ladder.",

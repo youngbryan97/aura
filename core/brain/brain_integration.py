@@ -22,7 +22,7 @@ def setup_intelligence_layer(container) -> None:
     container.register_factory("inner_monologue", get_inner_monologue)
     container.register_factory("language_center", get_language_center)
     container.register_factory("memory_synthesizer", get_memory_synthesizer)
-    logger.info("✅ Intelligence layer services registered.")
+    logger.info("Intelligence layer services registered.")
 
 
 # ══════════════════════════════════════════════════════════════════

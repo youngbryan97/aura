@@ -906,7 +906,7 @@ class _RunsTheThinkingLoop:
             }
         )
         logger.warning(
-            "🩹 CognitiveEngine: no answer-quality response for origin=%s, but the "
+            "CognitiveEngine: no answer-quality response for origin=%s, but the "
             "turn still held a recoverable %d-char draft; serving it rather than "
             "reporting an empty cycle.",
             origin,
@@ -1062,7 +1062,7 @@ class _RunsTheThinkingLoop:
                             state.cognition.current_origin = origin
                     success = True
             except TimeoutError:
-                logger.error("🛑 [COGNITION] Watchdog: Cognitive cycle TIMEOUT (%.1fs).", cycle_timeout)
+                logger.error("[COGNITION] Watchdog: Cognitive cycle TIMEOUT (%.1fs).", cycle_timeout)
                 record_response_path("reactive_recovery_timeout", model_generation=False)
                 # Immediate Reactive Recovery
                 return await self._reactive_recovery(
@@ -1089,11 +1089,11 @@ class _RunsTheThinkingLoop:
                     severity="critical",
                     action="downshifted or entered reactive recovery after phase failure",
                 )
-                logger.error("🚨 [COGNITION] Fatal error in phase logic: %s", e)
+                logger.error("[COGNITION] Fatal error in phase logic: %s", e)
                 # v14.1 HARDENING: Rollback & Downshift
                 if mode == ThinkingMode.DEEP:
                     logger.warning(
-                        "🔄 [COGNITION] Downshifting to REACTIVE mode due to Deep Failure..."
+                        "[COGNITION] Downshifting to REACTIVE mode due to Deep Failure..."
                     )
                     # WITH the context. The downshift used to call think()
                     # without it, so the retry lost the desktop-required
@@ -1263,7 +1263,7 @@ class _RunsTheThinkingLoop:
             )
             if embodied_control:
                 logger.warning(
-                    "⚠️ [COGNITION] Embodied control turn produced no response. "
+                    "[COGNITION] Embodied control turn produced no response. "
                     "Falling back to the pager-advance key."
                 )
                 return Thought(
@@ -1281,14 +1281,14 @@ class _RunsTheThinkingLoop:
                 action="refused a motor fallback for an action imperative with no embodied control contract",
             )
             logger.warning(
-                "⚠️ [COGNITION] Action Imperative active but no response generated, "
+                "[COGNITION] Action Imperative active but no response generated, "
                 "and no embodied control contract authorises a keystroke."
             )
             return self._empty_thought(mode, "action_imperative_no_response")
 
         if is_background:
             logger.debug(
-                "🛡️ CognitiveEngine: background cycle for origin=%s produced no response; returning quiet no-op.",
+                "CognitiveEngine: background cycle for origin=%s produced no response; returning quiet no-op.",
                 origin,
             )
             return self._empty_thought(mode, "background_cycle_no_response")
@@ -1317,11 +1317,11 @@ class _RunsTheThinkingLoop:
         )
         if "<answer>" in objective.lower() and not is_strict_answer:
             logger.info(
-                "🛡️ [COGNITION] '<answer>' appears in the objective but no caller "
+                "[COGNITION] '<answer>' appears in the objective but no caller "
                 "declared a strict-answer contract; not activating cloud recovery."
             )
         if is_strict_answer:
-            logger.warning("⚠️ [COGNITION] Structured answer required but phase execution produced no response. Running last-resort direct recovery...")
+            logger.warning("[COGNITION] Structured answer required but phase execution produced no response. Running last-resort direct recovery...")
             try:
                 from core.brain.llm_health_router import get_llm_router
                 from core.runtime.proof_policy import proof_model_tier
@@ -1452,7 +1452,7 @@ class _RunsTheThinkingLoop:
             )
 
         logger.warning(
-            "🛡️ CognitiveEngine: user-facing cycle for origin=%s produced no answer-quality response.",
+            "CognitiveEngine: user-facing cycle for origin=%s produced no answer-quality response.",
             origin,
         )
         return self._empty_thought(mode, "user_cycle_no_response")

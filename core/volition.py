@@ -462,7 +462,7 @@ class VolitionEngine:
             if isinstance(g, dict) and "objective" in g:
                 objective = g["objective"]
                 if objective in self._goal_cooldowns:
-                    logger.debug("🎯 Volition: Skipping goal on cooldown: %s", objective[:60])
+                    logger.debug("Volition: Skipping goal on cooldown: %s", objective[:60])
                     continue
             filtered_goals.append(g)
 
@@ -557,7 +557,7 @@ class VolitionEngine:
             now = time.monotonic()
             if self.unanswered_speak_count >= self.max_unanswered_before_silence:
                 logger.info(
-                    "🤫 Connection drive suppressed: %s unanswered", self.unanswered_speak_count
+                    "Connection drive suppressed: %s unanswered", self.unanswered_speak_count
                 )
                 return None
             effective_cooldown = self.speak_cooldown * self.speak_backoff_multiplier
@@ -731,7 +731,7 @@ class VolitionEngine:
         # of speech that never occurred. They are committed in
         # _commit_goal_effects once the concrete action is actually admitted.
 
-        logger.info("⚡ IMPULSE (%s): %s...", impulse_type, template[:80])
+        logger.info("IMPULSE (%s): %s...", impulse_type, template[:80])
 
         # Ground the impulse: the templates invite reflection on feelings/
         # curiosity, but the response must come from Aura's ACTUAL current
@@ -766,7 +766,7 @@ class VolitionEngine:
                     proj = active_projects[0]
                     task = self.orchestrator.strategic_planner.get_next_task(proj.id)
                     if task:
-                        logger.info("🎯 Strategic Duty: Resuming project '%s'", proj.name)
+                        logger.info("Strategic Duty: Resuming project '%s'", proj.name)
                         safe_project = _sanitize_task_text(proj.name, limit=80)
                         safe_task = _sanitize_task_text(task.description)
                         return {
@@ -815,7 +815,7 @@ class VolitionEngine:
                         continue
 
                     objective = f"I need to work on the roadmap task: {task_name}. Check the plan and execute."
-                    logger.info("🫡 Duty Calls: %s", objective)
+                    logger.info("Duty Calls: %s", objective)
 
                     # Activity is recorded on ADMISSION (see
                     # _commit_goal_effects), not on generation: resetting the
@@ -1028,7 +1028,7 @@ class VolitionEngine:
                     indent=2,
                 ),
             )
-            logger.info("✨ Volition adopted new interest: %s", topic)
+            logger.info("Volition adopted new interest: %s", topic)
         except _VOLITION_RECOVERABLE_ERRORS as e:
             _record_volition_degradation(
                 "volition_interest_persist",

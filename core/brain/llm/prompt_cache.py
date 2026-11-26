@@ -484,11 +484,11 @@ class PromptCacheLRU:
                 self._resume_bindings.pop(handle, None)
                 held.append((model_key, binding.tokens))
         if held:
-            logger.info("🧊 [PROMPT CACHE] retired %d entr(ies) holding a stopped prefill's cache", len(held))
+            logger.info("[PROMPT CACHE] retired %d entr(ies) holding a stopped prefill's cache", len(held))
         return len(held)
 
     def clear_model_key(self, model_key: Any) -> None:  # noqa: D401 - see log
-        logger.info("🧊 [PROMPT CACHE] cleared everything under key=%s", model_key)
+        logger.info("[PROMPT CACHE] cleared everything under key=%s", model_key)
         return self._clear_model_key(model_key)
 
     def _clear_model_key(self, model_key: Any) -> None:
@@ -654,7 +654,7 @@ class PromptCacheLRU:
         logical_tokens = [*tokens, *appended]
         replay_tokens = [tokens[-1], *appended]
         logger.info(
-            "🎯 [PROMPT CACHE] %s exact resume — reused %d/%d tokens, %d to prefill.",
+            "[PROMPT CACHE] %s exact resume — reused %d/%d tokens, %d to prefill.",
             resume_kind,
             len(tokens) - 1,
             len(logical_tokens),
@@ -762,7 +762,7 @@ class PromptCacheLRU:
             if can_trim_prompt_cache(cache_entry.prompt_cache):
                 trim_prompt_cache(cache_entry.prompt_cache, 1)
                 logger.info(
-                    "🎯 [PROMPT CACHE] exact hit — reused %d/%d tokens, 1 to prefill.",
+                    "[PROMPT CACHE] exact hit — reused %d/%d tokens, 1 to prefill.",
                     len(tokens) - 1,
                     len(tokens),
                 )
@@ -799,7 +799,7 @@ class PromptCacheLRU:
                 self._reused.add((model_key, tuple(result.shorter)))
             prefix_len = len(result.shorter)
             logger.info(
-                "🎯 [PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",
+                "[PROMPT CACHE] prefix hit — reused %d/%d tokens, %d to prefill.",
                 prefix_len,
                 len(tokens),
                 len(tokens) - prefix_len,
@@ -838,7 +838,7 @@ class PromptCacheLRU:
                 trimmed = self._extract(model_key, result.longer)
                 trim_prompt_cache(trimmed.prompt_cache, num_to_trim)
                 logger.info(
-                    "🎯 [PROMPT CACHE] trimmed hit — reused %d/%d tokens, %d to prefill.",
+                    "[PROMPT CACHE] trimmed hit — reused %d/%d tokens, %d to prefill.",
                     prefix,
                     len(tokens),
                     len(tokens) - prefix,
@@ -903,7 +903,7 @@ class PromptCacheLRU:
             # so.
             held = f"{held} (cache {id(self):x}, {len(self._cache)} key(s))"
         logger.info(
-            "🧊 [PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
+            "[PROMPT CACHE] miss — prefilling all %d tokens; key=%s known_keys=%d "
             "matched %d (%.1f%%) before diverging%s",
             len(tokens),
             model_key,
@@ -954,7 +954,7 @@ class PromptCacheLRU:
             # Silent before: a prompt too long to retain made every later turn
             # re-prefill from zero, and nothing anywhere said so.
             logger.info(
-                "🧊 [PROMPT CACHE] not retained: %d tokens over the %d-token "
+                "[PROMPT CACHE] not retained: %d tokens over the %d-token "
                 "per-entry cap.", len(tokens), self.max_entry_tokens,
             )
             return
@@ -980,7 +980,7 @@ class PromptCacheLRU:
             _evict_model_key, evict_tokens = self._evict_from(queue_for_lane)
             # An eviction nobody can see is a cache that looks like it works.
             logger.info(
-                "🧊 [PROMPT CACHE] evicted %d tokens from lane %s (budget %d)",
+                "[PROMPT CACHE] evicted %d tokens from lane %s (budget %d)",
                 len(evict_tokens), lane, self._lane_budget(lane),
             )
         before = self.retained_tokens()
@@ -988,7 +988,7 @@ class PromptCacheLRU:
         after = self.retained_tokens()
         if after < before:
             logger.info(
-                "🧊 [PROMPT CACHE] budget drained %d tokens (%d -> %d, cap %d)",
+                "[PROMPT CACHE] budget drained %d tokens (%d -> %d, cap %d)",
                 before - after, before, after, self.max_total_tokens,
             )
 

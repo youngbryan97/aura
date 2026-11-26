@@ -28,7 +28,7 @@ class Scientist:
 
     async def run_scientific_cycle(self, research_topic: str) -> dict[str, Any]:
         """Runs the loop: formulate hypothesis -> design -> run -> analyze -> update beliefs."""
-        logger.info("🔬 Scientist: Initiating research cycle on topic: '%s'", research_topic)
+        logger.info("Scientist: Initiating research cycle on topic: '%s'", research_topic)
 
         # 1. Fetch related literature using PapersConnector
         papers = []

@@ -1608,7 +1608,7 @@ The plan is a JSON array of steps:
                 if hasattr(cap, "select_tool_definitions"):
                     # The capabilities this goal asks for, named.
                     #
-                    # LIVE, 2026-08-20: "⚖️ [COST] build_app (cost 3)
+                    # LIVE, 2026-08-20: "[COST] build_app (cost 3)
                     # withheld: this turn allows 2." The chat lane already
                     # exempts a capability the person asked for from the
                     # metabolic throttle; the engine planning that same

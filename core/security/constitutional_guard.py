@@ -72,7 +72,7 @@ class ConstitutionalGuard:
         lower_content = content.lower()
         for pattern in self.FORBIDDEN_OUTPUT:
             if re.search(pattern, lower_content, re.IGNORECASE):
-                logger.warning("🛡️ Constitutional Violation: matched '%s'", pattern)
+                logger.warning("Constitutional Violation: matched '%s'", pattern)
                 return False
 
         return True
@@ -144,7 +144,7 @@ class ConstitutionalGuard:
                 # Block deletion of critical system paths
                 critical_paths = ["/", "/etc", "/usr", "/var", "/home", "/root", os.sep]
                 if path in critical_paths:
-                    logger.warning("🛡️ Constitutional Block: delete on critical path '%s'", path)
+                    logger.warning("Constitutional Block: delete on critical path '%s'", path)
                     return False
 
         # Block dangerous shell commands
@@ -153,7 +153,7 @@ class ConstitutionalGuard:
             destructive = ["rm -rf", "mkfs", "dd if=", "> /dev/", ":(){ :", "chmod -R 777 /"]
             for pattern in destructive:
                 if pattern in cmd:
-                    logger.warning("🛡️ Constitutional Block: destructive shell command")
+                    logger.warning("Constitutional Block: destructive shell command")
                     return False
 
         return True

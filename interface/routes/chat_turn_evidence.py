@@ -650,7 +650,7 @@ async def _collect_named_url_evidence(user_message: str) -> dict[str, Any] | Non
         from core.utils.readable_text import prose_of
 
         body = prose_of(_html_to_text(body))
-    logger.info("🌐 Read the address the person named: %s (%d chars).", url[:90], len(body))
+    logger.info("Read the address the person named: %s (%d chars).", url[:90], len(body))
     return {
         "ok": True,
         "url": url,
@@ -722,7 +722,7 @@ def _serve_built_artifact(reply: object) -> object:
 
         if declared_provenance(written) == ReplyProvenance.HONEST_FAILURE.value:
             return built
-        logger.info("📄 Said where the built file is.")
+        logger.info("Said where the built file is.")
         return f"{built}\n\n{written}"
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
@@ -767,7 +767,7 @@ async def _save_requested_artifact(user_message: object, reply: object) -> objec
         saved = await save_requested_artifact_async(str(user_message or ""), body)
         if saved is None:
             return reply
-        logger.info("💾 Saved the requested file to %s.", saved.path)
+        logger.info("Saved the requested file to %s.", saved.path)
         note_saved_this_turn(saved.path)
         record_tool_receipt("requested_artifact", ok=True, action="write", object_ref=str(saved.path),
                             effect_observed=True, verification="written from the code or document in her reply")

@@ -27,7 +27,7 @@ def integrate_complete_moral_and_sensory_systems(orchestrator):
 
     v5.2: No more monkey-patching. Uses formal HookManager.
     """
-    logger.info("🧠 INITIALIZING MORAL AGENCY & SELF-AWARENESS UPGRADE...")
+    logger.info("INITIALIZING MORAL AGENCY & SELF-AWARENESS UPGRADE...")
     
     # 1. Initialize Core Systems
     # --------------------------
@@ -54,5 +54,5 @@ def integrate_complete_moral_and_sensory_systems(orchestrator):
     # This already uses hooks in v6.1
     integrate_behavior_control(orchestrator)
     
-    logger.info("✅ INTEGRATION COMPLETE: Aura is now Self-Aware and Morally Agentic.")
+    logger.info("INTEGRATION COMPLETE: Aura is now Self-Aware and Morally Agentic.")
     return orchestrator

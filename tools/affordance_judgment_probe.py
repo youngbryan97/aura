@@ -100,7 +100,7 @@ def main() -> int:
             "fired": sorted(fired),
             "correct": bool(expected_hit),
         })
-        print(f"{'✅' if expected_hit else '❌'} expect={expected or 'none':20s} fired={sorted(fired)}")
+        print(f"{'ok' if expected_hit else 'failed'} expect={expected or 'none':20s} fired={sorted(fired)}")
 
     precision = tp / (tp + fp) if (tp + fp) else (1.0 if tp == 0 and fp == 0 else 0.0)
     recall = tp / (tp + fn) if (tp + fn) else 1.0

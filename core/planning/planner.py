@@ -471,7 +471,7 @@ class Planner:
             if reliability:
                 svc_info = reliability.services.get("planner")
                 if svc_info and svc_info.circuit_open:
-                    logger.warning("🔴 Planner circuit is OPEN. Using fallback plan.")
+                    logger.warning("Planner circuit is OPEN. Using fallback plan.")
                     return self._create_fallback_plan(goal_text)
                 await reliability.heartbeat("planner", stability=0.95)
         except (ImportError, AttributeError, RuntimeError) as _e:
@@ -497,7 +497,7 @@ class Planner:
         goal_hash = hashlib.sha256(state_str.encode()).hexdigest()[:16]
         cached_plan = self.plan_cache.get(goal_hash)
         if cached_plan:
-            logger.info("⚡ Cache Hit: Executing known plan for '%s...'", goal_text[:50])
+            logger.info("Cache Hit: Executing known plan for '%s...'", goal_text[:50])
             self.planning_stats["cache_hits"] += 1
             return cached_plan
 
@@ -518,7 +518,7 @@ class Planner:
                 )
                 strategic_plan = await synthesizer.synthesize_strategic_plan(strategic_goal)
                 if strategic_plan:
-                    logger.info("⚡ Strategic Synthesis SUCCESS for '%s...'", goal_text[:50])
+                    logger.info("Strategic Synthesis SUCCESS for '%s...'", goal_text[:50])
                     strategic_plan = self._attach_expectation_feedback(
                         strategic_plan,
                         expectation_signals,
@@ -540,7 +540,7 @@ class Planner:
                 len(expectation_signals),
             )
         if shortcut_plan:
-            logger.info("⚡ Intent Match: Bypassing LLM for '%s...'", goal_text[:50])
+            logger.info("Intent Match: Bypassing LLM for '%s...'", goal_text[:50])
             self.planning_stats["shortcut_plans"] += 1
             plan = ExecutionPlan(
                 goal=goal_text,
@@ -551,7 +551,7 @@ class Planner:
             return plan
 
         # 4. Strict LLM Generation
-        logger.info("🧠 Generating novel execution plan for '%s...'", goal_text[:50])
+        logger.info("Generating novel execution plan for '%s...'", goal_text[:50])
         
         max_retries = 3
         attempt = 0
@@ -629,7 +629,7 @@ class Planner:
                 if self.critic:
                     judgment = await self.critic.critique_plan(plan, [])
                     if judgment.recommendation == "backtrack":
-                        logger.warning("🧠 Critic REJECTED initial plan: %s", judgment.evidence)
+                        logger.warning("Critic REJECTED initial plan: %s", judgment.evidence)
                         attempt += 1
                         last_error = f"Critic rejection: {judgment.evidence}"
                         continue
@@ -688,7 +688,7 @@ class Planner:
         # 1. Check replan budget to prevent infinite storms (Focus Area 1)
         budget = getattr(original_plan, "replan_budget", 3)
         if budget <= 0:
-            logger.error("🛑 Replan budget EXHAUSTED for goal: %s. Halting.", original_plan.goal)
+            logger.error("Replan budget EXHAUSTED for goal: %s. Halting.", original_plan.goal)
             return self._create_fallback_plan(
                 original_plan.goal,
                 replan_budget=0,
@@ -753,7 +753,7 @@ OUTPUT JSON:
             if self.critic:
                 judgment = await self.critic.critique_plan(new_plan, [])
                 if judgment.recommendation == "backtrack":
-                    logger.warning("🧠 Critic REJECTED revised plan: %s", judgment.evidence)
+                    logger.warning("Critic REJECTED revised plan: %s", judgment.evidence)
                     # Fixed Asymmetry: In revision, backtrack also consumes budget and causes retry
                     if budget > 0:
                         return await self.revise_plan(
@@ -762,7 +762,7 @@ OUTPUT JSON:
                             failed_step_index,
                         )
                     else:
-                        logger.error("🛑 Replan budget EXHAUSTED after critic rejection.")
+                        logger.error("Replan budget EXHAUSTED after critic rejection.")
                         new_plan.metadata["critic_warning"] = judgment.evidence
             
             # Persist revision (Offloaded)

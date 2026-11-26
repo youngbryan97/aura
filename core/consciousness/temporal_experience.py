@@ -140,18 +140,18 @@ class TemporalExperienceEngine:
             self._autonomic_cycle(),
             name="temporal_experience_autonomic"
         )
-        logger.info("🕐 TemporalExperienceEngine autonomic cycle started")
+        logger.info("TemporalExperienceEngine autonomic cycle started")
 
     async def stop(self):
         """Stop the temporal experience cycle."""
         self._running = False
         if self._task:
             await cancel_and_join(self._task, owner="core.consciousness.temporal_experience")
-        logger.info("🕐 TemporalExperienceEngine stopped")
+        logger.info("TemporalExperienceEngine stopped")
 
     async def _autonomic_cycle(self):
         """Continuously update temporal state and emotion drivers."""
-        logger.info("🕐 Temporal experience autonomic cycle active")
+        logger.info("Temporal experience autonomic cycle active")
         while self._running:
             try:
                 async with self._lock:

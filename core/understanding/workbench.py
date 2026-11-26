@@ -69,7 +69,7 @@ class Work:
         """Something is begun."""
         self.now = {"what": title, "since": time.time()}
         self.happened("step", title=title)
-        logger.info("🛠 %s: %s", self.title, title)
+        logger.info("%s: %s", self.title, title)
 
     def says(self, words: str) -> None:
         """What she says of what she is doing, in her words."""
@@ -85,7 +85,7 @@ class Work:
         """What trying it showed."""
         good = sum(1 for r in results if r.get("ok"))
         self.happened("tried", title=what, good=good, of=len(results), results=results[:80])
-        logger.info("🛠 %s: %s: %d of %d hold.", self.title, what, good, len(results))
+        logger.info("%s: %s: %d of %d hold.", self.title, what, good, len(results))
 
     def asks(self, words: str, goes_with: str = "") -> None:
         """Something of it to be asked of whoever it is for, and what is gone on with until they say."""
@@ -95,7 +95,7 @@ class Work:
 
     def trouble(self, why: str) -> None:
         self.happened("trouble", why=str(why)[:1200])
-        logger.info("🛠 %s: %s", self.title, str(why)[:300])
+        logger.info("%s: %s", self.title, str(why)[:300])
 
     def made(self, what: str, where: str) -> None:
         self.happened("made", title=what, where=where)

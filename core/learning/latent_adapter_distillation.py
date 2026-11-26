@@ -462,7 +462,7 @@ def run_consolidation_train(
     receipt["activated_layers"] = [handle.layer_index for handle in active.handles]
     receipt["active_adapter"] = active
     logger.info(
-        "🧬 Durable latent adapter %s activated on %d layers (battery %s)",
+        "Durable latent adapter %s activated on %d layers (battery %s)",
         active.adapter_id,
         len(active.handles),
         battery["verdict"],

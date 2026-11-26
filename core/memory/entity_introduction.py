@@ -339,7 +339,7 @@ def introduce_entities(
                     evidence_weight=1.0, provenance=provenance,
                 )
             learned.append(entity)
-            logger.info("🧠 Met a new %s: %r (%s)",
+            logger.info("Met a new %s: %r (%s)",
                         intro.kind.value, entity.canonical_name, intro.pattern)
         except _INTRO_ERRORS as exc:
             record_degradation("entity_introduction", exc, severity="warning",

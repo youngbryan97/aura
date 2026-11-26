@@ -142,13 +142,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"{fell_off[:5]}"
             )
         if problems:
-            print("❌ ruff strict surface:")
+            print("ruff strict surface:")
             for problem in problems:
                 print(f"   • {problem}")
             return 1
         joinable = len(clean - recorded)
         print(
-            f"✅ ruff strict surface: {len(recorded)} files, all clean"
+            f"ruff strict surface: {len(recorded)} files, all clean"
             + (f"; {joinable} more could join (--write)" if joinable else "")
         )
         return 0

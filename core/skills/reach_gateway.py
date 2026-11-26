@@ -133,7 +133,7 @@ class ReachGateway:
         host = self._host(url)
         allowed, why = self.policy.decide(method, host)
         if not allowed:
-            logger.warning("🛡️ [Reach] refused %s %s — %s", method, host, why)
+            logger.warning("[Reach] refused %s %s — %s", method, host, why)
             return ReachResult(ok=False, method=method, host=host, url=url, blocked=True, reason=why)
         if method in _MUTATE_METHODS and not reason.strip():
             return ReachResult(ok=False, method=method, host=host, url=url, blocked=True,
@@ -166,7 +166,7 @@ class ReachGateway:
                     text = str(content or "")
             preview = text[: self.policy.max_response_bytes]
             ok = 200 <= status < 400
-            logger.info("🌐 [Reach] %s %s → %d%s", method, host, status, "" if ok else " (non-2xx)")
+            logger.info("[Reach] %s %s → %d%s", method, host, status, "" if ok else " (non-2xx)")
             return ReachResult(ok=ok, method=method, host=host, url=url, status=status,
                                reason="" if ok else f"http {status}", body_preview=preview)
         except (RuntimeError, OSError, ValueError, TypeError) as exc:

@@ -242,9 +242,9 @@ class BrowserResearchDemoProof(JournalDemoProof):
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
                 (
-                    "✅ BROWSER RESEARCH DEMO PROOF PASSED"
+                    "BROWSER RESEARCH DEMO PROOF PASSED"
                     if verdict["passed"]
-                    else "❌ BROWSER RESEARCH DEMO PROOF FAILED"
+                    else "BROWSER RESEARCH DEMO PROOF FAILED"
                 )
                 + f" → {self.verdict_path}"
             )

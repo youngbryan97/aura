@@ -63,7 +63,7 @@ class OutputFormatterMixin:
         }
         for banned, replacement in banned_phrases.items():
             if banned in text:
-                logger.warning("🚨 Identity Flux Guard triggered: neutralizing '%s'", banned)
+                logger.warning("Identity Flux Guard triggered: neutralizing '%s'", banned)
                 text = text.replace(banned, replacement).strip()
 
         # Personality Engine Filter
@@ -155,7 +155,7 @@ class OutputFormatterMixin:
 
                 if snapshot_dir:
                     self._emit_thought_stream(
-                        f"🏺 Eternal Record Snapshot secured: {snapshot_dir.name}"
+                        f"Eternal Record Snapshot secured: {snapshot_dir.name}"
                     )
             except _OUTPUT_FORMATTER_ERRORS as e:
                 _record_output_degradation(

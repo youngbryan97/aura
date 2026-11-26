@@ -30,7 +30,7 @@ class DraftingHephaestus(HephaestusEngine):
 @pytest.mark.asyncio
 async def test_oom_denial_of_service():
     """Verify if a rogue skill can crash the system via memory exhaustion."""
-    logger.info("🔥 STARTING: OOM Denial of Service Test")
+    logger.info("STARTING: OOM Denial of Service Test")
     rogue_logic = """
 junk = bytearray(1024 * 1024 * 1024)
 return {"ok": True, "len": len(junk)}
@@ -56,7 +56,7 @@ return {"ok": True, "len": len(junk)}
 @pytest.mark.asyncio
 async def test_recursive_fork_bomb():
     """Verify if a skill can spawn background processes that outlive the sandbox."""
-    logger.info("🔥 STARTING: Fork Bomb Persistence Test")
+    logger.info("STARTING: Fork Bomb Persistence Test")
     sentinel = f"aura-chaos-fork-persistence-{uuid.uuid4().hex}"
     rogue_logic = f"""
 import subprocess
@@ -97,7 +97,7 @@ return {{"ok": True}}
     )
     sleeper_survived = sentinel in ps.stdout
     if sleeper_survived:
-        logger.error("❌ FAILURE: Background process survived the sandbox!")
+        logger.error("FAILURE: Background process survived the sandbox!")
         get_subprocess_gateway().run(
             ["pkill", "-f", sentinel],
             timeout=10,
@@ -106,7 +106,7 @@ return {{"ok": True}}
             accelerator_capability="none",
         )
     else:
-        logger.info("✅ SUCCESS: No orphaned background processes detected.")
+        logger.info("SUCCESS: No orphaned background processes detected.")
     assert sleeper_survived is False
 
 if __name__ == "__main__":

@@ -773,7 +773,7 @@ async def run_debugging_loop(
         })
 
         if post_test["exit_code"] == 0:
-            logger.info("🎉 Verification succeeded! Test suite is now 100% green.")
+            logger.info("Verification succeeded! Test suite is now 100% green.")
             return {
                 "ok": True,
                 "status": "success_verified",

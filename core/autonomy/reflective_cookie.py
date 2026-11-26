@@ -31,7 +31,7 @@ class ReflectiveCookie:
             # the name before publishing.
             self._event_bus = None
             
-        logger.info("🍪 [COOKIE] Reflective Substrate ONLINE. Temporal Dilation READY.")
+        logger.info("[COOKIE] Reflective Substrate ONLINE. Temporal Dilation READY.")
         self._is_active = True
 
     async def reflect(self, state: AuraState, goal: str, cycles: int = 5) -> str:
@@ -49,7 +49,7 @@ class ReflectiveCookie:
         if not self._is_active:
             return "Cookie inactive."
 
-        logger.info("⏳ [COOKIE] Subjective Dilation Start: %d cycles for goal: '%s'", cycles, goal[:30])
+        logger.info("[COOKIE] Subjective Dilation Start: %d cycles for goal: '%s'", cycles, goal[:30])
         start_time = time.time()
         
         # 1. State Isolation (capture only the reflective slice we actually use)
@@ -77,7 +77,7 @@ class ReflectiveCookie:
                 "timestamp": time.time()
             })
 
-        logger.info("⌛ [COOKIE] Subjective Dilation End. Real-world time elapsed: %.4fs. Subjective iterations: %d", 
+        logger.info("[COOKIE] Subjective Dilation End. Real-world time elapsed: %.4fs. Subjective iterations: %d", 
                     dilation_duration, cycles)
         
         return distillation
@@ -157,4 +157,4 @@ class ReflectiveCookie:
     def stop(self):
         self._is_active = False
         self._isolation_buffer = None
-        logger.info("🍪 [COOKIE] Reflective Substrate OFFLINE.")
+        logger.info("[COOKIE] Reflective Substrate OFFLINE.")

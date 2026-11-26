@@ -27,7 +27,7 @@ class TokenMonitor:
         self.session_usage += count
         
         if self.current_context_size > self.context_limit * 0.9:
-            logger.warning("⚠️ Context Usage Warning: %d/%d tokens (90%%)", self.current_context_size, self.context_limit)
+            logger.warning("Context Usage Warning: %d/%d tokens (90%%)", self.current_context_size, self.context_limit)
             
     def track_response(self, response: str):
         count = self.estimate_tokens(response)

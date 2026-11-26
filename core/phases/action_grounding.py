@@ -2,7 +2,7 @@
 
 The critical bug: the LLM was emitting strings like
 
-    [SKILL_RESULT:computer_use] ✅ I opened the Notes app...
+    [SKILL_RESULT:computer_use] I opened the Notes app...
     [ACTION:computer_use] terminal: echo '...'
 
 ...but nothing parsed those markers, so no skill ever executed. The user

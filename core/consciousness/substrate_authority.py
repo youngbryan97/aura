@@ -387,10 +387,10 @@ class SubstrateAuthority:
             self._neurochemical_feedback(final, category)
 
         if final == AuthorizationDecision.BLOCK:
-            logger.info("🛑 SubstrateAuthority BLOCKED: %s/%s — %s",
+            logger.info("SubstrateAuthority BLOCKED: %s/%s — %s",
                         source, category.name, reason)
         elif final == AuthorizationDecision.CONSTRAIN:
-            logger.debug("⚠️ SubstrateAuthority CONSTRAINED: %s/%s — %s",
+            logger.debug("SubstrateAuthority CONSTRAINED: %s/%s — %s",
                          source, category.name, ", ".join(constraints))
 
         return verdict
@@ -463,7 +463,7 @@ class SubstrateAuthority:
         lasted = now - float(getattr(self, "_chem_state_since", 0.0) or now)
         self._chem_state_said, self._chem_state_since = chem_state, now
         if chem_state == "normal":
-            logger.info("🧪 SubstrateAuthority: neurochemical %s ended after %.0f s.", previous, lasted)
+            logger.info("SubstrateAuthority: neurochemical %s ended after %.0f s.", previous, lasted)
             return
         moved = ""
         try:
@@ -477,7 +477,7 @@ class SubstrateAuthority:
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("substrate_authority", exc, action="said a crisis without the events that moved it")
         logger.warning(
-            "🧪 SubstrateAuthority: neurochemical %s began (%s); events still moving her cortisol: %s.",
+            "SubstrateAuthority: neurochemical %s began (%s); events still moving her cortisol: %s.",
             chem_state, "; ".join(constraints) or "no reading", moved or "none recorded",
         )
 

@@ -78,7 +78,7 @@ class SurvivalDriver:
                     "severity": "CRITICAL" if "CRITICAL" in imperative else "WARNING"
                 }
             )
-            logger.warning("🚨 Survival Imperative Published: %s", imperative)
+            logger.warning("Survival Imperative Published: %s", imperative)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('survival_driver', e)
             logger.error("Failed to publish survival threat: %s", e)

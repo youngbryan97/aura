@@ -115,7 +115,7 @@ def main() -> int:
             print(f"  - {problem}")
         return 1
 
-    print("\n✅ every declared refutation holds, nothing fires on nothing, "
+    print("\nevery declared refutation holds, nothing fires on nothing, "
           "no faculty is decorative, and every long-running property keeps "
           "its shape")
     return 0

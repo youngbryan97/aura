@@ -2764,7 +2764,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             if library is not None and hasattr(library, "publish_all"):
                 published = library.publish_all()
                 if published:
-                    self.logger.info("🔧 Republished %d learned macro(s)", published)
+                    self.logger.info("Republished %d learned macro(s)", published)
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             _record_capability_degradation(
                 exc,
@@ -2774,7 +2774,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
     def _reload_skills_transaction(self) -> None:
         """Build, probe, and atomically publish the governed live skill catalog."""
-        self.logger.info("🔄 Refreshing skill registry...")
+        self.logger.info("Refreshing skill registry...")
         next_skills: dict[str, SkillMetadata] = {}
         next_instances: dict[str, Any] = {}
         next_quarantined: dict[str, dict[str, Any]] = {}
@@ -3179,7 +3179,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             for mod in critical_modules:
                 if mod in accessed_names and mod not in defined_names:
                     self.logger.warning(
-                        f"⚠️ Skill Safety Audit: '{skill_name}' uses '{mod}' but does not import it."
+                        f"Skill Safety Audit: '{skill_name}' uses '{mod}' but does not import it."
                     )
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_capability_degradation(
@@ -4258,7 +4258,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         # core/self/never_taught.py.
         if not requested and _never_taught(skill_name):
             self.logger.info(
-                "📘 [TAUGHT] %s withheld: tried and never managed, and never seen done.",
+                "[TAUGHT] %s withheld: tried and never managed, and never seen done.",
                 skill_name,
             )
             return None
@@ -4280,7 +4280,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             try:
                 if available() is False:
                     logger.info(
-                        "🚫 [SKILL] %s not offered: it reports it cannot run on this host.",
+                        "[SKILL] %s not offered: it reports it cannot run on this host.",
                         skill_name,
                     )
                     return None
@@ -4316,7 +4316,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             # below that line the question is whether the runtime survives the
             # turn.
             logger.info(
-                "⚖️ [COST] %s (cost %d) withheld: this turn allows %d.",
+                "[COST] %s (cost %d) withheld: this turn allows %d.",
                 skill_name,
                 cost,
                 allowed_max_cost,
@@ -4433,7 +4433,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         if entry["count"] == 1:
             # Once per skill per process — this is a backlog item, not an alarm.
             self.logger.info(
-                "📋 [MATURITY] %s would be refused for %s use (%s). "
+                "[MATURITY] %s would be refused for %s use (%s). "
                 "Observing only; declare its properties to clear this.",
                 skill_name, decision.context.name.lower(), decision.reason,
             )
@@ -4555,7 +4555,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
             return None
 
         self.logger.warning(
-            "🛑 [MATURITY] %s refused for %s use: %s",
+            "[MATURITY] %s refused for %s use: %s",
             skill_name, decision.context.name.lower(), decision.reason,
         )
         return {
@@ -5119,7 +5119,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
 
                 if hephaestus and objective:
                     self.logger.info(
-                        "🔨 Tool '%s' missing. Engaging Hephaestus forge...", skill_name
+                        "Tool '%s' missing. Engaging Hephaestus forge...", skill_name
                     )
                     forge_result = await hephaestus.synthesize_skill(skill_name, objective)
                     if forge_result.get("ok"):
@@ -5128,7 +5128,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                         with self._catalog_guard():
                             skill_registered = skill_name in self._skills
                         if skill_registered:
-                            self.logger.info("✅ Skill '%s' forged successfully.", skill_name)
+                            self.logger.info("Skill '%s' forged successfully.", skill_name)
                         else:
                             return {
                                 "ok": False,
@@ -5293,7 +5293,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     )
                     if not pm_decision.approved:
                         self.logger.warning(
-                            "🚫 CapabilityEngine: Tool execution '%s' blocked by Permission Model: %s",
+                            "CapabilityEngine: Tool execution '%s' blocked by Permission Model: %s",
                             skill_name, pm_decision.reason
                         )
                         return {
@@ -5370,7 +5370,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                         )
                     else:
                         self.logger.warning(
-                            "🚫 CapabilityEngine: Tool execution '%s' blocked by Constitution: %s",
+                            "CapabilityEngine: Tool execution '%s' blocked by Constitution: %s",
                             skill_name,
                             reason,
                         )
@@ -5454,7 +5454,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                         )
                         self.logger.debug("Suppressed Exception: %s", _exc)
                     self.logger.warning(
-                        "🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e
+                        "CapabilityEngine: Executive check failed for '%s': %s", skill_name, e
                     )
                     return {
                         "ok": False,
@@ -5482,7 +5482,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                 pre_runtime_scope = self._effect_scope_for(skill_name, meta)
                 if pre_runtime_scope not in _PRE_RUNTIME_UNGATED_EFFECT_SCOPES:
                     self.logger.error(
-                        "🚫 CapabilityEngine: refusing '%s' (effect_scope=%s) — the "
+                        "CapabilityEngine: refusing '%s' (effect_scope=%s) — the "
                         "constitutional gate is unavailable and this skill can "
                         "cause effects: %s",
                         skill_name,
@@ -5585,7 +5585,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     governance_payload=canonical_authority_arguments(skill_name, params),
                 )
                 if not allowed:
-                    self.logger.warning("🛡️ EDI blocked execution of '%s': %s", skill_name, reason)
+                    self.logger.warning("EDI blocked execution of '%s': %s", skill_name, reason)
                     return {
                         "ok": False,
                         "error": f"EDI Security Block: {reason}",
@@ -5617,13 +5617,13 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     # (bounded; only raises concern, never clears a flag).
                     _escalate = _verdict.verdict != "block" and _kokoro.should_escalate(_verdict)
                     if _escalate:
-                        self.logger.info("⚖️ Escalating skill '%s' to deep conscience review…", skill_name)
+                        self.logger.info("Escalating skill '%s' to deep conscience review…", skill_name)
                         _verdict = await _kokoro.challenge(
                             _action_desc, context=_gate_context, timeout=8.0
                         )
                     if _verdict.verdict == "block":
                         self.logger.warning(
-                            "⚖️ Adversarial conscience blocked skill '%s': %s",
+                            "Adversarial conscience blocked skill '%s': %s",
                             skill_name, _verdict.reasoning,
                         )
                         return {
@@ -5669,7 +5669,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             # case where the authorisation exists, and records
                             # the score that was overridden.
                             self.logger.warning(
-                                "🌀 Outcome simulation advisory for a directly requested "
+                                "Outcome simulation advisory for a directly requested "
                                 "foreground skill '%s' (worst-case harm %.2f, origin=%s); "
                                 "proceeding on explicit user authorisation.",
                                 skill_name,
@@ -5684,14 +5684,14 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             effect_scope,
                         ):
                             self.logger.info(
-                                "🌀 Outcome simulation advisory for autonomous read-only web search '%s' "
+                                "Outcome simulation advisory for autonomous read-only web search '%s' "
                                 "(worst-case harm %.2f); continuing under bounded research policy.",
                                 skill_name,
                                 float(getattr(_sim, "worst_case_harm", 0.0) or 0.0),
                             )
                         elif _her_own_read_of_her_own_source(skill_name, effect_scope, exec_source):
                             self.logger.info(
-                                "🌀 Outcome simulation advisory for her read-only '%s' of her own source "
+                                "Outcome simulation advisory for her read-only '%s' of her own source "
                                 "(worst-case harm %.2f); a read changes nothing.",
                                 skill_name,
                                 float(getattr(_sim, "worst_case_harm", 0.0) or 0.0),
@@ -5702,7 +5702,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                                 f"{float(getattr(_sim, 'worst_case_harm', 0.0) or 0.0):.2f}"
                             )
                             self.logger.warning(
-                                "🌀 Outcome simulation BLOCKED skill '%s' (%s)",
+                                "Outcome simulation BLOCKED skill '%s' (%s)",
                                 skill_name, reason,
                             )
                             return {
@@ -5759,7 +5759,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     if _review.verdict == "against_user":
                         reason = _review.on_behalf_of_user
                         self.logger.warning(
-                            "🟦 User-advocate BLOCKED skill '%s': %s",
+                            "User-advocate BLOCKED skill '%s': %s",
                             skill_name, reason,
                         )
                         # Remember the block: autonomous retries within the
@@ -5797,7 +5797,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             f"{', '.join(_disc.withheld_capabilities)} for purpose {skill_name!r}"
                         )
                         self.logger.warning(
-                            "🔢 The Machine BLOCKED external skill '%s': %s",
+                            "The Machine BLOCKED external skill '%s': %s",
                             skill_name, reason,
                         )
                         return {
@@ -5899,7 +5899,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                         ),
                         "status": "forged_sandbox_unavailable",
                     }
-                self.logger.info("🛡️ Executing FORGED skill '%s' in Sandbox 2.0", skill_name)
+                self.logger.info("Executing FORGED skill '%s' in Sandbox 2.0", skill_name)
                 try:
                     result = await self._execute_forged(meta, skill_name, exec_params, sandbox)
                 except (
@@ -6017,7 +6017,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                 else:
                     if requested_budget > timeout_budget:
                         self.logger.info(
-                            "⏱️ %s sized this request at %.0fs (declared %.0fs).",
+                            "%s sized this request at %.0fs (declared %.0fs).",
                             skill_name,
                             requested_budget,
                             timeout_budget,
@@ -6196,7 +6196,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                     action="returned skill execution failure after governor invocation failed",
                     severity="degraded",
                 )
-                self.logger.error("❌ Skill '%s' unwrapped failure: %s", skill_name, e)
+                self.logger.error("Skill '%s' unwrapped failure: %s", skill_name, e)
                 result = {"ok": False, "error": str(e), "_exception": True}
 
             duration_ms = (time.monotonic() - start_time) * 1000
@@ -6409,7 +6409,7 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
         ok, filtered_params, error_msg = scan_recursive(params)
         if not ok:
             self.logger.warning(
-                "❌ Security violation blocked in skill '%s': %s", skill_name, error_msg
+                "Security violation blocked in skill '%s': %s", skill_name, error_msg
             )
             return {"ok": False, "error": error_msg, "status": "blocked"}
 

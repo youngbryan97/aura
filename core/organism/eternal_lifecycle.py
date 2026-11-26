@@ -17,7 +17,7 @@ async def eternal_lifecycle():
     """
     from core.runtime import CoreRuntime
     
-    logger.info("♾️ Eternal Lifecycle engaged.")
+    logger.info("Eternal Lifecycle engaged.")
     
     from core.runtime.shutdown_coordinator import is_shutdown_requested
 
@@ -33,7 +33,7 @@ async def eternal_lifecycle():
             if mem > 88 and time.monotonic() - last_emergency >= 60.0:
                 last_emergency = time.monotonic()
                 logger.warning(
-                    "⚠️ High memory pressure (%.1f%%). Triggering emergency eviction.",
+                    "High memory pressure (%.1f%%). Triggering emergency eviction.",
                     mem,
                 )
                 save = getattr(ServiceContainer.get("orchestrator", default=None), "_save_state_async", None)
@@ -63,7 +63,7 @@ async def eternal_lifecycle():
             # Scheduled Maintenance (3 AM)
             lt = time.localtime()
             if lt.tm_hour == 3 and lt.tm_min == 0 and lt.tm_sec == 0:
-                logger.info("🌙 Starting nightly maintenance sequence...")
+                logger.info("Starting nightly maintenance sequence...")
                 try:
                     from core.adaptation.nightly_lora import nightly_lora_finetune
                     await nightly_lora_finetune()

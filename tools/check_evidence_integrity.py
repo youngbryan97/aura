@@ -272,7 +272,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(
-        f"✅ evidence integrity: {report['claims_checked']} claims checked, "
+        f"evidence integrity: {report['claims_checked']} claims checked, "
         f"none outrank their evidence"
     )
     return 0

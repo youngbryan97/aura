@@ -202,7 +202,7 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
             return decided
         found = shared.index(best)
         logger.info(
-            "🌐 Her click named %r by number and %r by her reason; taking the one she gave her reason for.",
+            "Her click named %r by number and %r by her reason; taking the one she gave her reason for.",
             str(elements[index].get("name") or "")[:80] if 0 <= index < len(elements) else f"index {index}",
             str(elements[found].get("name") or "")[:80],
         )
@@ -881,7 +881,7 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
         chose = {key: parsed.pop(key) for key in ("actions", "why", "expect", "done") if key in parsed}
         if acting and not cut and (chose.get("actions") or chose.get("done") is True):
             self._her_reading_chose = (str(observation.get("url") or ""), chose)
-        logger.info("🌐 Her reading of %s: %s", str(observation.get("url") or "")[:80],
+        logger.info("Her reading of %s: %s", str(observation.get("url") or "")[:80],
                     ", ".join(f"{key} {len(str(value))}c" for key, value in parsed.items() if value) or "nothing")
         merged = dict(prior or {})
         merged.update({key: value for key, value in parsed.items() if value})
@@ -1128,10 +1128,10 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
             return None
         chose = held[1]
         if not self._decision_is_usable(json.dumps(chose), observation, goal):
-            logger.info("🌐 What her reading chose names nothing doable here: %.300s", json.dumps(chose))
+            logger.info("What her reading chose names nothing doable here: %.300s", json.dumps(chose))
             return None
         decision = self._parse_decision(json.dumps(chose))
-        logger.info("🌐 Decision by the mechanics lane on page_reading: usable")
+        logger.info("Decision by the mechanics lane on page_reading: usable")
         self._say_what_she_chose(decision, observation, goal)
         return decision
 
@@ -1183,7 +1183,7 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
             except (TypeError, ValueError, IndexError):
                 named = "" if offered else "a control she was not shown (none were offered)"
             chose.append(f"{item.get('type') or 'click'} {named or item.get('value') or item.get('index')}")
-        logger.info("🌐 She chose %s, because: %s", "; ".join(chose) or "nothing", str(decision.get("why") or "")[:300])
+        logger.info("She chose %s, because: %s", "; ".join(chose) or "nothing", str(decision.get("why") or "")[:300])
 
     @staticmethod
     def _the_text_of(reply: Any) -> str:
@@ -1515,7 +1515,7 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
                     answered_by = "whole_page_think"
                     if not self._decision_is_usable(raw, observation, goal):
                         # What was put aside, so that a decision taken from the small model can be held against hers.
-                        logger.info("🌐 Her decision put aside as naming nothing doable: %r", str(raw or "")[:400])
+                        logger.info("Her decision put aside as naming nothing doable: %r", str(raw or "")[:400])
                         answered_by = "fast_lane"
                         raw = await self._decide_on_the_fast_lane(router, prompt, mind)
             elif asks_about_her:
@@ -1538,7 +1538,7 @@ class _UnderstandsThePage(_AnswersWhatThePageAsks, _PlacesHerself):
         # "unparsable_decision" was a sentence about a parser and not about
         # where the answer came from.
         logger.info(
-            "🌐 Decision by %s on %s: %s",
+            "Decision by %s on %s: %s",
             "her own lane" if asks_about_her else "the mechanics lane",
             answered_by or "unattributed",
             parsed.get("error") or "usable",

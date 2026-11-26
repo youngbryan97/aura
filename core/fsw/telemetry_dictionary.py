@@ -423,7 +423,7 @@ class TelemetryDictionary:
         }[event.severity]
         if quiet:
             level = logging.DEBUG
-        logger.log(level, "📡 EVR[%s] %s", event.severity.label, event.text)
+        logger.log(level, "EVR[%s] %s", event.severity.label, event.text)
         return event
 
     # ── reading ───────────────────────────────────────────────────────

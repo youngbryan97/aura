@@ -304,13 +304,13 @@ class ContinuousLearningEngine(AuraBaseModule):
     async def _autonomous_research(self) -> None:
         """Checks for unanswered questions in the Knowledge Graph and performs research."""
         if not self.orchestrator: return
-        self.logger.info("🔬 Running autonomous research cycle...")
+        self.logger.info("Running autonomous research cycle...")
         
         if self.knowledge and hasattr(self.knowledge, "get_unanswered_questions"):
             questions = self.knowledge.get_unanswered_questions(limit=1)
             if questions:
                 q = questions[0]["question"]
-                self.logger.info("❓ Researching: %s", q)
+                self.logger.info("Researching: %s", q)
                 # Future: Link to web_search skill automatically
 
     async def consolidate_experiences(self) -> Dict[str, Any]:
@@ -318,7 +318,7 @@ class ContinuousLearningEngine(AuraBaseModule):
         
         This is the core 'RE' consolidation step of the Dream Cycle.
         """
-        self.logger.info("💤 Consolidating experiences (Dream Phase)...")
+        self.logger.info("Consolidating experiences (Dream Phase)...")
         exps = self.store.get_experiences(limit=50)
         if len(exps) < 5:
             return {"ok": True, "patterns_found": 0, "status": "insufficient_data"}
@@ -356,7 +356,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                         domain="consolidated"
                     )
                     self.store.save_pattern(pattern)
-                    self.logger.info("💡 New Pattern Distilled: %s...", pattern.description[:50])
+                    self.logger.info("New Pattern Distilled: %s...", pattern.description[:50])
                 
                 return {"ok": True, "patterns_found": len(patterns)}
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -369,7 +369,7 @@ class ContinuousLearningEngine(AuraBaseModule):
         
         This is the 'Strategic Forgetting' part of Digital Metabolism.
         """
-        self.logger.info("📦 Running Metabolic Compression...")
+        self.logger.info("Running Metabolic Compression...")
         
         if not self.knowledge:
             return {"ok": False, "error": "Knowledge Graph not available"}
@@ -410,7 +410,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                 with connecting(sqlite3.connect(self.store.db_path)) as conn:
                     conn.executemany("DELETE FROM experiences WHERE id=?", [(i,) for i in ids_to_delete])
                 
-                self.logger.info("✅ Compressed %s experiences into persistent knowledge.", len(ids_to_delete))
+                self.logger.info("Compressed %s experiences into persistent knowledge.", len(ids_to_delete))
                 return {"ok": True, "compressed_count": len(ids_to_delete)}
                 
         except (sqlite3.Error, OSError) as e:

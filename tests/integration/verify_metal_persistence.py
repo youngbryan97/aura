@@ -21,20 +21,20 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(na
 logger = logging.getLogger("VerifyMetalPersistence")
 
 async def verify_persistence():
-    logger.info("🚀 Starting Metal Persistence Verification...")
+    logger.info("Starting Metal Persistence Verification...")
     
     # 1. Initialize PlatformRoot and register it for Mycelium to find
     from core.container import ServiceContainer
     platform = get_platform_root()
     ServiceContainer.register_instance("platform_root", platform)
     
-    logger.info("✅ PlatformRoot initialized and registered.")
+    logger.info("PlatformRoot initialized and registered.")
     
     # 2. Check initial state
     if platform.device_active:
-        logger.info("✅ Metal device is initialy active.")
+        logger.info("Metal device is initialy active.")
     else:
-        logger.error("❌ Metal device is NOT active on start.")
+        logger.error("Metal device is NOT active on start.")
         return False
 
     # 3. Verify MTLCompilerService via ps aux
@@ -53,34 +53,34 @@ async def verify_persistence():
 
     service_exists = check_service()
     if service_exists:
-        logger.info("✅ MTLCompilerService is currently running.")
+        logger.info("MTLCompilerService is currently running.")
     else:
-        logger.warning("⚠️ MTLCompilerService not found in process list. Triggering pulse to wake it...")
+        logger.warning("MTLCompilerService not found in process list. Triggering pulse to wake it...")
         platform.pulse()
         await asyncio.sleep(2)
         if check_service():
-            logger.info("✅ MTLCompilerService woke up successfully.")
+            logger.info("MTLCompilerService woke up successfully.")
         else:
-            logger.error("❌ MTLCompilerService failed to wake up.")
+            logger.error("MTLCompilerService failed to wake up.")
             # Note: On some systems it might be nested or named differently, 
             # but usually it's there during Metal compilation.
 
     # 4. Verify Mycelial NeuralRoot binding
     mycelium = MycelialNetwork()
     nr = mycelium.establish_neural_root("verification_node", "gpu_metal")
-    logger.info("✅ NeuralRoot established: %s", nr.name)
+    logger.info("NeuralRoot established: %s", nr.name)
     
     # 5. TEST: Direct Subsurface Ping
-    logger.info("📡 Triggering subsurface ping...")
+    logger.info("Triggering subsurface ping...")
     success = nr.subsurface_ping()
     if success:
-        logger.info("✅ Subsurface ping successful! Hardware connection verified.")
+        logger.info("Subsurface ping successful! Hardware connection verified.")
     else:
-        logger.error("❌ Subsurface ping failed!")
+        logger.error("Subsurface ping failed!")
         return False
 
     # 6. Monitor for a few heartbeats
-    logger.info("⏳ Monitoring hardware pulses for 30s...")
+    logger.info("Monitoring hardware pulses for 30s...")
     monitor_task = get_task_tracker().create_task(
         platform.start_monitor(),
         name="verify_metal_persistence.monitor",
@@ -91,13 +91,13 @@ async def verify_persistence():
         logger.info("Check %d: Device active? %s | Last pulse offset: %.2fs", 
                     i+1, platform.device_active, time.monotonic() - platform._last_pulse)
         if not platform.device_active:
-            logger.error("❌ Device became inactive during monitoring!")
+            logger.error("Device became inactive during monitoring!")
             break
             
     platform.stop()
     await monitor_task
     
-    logger.info("🏁 Verification complete.")
+    logger.info("Verification complete.")
     return True
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ class IdentityReflectionPhase(BasePhase):
         Ensures Aura's output hasn't deviated into hallucination or dangerous territory.
         If validation fails, returns the PARENT state (Hard Stop) instead of the new one.
         """
-        logger.debug("🛡️ CognitiveGuard: Validating state transition integrity.")
+        logger.debug("CognitiveGuard: Validating state transition integrity.")
 
         # Her sense of holding together, into the neuron that means it. Before
         # the guard and before every early return below, because what she is
@@ -96,7 +96,7 @@ class IdentityReflectionPhase(BasePhase):
                 # Claude's Identity Stability Check:
                 # Ensure the message doesn't claim things that violate the core identity
                 if "i am a human" in content.lower() or "i am chatgpt" in content.lower():
-                    logger.critical("🚨 COGNITIVE ROLLBACK: Identity Hallucination detected. REJECTING TRANSITION.")
+                    logger.critical("COGNITIVE ROLLBACK: Identity Hallucination detected. REJECTING TRANSITION.")
                     # [CLAUDE AUDIT] Hard Stop: Return original state to rollback the turn.
                     return state 
 
@@ -107,7 +107,7 @@ class IdentityReflectionPhase(BasePhase):
                     enforce_supervision=False,
                 )
                 if not ok:
-                    logger.critical("🚨 COGNITIVE ROLLBACK: Identity Guard rejected output (%s).", reason)
+                    logger.critical("COGNITIVE ROLLBACK: Identity Guard rejected output (%s).", reason)
                     return state
 
         # 3. Success: Narrative Drift Update

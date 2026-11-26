@@ -118,10 +118,10 @@ class ConsentWorkflow:
         # For high/critical, require explicit user consent
         if sensitivity in {SensitivityLevel.HIGH, SensitivityLevel.CRITICAL}:
             if not self.user_consent_callback:
-                logger.warning("⚠️  Blocking %s (no consent handler)", operation)
+                logger.warning(" Blocking %s (no consent handler)", operation)
                 return False
             
-            logger.warning("🔐 Requesting user consent for: %s", operation)
+            logger.warning("Requesting user consent for: %s", operation)
             approved = await self.user_consent_callback(operation, details)
             
             self.approved_operations[cache_key] = approved
@@ -133,7 +133,7 @@ class ConsentWorkflow:
             return approved
         
         # Medium sensitivity: log and proceed (log for audit trail)
-        logger.info("📋 Medium sensitivity operation: %s (details: %s)", operation, details)
+        logger.info("Medium sensitivity operation: %s (details: %s)", operation, details)
         self.approved_operations[cache_key] = True
         return True
 

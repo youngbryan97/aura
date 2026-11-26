@@ -2208,7 +2208,7 @@ async def _resolve_play_request_off_the_loop(message: str) -> Any | None:
     try:
         return await asyncio.wait_for(asyncio.shield(task), timeout=MEDIA_LOOKUP_WAIT_S)
     except TimeoutError:
-        logger.warning("🎬 looking up %r on this machine took over %.0fs; her turn goes on without it",
+        logger.warning("looking up %r on this machine took over %.0fs; her turn goes on without it",
                        message[:80], MEDIA_LOOKUP_WAIT_S)
         return None
 
@@ -2497,7 +2497,7 @@ async def _run_chat_preflight(
                         f"{body.message}"
                     )
                     logger.info(
-                        "🔢 Chat preflight: computed the requested arithmetic (%s).",
+                        "Chat preflight: computed the requested arithmetic (%s).",
                         _shown,
                     )
             except _CHAT_RECOVERABLE_ERRORS as _calc_exc:

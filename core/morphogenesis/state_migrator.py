@@ -20,7 +20,7 @@ class VersionRegistry:
         key = f"{base_name}_v{version}"
         cls._registry[key] = class_impl
         cls._active_versions[base_name] = max(cls._active_versions.get(base_name, 0), version)
-        logger.info(f"🧬 Registered morphic variant: {key}")
+        logger.info(f"Registered morphic variant: {key}")
 
     @classmethod
     def get_latest(cls, base_name: str) -> Optional[Type]:
@@ -52,7 +52,7 @@ class MorphicStateProxy:
             return None, 1
             
         if latest_version > self._current_version:
-            logger.warning(f"🔄 Migrating instance state from v{self._current_version} -> v{latest_version}")
+            logger.warning(f"Migrating instance state from v{self._current_version} -> v{latest_version}")
             if hasattr(latest_class, "__migrate_state__"):
                 self._underlying_state = latest_class.__migrate_state__(self._underlying_state)
             self._current_version = latest_version

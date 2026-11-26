@@ -36,11 +36,11 @@ from tools.live_boot_proof import LiveProof  # noqa: E402
 # Strong markers: an actual self-initiated objective / autonomous action,
 # not boot-time subsystem registration.
 _SELF_INIT_MARKERS = (
-    "🔭 Proactive initiation received",
-    "🔍 Knowledge gap found",
+    "Proactive initiation received",
+    "Knowledge gap found",
     "Initiating autonomous browser research",
-    "📧 Checking email for autonomous initiatives",
-    "📱 Browsing Reddit for autonomous initiatives",
+    "Checking email for autonomous initiatives",
+    "Browsing Reddit for autonomous initiatives",
     "autonomous initiative",
     "self-generated objective",
     "spontaneous objective",
@@ -130,7 +130,7 @@ class TeleologyProof(LiveProof):
             }
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
-                ("✅ TELEOLOGY PROOF PASSED" if verdict["passed"] else "❌ TELEOLOGY PROOF FAILED")
+                ("TELEOLOGY PROOF PASSED" if verdict["passed"] else "TELEOLOGY PROOF FAILED")
                 + f" → {self.verdict_path}"
             )
             return 0 if verdict["passed"] else 1

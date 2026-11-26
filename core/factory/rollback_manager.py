@@ -23,7 +23,7 @@ class RollbackManager:
 
     async def create_workspace(self, repo_path: str, branch_name: str) -> bool:
         """Create a new branch in the target repo to isolate changes."""
-        logger.info("🌳 RollbackManager: creating branch '%s' in '%s'", branch_name, repo_path)
+        logger.info("RollbackManager: creating branch '%s' in '%s'", branch_name, repo_path)
         try:
             # Check current status and checkout new branch via approved gateway
             get_subprocess_gateway().run(["git", "-c", "core.fsmonitor=false", "status"], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
@@ -55,7 +55,7 @@ class RollbackManager:
                 "commit_sha": sha,
                 "timestamp": time.time(),
             }
-            logger.info("🛡️  Registered rollback point '%s' at SHA %s", checkpoint_id, sha)
+            logger.info(" Registered rollback point '%s' at SHA %s", checkpoint_id, sha)
         except (OSError, RuntimeError) as e:
             logger.warning("Could not register rollback commit SHA: %s", e)
             self._checkpoints[checkpoint_id] = {
@@ -70,18 +70,18 @@ class RollbackManager:
         """Roll back the repository to the registered checkpoint state."""
         checkpoint = self._checkpoints.get(checkpoint_id)
         if not checkpoint:
-            logger.error("🚫 RollbackManager: checkpoint '%s' not found", checkpoint_id)
+            logger.error("RollbackManager: checkpoint '%s' not found", checkpoint_id)
             return False
 
         repo_path = checkpoint["repo_path"]
         sha = checkpoint["commit_sha"]
-        logger.warning("🚨 RollbackManager: triggering rollback to '%s' (SHA: %s)", checkpoint_id, sha)
+        logger.warning("RollbackManager: triggering rollback to '%s' (SHA: %s)", checkpoint_id, sha)
 
         try:
             # Hard reset changes in git via approved gateway
             get_subprocess_gateway().run(["git", "reset", "--hard", sha], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
             get_subprocess_gateway().run(["git", "clean", "-fd"], cwd=repo_path, source="rollback_manager", accelerator_capability="none")
-            logger.info("✅ Rollback successful. Repository restored.")
+            logger.info("Rollback successful. Repository restored.")
             return True
         except (OSError, RuntimeError) as e:
             record_degradation(

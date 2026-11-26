@@ -73,7 +73,7 @@ def a_cpu_client_gives_back_the_gate(client: Any) -> bool:
             return False
     _release_generation_gate_after_call(lease)
     _HELD_LEASE.set(None)
-    logger.info("🔓 a background generation on a CPU model gave back her GPU's generation gate (lease %s)", lease)
+    logger.info("a background generation on a CPU model gave back her GPU's generation gate (lease %s)", lease)
     return True
 
 

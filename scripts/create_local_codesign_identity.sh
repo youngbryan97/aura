@@ -44,10 +44,10 @@ verify_identity_can_sign() {
 if security find-identity -v -p codesigning "${KEYCHAIN}" 2>/dev/null | grep -Fq "\"${IDENTITY_NAME}\""; then
     trust_identity_for_codesign
     if verify_identity_can_sign; then
-        echo "✅ Existing code-signing identity found and verified: ${IDENTITY_NAME}"
+        echo "Existing code-signing identity found and verified: ${IDENTITY_NAME}"
         exit 0
     fi
-    echo "❌ Existing identity cannot sign from this shell: ${IDENTITY_NAME}" >&2
+    echo "Existing identity cannot sign from this shell: ${IDENTITY_NAME}" >&2
     echo "   Remove it from Keychain Access and rerun this helper, or unlock/trust the key manually." >&2
     exit 1
 fi
@@ -102,12 +102,12 @@ trust_identity_for_codesign
 
 if security find-identity -v -p codesigning "${KEYCHAIN}" 2>/dev/null | grep -Fq "\"${IDENTITY_NAME}\""; then
     if verify_identity_can_sign; then
-        echo "✅ Created and verified code-signing identity: ${IDENTITY_NAME}"
+        echo "Created and verified code-signing identity: ${IDENTITY_NAME}"
     else
-        echo "❌ Created identity, but codesign cannot use it from this shell." >&2
+        echo "Created identity, but codesign cannot use it from this shell." >&2
         exit 1
     fi
 else
-    echo "❌ Identity import finished, but codesign cannot see ${IDENTITY_NAME}" >&2
+    echo "Identity import finished, but codesign cannot see ${IDENTITY_NAME}" >&2
     exit 1
 fi

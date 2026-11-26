@@ -87,7 +87,7 @@ jobs:
           pip install pip-licenses
           pip install -r requirements/core.txt
           pip-licenses --format=json --output-file=license_report.json
-          pip-licenses --allow-only="MIT;BSD;Apache Software License;ISC;Python Software Foundation License;BSD License" || echo "⚠️ License review needed"
+          pip-licenses --allow-only="MIT;BSD;Apache Software License;ISC;Python Software Foundation License;BSD License" || echo "License review needed"
       - name: Upload license report
         uses: actions/upload-artifact@v4
         with:

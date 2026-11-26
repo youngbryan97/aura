@@ -154,12 +154,12 @@ class ActionConsequenceGraph:
                             time.monotonic() + _PENDING_RETRY_INTERVAL_S
                         )
                     logger.info(
-                        "⏸️ ACG write deferred (%s); holding %d for retry.",
+                        "ACG write deferred (%s); holding %d for retry.",
                         reason,
                         len(self._pending),
                     )
                     return
-                logger.warning("🚫 ACG write blocked: %s", reason)
+                logger.warning("ACG write blocked: %s", reason)
                 return
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('acg', exc)
@@ -171,7 +171,7 @@ class ActionConsequenceGraph:
                 or has_runtime_service("kernel_interface")
             )
             if runtime_live:
-                logger.warning("🚫 ACG write blocked: constitutional gate unavailable")
+                logger.warning("ACG write blocked: constitutional gate unavailable")
                 return
 
         entry = {

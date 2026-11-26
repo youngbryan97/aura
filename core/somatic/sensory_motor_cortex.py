@@ -58,13 +58,13 @@ class SensoryMotorCortex:
             requested_camera = True
         self.camera_enabled, camera_reason = main_process_camera_policy(requested_camera)
         if requested_camera and not self.camera_enabled:
-            logger.warning("👁️ SensoryMotorCortex: %s", camera_reason)
+            logger.warning("SensoryMotorCortex: %s", camera_reason)
 
     async def start(self):
         """Ignites the autonomic nervous system."""
         self.is_active = True
         self._main_loop = asyncio.get_running_loop()
-        logger.info("🧠 SensoryMotorCortex engaged. Aura is now monitoring reality.")
+        logger.info("SensoryMotorCortex engaged. Aura is now monitoring reality.")
         
         # Issue 45: Store task references for clean shutdown
         self._tasks = []
@@ -89,7 +89,7 @@ class SensoryMotorCortex:
         Passively watches the webcam for movement.
         """
         if not self.camera_enabled:
-            logger.info("👁️ SensoryMotorCortex: visual cortex on standby (camera disabled).")
+            logger.info("SensoryMotorCortex: visual cortex on standby (camera disabled).")
             return
         await asyncio.to_thread(self._run_opencv_stream)
 
@@ -393,7 +393,7 @@ class SensoryMotorCortex:
         if not query or not query.strip():
             return ""
 
-        logger.info("🌐 Browser actuation: '%s'", query[:60])
+        logger.info("Browser actuation: '%s'", query[:60])
         raw_text = await self._fetch_search_result(query)
         if not raw_text:
             return ""

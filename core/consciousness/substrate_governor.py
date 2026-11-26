@@ -63,7 +63,7 @@ class SubstrateGovernor:
         hz_map = {0: 5.0, 1: 10.0, 2: 15.0, 3: 20.0}
         new_hz = hz_map.get(level, 5.0)
 
-        logger.info("⚡ [VOLITION] Governor applying profile L%d (%.1fHz)", level, new_hz)
+        logger.info("[VOLITION] Governor applying profile L%d (%.1fHz)", level, new_hz)
         self._target_hz = new_hz
         # What the rate governs. Nothing called sleep_until_next_tick, so the
         # profile set a number that paced nothing. Her constitutive loops take

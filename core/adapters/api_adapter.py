@@ -163,7 +163,7 @@ class APIAdapter:
             try:
                 self._local_client = get_mlx_client()
                 self.has_local = True
-                logger.info("✅ APIAdapter: Local runtime enabled.")
+                logger.info("APIAdapter: Local runtime enabled.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 _record_api_degradation(
                     e,
@@ -183,16 +183,16 @@ class APIAdapter:
             if ServiceContainer.get("agency_facade", default=None) is None:
                 fa = AgencyFacade()
                 ServiceContainer.register("agency_facade", fa)
-                logger.info("✅ AgencyFacade registered for MemoryFacade")
+                logger.info("AgencyFacade registered for MemoryFacade")
         except ImportError:
-            logger.warning("⚠️ [BOOT] Early Facade registration deferred: AgencyFacade missing.")
+            logger.warning("[BOOT] Early Facade registration deferred: AgencyFacade missing.")
         except (AttributeError, RuntimeError) as e:
             _record_api_degradation(
                 e,
                 action="deferred AgencyFacade registration; memory facade setup can retry after container boot",
                 extra={"phase": "setup_memory_facade"},
             )
-            logger.error("❌ [BOOT] AgencyFacade registration error: %s", e)
+            logger.error("[BOOT] AgencyFacade registration error: %s", e)
 
     async def stop(self):
         # A stopped adapter must not keep advertising generation capability.

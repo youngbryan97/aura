@@ -123,7 +123,7 @@ class EngramAssociationField:
                 arr = np.load(self._path)
                 if arr.shape == (self.n_slots, self.n_slots):
                     self.engine.W = arr.astype(np.float64)
-                    logger.info("🔗 [EngramAssociation] loaded learned weights from %s", self._path)
+                    logger.info("[EngramAssociation] loaded learned weights from %s", self._path)
         except (OSError, ValueError, EOFError) as exc:
             record_degradation("engram_association", exc)
 

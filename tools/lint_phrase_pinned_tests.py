@@ -224,13 +224,13 @@ def main(argv: list[str]) -> int:
         return 0
 
     if not BASELINE.is_file():
-        print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
+        print(f"no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
         return 1
 
     baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     allowed = int(baseline.get("total", 0))
     if total > allowed:
-        print(f"❌ phrase-pinned assertions rose: {allowed} -> {total}")
+        print(f"phrase-pinned assertions rose: {allowed} -> {total}")
         previous = baseline.get("by_file") or {}
         for name, count in sorted(current["by_file"].items()):
             was = int(previous.get(name, 0))
@@ -244,11 +244,11 @@ def main(argv: list[str]) -> int:
         return 1
 
     if total < allowed:
-        print(f"⬇️  phrase-pinned assertions fell: {allowed} -> {total}")
+        print(f" phrase-pinned assertions fell: {allowed} -> {total}")
         print("    refresh with: python tools/lint_phrase_pinned_tests.py --write-baseline")
         return 1
 
-    print("✅ phrase-pinned assertions held at baseline")
+    print("phrase-pinned assertions held at baseline")
     return 0
 
 

@@ -8,7 +8,7 @@ root = Path(__file__).resolve().parent.parent
 sys.path.append(str(root))
 
 async def main():
-    print("🚀 Zenith-HF2: Triggering LoRA Training cycle...")
+    print("Zenith-HF2: Triggering LoRA Training cycle...")
     
     # Provide the runtime root when launched outside the desktop/server boot path.
     os.environ["AURA_ROOT"] = str(root)
@@ -21,11 +21,11 @@ async def main():
     result = await optimizer.optimize(iters=1000, batch_size=4)
     
     if result["ok"]:
-        print(f"✅ Success! Duration: {result['duration']:.2f}s")
-        print(f"📂 Adapter: {result['adapter']}")
-        print(f"📊 Samples: {result['samples']}")
+        print(f"Success! Duration: {result['duration']:.2f}s")
+        print(f"Adapter: {result['adapter']}")
+        print(f"Samples: {result['samples']}")
     else:
-        print(f"❌ Failed: {result['error']}")
+        print(f"Failed: {result['error']}")
         raise SystemExit(1)
 
 if __name__ == "__main__":

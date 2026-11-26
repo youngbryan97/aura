@@ -2,7 +2,7 @@
 
 2026-07-29, second Orca Demo attempt:
 
-    🚨 [MEMWATCH] LETHAL ceiling: managed RSS 48237MB ≥ 43008MB.
+    [MEMWATCH] LETHAL ceiling: managed RSS 48237MB ≥ 43008MB.
        Reclaimed (killed=0). Next confirmation aborts.
 
 Nothing was killed, and the process exited. Underneath it sat model workers and

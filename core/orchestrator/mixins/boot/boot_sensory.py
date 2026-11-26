@@ -169,7 +169,7 @@ class BootSensoryMixin:
 
             ears = SovereignEars()
             self._register_sensory_service("ears", ears)
-            logger.info("👂 Sovereign Ears Active")
+            logger.info("Sovereign Ears Active")
 
         async def _init_vision():
             from core.senses.screen_vision import LocalVision
@@ -177,7 +177,7 @@ class BootSensoryMixin:
             vision = LocalVision()
             self._register_sensory_service("vision_engine", vision)
             self._register_sensory_service("vision", vision)
-            logger.info("👁️  Sovereign Vision Active")
+            logger.info(" Sovereign Vision Active")
 
         if eager_local_sensory:
             await asyncio.gather(
@@ -235,7 +235,7 @@ class BootSensoryMixin:
             from core.brain.reasoning_queue import get_reasoning_queue
 
             self.reasoning_queue = get_reasoning_queue()
-            logger.info("🧠 Background Reasoning Queue Ready (Start Deferred)")
+            logger.info("Background Reasoning Queue Ready (Start Deferred)")
 
         await self._run_sensory_lane(
             "reasoning_queue",
@@ -265,7 +265,7 @@ class BootSensoryMixin:
             source_body = get_source_body()
             self._register_sensory_service("source_body", source_body)
             await source_body.start()
-            logger.info("🩻 Source-Body Proprioception Active (awakening deferred)")
+            logger.info("Source-Body Proprioception Active (awakening deferred)")
 
         if _env_flag("AURA_ENABLE_SOURCE_BODY", True):
             await self._run_sensory_lane(
@@ -289,7 +289,7 @@ class BootSensoryMixin:
             start_coro = self.reasoning_queue.start()
             get_task_tracker().track(start_coro, name="reasoning_queue")
             self._sensory_boot_report()["scheduled"].append("reasoning_queue")
-            logger.info("🧠 Background Reasoning Queue Started")
+            logger.info("Background Reasoning Queue Started")
         except _BOOT_SENSORY_RECOVERABLE_ERRORS as exc:
             if "start_coro" in locals() and inspect.iscoroutine(start_coro):
                 start_coro.close()
@@ -313,7 +313,7 @@ class BootSensoryMixin:
                 else:
                     await voice.ensure_models_async()
                 self._register_sensory_service("voice_engine", voice)
-                logger.info("🎙️  Voice Engine initialized and registered in background")
+                logger.info(" Voice Engine initialized and registered in background")
 
             await self._run_sensory_lane(
                 "voice_engine",

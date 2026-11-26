@@ -18,7 +18,7 @@ class HotfixEngine:
         """
         Reloads a specific module and lets runtime services refresh themselves if needed.
         """
-        logger.info("🆕 Hotfixing module: %s", module_name)
+        logger.info("Hotfixing module: %s", module_name)
         try:
             if module_name not in sys.modules:
                 return {"ok": False, "error": f"Module {module_name} not currently loaded."}
@@ -35,11 +35,11 @@ class HotfixEngine:
             # This is complex because we need to know what instances belong to this module.
             # We'll rely on services to self-update rather than scanning a global container.
             
-            logger.info("✅ Hotfix applied to %s. Total reloads: %s", module_name, self.reloads_total)
+            logger.info("Hotfix applied to %s. Total reloads: %s", module_name, self.reloads_total)
             return {"ok": True, "reloaded": module_name}
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('hotfix_engine', e)
-            logger.error("❌ Hotfix stage fail for %s: %s", module_name, e)
+            logger.error("Hotfix stage fail for %s: %s", module_name, e)
             return {"ok": False, "error": str(e)}
 
     async def patch_service(self, service_name: str, module_name: str):

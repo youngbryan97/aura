@@ -191,7 +191,7 @@ def register_reaction(
         record_degradation("conversation_outcome_update", exc)
         return None
     _stats["positive" if reward > 0 else "negative"] += 1
-    logger.info("🗣️ [TasteLoop] reaction reward=%+.0f applied to taste model.", reward)
+    logger.info("[TasteLoop] reaction reward=%+.0f applied to taste model.", reward)
     return reward
 
 

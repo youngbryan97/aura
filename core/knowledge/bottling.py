@@ -57,7 +57,7 @@ class KnowledgeBottlingEngine:
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             _degrade(exc, action="disabled knowledge-bottle persistence after store path setup failed")
             self._store = None
-        logger.info("🫙 KnowledgeBottlingEngine initialized (Brainiac lineage)")
+        logger.info("KnowledgeBottlingEngine initialized (Brainiac lineage)")
 
     @staticmethod
     def _slugify(topic: str) -> str:

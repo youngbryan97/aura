@@ -99,7 +99,7 @@ class GhostBootValidator:
             unsupported = ", ".join(sorted(options))
             raise TypeError(f"unsupported ghost boot validation option(s): {unsupported}")
 
-        logger.info("👻 Starting Ghost Boot validation in %s...", sandbox_path)
+        logger.info("Starting Ghost Boot validation in %s...", sandbox_path)
 
         validation_root = sandbox_path
         isolated_workspace: tempfile.TemporaryDirectory[str] | None = None
@@ -166,11 +166,11 @@ class GhostBootValidator:
             success = "GHOST_HEARTBEAT_STABLE" in output
 
             if success:
-                logger.info("✅ Ghost Boot SUCCESS: System reached stable state.")
+                logger.info("Ghost Boot SUCCESS: System reached stable state.")
                 return True, "Stable boot reached"
             else:
                 error_msg = error_output or "Timeout reached without heartbeat"
-                logger.error("❌ Ghost Boot FAILED: %s", error_msg)
+                logger.error("Ghost Boot FAILED: %s", error_msg)
                 return False, f"Boot failure: {error_msg}"
 
         except _BOOT_RECOVERABLE_ERRORS as e:

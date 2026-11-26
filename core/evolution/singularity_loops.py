@@ -79,7 +79,7 @@ class SingularityLoops:
         self._loop_failures: dict[str, int] = defaultdict(int)
         self._last_loop_success: dict[str, float] = {}
         self._last_loop_error: dict[str, str] = {}
-        logger.info("🔗 SingularityLoops initialized — wiring evolutionary feedback loops")
+        logger.info("SingularityLoops initialized — wiring evolutionary feedback loops")
 
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -95,7 +95,7 @@ class SingularityLoops:
     async def _run(self) -> None:
         # Give boot time to finish registering services
         await asyncio.sleep(15.0)
-        logger.info("🔗 SingularityLoops active — all loops engaged")
+        logger.info("SingularityLoops active — all loops engaged")
 
         while not self._stop.is_set():
             self._tick_count += 1
@@ -258,7 +258,7 @@ class SingularityLoops:
                 timeout=15.0,
             )
             if results:
-                logger.info("🔍 Curiosity loop: explored %d items", len(results))
+                logger.info("Curiosity loop: explored %d items", len(results))
 
                 # Feed findings into episodic memory
                 mem = ServiceContainer.get("vector_memory_engine", default=None)
@@ -356,7 +356,7 @@ class SingularityLoops:
                         )
                         if raw and raw.strip():
                             action = raw.strip()
-                            logger.info("🎯 Goal advancement: '%s' → %s",
+                            logger.info("Goal advancement: '%s' → %s",
                                        goal.title[:30], action[:60])
 
                             # Execute the action
@@ -494,7 +494,7 @@ class SingularityLoops:
         if len(low_confidence) >= 2:
             # Multiple low-confidence responses → trigger distillation
             topics = [getattr(a, "task", "")[:60] for a in low_confidence]
-            logger.info("🎓 Distillation trigger: %d low-confidence responses on: %s",
+            logger.info("Distillation trigger: %d low-confidence responses on: %s",
                        len(low_confidence), ", ".join(topics))
             try:
                 if hasattr(distill, "run_distillation_cycle"):
@@ -568,7 +568,7 @@ class SingularityLoops:
             if valence < 0.3 and arousal < 0.3:
                 # Boredom detected → boost curiosity
                 curiosity_level = max(curiosity_level, 0.75)
-                logger.debug("🧬 Affect→Exploration: Boredom detected, boosting curiosity to %.2f", curiosity_level)
+                logger.debug("Affect→Exploration: Boredom detected, boosting curiosity to %.2f", curiosity_level)
 
             if curiosity_level > 0.5:
                 # Get current topic from working memory
@@ -588,7 +588,7 @@ class SingularityLoops:
                     # tried to file as learning. Feeling curious with no object
                     # is boredom, not a research question.
                     logger.debug(
-                        "🧬 Affect→Exploration: curiosity %.2f with no active "
+                        "Affect→Exploration: curiosity %.2f with no active "
                         "objective; not inventing a topic.", curiosity_level,
                     )
                     return

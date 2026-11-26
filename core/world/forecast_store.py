@@ -57,7 +57,7 @@ class ForecastStore:
             change_trigger=trigger,
         )
         self.forecasts[fid] = fc
-        logger.info("🔮 Forecast made for mission %s: success_prob=%.2f, blocker='%s'",
+        logger.info("Forecast made for mission %s: success_prob=%.2f, blocker='%s'",
                     mission_id, success_prob, blocker)
         return fc
 
@@ -74,7 +74,7 @@ class ForecastStore:
         brier = (fc.success_probability - actual_val) ** 2
         fc.brier_score = brier
 
-        logger.info("🔮 Forecast %s resolved: outcome=%s, brier_score=%.3f",
+        logger.info("Forecast %s resolved: outcome=%s, brier_score=%.3f",
                     forecast_id, actual_outcome, brier)
         return brier
 

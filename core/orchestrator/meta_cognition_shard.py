@@ -50,7 +50,7 @@ class MetaCognitionShard:
             return
         self.is_running = True
         self._audit_task = get_task_tracker().create_task(self._audit_loop(), name="meta_cognition.audit_loop")
-        logger.info("🧠 Meta-Cognition Shard ONLINE.")
+        logger.info("Meta-Cognition Shard ONLINE.")
 
     def _background_block_reason(self) -> str:
         try:
@@ -76,7 +76,7 @@ class MetaCognitionShard:
                 await asyncio.sleep(60)
                 reason = self._background_block_reason()
                 if reason:
-                    logger.debug("🧠 Meta-Cognitive Audit deferred: %s", reason)
+                    logger.debug("Meta-Cognitive Audit deferred: %s", reason)
                     continue
                 await self.perform_audit()
                 self._loop_failure_count = 0
@@ -100,7 +100,7 @@ class MetaCognitionShard:
             # 2. Perform Atomic Audit/Evolution
             await self.perform_audit()
             
-            logger.info("🧠 Meta-Evolution cycle completed successfully (v35).")
+            logger.info("Meta-Evolution cycle completed successfully (v35).")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _record_meta_degradation(
                 e,
@@ -141,7 +141,7 @@ class MetaCognitionShard:
             }
             return self._last_audit_report
 
-        logger.info("🧠 Running Meta-Cognitive Audit...")
+        logger.info("Running Meta-Cognitive Audit...")
 
         async with self._audit_lock:
             corrections: list[str] = []
@@ -195,13 +195,13 @@ class MetaCognitionShard:
             msg_list = list(history)
             last_four = [str(m.get("content", "")).lower().strip() for m in msg_list[-4:]]
             if len(last_four) == 4 and last_four[0] == last_four[2] and last_four[1] == last_four[3]:
-                logger.warning("🧠 DETECTED MULTI-TURN REPETITION LOOP (N=2)")
+                logger.warning("DETECTED MULTI-TURN REPETITION LOOP (N=2)")
                 return True
                 
             # 2. Trivial N=1 loop (Assistant repeating itself 3 times)
             asst_messages = [str(m.get("content", "")).lower().strip() for m in history if m.get("role") == "assistant"]
             if len(asst_messages) >= 3 and len(set(asst_messages[-3:])) == 1:
-                logger.warning("🧠 DETECTED TRIVIAL REPETITION LOOP (N=1)")
+                logger.warning("DETECTED TRIVIAL REPETITION LOOP (N=1)")
                 return True
         except (OSError, ConnectionError, TimeoutError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             _record_meta_degradation(
@@ -219,7 +219,7 @@ class MetaCognitionShard:
                 if start_time > 0:
                     delta = time.monotonic() - start_time
                     if delta > 30.0:  # 30 second timeout for cognitive cycles
-                        logger.warning("🧠 DETECTED LATENCY SPIKE / STALL (Delta: %ss)", f"{delta:.2f}")
+                        logger.warning("DETECTED LATENCY SPIKE / STALL (Delta: %ss)", f"{delta:.2f}")
                         return True
         except (RuntimeError, AttributeError, TypeError) as e:
             _record_meta_degradation(
@@ -236,7 +236,7 @@ class MetaCognitionShard:
             if ls and hasattr(ls, "v") and np:
                 volatility = np.mean(np.abs(ls.v))
                 if volatility > 0.8:
-                    logger.warning("🧠 DETECTED AFFECTIVE COLLAPSE (Volatility: %s)", f"{volatility:.2f}")
+                    logger.warning("DETECTED AFFECTIVE COLLAPSE (Volatility: %s)", f"{volatility:.2f}")
                     return True
         except (RuntimeError, AttributeError, TypeError) as e:
             _record_meta_degradation(
@@ -248,7 +248,7 @@ class MetaCognitionShard:
 
     async def _push_correction(self, correction_type: str, hint: str) -> bool:
         """Inject a corrective shard into the next inference cycle."""
-        logger.info("🧠 Pushing %s correction: %s", correction_type, hint)
+        logger.info("Pushing %s correction: %s", correction_type, hint)
         try:
             formatted_hint = f"[{correction_type.upper()}] {hint}"
             if hasattr(self.orchestrator, "add_correction_shard"):

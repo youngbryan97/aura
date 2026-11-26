@@ -203,10 +203,10 @@ class CognitiveCoordinator:
                 except asyncio.QueueFull:
                     logger.warning("Reply queue full; final response was not enqueued.")
             else:
-                logger.debug("🔇 Internal Response (Origin: %s) suppressed from UI.", origin)
+                logger.debug("Internal Response (Origin: %s) suppressed from UI.", origin)
         ears = getattr(orch, "ears", None)
         if origin == "voice" and ears and hasattr(ears, "_engine"):
-            logger.info("🎙️ Origin was voice: Triggering TTS synthesis...")
+            logger.info("Origin was voice: Triggering TTS synthesis...")
             _schedule_cognitive_task(
                 ears._engine.synthesize_speech(response),
                 tracker=task_tracker,
@@ -247,7 +247,7 @@ class CognitiveCoordinator:
         if origin != "user":
             return None
         if not allow_direct_user_shortcut(origin):
-            logger.info("🧭 Direct skill shortcut yielded to governed tool path for user-facing turn")
+            logger.info("Direct skill shortcut yielded to governed tool path for user-facing turn")
             return None
         msg_lower = message.lower()
         if any(kw in msg_lower for kw in ["search the web", "look up", "google", "find out about"]):
@@ -260,9 +260,9 @@ class CognitiveCoordinator:
         orch = self.orch
         query_match = re.search(r"(?:search (?:the web )?for|look up|google)\s+(.+)", message, re.IGNORECASE)
         query = query_match.group(1).strip().strip("'\"") if query_match else message
-        logger.info("🔍 DIRECT SKILL: web_search('%s')", query)
+        logger.info("DIRECT SKILL: web_search('%s')", query)
         try:
-            orch._emit_telemetry("Skill: web_search 🔧", f"Searching: {query}")
+            orch._emit_telemetry("Skill: web_search", f"Searching: {query}")
             return await orch.execute_tool(
                 "web_search",
                 {"query": query},
@@ -280,9 +280,9 @@ class CognitiveCoordinator:
 
     async def _execute_direct_diag(self, *, origin: str = "user"):
         orch = self.orch
-        logger.info("🔍 DIRECT SKILL: self_diagnosis")
+        logger.info("DIRECT SKILL: self_diagnosis")
         try:
-            orch._emit_telemetry("Skill: self_diagnosis 🔧", "Running diagnostics...")
+            orch._emit_telemetry("Skill: self_diagnosis", "Running diagnostics...")
             return await orch.execute_tool(
                 "self_diagnosis",
                 {},
@@ -304,7 +304,7 @@ class CognitiveCoordinator:
         is_simple = self.is_simple_conversational(message, origin, bool(shortcut_result))
         if not is_simple:
             return None
-        logger.info("🏎️ FAST-PATH: Bypassing Agentic Loop.")
+        logger.info("FAST-PATH: Bypassing Agentic Loop.")
         from core.brain.types import ThinkingMode
         context = orch._get_cleaned_history_context(10)
         p_ctx = orch._get_personality_context()
@@ -341,7 +341,7 @@ class CognitiveCoordinator:
             from core.runtime import resource_psutil as psutil
             mem = psutil.virtual_memory()
             if mem.percent > 85 and len(message) < 100:
-                logger.info("⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.", mem.percent)
+                logger.info("VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.", mem.percent)
                 return True
         except _COGNITIVE_BOUNDARY_ERRORS as _macro_exc:
             _record_cognitive_degradation(_macro_exc, action="memory-pressure fast-path probe skipped")
@@ -449,7 +449,7 @@ class CognitiveCoordinator:
                     "category": category,
                     "recommended_tools": recommendations
                 }
-                logger.info("🛠️ Tool Recommendations: %s -> %s", category, recommendations)
+                logger.info("Tool Recommendations: %s -> %s", category, recommendations)
         except _COGNITIVE_BOUNDARY_ERRORS as e:
             _record_cognitive_degradation(e, action="tool recommendations omitted")
             logger.debug("Tool recommendations failed: %s", e)
@@ -480,7 +480,7 @@ class CognitiveCoordinator:
         params = action.get("params", {}) if isinstance(action.get("params"), dict) else {}
         hook_results = await orch.hooks.trigger("pre_action", tool_name=tool_name, params=params)
         if False in hook_results:
-            logger.warning("🛑 Veto block via hook system: %s", tool_name)
+            logger.warning("Veto block via hook system: %s", tool_name)
             return {"break": True, "response": f"Veto Block: An internal safety hook blocked {tool_name}."}
         if not await self.validate_action_safety(action):
             return {"break": True, "response": f"Safety Block: Cannot execute {tool_name}."}
@@ -506,9 +506,9 @@ class CognitiveCoordinator:
                 )
                 return {"break": True, "response": "Conscience Block: alignment preflight failed."}
             if not allowed:
-                logger.warning("🛑 Ethical Block: %s vetoed by conscience. Reason: %s", tool_name, reason)
+                logger.warning("Ethical Block: %s vetoed by conscience. Reason: %s", tool_name, reason)
                 return {"break": True, "response": f"Conscience Block: {reason}"}
-        orch._emit_telemetry(f"Skill: {tool_name} 🔧", f"Executing: {str(params)[:80]}")
+        orch._emit_telemetry(f"Skill: {tool_name}", f"Executing: {str(params)[:80]}")
         try:
             result = await orch.execute_tool(tool_name, params)
             await orch.hooks.trigger("post_action", tool_name=tool_name, params=params, result=result)
@@ -543,7 +543,7 @@ class CognitiveCoordinator:
             sim = await orch.simulator.simulate_action(action, context=f"Hist: {hist_sample}")
             is_safe = await orch.simulator.evaluate_risk(sim)
             if not is_safe:
-                logger.warning("🛑 Simulation block: %s", sim.get('risk_reason'))
+                logger.warning("Simulation block: %s", sim.get('risk_reason'))
             return is_safe
         except _COGNITIVE_BOUNDARY_ERRORS as e:
             _record_cognitive_degradation(e, action="action simulation failed closed")
@@ -575,7 +575,7 @@ class CognitiveCoordinator:
                 name="cognitive_coordinator.surprise_learning",
             )
             if surprise > 0.7:
-                logger.info("😲 HIGH SURPRISE: Triggering re-think.")
+                logger.info("HIGH SURPRISE: Triggering re-think.")
                 async with orch._history_lock:
                     orch.conversation_history.append({
                         "role": "internal",
@@ -666,13 +666,13 @@ class CognitiveCoordinator:
             from core.thought_stream import get_emitter
             emitter = get_emitter()
             if orch.status.cycle_count % 100 == 0:
-                logger.debug("🧠 Autonomous thought triggered (boredom=%ss idle)", orch.boredom)
+                logger.debug("Autonomous thought triggered (boredom=%ss idle)", orch.boredom)
             next_goal = None
             if hasattr(orch, 'goal_hierarchy') and orch.goal_hierarchy:
                 next_goal = orch.goal_hierarchy.get_next_goal()
             if next_goal:
-                logger.info("✨ AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
-                emitter.emit("Volition ✨", f"Goal: {next_goal.description}", level="info", source="volition_engine")
+                logger.info("AUTONOMOUS GOAL SELECTED: %s", next_goal.description)
+                emitter.emit("Volition", f"Goal: {next_goal.description}", level="info", source="volition_engine")
                 runner = getattr(orch, "_run_cognitive_loop", None) or getattr(orch, "_handle_incoming_message", None)
                 if runner is not None:
                     await runner(f"Execute Goal: {next_goal.description}", origin="autonomous_volition")
@@ -681,8 +681,8 @@ class CognitiveCoordinator:
                 orch._last_thought_time = time.time()
                 return
             if hasattr(orch, 'liquid_state') and orch.liquid_state.current.curiosity < 0.3:
-                logger.info("💤 Aura is bored. Entering dream state...")
-                emitter.emit("Sleep 💤", "Entering full sleep cycle (Archive → Metabolism → Integrity → Consolidation → Dream)...", level="info")
+                logger.info("Aura is bored. Entering dream state...")
+                emitter.emit("Sleep", "Entering full sleep cycle (Archive → Metabolism → Integrity → Consolidation → Dream)...", level="info")
                 try:
                     if hasattr(orch, 'knowledge_graph') and orch.knowledge_graph and orch.cognitive_engine:
                         from core.sleep.dreamer_v2 import DreamerV2
@@ -695,9 +695,9 @@ class CognitiveCoordinator:
                         result = await dreamer.engage_sleep_cycle()
                         dream_result = result.get("dream", {})
                         if dream_result and dream_result.get("dreamed"):
-                            emitter.emit("Sleep Complete 🌙", f"Dream Insight: {dream_result.get('insight', 'processed')[:150]}", level="info")
+                            emitter.emit("Sleep Complete", f"Dream Insight: {dream_result.get('insight', 'processed')[:150]}", level="info")
                         else:
-                            emitter.emit("Sleep Complete 🌙", "Maintenance done. Dream drifted — no new insights.", level="info")
+                            emitter.emit("Sleep Complete", "Maintenance done. Dream drifted — no new insights.", level="info")
                 except _COGNITIVE_BOUNDARY_ERRORS as dream_err:
                     _record_cognitive_degradation(dream_err, action="dream cycle skipped")
                     logger.error("Sleep cycle failed: %s", dream_err)
@@ -807,7 +807,7 @@ class CognitiveCoordinator:
                         if name == "speak":
                             message = args.get("message") or args.get("content")
                             if message:
-                                logger.info("🗣️ Spontaneous Speech: %s", message)
+                                logger.info("Spontaneous Speech: %s", message)
                                 try:
                                     if hasattr(orch, "emit_spontaneous_message"):
                                         await orch.emit_spontaneous_message(
@@ -867,7 +867,7 @@ class CognitiveCoordinator:
 
     async def run_browser_task(self, url: str, task: str) -> Any:
         """Formalized browser task execution via skill router."""
-        logger.info("🌐 Initiating Browser Task: %s @ %s", task, url)
+        logger.info("Initiating Browser Task: %s @ %s", task, url)
         return await self.orch.execute_tool("browser", {"url": url, "task": task})
 
     async def execute_tool(self, tool_name: str, args: dict[str, Any]) -> Any:
@@ -892,7 +892,7 @@ class CognitiveCoordinator:
         try:
             cog_manager = getattr(orch, 'cognitive_manager', None)
             if cog_manager:
-                logger.info("🧠 CognitiveManager: Processing impulse: %s...", impulse_message[:60])
+                logger.info("CognitiveManager: Processing impulse: %s...", impulse_message[:60])
                 response = await cog_manager.process_autonomous_thought(impulse_message, {
                     "boredom": getattr(orch, 'boredom', 0),
                     "mood": orch._get_current_mood(),

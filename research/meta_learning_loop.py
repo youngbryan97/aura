@@ -60,7 +60,7 @@ class RSILab:
         )
         self.candidates[candidate_id] = candidate
         self._save()
-        logger.info(f"🧪 RSI Lab received new {artifact_type} candidate: {candidate_id}")
+        logger.info(f"RSI Lab received new {artifact_type} candidate: {candidate_id}")
         return candidate_id
 
     async def evaluate_pending_candidates(self) -> int:
@@ -72,7 +72,7 @@ class RSILab:
         if not pending:
             return 0
             
-        logger.info(f"🧪 Evaluating {len(pending)} pending RSI candidates...")
+        logger.info(f"Evaluating {len(pending)} pending RSI candidates...")
         evaluated_count = 0
         
         for candidate in pending:
@@ -80,7 +80,7 @@ class RSILab:
             candidate.score = float(report["score"])
             candidate.evaluation_report = report
             candidate.status = 'passed' if candidate.score >= 0.72 and report["blocking_failures"] == [] else 'failed'
-            logger.info(f"🧪 Candidate {candidate.id} evaluated. Score: {candidate.score:.2f} -> {candidate.status}")
+            logger.info(f"Candidate {candidate.id} evaluated. Score: {candidate.score:.2f} -> {candidate.status}")
             evaluated_count += 1
             
         self._save()
@@ -185,7 +185,7 @@ class RSILab:
             return False
         candidate.status = 'promoted'
         self._save()
-        logger.info(f"🚀 Candidate {candidate_id} promoted to core!")
+        logger.info(f"Candidate {candidate_id} promoted to core!")
         return True
 
     def _save(self):

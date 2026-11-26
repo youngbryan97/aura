@@ -111,7 +111,7 @@ class CognitiveHealthMonitor:
         )
         self._load_state()
         logger.info(
-            "🧠 CognitiveHealthMonitor initialized (%d turns, %d measured)",
+            "CognitiveHealthMonitor initialized (%d turns, %d measured)",
             self._total_turns,
             self._measured_turns,
         )

@@ -586,7 +586,7 @@ def _fail_closed_escalation(
             #   RuntimeError: warmup_deferred
             #   CRITICAL SERVICE FAILURE: Subsystem 'inference_gate' failed
             #   with failure policy 'fail-closed'
-            #   🚨 Background task 'InferenceGate.deferred_cortex_prewarm' crashed
+            #   Background task 'InferenceGate.deferred_cortex_prewarm' crashed
             #
             # warmup_deferred is already in BACKPRESSURE_MARKERS, and
             # that demotes it from degraded to WARNING — then this branch

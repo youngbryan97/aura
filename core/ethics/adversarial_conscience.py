@@ -75,7 +75,7 @@ class AdversarialConscienceEngine:
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             _degrade(exc, action="kept conscience ledger in memory after persistence path setup failed")
             self._ledger_path = None
-        logger.info("⚖️  AdversarialConscienceEngine initialized (Kokoro lineage)")
+        logger.info(" AdversarialConscienceEngine initialized (Kokoro lineage)")
 
     def _heuristic_assessment(self, action: str, context: dict | None) -> ConscienceVerdict:
         irreversible = scan_markers(action, IRREVERSIBLE_MARKERS)

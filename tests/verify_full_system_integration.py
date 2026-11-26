@@ -22,7 +22,7 @@ class InferenceGateRecorder:
 @pytest.mark.asyncio
 async def test_full_system_loop(monkeypatch):
     """User input should flow through the current InferenceGate entry point."""
-    logger.info("🚀 Starting Full Mind/Body/Language Integration Test...")
+    logger.info("Starting Full Mind/Body/Language Integration Test...")
 
     orchestrator = RobustOrchestrator()
     orchestrator._inference_gate = InferenceGateRecorder("I am fully operational.")
@@ -42,7 +42,7 @@ async def test_full_system_loop(monkeypatch):
         "into the logs and an assessment of potential performance bottlenecks in "
         "the cognitive cycle."
     )
-    logger.info("🗣️  Input: '%s'", user_input)
+    logger.info(" Input: '%s'", user_input)
 
     response = await orchestrator.process_user_input(user_input)
 

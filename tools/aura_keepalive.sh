@@ -66,16 +66,16 @@ relaunch() {
   local count=0
   for t in "${RESTARTS[@]:-}"; do [ -n "$t" ] && count=$((count+1)); done
   if [ "$count" -ge "$MAX_PER_HR" ]; then
-    log "🛑 CRASH-LOOP GUARD: ${count} restarts in the last hour (ceiling ${MAX_PER_HR}). Not relaunching. Manual attention needed."
+    log "CRASH-LOOP GUARD: ${count} restarts in the last hour (ceiling ${MAX_PER_HR}). Not relaunching. Manual attention needed."
     return 1
   fi
   RESTARTS+=("$now")
-  log "🔄 Kernel down — relaunching via launch_aura.sh (restart #$((count+1)) this hour)."
+  log "Kernel down — relaunching via launch_aura.sh (restart #$((count+1)) this hour)."
   ./launch_aura.sh >/dev/null 2>&1 || true
   return 0
 }
 
-log "🛡️ Aura keepalive supervisor started (port=${PORT}, interval=${INTERVAL_S}s, grace=${GRACE_S}s, ceiling=${MAX_PER_HR}/hr). Touch ${STOP_FLAG} to stop."
+log "Aura keepalive supervisor started (port=${PORT}, interval=${INTERVAL_S}s, grace=${GRACE_S}s, ceiling=${MAX_PER_HR}/hr). Touch ${STOP_FLAG} to stop."
 
 # Initial boot grace so we don't fight an in-progress launch.
 DOWN_STREAK=0
@@ -89,7 +89,7 @@ done
 while true; do
   if [ -f "$STOP_FLAG" ]; then
     rm -f "$STOP_FLAG"
-    log "🧹 Stop flag seen — supervisor exiting cleanly (will not relaunch)."
+    log "Stop flag seen — supervisor exiting cleanly (will not relaunch)."
     exit 0
   fi
 

@@ -216,7 +216,7 @@ class Goal:
 
     def to_brief(self) -> str:
         p = round(self.progress * 100)
-        suffix = " ⚠ OVERDUE" if self.is_overdue() else ""
+        suffix = " OVERDUE" if self.is_overdue() else ""
         return f"[{self.level.value.upper()}] {self.title} — {p}% ({self.status.value}){suffix}"
 
 

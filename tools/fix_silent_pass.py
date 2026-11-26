@@ -227,14 +227,14 @@ def main():
                 accelerator_capability="none",
             )
             if result.returncode != 0:
-                print(f"  ❌ COMPILE FAIL: {filepath.relative_to(root)}")
+                print(f"  COMPILE FAIL: {filepath.relative_to(root)}")
                 print(f"     {result.stderr.strip()}")
                 failures += 1
 
         if failures:
-            print(f"\n⚠️  {failures} files failed compilation.")
+            print(f"\n {failures} files failed compilation.")
         else:
-            print(f"\n✅ All {len(all_files)} files compile clean.")
+            print(f"\nAll {len(all_files)} files compile clean.")
 
 
 if __name__ == "__main__":

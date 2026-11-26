@@ -570,7 +570,7 @@ class AuraKernel(_TicksAndShutsDown):
                     json.dumps(fragment_entry) + "\n",
                     source=source,
                 )
-            logger.info("🌙 Registered preempted background tick as a dream fragment for offline consolidation.")
+            logger.info("Registered preempted background tick as a dream fragment for offline consolidation.")
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
             _record_kernel_degradation(
                 exc,
@@ -622,15 +622,15 @@ class AuraKernel(_TicksAndShutsDown):
                     self._auto_fix_engine = AutonomousSelfModificationEngine(
                         cognitive_engine=cog_engine, code_base_path="."
                     )
-                    logger.info("🧬 [SELF-REPAIR] AutonomousSelfModificationEngine initialized.")
+                    logger.info("[SELF-REPAIR] AutonomousSelfModificationEngine initialized.")
                 else:
-                    logger.debug("⚠️ [SELF-REPAIR] LLM engine not found for SME initialization.")
+                    logger.debug("[SELF-REPAIR] LLM engine not found for SME initialization.")
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_kernel_degradation(
                     e,
                     action="left autonomous self-modification engine unavailable after initialization failed",
                 )
-                logger.error("❌ [SELF-REPAIR] SME initialization failed: %s", e)
+                logger.error("[SELF-REPAIR] SME initialization failed: %s", e)
         return self._auto_fix_engine
 
     def set_volition_level(self, level: int):
@@ -641,7 +641,7 @@ class AuraKernel(_TicksAndShutsDown):
         old_level = self.volition_level
         self.volition_level = max(0, min(3, level))
 
-        logger.info("🔥 [VOLITION] Level shifted: %d -> %d", old_level, self.volition_level)
+        logger.info("[VOLITION] Level shifted: %d -> %d", old_level, self.volition_level)
 
         # The governor sets the share of their rate her background loops run
         # at. Read from its module: "substrate_governor" is registered nowhere,
@@ -664,7 +664,7 @@ class AuraKernel(_TicksAndShutsDown):
         Deterministic, closed-graph boot sequence.
         Fails fast if dependencies are missing.
         """
-        logger.info("🛡️ Kernel Boot sequence initiated...")
+        logger.info("Kernel Boot sequence initiated...")
 
         try:
             from core.runtime.runtime_hygiene import get_runtime_hygiene
@@ -726,7 +726,7 @@ class AuraKernel(_TicksAndShutsDown):
                 from core.perception.perception_daemon import get_perception_daemon
                 daemon = get_perception_daemon()
                 await daemon.start()
-                logger.info("📡 [PERCEPTION] PerceptionDaemon ONLINE")
+                logger.info("[PERCEPTION] PerceptionDaemon ONLINE")
             except _KERNEL_OPTIONAL_PERCEPTION_ERRORS as e:
                 _record_kernel_degradation(
                     e,
@@ -738,7 +738,7 @@ class AuraKernel(_TicksAndShutsDown):
             self._running = True
             self.status.running = True
 
-            logger.info("✅ AuraKernel booted — Unitary Organism online.")
+            logger.info("AuraKernel booted — Unitary Organism online.")
 
             # Record boot in Cognitive Ledger
             try:
@@ -790,7 +790,7 @@ class AuraKernel(_TicksAndShutsDown):
                 action="failed closed kernel boot after required boot graph failed",
                 severity="critical",
             )
-            logger.critical("🛑 Kernel Boot FATAL ERROR: %s", e)
+            logger.critical("Kernel Boot FATAL ERROR: %s", e)
             raise SystemExit(1) from e
 
     def _register_all_services(self):
@@ -822,14 +822,14 @@ class AuraKernel(_TicksAndShutsDown):
         except ImportError:
             logger.debug("LLMRouter not found — skipping explicit registration.")
 
-        logger.info("✅ Registered %d core services.", len(self._services))
+        logger.info("Registered %d core services.", len(self._services))
 
     async def _validate_dependency_graph(self):
         """
         Refuses to start if the organism is not 'closed'.
         Ensures all required organs are mapped and phases are instantiated.
         """
-        logger.info("🛡️ Validating Organism Integrity (Closed-Graph)...")
+        logger.info("Validating Organism Integrity (Closed-Graph)...")
 
         required_organs = {
             "llm",
@@ -858,7 +858,7 @@ class AuraKernel(_TicksAndShutsDown):
         if broken:
             # Harder validation: refuse boot when a required runtime organ did not load.
             for b_organ in broken:
-                logger.error("🛑 CRITICAL ORGAN FAILURE: %s instance is None.", b_organ)
+                logger.error("CRITICAL ORGAN FAILURE: %s instance is None.", b_organ)
             if "llm" in broken:
                 raise RuntimeError("Kernel cannot start: LLM organ is dysfunctional.")
 
@@ -908,14 +908,14 @@ class AuraKernel(_TicksAndShutsDown):
             except asyncio.QueueFull:
                 # Non-blocking failsafe
                 pass  # no-op: intentional
-            logger.info("🫀 Organ %s is READY", organ.name)
+            logger.info("Organ %s is READY", organ.name)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _record_kernel_degradation(
                 e,
                 action="marked organ unavailable after supervised organ load failed",
                 severity="error",
             )
-            logger.error("⚠️ Organ %s failed to load: %s", organ.name, e)
+            logger.error("Organ %s failed to load: %s", organ.name, e)
 
     def _setup_phases(self):
         """
@@ -989,7 +989,7 @@ class AuraKernel(_TicksAndShutsDown):
                     self.vault, "current_state", None
                 )
             if state is None:
-                logger.info("🌱 No existing state found. Creating fresh AuraState.")
+                logger.info("No existing state found. Creating fresh AuraState.")
                 from core.state.aura_state import AuraState
 
                 state = AuraState()
@@ -1014,14 +1014,14 @@ class AuraKernel(_TicksAndShutsDown):
                 logger.error("Continuity hydration failed: %s", continuity_exc, exc_info=True)
 
             self.state = state
-            logger.info("🧬 State successfully initialized (version %d)", self.state.version)
+            logger.info("State successfully initialized (version %d)", self.state.version)
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_kernel_degradation(
                 e,
                 action="failed closed kernel state initialization after vault load failed",
                 severity="critical",
             )
-            logger.error("❌ Failed to initialize state: %s", e, exc_info=True)
+            logger.error("Failed to initialize state: %s", e, exc_info=True)
             raise RuntimeError(f"Kernel state initialization failed: {e}") from e
 
     async def _boot_rubicon_layers(self) -> None:
@@ -1152,7 +1152,7 @@ class AuraKernel(_TicksAndShutsDown):
         # plus a comfortable margin for 32B inference startup.
         if not await self._lock.acquire_robust(timeout=45.0, max_retries=3):
             logger.error(
-                "🛑 CRITICAL: Could not acquire Kernel lock for tick. Possible deadlock. Objective: '%s'",
+                "CRITICAL: Could not acquire Kernel lock for tick. Possible deadlock. Objective: '%s'",
                 objective,
             )
             if self.status:
@@ -1307,7 +1307,7 @@ class AuraKernel(_TicksAndShutsDown):
                     payload = intent.get("payload")
                     if path and payload:
                         await _append_to_file(path, payload)
-                        logger.debug("✅ Eternal Vault: Appended state record to %s", path)
+                        logger.debug("Eternal Vault: Appended state record to %s", path)
             except (OSError, ConnectionError, TimeoutError) as e:
                 _record_kernel_degradation(
                     e,
@@ -1437,7 +1437,7 @@ class AuraKernel(_TicksAndShutsDown):
 
         changed = tuple(str(path or "").strip() for path in changed_files if str(path or "").strip())
         if not changed:
-            logger.info("⚡ [HOT-RELOAD] No applied source files were receipted; runtime unchanged.")
+            logger.info("[HOT-RELOAD] No applied source files were receipted; runtime unchanged.")
             return {
                 "ok": True,
                 "reloaded": [],
@@ -1447,7 +1447,7 @@ class AuraKernel(_TicksAndShutsDown):
             }
         if primary_inference_active():
             logger.info(
-                "⚡ [HOT-RELOAD] Deferred %d applied file(s) while foreground "
+                "[HOT-RELOAD] Deferred %d applied file(s) while foreground "
                 "or primary cognition owns the model lane.",
                 len(changed),
             )
@@ -1459,7 +1459,7 @@ class AuraKernel(_TicksAndShutsDown):
                 "reason": "primary_inference_active",
             }
 
-        logger.info("⚡ [HOT-RELOAD] Applying %d receipted source change(s).", len(changed))
+        logger.info("[HOT-RELOAD] Applying %d receipted source change(s).", len(changed))
 
         # Reload only the files the mutation receipt names, through the
         # canonical reloader. It rejects runtime-owned modules and inheritance
@@ -1488,7 +1488,7 @@ class AuraKernel(_TicksAndShutsDown):
             self._setup_phases()
 
         logger.info(
-            "✅ [HOT-RELOAD] Refresh complete. %d reloaded, %d require restart.",
+            "[HOT-RELOAD] Refresh complete. %d reloaded, %d require restart.",
             len(reloaded),
             len(skipped) + len(failures),
         )
@@ -1523,13 +1523,13 @@ class AuraKernel(_TicksAndShutsDown):
                         logger.debug("Background supervisor: Task exception ignored: %s", e)
 
                     logger.error(
-                        "⚠️ Background task '%s' died unexpectedly: %s", task.get_name(), exc
+                        "Background task '%s' died unexpectedly: %s", task.get_name(), exc
                     )
                     self._background_tasks.remove(task)
 
                     # Restart critical tasks
                     if task.get_name() == "vault_mutation_consumer":
-                        logger.info("🔄 Restarting StateRepository mutation consumer...")
+                        logger.info("Restarting StateRepository mutation consumer...")
                         self._spawn_background_task(
                             self.vault._mutation_consumer(), name="vault_mutation_consumer"
                         )
@@ -1546,7 +1546,7 @@ class AuraKernel(_TicksAndShutsDown):
                     report = await _governor.govern()
                     mem_status = report.get("memory", {}).get("status", "")
                     if mem_status in ("warning", "emergency"):
-                        logger.warning("⚠️ ResourceGovernor: memory pressure detected — %s", report)
+                        logger.warning("ResourceGovernor: memory pressure detected — %s", report)
                 except (ImportError, AttributeError, RuntimeError) as e:
                     _record_kernel_degradation(
                         e,
@@ -1560,7 +1560,7 @@ class AuraKernel(_TicksAndShutsDown):
 
         stack = inspect.stack()
         stack_str = "\n".join([f"  {s.filename}:{s.lineno} in {s.function}" for s in stack])
-        logger.info("🛑 [KERNEL] Stop requested. Called by:\n%s", stack_str)
+        logger.info("[KERNEL] Stop requested. Called by:\n%s", stack_str)
         self._running = False
         for task in self._background_tasks:
             task.cancel()

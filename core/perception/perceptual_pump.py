@@ -668,7 +668,7 @@ class PerceptualPump:
             name="Aura.PerceptualPump",
         )
         logger.info(
-            "👁️ PerceptualPump ONLINE — %.0f Hz perceptual grounding active "
+            "PerceptualPump ONLINE — %.0f Hz perceptual grounding active "
             "(screen every %d ticks, audio every %d ticks, system every %d ticks)",
             self.PUMP_HZ, self.SCREEN_EVERY_N, self.AUDIO_EVERY_N, self.SYSTEM_EVERY_N,
         )
@@ -689,7 +689,7 @@ class PerceptualPump:
             )
         self._substrate_worker_active = False
         logger.info(
-            "👁️ PerceptualPump OFFLINE — produced %d frames, %d substrate injections, %d errors",
+            "PerceptualPump OFFLINE — produced %d frames, %d substrate injections, %d errors",
             self._frames_produced, self._substrate_injections, self._errors,
         )
 

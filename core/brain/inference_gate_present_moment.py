@@ -128,7 +128,7 @@ def _modulate_sampling_from_the_body(
             somatic_temperature = max(0.1, min(1.5, somatic_temperature))
 
         logger.debug(
-            "🧬 Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
+            "Morphogenetic Coupling: danger=%.2f curiosity=%.2f pres=%.2f -> temp=%.2f tokens=%d",
             _danger,
             _curiosity,
             _resource_pressure,
@@ -234,7 +234,7 @@ async def _attach_the_present_moment(
             if _readings:
                 task_grounding_blocks.extend(_readings)
                 logger.info(
-                    "🔭 [GROUNDING] took %d reading(s): %s",
+                    "[GROUNDING] took %d reading(s): %s",
                     len(_readings),
                     ",".join(
                         block.split("\n", 1)[0].removeprefix("## ").lower()
@@ -246,7 +246,7 @@ async def _attach_the_present_moment(
                 # otherwise, which is how the screen block went missing for
                 # a whole session while the file block worked.
                 logger.debug(
-                    "🔭 [GROUNDING] no reading matched prompt=%r",
+                    "[GROUNDING] no reading matched prompt=%r",
                     str(visible_user_prompt)[:120],
                 )
         except _INFERENCE_RECOVERABLE_ERRORS as _exc:

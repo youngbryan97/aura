@@ -126,7 +126,7 @@ class ResponseShaper:
             ack = random.choice(_ACK_WORDS)
             if profile.capitalization == "lowercase":
                 ack = ack.lower()
-            logger.debug("🗣️ [Shaper] Acknowledgment-only triggered: '%s'", ack)
+            logger.debug("[Shaper] Acknowledgment-only triggered: '%s'", ack)
             return ack
 
         # ── 2. Trailing question suppression ─────────────────────────────
@@ -158,7 +158,7 @@ class ResponseShaper:
             messages = _split_into_messages(text, profile.multi_message_count)
             if len(messages) > 1:
                 logger.debug(
-                    "🗣️ [Shaper] Split into %d messages: %s",
+                    "[Shaper] Split into %d messages: %s",
                     len(messages),
                     [m[:30] for m in messages],
                 )
@@ -191,7 +191,7 @@ def _strip_trailing_question(text: str) -> str:
         result = re.sub(r'\s+$', '', result)
         if result and result[-1] not in ".!?…":
             result += "."
-        logger.debug("🗣️ [Shaper] Stripped trailing question: '%s'", last[:50])
+        logger.debug("[Shaper] Stripped trailing question: '%s'", last[:50])
         return result
 
     return text
@@ -221,7 +221,7 @@ def _enforce_word_budget(text: str, budget: int) -> str:
         truncated = truncated[: last_dash + 1]
     # Otherwise just use the word-count cut (better than losing content at a bad boundary)
 
-    logger.debug("🗣️ [Shaper] Budget enforced: %d → %d words", len(words), len(truncated.split()))
+    logger.debug("[Shaper] Budget enforced: %d → %d words", len(words), len(truncated.split()))
     return truncated.strip()
 
 

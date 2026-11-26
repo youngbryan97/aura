@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> int:
     })
     _save(args.artifact, artifact)
 
-    marker = "✅" if artifact["passed"] else ("⏱️ TIMEOUT" if timed_out else "❌")
+    marker = "ok" if artifact["passed"] else ("TIMEOUT" if timed_out else "failed")
     print(
         f"{marker} proof step '{args.name}': rc={returncode} "
         f"in {artifact['duration_s']}s → {args.artifact}",

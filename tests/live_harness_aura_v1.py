@@ -572,7 +572,7 @@ async def section_G_stress() -> Section:
 
 async def main() -> int:
     sections: List[Section] = []
-    print("🔬 Aura Live Integration Harness v1")
+    print("Aura Live Integration Harness v1")
     print(f"   project_root: {PROJECT_ROOT}")
     print(f"   python:       {sys.version.split()[0]}")
     print("")

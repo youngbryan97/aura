@@ -1394,7 +1394,7 @@ def enforce_capability(
     )
     if not result.ok:
         logger.warning(
-            "🔒 Capability DENIED at sink '%s' for action '%s': %s (%s)",
+            "Capability DENIED at sink '%s' for action '%s': %s (%s)",
             sink,
             action,
             (result.denial.value if result.denial else "unknown"),

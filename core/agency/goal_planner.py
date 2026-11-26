@@ -166,7 +166,7 @@ class GoalPlanner:
                 self._on_result(goal, kind, answer)
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_planner", exc)
-        logger.info("🗺️ [Planner] %s goal → %s: %s", kind, goal[:40], (answer or "")[:60])
+        logger.info("[Planner] %s goal → %s: %s", kind, goal[:40], (answer or "")[:60])
 
     def _compute_step(self, goal: str) -> Step:
         async def _act() -> StepActionResult:

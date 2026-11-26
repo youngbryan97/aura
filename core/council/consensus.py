@@ -24,7 +24,7 @@ class ConsensusResolver:
             if role in votes:
                 approved, score, reason = votes[role]
                 if not approved:
-                    logger.warning("❌ VETO triggered by role: %s. Reason: %s", role, reason)
+                    logger.warning("VETO triggered by role: %s. Reason: %s", role, reason)
                     return {
                         "approved": False,
                         "status": "vetoed",

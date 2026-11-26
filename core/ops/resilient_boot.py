@@ -88,10 +88,10 @@ class ResilientBoot:
             
         async with self.orchestrator._boot_lock:
             if self.orchestrator.status.initialized:
-                logger.info("🛡️ [BOOT] Resilient Ignition: Already initialized. skipping.")
+                logger.info("[BOOT] Resilient Ignition: Already initialized. skipping.")
                 return BootStatus.HEALTHY
 
-            logger.info("🚀 Aura: Ignition sequence started.")
+            logger.info("Aura: Ignition sequence started.")
             
             # [UNITY] Register Global Inhibition Manager
             from core.container import ServiceContainer
@@ -120,9 +120,9 @@ class ResilientBoot:
                 )
                 hook_omni_tracer()
                 install_asyncio_exception_handler()
-                logger.info("🔬 [BOOT] Omni-Tracer hooked successfully.")
+                logger.info("[BOOT] Omni-Tracer hooked successfully.")
             except (ImportError, AttributeError, RuntimeError) as e:
-                logger.error("💥 [BOOT] Omni-Tracer hook failed: %s", e)
+                logger.error("[BOOT] Omni-Tracer hook failed: %s", e)
 
             # 1.5 Start Neural Neuro-Surgeon Tools (Phase 29)
             from core.resilience.diagnostic_hub import get_diagnostic_hub
@@ -133,7 +133,7 @@ class ResilientBoot:
             # 2. Pre-Ignition Health Check (Immune System 2.0)
             self._pre_ignition_health_check()
             
-            logger.info("🚀 [BOOT] Initiating Resilient Ignition Sequence...")
+            logger.info("[BOOT] Initiating Resilient Ignition Sequence...")
             
             # Register Kernel PID with Reaper for post-mortem cleanup
             try:
@@ -145,7 +145,7 @@ class ResilientBoot:
             
             for name, stage_fn in self.stages:
                 try:
-                    logger.info("⏳ [BOOT] Starting stage: %s", name)
+                    logger.info("[BOOT] Starting stage: %s", name)
                     timeout = self.stage_timeouts.get(name, self.timeout_per_stage)
                     # The budget is the longest a stage may sit on one await,
                     # not the longest it may take. LIVE 2026-09-16, load 34
@@ -158,9 +158,9 @@ class ResilientBoot:
                         stage_fn(), stall_s=timeout, name=f"boot stage {name}"
                     )
                     self.results[name] = BootStageResult(name, True)
-                    logger.info("✅ [BOOT] Stage '%s' completed successfully.", name)
+                    logger.info("[BOOT] Stage '%s' completed successfully.", name)
                 except TimeoutError:
-                    logger.error("⏰ [BOOT] Stage '%s' TIMED OUT. Applying fallback.", name)
+                    logger.error("[BOOT] Stage '%s' TIMED OUT. Applying fallback.", name)
                     # Attempt to audit the timeout with immunity
                     immunity.registry.match_and_repair(f"Stage {name} timed out")
                     self.results[name] = BootStageResult(name, False, "Timeout")
@@ -171,7 +171,7 @@ class ResilientBoot:
                     await self._apply_fallback(name)
                 except _BOOT_STAGE_RECOVERABLE_ERRORS as e:
                     _record_boot_degradation(e, action=f"boot stage failed: {name}")
-                    logger.error("💥 [BOOT] Stage '%s' FAILED: %s. Applying fallback.", name, e)
+                    logger.error("[BOOT] Stage '%s' FAILED: %s. Applying fallback.", name, e)
                     # Immediate immunity audit
                     immunity.audit_error(e, {"stage": name})
                     self.results[name] = BootStageResult(name, False, str(e))
@@ -182,7 +182,7 @@ class ResilientBoot:
                     await self._apply_fallback(name)
 
             final_status = BootStatus.HEALTHY if all(r.success for r in self.results.values()) else BootStatus.DEGRADED
-            logger.info("🏁 [BOOT] Ignition sequence finished. System Health: %s", final_status)
+            logger.info("[BOOT] Ignition sequence finished. System Health: %s", final_status)
             
             # Registration of core results
             if hasattr(self.orchestrator.status, "health_metrics"):
@@ -200,18 +200,18 @@ class ResilientBoot:
         from core.senses.sensory_registry import SensoryCapabilityFlags, set_capabilities
 
         manifest_path = config.paths.project_root / "requirements_hardened.txt"
-        logger.info("🔍 [BOOT] Dependency probe using interpreter: %s", sys.executable)
+        logger.info("[BOOT] Dependency probe using interpreter: %s", sys.executable)
         if os.environ.get("VIRTUAL_ENV"):
-            logger.info("🔍 [BOOT] Active virtualenv: %s", os.environ.get("VIRTUAL_ENV"))
+            logger.info("[BOOT] Active virtualenv: %s", os.environ.get("VIRTUAL_ENV"))
         
         # Verify exact manifest versions from requirements_hardened.txt
         try:
             with manifest_path.open("r") as f:
                 _manifest_lines = f.readlines()
             # Simple check: do we have the lines?
-            logger.info("📄 [BOOT] Verified requirements_hardened.txt presence at %s.", manifest_path)
+            logger.info("[BOOT] Verified requirements_hardened.txt presence at %s.", manifest_path)
         except FileNotFoundError:
-            logger.warning("⚠️ [BOOT] requirements_hardened.txt NOT FOUND at %s. Using permissive probe.", manifest_path)
+            logger.warning("[BOOT] requirements_hardened.txt NOT FOUND at %s. Using permissive probe.", manifest_path)
 
         # Maps import_name to user-friendly name
         from core.brain.llm.model_registry import (
@@ -234,24 +234,24 @@ class ResilientBoot:
             critical_manifest["mlx_lm"] = "MLX Language Models"
         
         status = {}
-        logger.info("🔍 [BOOT] Probing Dependency Manifest (No-Execute)...")
+        logger.info("[BOOT] Probing Dependency Manifest (No-Execute)...")
         
         for mod, label in critical_manifest.items():
             try:
                 present = importlib.util.find_spec(mod) is not None
                 status[mod] = present
                 if present:
-                    logger.info("   ✅ %s (%s): FOUND", label, mod)
+                    logger.info("   %s (%s): FOUND", label, mod)
                 else:
-                    logger.warning("   ⚠️ %s (%s): MISSING", label, mod)
+                    logger.warning("   %s (%s): MISSING", label, mod)
             except (RuntimeError, AttributeError, TypeError, ValueError):
                 status[mod] = False
-                logger.error("   ❌ %s (%s): PROBE_FAILED", label, mod)
+                logger.error("   %s (%s): PROBE_FAILED", label, mod)
 
         # Apply capability flags
         flags = SensoryCapabilityFlags.from_boot_status(status)
         set_capabilities(flags)
-        logger.info("📍 [BOOT] Capability Mapping: Hearing=%s, Speech=%s, Vision=%s", 
+        logger.info("[BOOT] Capability Mapping: Hearing=%s, Speech=%s, Vision=%s", 
                     flags.hearing_enabled, flags.speech_enabled, flags.vision_enabled)
 
     async def _stage_state(self):
@@ -300,7 +300,7 @@ class ResilientBoot:
             actor_bus.add_actor("state_vault", pipe, is_child=False)
         
         # Wait for readiness using the same request protocol as runtime IPC.
-        logger.info("⏳ Waiting for StateVaultActor to be ready (Resilient)...")
+        logger.info("Waiting for StateVaultActor to be ready (Resilient)...")
         ready = False
         for attempt in range(20):
             try:
@@ -312,7 +312,7 @@ class ResilientBoot:
                 )
                 if isinstance(resp, dict) and resp.get("type") == "pong":
                     ready = True
-                    logger.info("📡 StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
+                    logger.info("StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
                 # A fresh child answering late on a loaded host is the wait
@@ -332,7 +332,7 @@ class ResilientBoot:
                 action="aborted boot; the state vault never answered",
                 severity="critical",
             )
-            logger.critical("🛑 StateVaultActor failed to initialize or respond. Aborting boot.")
+            logger.critical("StateVaultActor failed to initialize or respond. Aborting boot.")
             raise RuntimeError("StateVaultActor is fundamentally broken or unresponsive.")
 
         # 2. Initialize the Proxy Repository (it will attach to SHM/Pipe)
@@ -343,10 +343,10 @@ class ResilientBoot:
         # 4. Critical Handshake Verification
         test_state = await self.orchestrator.state_repo.get_current()
         if not test_state:
-             logger.critical("🛑 StateVaultActor responded, but Shared Memory state is None. Genesis State was not populated!")
+             logger.critical("StateVaultActor responded, but Shared Memory state is None. Genesis State was not populated!")
              raise RuntimeError("StateVaultActor failed to populate SHM with Genesis state.")
         
-        logger.info("✅ [BOOT] State Vault supervision active. Proxy attached.")
+        logger.info("[BOOT] State Vault supervision active. Proxy attached.")
 
     async def _stage_llm(self):
         """Prepare the primary local client without loading Cortex during early boot.
@@ -365,24 +365,24 @@ class ResilientBoot:
         backend = get_local_backend()
         model_path = str(get_runtime_model_path(ACTIVE_MODEL))
         get_mlx_client(model_path=model_path)
-        logger.info("🧠 [BOOT] Primary %s client prepared. Cortex warmup deferred to InferenceGate.", backend)
+        logger.info("[BOOT] Primary %s client prepared. Cortex warmup deferred to InferenceGate.", backend)
 
     async def _stage_cognitive(self):
         """Start the MindTick rhythm and initialize cognitive architecture."""
-        logger.info("🧠 [BOOT] Entry into stage_cognitive")
+        logger.info("[BOOT] Entry into stage_cognitive")
         # Explicitly initialize cognitive architecture (QualiaSynthesizer, etc.)
         # This was previously skipped in ResilientBoot, causing LoopMonitor failures.
         if hasattr(self.orchestrator, '_init_cognitive_architecture'):
-            logger.info("🧠 [BOOT] Initializing Cognitive Architecture (Qualia/Affect)...")
+            logger.info("[BOOT] Initializing Cognitive Architecture (Qualia/Affect)...")
             await self.orchestrator._init_cognitive_architecture()
         else:
-            logger.warning("⚠️ [BOOT] Orchestrator missing _init_cognitive_architecture!")
+            logger.warning("[BOOT] Orchestrator missing _init_cognitive_architecture!")
             
         if hasattr(self.orchestrator, 'mind_tick'):
-            logger.info("🧠 [BOOT] Starting MindTick loop...")
+            logger.info("[BOOT] Starting MindTick loop...")
             await self.orchestrator.mind_tick.start()
         else:
-             logger.warning("⚠️ [BOOT] Orchestrator missing mind_tick!")
+             logger.warning("[BOOT] Orchestrator missing mind_tick!")
 
     async def _stage_kernel_interface(self):
         """Initialize the unified Kernel Interface."""
@@ -391,9 +391,9 @@ class ResilientBoot:
         self.orchestrator.kernel_interface = ki
         
         if not ki.is_ready():
-            logger.warning("⚠️ KernelInterface failed to initialize properly.")
+            logger.warning("KernelInterface failed to initialize properly.")
         else:
-            logger.info("✅ [BOOT] Kernel Interface online.")
+            logger.info("[BOOT] Kernel Interface online.")
 
     async def _stage_sensory(self):
         """Async initialization of ears, voice, and vision with lazy-loading."""
@@ -406,12 +406,12 @@ class ResilientBoot:
             try:
                 ears = ears_mod.SovereignEars()
                 ServiceContainer.register_instance("sovereign_ears", ears)
-                logger.info("   👂 SovereignEars: DEFERRED (Lazy-init enabled)")
+                logger.info("   SovereignEars: DEFERRED (Lazy-init enabled)")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 _record_boot_degradation(e, action="SovereignEars initialization failed")
-                logger.warning("   ⚠️ SovereignEars: INIT_FAILED: %s", e)
+                logger.warning("   SovereignEars: INIT_FAILED: %s", e)
         else:
-            logger.warning("   ⚠️ SovereignEars: MISSING (Optional module)")
+            logger.warning("   SovereignEars: MISSING (Optional module)")
 
         # 2. VoiceEngine (Speech)
         voice_mod = await async_safe_import("core.senses.voice_engine", optional=True)
@@ -419,25 +419,25 @@ class ResilientBoot:
             try:
                 voice = voice_mod.get_voice_engine()
                 ServiceContainer.register_instance("voice_engine", voice)
-                logger.info("   🗣️ VoiceEngine: READY")
+                logger.info("   VoiceEngine: READY")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 _record_boot_degradation(e, action="VoiceEngine initialization failed")
-                logger.warning("   ⚠️ VoiceEngine: INIT_FAILED: %s", e)
+                logger.warning("   VoiceEngine: INIT_FAILED: %s", e)
         else:
-            logger.warning("   ⚠️ VoiceEngine: MISSING (Optional module)")
+            logger.warning("   VoiceEngine: MISSING (Optional module)")
 
         # 3. Vision Buffer
         try:
             vision = ServiceContainer.get("continuous_vision", default=None)
             if vision:
-                logger.info("   👁️ Continuous Vision: ACTIVE")
+                logger.info("   Continuous Vision: ACTIVE")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_degradation(e, action="continuous vision service check failed", severity="debug")
             logger.debug("ResilientBoot: vision service check failed: %s", e)
 
     def _pre_ignition_health_check(self):
         """Perform deterministic Python-based checks before full system boot."""
-        logger.info("🔍 [IMMUNE] Pre-Ignition Health Check...")
+        logger.info("[IMMUNE] Pre-Ignition Health Check...")
         try:
             from core.resilience.immunity_hyphae import get_immunity
             immunity = get_immunity()
@@ -455,26 +455,26 @@ class ResilientBoot:
                 logs = list(log_dir.glob("*.log"))
                 hidden = immunity.registry.log_sieve(logs)
                 if hidden:
-                     logger.warning("💉 [IMMUNE] Log Sieve found %d prior issues. System is self-correcting.", len(hidden))
+                     logger.warning("[IMMUNE] Log Sieve found %d prior issues. System is self-correcting.", len(hidden))
 
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_degradation(e, action="pre-ignition health check failed")
-            logger.error("💉 [IMMUNE] Pre-Ignition Check failed: %s", e)
+            logger.error("[IMMUNE] Pre-Ignition Check failed: %s", e)
 
     async def _apply_fallback(self, stage_name: str):
         """Generic fallback logic to keep the system alive."""
         if stage_name == "Sensory Systems":
-            logger.warning("🔇 [FALLBACK] Sensory failure. Entering Text-Only Mode.")
+            logger.warning("[FALLBACK] Sensory failure. Entering Text-Only Mode.")
         elif stage_name == "LLM Infrastructure":
             status = getattr(self.orchestrator, "status", None)
             health_metrics = getattr(status, "health_metrics", None)
             if isinstance(health_metrics, dict):
                 health_metrics["local_inference"] = "unavailable_retryable"
             logger.warning(
-                "🧠 [DEGRADED] Local inference is unavailable. Non-inference "
+                "[DEGRADED] Local inference is unavailable. Non-inference "
                 "services remain active and local initialization may be retried; "
                 "remote inference is retired."
             )
         elif stage_name == "Cognitive Core":
-            logger.critical("🧠 [FALLBACK] Cognitive Core failure. Entering Reflexive Mode.")
+            logger.critical("[FALLBACK] Cognitive Core failure. Entering Reflexive Mode.")
             # Map identity to a basic reflex loop if possible

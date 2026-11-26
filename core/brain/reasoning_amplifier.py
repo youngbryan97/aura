@@ -228,20 +228,20 @@ async def amplify(
 
     if all_rejected:
         logger.warning(
-            "🧠 [Amplify] every one of %d paths FAILED verification — "
+            "[Amplify] every one of %d paths FAILED verification — "
             "returning the largest cluster with confidence %.2f",
             len(cands), confidence,
         )
 
     if not verifier_checked:
         logger.warning(
-            "🧠 [Amplify] verifier unavailable for all %d paths — answer is "
+            "[Amplify] verifier unavailable for all %d paths — answer is "
             "UNVERIFIED (agreement %.0f%%)",
             len(cands), agreement * 100,
         )
     else:
         logger.info(
-            "🧠 [Amplify] %d paths, %d verifier-clean → answer agreement %.0f%% (conf %.2f)",
+            "[Amplify] %d paths, %d verifier-clean → answer agreement %.0f%% (conf %.2f)",
             len(cands), len(valid), agreement * 100, confidence,
         )
     return AmplifiedResult(
@@ -349,7 +349,7 @@ class DeliberationEngine:
             if result.verified and result.agreement >= target_agreement:
                 break
         logger.info(
-            "🧠 [Adaptive] settled on %d samples (verified=%s, agreement %.0f%%)",
+            "[Adaptive] settled on %d samples (verified=%s, agreement %.0f%%)",
             result.n, result.verified, result.agreement * 100,
         )
         return result

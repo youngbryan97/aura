@@ -72,7 +72,7 @@ class ToolRegistry:
 
     def register_tool(self, name: str, manifest: Any) -> None:
         self._tools[name] = manifest
-        logger.info("📦 ToolRegistry: registered '%s'", name)
+        logger.info("ToolRegistry: registered '%s'", name)
 
     def get_tool(self, name: str) -> Optional[Any]:
         return self._tools.get(name)
@@ -122,7 +122,7 @@ class ToolRegistry:
         """Invoke a registered tool in the isolated tool sandbox."""
         manifest = self.get_tool(name)
         if not manifest:
-            logger.error("🚫 ToolRegistry: tool '%s' not found", name)
+            logger.error("ToolRegistry: tool '%s' not found", name)
             return {"ok": False, "error": f"tool_not_found:{name}"}
 
         call_key = AgentStep.of(
@@ -130,7 +130,7 @@ class ToolRegistry:
         ).call_key
         blocked = self._blocked_calls.get(call_key)
         if blocked is not None:
-            logger.info("🔁 ToolRegistry: refusing repeat of '%s' — %s", name, blocked.detail)
+            logger.info("ToolRegistry: refusing repeat of '%s' — %s", name, blocked.detail)
             return {
                 "ok": False,
                 "error": f"tool_call_looping:{name}",
@@ -145,7 +145,7 @@ class ToolRegistry:
                 # unexplained reason is indistinguishable from one that is
                 # broken, and the model will retry it either way.
                 reason = verdict.why_not(name) or "no rule permits it at this point"
-                logger.info("⛔ ToolRegistry: '%s' not permitted here — %s", name, reason)
+                logger.info("ToolRegistry: '%s' not permitted here — %s", name, reason)
                 return {
                     "ok": False,
                     "error": f"tool_not_permitted_here:{name}",
@@ -196,7 +196,7 @@ class ToolRegistry:
         verdict = self._stuck.assess_once(context={"tool": name})
         if verdict is not None:
             self._stuck.record_to_learner(verdict)
-            logger.warning("🔁 ToolRegistry: %s — %s", verdict.pattern.value, verdict.detail)
+            logger.warning("ToolRegistry: %s — %s", verdict.pattern.value, verdict.detail)
             if verdict.pattern in _BLOCKING_PATTERNS:
                 self._blocked_calls[call_key] = verdict
         return outcome

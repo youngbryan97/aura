@@ -25,7 +25,7 @@ def _her_calls_after_the_persons_message(messages: Any) -> Any:
     calls = her_calls_this_turn()
     if calls:
         logging.getLogger("Aura.InferenceGate").info(
-            "🧾 %d call(s) of hers this turn follow the person's message: %s", len(calls) // 2,
+            "%d call(s) of hers this turn follow the person's message: %s", len(calls) // 2,
             ", ".join(str(call["tool_calls"][0]["function"]["name"]) for call in calls[::2]))
     return [*messages, *calls] if calls else messages
 
@@ -126,9 +126,9 @@ class _ServesTheTurn:
             if withheld:
                 # LIVE 12 November 2026 the page her browser read for the question was kept for her turn, and her reply
                 # was written without it, and nothing said why.
-                logger.warning("🌍 Her reply to a person is written without the sources read for it: %s.", withheld)
+                logger.warning("Her reply to a person is written without the sources read for it: %s.", withheld)
             elif not given and custody is None:
-                logger.info("🌍 No turn's custody reaches this generation (origin=%s); nothing read for the turn can.",
+                logger.info("No turn's custody reaches this generation (origin=%s); nothing read for the turn can.",
                             context.get("origin") or "")
         await _attach_the_present_moment(
             ambient_grounding_blocks=ambient_grounding_blocks,
@@ -353,7 +353,7 @@ class _ServesTheTurn:
             ]
             if _blocks:
                 logger.info(
-                    "🧩 [PROMPT BLOCKS] %s",
+                    "[PROMPT BLOCKS] %s",
                     " | ".join(f"{n}c {d} {h!r}" for n, d, h in _blocks),
                 )
         # The separately-passed system_prompt is merged into messages[0] at the
@@ -394,7 +394,7 @@ class _ServesTheTurn:
             _plan_floor_final = 1024
             if int(max_tokens or 0) < _plan_floor_final:
                 logger.info(
-                    "🖥️ [PLAN BUDGET] Execution turn: %s → %d tokens at dispatch.",
+                    "[PLAN BUDGET] Execution turn: %s → %d tokens at dispatch.",
                     max_tokens,
                     _plan_floor_final,
                 )
@@ -415,7 +415,7 @@ class _ServesTheTurn:
 
         if 0 < _answer_floor_final and int(max_tokens or 0) < _answer_floor_final:
             logger.info(
-                "🧠 [ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
+                "[ANSWER BUDGET] Answer turn: %s → %d tokens at dispatch.",
                 max_tokens,
                 _answer_floor_final,
             )
@@ -527,7 +527,7 @@ class _ServesTheTurn:
 
             fitted = fitted_to_the_time_given(seconds=world_seconds, read_s=_read_s, margin_s=_DELIVERY_MARGIN_S,
                                               max_tokens=int(max_tokens), model=model)
-            logger.info("🧠 [ANSWER CLOCK] %.0fs given by the world: %d tokens of %d asked fit it.",
+            logger.info("[ANSWER CLOCK] %.0fs given by the world: %d tokens of %d asked fit it.",
                         float(world_seconds), fitted, int(max_tokens))
             return max(1.0, float(world_seconds) - _DELIVERY_MARGIN_S), float(world_seconds), fitted
         primary_timeout, timeout_val = _ServesTheTurn._generate_with_metadata_sink_part_26(
@@ -551,7 +551,7 @@ class _ServesTheTurn:
         )
 
         logger.info(
-            "🧠 [ANSWER CLOCK] %d tokens (%d asked + %d reserve the "
+            "[ANSWER CLOCK] %d tokens (%d asked + %d reserve the "
             "worker adds) decode in about %.0fs and the prompt takes "
             "about %.0fs to read, at the measured rates, and this turn "
             "needs %d of them; deadline %.0fs → %.0fs.",
@@ -614,7 +614,7 @@ class _ServesTheTurn:
                 admitted_tokens = min(max_tokens, lane_limits.max_output_tokens)
                 if admitted_tokens < max_tokens:
                     logger.info(
-                        "🧠 [SERVING PROFILE] %s output ceiling reduced %d→%d "
+                        "[SERVING PROFILE] %s output ceiling reduced %d→%d "
                         "(profile=%s).",
                         serving_lane,
                         max_tokens,
@@ -631,7 +631,7 @@ class _ServesTheTurn:
         morpho_kwargs["serving_lane"] = serving_lane
 
         logger.info(
-            "🧭 [GROUNDING] survived to dispatch: %s (sys_prompt=%d)",
+            "[GROUNDING] survived to dispatch: %s (sys_prompt=%d)",
             ",".join(_grounded) or "NONE",
             len(str(system_prompt or "")),
         )
@@ -676,7 +676,7 @@ class _ServesTheTurn:
         if _measured is not messages and isinstance(messages, list):
             messages[:] = _measured
         logger.info(
-            "🧠 [ZENITH] Prompt plan: mode=%s messages=%d chars=%d "
+            "[ZENITH] Prompt plan: mode=%s messages=%d chars=%d "
             "(scaffold=%d request=%d ratio=%.1fx sys_prompt=%d) "
             "origin=%s max_tokens=%d",
             prompt_mode,
@@ -698,7 +698,7 @@ class _ServesTheTurn:
         # without adding this line first.
         if request_chars and scaffold_chars > (8 * request_chars):
             logger.info(
-                "🧠 [ZENITH] Scaffold breakdown: %s",
+                "[ZENITH] Scaffold breakdown: %s",
                 "; ".join(
                     f"{str(msg.get('role', '?'))}={len(str(msg.get('content', '') or ''))}"
                     f":{str(msg.get('content', '') or '')[:70]!r}"
@@ -833,7 +833,7 @@ class _ServesTheTurn:
             # the gate wrote, and the only way to tell is to
             # see what it does carry.
             logger.warning(
-                "🧠 the refusing receipt carries no reasons and no "
+                "the refusing receipt carries no reasons and no "
                 "draft; it holds: %s",
                 ",".join(
                     f"{name}={primary_surface_receipt.get(name)!r}"[:90]
@@ -857,7 +857,7 @@ class _ServesTheTurn:
                 or "nothing about quality at all",
             )
         logger.warning(
-            "🧠 %s exhausted its worker-owned semantic quality retries; "
+            "%s exhausted its worker-owned semantic quality retries; "
             "preserving the lane and refusing a duplicate inference-gate "
             "retry. rejected_for=%s%s",
             local_label,

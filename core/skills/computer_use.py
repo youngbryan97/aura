@@ -3412,7 +3412,7 @@ end tell
 
                 cmd = args[0]
                 if cmd not in self.ALLOWED_COMMANDS:
-                    logger.warning("🛡️ SK-01 Blocked: Command '%s' not in allowlist.", cmd)
+                    logger.warning("SK-01 Blocked: Command '%s' not in allowlist.", cmd)
                     return {
                         "ok": False,
                         "error": f"Security Violation: Command '{cmd}' is restricted.",

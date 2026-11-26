@@ -177,12 +177,12 @@ async def remark_in_a_with(
         beaten = sum(1 for seen in before if seen < interest) / len(before) if before else 0.5
         interest *= beaten
     say = worth_saying_now(held, now, interest=interest, thing=thing or shown)
-    logger.info("🤝 Watching with %s: %s (%s).", held.who, "says something" if say.speak else "stays quiet", say.why)
+    logger.info("Watching with %s: %s (%s).", held.who, "says something" if say.speak else "stays quiet", say.why)
     if not say.speak:
         return ""
     text = await (compose(observation) if compose is not None else _her_remark(held, capture, source))
     if text and _said_already(text):
-        logger.info("🤝 Watching with %s: what formed repeats what she said, so it is not said again.", held.who)
+        logger.info("Watching with %s: what formed repeats what she said, so it is not said again.", held.who)
         return ""
     if text:
         said_at = time.time()

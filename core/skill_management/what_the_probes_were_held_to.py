@@ -175,7 +175,7 @@ class TheTargetForOneForge:
         HOW_THE_TARGET_MOVED[verdict] += 1
         if note.moved_it:
             logger.info(
-                "🎯 Forge of %r: %s; verifying against the first set anyway.",
+                "Forge of %r: %s; verifying against the first set anyway.",
                 self.skill or "a skill",
                 note,
             )

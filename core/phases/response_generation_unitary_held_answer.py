@@ -58,7 +58,7 @@ def _served_what_survived(
         if not salvaged:
             return False
         logger.warning(
-            "🛡️ UnitaryResponse: the turn held an answer no gate would serve (len=%d%s). "
+            "UnitaryResponse: the turn held an answer no gate would serve (len=%d%s). "
             "Serving it rather than nothing.",
             len(salvaged),
             ", after the phase gave up" if gave_up else "",

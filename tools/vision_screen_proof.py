@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Vision live proof: a turn grounded in what Aura actually sees on screen.
 
-The capability-realness sweep (browser ✅, voice ✅) needs vision: can
+The capability-realness sweep (browser, voice) needs vision: can
 Aura look at the real screen and ground her answer in what is there,
 rather than confabulating? This proof:
 
@@ -171,7 +171,7 @@ class VisionScreenProof(JournalDemoProof):
             }
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
-                ("✅ VISION SCREEN PROOF PASSED" if verdict["passed"] else "❌ VISION SCREEN PROOF FAILED")
+                ("VISION SCREEN PROOF PASSED" if verdict["passed"] else "VISION SCREEN PROOF FAILED")
                 + f" → {self.verdict_path}"
             )
             return 0 if verdict["passed"] else 1

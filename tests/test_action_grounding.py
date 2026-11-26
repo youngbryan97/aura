@@ -1,7 +1,7 @@
 """Tests for action grounding + user-intent detection.
 
 Ensures the regression Bryan caught live — LLM emitting
-`[SKILL_RESULT:computer_use] ✅ I opened Notes` while nothing happens — is
+`[SKILL_RESULT:computer_use] I opened Notes` while nothing happens — is
 caught, executed, or explicitly labelled as unverified.
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ class _StubCapabilityEngine:
 @pytest.mark.asyncio
 async def test_marker_gets_executed_and_replaced_on_success():
     engine = _StubCapabilityEngine(ok=True, summary="Notes opened and the text was typed.")
-    text = "[SKILL_RESULT:computer_use] ✅ I opened the Notes app and created a new note."
+    text = "[SKILL_RESULT:computer_use] I opened the Notes app and created a new note."
     result = await ground_response(text, capability_engine=engine)
 
     assert result.had_markers is True

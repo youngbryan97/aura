@@ -126,7 +126,7 @@ class DreamingProcess:
             return
         self._running = True
         self._task = get_task_tracker().create_task(self._run_loop(), name="dreaming.process")
-        logger.info("🌙 Dreaming Process active (Interval: %ds)", self.interval)
+        logger.info("Dreaming Process active (Interval: %ds)", self.interval)
 
     async def stop(self):
         """Stop the background dreaming loop."""
@@ -144,7 +144,7 @@ class DreamingProcess:
                     severity="warning",
                 )
             self._task = None
-        logger.info("☀️ Dreaming Process suspended.")
+        logger.info("Dreaming Process suspended.")
 
     async def _run_loop(self):
         """The background loop that activates dreaming."""
@@ -319,7 +319,7 @@ class DreamingProcess:
 
     async def dream(self):
         """Perform a single cycle of cognitive integration."""
-        logger.info("🧩 Initiating Dream Cycle...")
+        logger.info("Initiating Dream Cycle...")
 
         if not self.identity or not self.narrator:
             logger.warning("Missing identity or narrator service. Postponing dream.")
@@ -336,8 +336,8 @@ class DreamingProcess:
             # 2. Extract recurring patterns from episodes
             patterns = self._extract_patterns(recent_events)
             monologue = self._compose_reflection(recent_events)
-            logger.info("🌙 Dream Monologue: %s...", f"{monologue[:100]}")
-            logger.info("🌙 Extracted %d patterns from episodes", len(patterns))
+            logger.info("Dream Monologue: %s...", f"{monologue[:100]}")
+            logger.info("Extracted %d patterns from episodes", len(patterns))
 
             # 3. Feed patterns into EpistemicState (world model) as beliefs
             try:
@@ -419,11 +419,11 @@ class DreamingProcess:
             try:
                 vector_mem = ServiceContainer.get("vector_memory_engine", default=None)
                 if vector_mem and hasattr(vector_mem, "consolidate"):
-                    logger.info("🧠 Consolidating semantic memories via VectorEngine...")
+                    logger.info("Consolidating semantic memories via VectorEngine...")
                     consolidated_count = await vector_mem.consolidate(brain=None)
                     if consolidated_count > 0:
                         logger.info(
-                            "💾 Consolidated %s semantic clusters into insights.",
+                            "Consolidated %s semantic clusters into insights.",
                             consolidated_count,
                         )
             except _DREAMING_RECOVERABLE_ERRORS as exc:
@@ -540,7 +540,7 @@ class DreamingProcess:
                     source="dreaming",
                     reflection=reflection[:300],
                 )
-                logger.info("🌱 Identity evolution recorded from dream patterns.")
+                logger.info("Identity evolution recorded from dream patterns.")
             except _DREAMING_RECOVERABLE_ERRORS as exc:
                 _record_dreaming_degradation(
                     exc,
@@ -549,7 +549,7 @@ class DreamingProcess:
                 )
                 logger.debug("Dream: identity evolution write failed: %s", exc)
         else:
-            logger.info("🌱 Identity growth processed from dream cycle (no evolution API).")
+            logger.info("Identity growth processed from dream cycle (no evolution API).")
 
     def get_dream_insights(self, n: int = 5) -> list[dict[str, Any]]:
         """Returns the *n* most recent dream journal entries."""

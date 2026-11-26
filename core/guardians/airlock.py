@@ -72,7 +72,7 @@ class AirlockProtocol:
         """
         Executes the Airlock Gauntlet on a proposed code mutation.
         """
-        logger.warning("🔒 AIRLOCK PROTOCOL ENGAGED for Mutation %s", hypothesis_id)
+        logger.warning("AIRLOCK PROTOCOL ENGAGED for Mutation %s", hypothesis_id)
         
         branch_name = f"mutation/{self._safe_branch_suffix(hypothesis_id)}"
         
@@ -108,7 +108,7 @@ class AirlockProtocol:
                 gauntlet = await self._run_tests()
                 
                 if not gauntlet.passed:
-                    logger.error("❌ Airlock Gauntlet FAILED. Mutation rejected.")
+                    logger.error("Airlock Gauntlet FAILED. Mutation rejected.")
                     await self._cleanup_worktree()
                     return {
                         "success": False,

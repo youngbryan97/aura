@@ -104,14 +104,14 @@ class _AsksWhetherThePersonWouldWantThis:
             )
             if mode != "strict":
                 self.logger.warning(
-                    "⚠️  CapabilityEngine: '%s' executing WITHOUT verified Will "
+                    " CapabilityEngine: '%s' executing WITHOUT verified Will "
                     "authority (%s) — warn mode",
                     skill_name,
                     exc.denial.value,
                 )
                 return None
             self.logger.warning(
-                "🔒 CapabilityEngine: '%s' refused — %s (%s)",
+                "CapabilityEngine: '%s' refused — %s (%s)",
                 skill_name,
                 exc.denial.value,
                 exc.detail,

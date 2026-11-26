@@ -25,7 +25,7 @@ class LatentSpaceDistiller:
     def __init__(self, memory_provider=None):
         self.memory = memory_provider
         self._is_distilling = False
-        logger.info("🌫️ LatentSpaceDistiller initialized (MIST/Pantheon pattern)")
+        logger.info("LatentSpaceDistiller initialized (MIST/Pantheon pattern)")
 
     async def distill_session(self, session_history: List[Dict[str, Any]]):
         """Asynchronously distills a session into core insights."""
@@ -33,7 +33,7 @@ class LatentSpaceDistiller:
         self._is_distilling = True
         
         try:
-            logger.info("🌫️ MIST: Beginning temporal dilation / background distillation...")
+            logger.info("MIST: Beginning temporal dilation / background distillation...")
             # Simulate heavy lifting: consolidating multiple turns into a single summary
             full_text = " ".join([m.get("content", "") for m in session_history])
             
@@ -64,7 +64,7 @@ class LatentSpaceDistiller:
                     logger.info("MIST: Distilled session into permanent memory.")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('latent_distiller', e)
-            logger.error("❌ MIST: Distillation failed: %s", e)
+            logger.error("MIST: Distillation failed: %s", e)
         finally:
             self._is_distilling = False
 

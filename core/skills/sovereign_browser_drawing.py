@@ -289,7 +289,7 @@ def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True
             and _PLAYED_ON.get(address, 0) < PLAY_ON_AT_MOST):
         if take:
             _PLAYED_ON[address] = _PLAYED_ON.get(address, 0) + 1
-            logging.getLogger(__name__).info("🌐 Played on at %s, time %d", url[:80], _PLAYED_ON[address])
+            logging.getLogger(__name__).info("Played on at %s, time %d", url[:80], _PLAYED_ON[address])
         return {"resolved_actions": [{"selector": DRAWING, "said": "I'll keep playing it."}], "why": "I'll keep playing it.",
                 "done": False}
     if what_the_task_needs(goal) != "run" or not seen_running(url):
@@ -297,7 +297,7 @@ def played_first(observation: Mapping[str, Any], goal: str, *, take: bool = True
     seen = seen_running(url, take=take)
     said = f"What I came for is here and runs ({seen}); starting it."
     if take:
-        logging.getLogger(__name__).info("🌐 Played first on %s: %s", url[:80], seen)
+        logging.getLogger(__name__).info("Played first on %s: %s", url[:80], seen)
     return {"resolved_actions": [{"selector": DRAWING, "said": said}], "why": said, "done": False}
 
 

@@ -368,15 +368,15 @@ class TerminalMonitor:
 
         if len(sepsis_errors) > 10:
             if not self._sepsis_mode:
-                logger.warning("🩸 SEPSIS DETECTED: Opening emergency circuit breaker.")
+                logger.warning("SEPSIS DETECTED: Opening emergency circuit breaker.")
                 self._sepsis_mode = True
                 self._sepsis_start = now
         elif self._sepsis_mode:
             if len(very_recent_errors) == 0 and now - self._sepsis_start > 30:
-                logger.info("🩺 Sepsis loop soft-resetting after transient spike subsided.")
+                logger.info("Sepsis loop soft-resetting after transient spike subsided.")
                 self._sepsis_mode = False
             elif now - self._sepsis_start > 900: # 15 min recovery
-                logger.info("🩺 Sepsis loop hard recovery completed. Resuming autonomous agency.")
+                logger.info("Sepsis loop hard recovery completed. Resuming autonomous agency.")
                 self._sepsis_mode = False
 
     def _ingest_error(self, entry: ErrorEntry):
@@ -518,7 +518,7 @@ class TerminalMonitor:
                     self._blacklist.add(entry.fingerprint)
                     blacklisted_fingerprint = entry.fingerprint
                     logger.warning(
-                        "🔴 Auto-fix suppressed for persistent fingerprint (scoped): %s",
+                        "Auto-fix suppressed for persistent fingerprint (scoped): %s",
                         entry.fingerprint,
                     )
                     break

@@ -37,7 +37,7 @@ class WillEngine:
     ) -> None:
         """Register a subsystem handler for autonomous evolution."""
         self._evolution_registry[name] = handler
-        logger.debug("🧬 [WILL] Registered evolution handler: %s", name)
+        logger.debug("[WILL] Registered evolution handler: %s", name)
 
     async def initialize(self) -> None:
         """Start the metabolic loop (if not managed by scheduler)."""
@@ -51,14 +51,14 @@ class WillEngine:
             self._metabolic_loop(),
             name="aura.will_engine",
         )
-        logger.info("☘️ [WILL] Metabolic Loop active (interval=%.1fs).", self._tick_interval)
+        logger.info("[WILL] Metabolic Loop active (interval=%.1fs).", self._tick_interval)
         
     async def shutdown(self) -> None:
         """Cleanly terminate the loop."""
         self._is_active = False
         if self._tick_task:
             await cancel_and_join(self._tick_task, owner="core.self.will_engine")
-        logger.info("☘️ [WILL] Metabolic Loop offline.")
+        logger.info("[WILL] Metabolic Loop offline.")
             
     async def _metabolic_loop(self) -> None:
         """Periodic update of metabolic drives and reflex triggers."""
@@ -70,7 +70,7 @@ class WillEngine:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('will_engine', e)
-                logger.error("🛑 [WILL] Error in metabolic loop: %s", e)
+                logger.error("[WILL] Error in metabolic loop: %s", e)
                 await asyncio.sleep(5.0)
 
     async def process_cycle(self) -> None:
@@ -134,7 +134,7 @@ class WillEngine:
             if new_energy <= 0.15:
                 # Hunger response: Organism becomes alert/curious to forage, instead of lethargic
                 new_curiosity = min(1.0, new_curiosity + random.uniform(0.2, 0.4))
-                logger.debug("⚡ [WILL] Metabolic Rescue triggered! Energy floor reached. Foraging curiosity injected.")
+                logger.debug("[WILL] Metabolic Rescue triggered! Energy floor reached. Foraging curiosity injected.")
                 
             # Map back to [0, 100] persistence format
             motivation.budgets.setdefault("energy", {})["level"] = new_energy * 100.0
@@ -153,7 +153,7 @@ class WillEngine:
                     await handler(state, elapsed)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as eval_err:
                     record_degradation('will_engine', eval_err)
-                    logger.warning("⚠️ [WILL] Evolution handler '%s' failed: %s", name, eval_err)
+                    logger.warning("[WILL] Evolution handler '%s' failed: %s", name, eval_err)
 
             # 4. Cellular Patch Submission (Unification Ph4)
             from core.state.cellular_substrate import get_cellular_substrate
@@ -166,7 +166,7 @@ class WillEngine:
                         "last_tick": motivation.last_tick
                     }
                 })
-                logger.debug("♾️ [WILL] Submitted metabolic patch to cellular substrate.")
+                logger.debug("[WILL] Submitted metabolic patch to cellular substrate.")
             else:
                 # Fallback to direct commit if substrate not ready
                 await repo.commit(state, cause="metabolic_evolution_fallback")
@@ -186,14 +186,14 @@ class WillEngine:
                         marker = getattr(ls, "mark_state_mutated_locked", None)
                         if callable(marker):
                             marker("will_engine.metabolic_coupling")
-                        logger.debug("🧠 [WILL] Synced metabolic state to LiquidSubstrate.")
+                        logger.debug("[WILL] Synced metabolic state to LiquidSubstrate.")
             except (ImportError, AttributeError, RuntimeError) as sub_err:
                 record_degradation('will_engine', sub_err)
-                logger.debug("⚠️ [WILL] Substrate coupling failed: %s", sub_err)
+                logger.debug("[WILL] Substrate coupling failed: %s", sub_err)
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('will_engine', e)
-            logger.error("🛑 [WILL] Failed to process metabolic cycle: %s", e)
+            logger.error("[WILL] Failed to process metabolic cycle: %s", e)
 
 
     async def _check_reflex_drives(self, state: AuraState) -> bool:
@@ -205,7 +205,7 @@ class WillEngine:
         
         # --- ENERGY DRIVE ---
         if energy < 15.0 and state.cognition.current_mode != CognitiveMode.REACTIVE:
-            logger.warning("🚨 [WILL] Energy CRITICAL (%.1f%%). Forcing REACTIVE mode to conserve cycles.", energy)
+            logger.warning("[WILL] Energy CRITICAL (%.1f%%). Forcing REACTIVE mode to conserve cycles.", energy)
             state.cognition.current_mode = CognitiveMode.REACTIVE
             await self._bus.publish("system/will/drive_alert", {
                 "drive": "energy", 

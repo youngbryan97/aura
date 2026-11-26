@@ -106,7 +106,7 @@ def main() -> int:
     if not found:
         print("no cross-package edge rests on an import nobody reads")
         return 0
-    print(f"❌ {len(found)} cross-package edge(s) rest on an import nobody reads")
+    print(f"{len(found)} cross-package edge(s) rest on an import nobody reads")
     for one in found:
         print(
             f"   {one['edge']}\n      {one['file']}:{one['line']}  "

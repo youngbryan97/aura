@@ -214,7 +214,7 @@ class ToolExecutor:
                 if not isinstance(roles, list):
                     roles = ["architect", "critic"]
                 if callable(emit_thought):
-                    emit_thought(f"🐝 Engaging Swarm Debate: {str(topic)[:100]}...")
+                    emit_thought(f"Engaging Swarm Debate: {str(topic)[:100]}...")
                 result = await swarm.delegate_debate(str(topic), roles=roles)
                 response = {"ok": True, "output": result}
                 self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=response, success=True)
@@ -269,7 +269,7 @@ class ToolExecutor:
                 if hephaestus:
                     if callable(emit_thought):
                         emit_thought(
-                        f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge..."
+                        f"Tool '{tool_name}' missing. Initiating Autonomous Forge..."
                         )
                     objective = (
                         f"Create a skill '{tool_name}' to handle request "
@@ -279,7 +279,7 @@ class ToolExecutor:
                     if forge_result.get("ok"):
                         if callable(emit_thought):
                             emit_thought(
-                                f"✅ Skill '{tool_name}' forged successfully. Retrying..."
+                                f"Skill '{tool_name}' forged successfully. Retrying..."
                             )
                         return await self.execute_tool(tool_name, args)
                     else:

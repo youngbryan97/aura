@@ -65,7 +65,7 @@ class MultiPartWriter:
         output_path = OUTPUT_DIR / filename
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write("".join(self.buffer))
-        print(f"✅ Created {filename}: {self.current_chars:,} chars.")
+        print(f"Created {filename}: {self.current_chars:,} chars.")
         self.buffer = []
         self.current_chars = 0
         self.part_num += 1
@@ -88,7 +88,7 @@ class MultiPartWriter:
         self._flush()
 
 def generate_exports():
-    print(f"🚀 Starting Comprehensive Aura Export...")
+    print(f"Starting Comprehensive Aura Export...")
 
     # 1. Collect and Rank Files
     all_files = []
@@ -124,7 +124,7 @@ def generate_exports():
         shutil.rmtree(tree_dir)
     tree_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"📦 Creating literal copy in {tree_dir}...")
+    print(f"Creating literal copy in {tree_dir}...")
     copy_count = 0
     for file_path in all_files[:LITERAL_COPY_LIMIT]:
         rel_path = file_path.relative_to(SOURCE_ROOT)
@@ -132,10 +132,10 @@ def generate_exports():
         dest_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(file_path, dest_path)
         copy_count += 1
-    print(f"✅ Copied {copy_count} files to aura_source_tree.")
+    print(f"Copied {copy_count} files to aura_source_tree.")
 
     # 3. Architecture Export (Multi-part)
-    print(f"🧬 Generating Architecture Snapshots (for top {len(snapshot_files)} files)...")
+    print(f"Generating Architecture Snapshots (for top {len(snapshot_files)} files)...")
     arch_writer = MultiPartWriter("Aura_Architecture")
 
     header = f"================================================================================\n"
@@ -161,7 +161,7 @@ def generate_exports():
     arch_writer.close()
 
     # 4. Source Code Export (Multi-part)
-    print(f"📂 Generating Source Code Snapshots (for top {len(snapshot_files)} files)...")
+    print(f"Generating Source Code Snapshots (for top {len(snapshot_files)} files)...")
     source_writer = MultiPartWriter("Aura_SourceCode")
     source_writer.add(header.replace("ARCHITECTURAL OVERVIEW", "FULL SOURCE CODE"))
 
@@ -180,7 +180,7 @@ def generate_exports():
             source_writer.add(f"\n[ERROR READING {rel_path}: {e}]\n")
 
     source_writer.close()
-    print(f"✨ All exports completed successfully.")
+    print(f"All exports completed successfully.")
 
 if __name__ == "__main__":
     generate_exports()

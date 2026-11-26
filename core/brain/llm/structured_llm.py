@@ -143,7 +143,7 @@ class StructuredLLM:
                 )
                 return None
             logger.info(
-                "🤖 StructuredLLM: Attempt %d/%d for %s",
+                "StructuredLLM: Attempt %d/%d for %s",
                 attempt + 1,
                 self.max_retries,
                 self.model_class.__name__,
@@ -152,7 +152,7 @@ class StructuredLLM:
             defer_reason = self._background_defer_reason(is_background=is_background)
             if defer_reason:
                 self.last_defer_reason = defer_reason
-                logger.info("⏸️ StructuredLLM: Deferred %s (%s).", self.model_class.__name__, defer_reason)
+                logger.info("StructuredLLM: Deferred %s (%s).", self.model_class.__name__, defer_reason)
                 return None
 
             force_tier = escalated_tier or ("tertiary" if attempt >= 1 else None)
@@ -186,7 +186,7 @@ class StructuredLLM:
 
             if self._is_deferred_error(error_code):
                 self.last_defer_reason = error_code
-                logger.info("⏸️ StructuredLLM: Deferred %s (%s).", self.model_class.__name__, error_code)
+                logger.info("StructuredLLM: Deferred %s (%s).", self.model_class.__name__, error_code)
                 return None
 
             if not response_text or "ROUTER_ERROR" in response_text:
@@ -216,7 +216,7 @@ class StructuredLLM:
                     )
                 validated_obj = self.model_class(**data)
             except (json.JSONDecodeError, ValidationError, TypeError) as exc:
-                logger.warning("❌ StructuredLLM: Validation failed on attempt %d: %s", attempt + 1, exc)
+                logger.warning("StructuredLLM: Validation failed on attempt %d: %s", attempt + 1, exc)
                 self._record_event(
                     "validation_failed",
                     detail=str(exc)[:200],
@@ -225,13 +225,13 @@ class StructuredLLM:
                     exc=exc,
                 )
                 if attempt == self.max_retries - 1:
-                    logger.error("💀 StructuredLLM: Max retries reached for %s. Giving up.", self.model_class.__name__)
+                    logger.error("StructuredLLM: Max retries reached for %s. Giving up.", self.model_class.__name__)
                     return None
                 current_prompt = self._correction_prompt(base_prompt, exc)
                 escalated_tier = self._next_escalation_tier(attempt)
                 continue
 
-            logger.info("✅ StructuredLLM: Successfully validated %s", self.model_class.__name__)
+            logger.info("StructuredLLM: Successfully validated %s", self.model_class.__name__)
             return validated_obj
 
         return None

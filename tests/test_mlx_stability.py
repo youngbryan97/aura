@@ -88,6 +88,6 @@ def test_mlx_stability_harness():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    logger.info("🚀 Starting MLX stress harness...")
+    logger.info("Starting MLX stress harness...")
     _stress_test(duration_s=15.0)
-    logger.info("✅ MLX stress harness completed without crash.")
+    logger.info("MLX stress harness completed without crash.")

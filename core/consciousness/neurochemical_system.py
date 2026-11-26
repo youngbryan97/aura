@@ -405,7 +405,7 @@ if _SPECTRAL_RADIUS > 1.0:
         stacklevel=1,
     )
     logging.getLogger("Consciousness.Neurochemical").critical(
-        "🛑 Interaction matrix spectral radius %.3f > 1.0 — risk of runaway",
+        "Interaction matrix spectral radius %.3f > 1.0 — risk of runaway",
         _SPECTRAL_RADIUS,
     )
 else:

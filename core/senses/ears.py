@@ -32,9 +32,9 @@ class SovereignEars:
             self._engine = get_runtime_service("voice_engine", default=None)
         
         if not self.capabilities.hearing_enabled:
-            logger.warning("👂 SovereignEars: Hearing is DISABLED (Capability Flag Off)")
+            logger.warning("SovereignEars: Hearing is DISABLED (Capability Flag Off)")
         else:
-            logger.info("👂 SovereignEars: Bridged to Isolated Sensory Process")
+            logger.info("SovereignEars: Bridged to Isolated Sensory Process")
 
     def _resolve_engine(self):
         if self._engine:
@@ -43,7 +43,7 @@ class SovereignEars:
             self._engine = get_runtime_service("voice_engine", default=None)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('ears', e)
-            logger.debug("👂 SovereignEars: voice engine lookup deferred: %s", e)
+            logger.debug("SovereignEars: voice engine lookup deferred: %s", e)
         return self._engine
 
     def should_auto_listen(self) -> bool:
@@ -58,7 +58,7 @@ class SovereignEars:
         """Starts capture only if capability is enabled."""
         engine = self._resolve_engine()
         if not self.capabilities.hearing_enabled or not engine:
-            logger.warning("👂 SovereignEars: Cannot start listening (Missing capability or engine)")
+            logger.warning("SovereignEars: Cannot start listening (Missing capability or engine)")
             return False
         
         # Verify worker is responsive before starting capture
@@ -72,9 +72,9 @@ class SovereignEars:
         engine.on_transcript(_async_callback, key="sovereign_ears")
         started = bool(await engine.start_listening())
         if started:
-            logger.info("👂 Ears listening (Guarded by Isolated Senses)")
+            logger.info("Ears listening (Guarded by Isolated Senses)")
         else:
-            logger.warning("👂 Ears listener remains offline; explicit retry is available")
+            logger.warning("Ears listener remains offline; explicit retry is available")
         return started
 
     def transcribe(self, audio_source) -> str:
@@ -89,7 +89,7 @@ class SovereignEars:
 
         # Access the model directly for sync calls (Faster-WhisperSegments)
         if hasattr(engine, 'stt_model') and engine.stt_model:
-            logger.info("👂 Ears: Synchronous transcription requested.")
+            logger.info("Ears: Synchronous transcription requested.")
             segments, _ = engine.stt_model.transcribe(
                 audio_source,
                 language="en",

@@ -28,8 +28,8 @@ endif
 # ─── Reproducible build (one-command path for external reviewers) ────────
 
 setup:
-	@echo "🔧 Setup: creating virtualenv (.venv) and installing requirements"
-	@echo "   ⚠️  For production installs, use 'make setup-prod' (fail-closed, no fallbacks)"
+	@echo "Setup: creating virtualenv (.venv) and installing requirements"
+	@echo "    For production installs, use 'make setup-prod' (fail-closed, no fallbacks)"
 	@if [ ! -d .venv ]; then $(PYTHON) -m venv .venv; fi
 	@. .venv/bin/activate; pip install -U pip wheel
 	@# One install, no fallback. The chain that stood here hid the failure
@@ -37,120 +37,120 @@ setup:
 	@# broken environment reported "Setup complete".
 	@. .venv/bin/activate; pip install -r requirements/core.txt
 	@. .venv/bin/activate; if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; else pip install -e ".[dev]"; fi
-	@echo "✅ Setup complete"
+	@echo "Setup complete"
 
 setup-dev:
-	@echo "🔧 Installing Aura development quality tools..."
+	@echo "Installing Aura development quality tools..."
 	@. .venv/bin/activate; if [ -f requirements/dev.txt ]; then pip install -r requirements/dev.txt; else pip install -e ".[dev]"; fi
-	@echo "✅ Development tools installed"
+	@echo "Development tools installed"
 
 run:
 	@echo "▶️  Launching Aura (foreground)..."
 	@$(PYTHON) aura_main.py --desktop
 
 demo-autonomy:
-	@echo "🤖 Running autonomy demo (60s soak)..."
+	@echo "Running autonomy demo (60s soak)..."
 	@$(PYTHON) -m tools.longevity.run_gauntlet --profile 24h_no_user --tick-s 5 || true
 
 demo:
-	@echo "🚪 Front-door demo — five load-bearing proofs, real mechanisms only..."
+	@echo "Front-door demo — five load-bearing proofs, real mechanisms only..."
 	@$(PYTHON) tools/front_door_demo.py
 
 demo-full:
-	@echo "🚪 Front-door demo including the real-model amplifier proof..."
+	@echo "Front-door demo including the real-model amplifier proof..."
 	@$(PYTHON) tools/front_door_demo.py --with-model
 
 demo-learning:
-	@echo "🧬 Verifier-gated weight-compounding demo (Apple Silicon; exclusive model resources required)..."
+	@echo "Verifier-gated weight-compounding demo (Apple Silicon; exclusive model resources required)..."
 	@echo "   A small model teaches itself verifiable reasoning with its own exact"
 	@echo "   checkers, twice; every claim lands in a tamper-evident ledger."
 	@$(PYTHON) tools/learning_demo.py
 
 triage:
-	@echo "🩻 Categorizing the crash-forensics record into incident classes..."
+	@echo "Categorizing the crash-forensics record into incident classes..."
 	@$(PYTHON) tools/crash_triage.py --window-days 7 --out artifacts/reliability/triage.json || true
 
 release-preflight: release-ready
-	@echo "🛫 Running the pinned release checklist..."
+	@echo "Running the pinned release checklist..."
 	@$(PYTHON) tools/release_preflight.py
 
 nonparametric-proof:
-	@echo "🧠 Proving one-shot foreground non-parametric recall on the real reflex model..."
+	@echo "Proving one-shot foreground non-parametric recall on the real reflex model..."
 	@$(PYTHON) tools/nonparametric_proof.py
 
 inner-light:
-	@echo "🕯  Running the inner-light consciousness-discriminator test (demo reference vs controls)..."
+	@echo " Running the inner-light consciousness-discriminator test (demo reference vs controls)..."
 	@$(PYTHON) tools/inner_light_probe.py --demo
 
 contract-doc:
-	@echo "📜 Rendering the runtime contract from health_contract.py..."
+	@echo "Rendering the runtime contract from health_contract.py..."
 	@$(PYTHON) tools/render_health_contract.py
 
 fmea-doc:
-	@echo "🛩  Rendering the failure-mode registry from core/runtime/fmea.py..."
+	@echo " Rendering the failure-mode registry from core/runtime/fmea.py..."
 	@$(PYTHON) tools/render_fmea.py
 
 report:
-	@echo "📊 Generating bench + courtroom + baseline reports..."
+	@echo "Generating bench + courtroom + baseline reports..."
 	@$(PYTHON) -c "import asyncio; from aura_bench.runner import run_all, write_report; r=asyncio.run(run_all()); write_report(r); print('bench done')"
 	@$(PYTHON) -m aura_bench.courtroom.courtroom || true
 	@$(PYTHON) -m aura_bench.baselines.runner || true
-	@echo "✅ Reports written to ~/.aura/data/bench/ and aura_bench/courtroom/report.md"
+	@echo "Reports written to ~/.aura/data/bench/ and aura_bench/courtroom/report.md"
 
 # ─── Compile / lint / test gates ─────────────────────────────────────────
 
 compile:
-	@echo "🔍 Compiling all Python files..."
+	@echo "Compiling all Python files..."
 	@$(PYTHON) -m compileall -q core tests
-	@echo "✅ All files compile"
+	@echo "All files compile"
 
 lint:
-	@echo "🧹 Running ruff — three passes, widest first..."
+	@echo "Running ruff — three passes, widest first..."
 	@echo "   1. syntax errors, everywhere"
 	@$(PYTHON) -m ruff check $(RUFF_SURFACE_TARGETS) --select E9
 	@echo "   2. undefined and unreachable names, all production code"
 	@$(PYTHON) -m ruff check $(RUFF_CRITICAL_TARGETS) --select $(RUFF_CRITICAL_SELECT)
 	@echo "   3. the whole configured rule set, on the files that pass it"
 	@$(PYTHON) -m ruff check $(RUFF_TARGETS)
-	@echo "✅ Ruff passed"
+	@echo "Ruff passed"
 
 lint-surface:
-	@echo "🧹 Checking the strict lint surface (ratchet: only grows)..."
+	@echo "Checking the strict lint surface (ratchet: only grows)..."
 	@$(PYTHON) tools/ruff_strict_files.py --check
 
 lint-surface-grow:
-	@echo "🧹 Adding every newly clean file to the strict lint surface..."
+	@echo "Adding every newly clean file to the strict lint surface..."
 	@$(PYTHON) tools/ruff_strict_files.py --write
 
 source-hygiene:
-	@echo "🧼 Checking source snapshot hygiene..."
+	@echo "Checking source snapshot hygiene..."
 	@git rev-parse --git-dir >/dev/null 2>&1 || { \
-		echo "❌ source-hygiene requires a git checkout: cannot inspect tracked files without .git"; \
+		echo "source-hygiene requires a git checkout: cannot inspect tracked files without .git"; \
 		exit 1; \
 	}
 	@$(PYTHON) tools/check_source_hygiene.py
-	@echo "✅ Source snapshot hygiene passed"
+	@echo "Source snapshot hygiene passed"
 
 governance-lint:
-	@echo "🛡  Running governance lint..."
+	@echo " Running governance lint..."
 	@$(PYTHON) tools/lint_governance.py
 
 subject-core-integrity:
-	@echo "🔬 Checking that nothing under measurement can see the instrument..."
+	@echo "Checking that nothing under measurement can see the instrument..."
 	@$(PYTHON) tools/audit_no_battery_shortcuts.py --check
-	@echo "🔬 Checking that no generator escapes the process seed..."
+	@echo "Checking that no generator escapes the process seed..."
 	@$(PYTHON) tools/audit_unseeded_randomness.py --check
-	@echo "🔬 Checking that nothing is written and replaced in one cycle..."
+	@echo "Checking that nothing is written and replaced in one cycle..."
 	@$(PYTHON) tools/audit_overwritten_in_the_same_cycle.py --check
-	@echo "🔬 Checking that no result is assembled into a mapping nothing reads..."
+	@echo "Checking that no result is assembled into a mapping nothing reads..."
 	@$(PYTHON) tools/audit_return_paths_into_local_dicts.py --check
-	@echo "🔬 Checking every state field is in a domain or named outside it..."
+	@echo "Checking every state field is in a domain or named outside it..."
 	@$(PYTHON) tools/audit_state_outside_the_core.py --check
-	@echo "🔬 Checking the completion tracker against what actually passes..."
+	@echo "Checking the completion tracker against what actually passes..."
 	@$(PYTHON) tools/isc_completion_status.py --check
 
 coverage:
-	@echo "📊 Measuring line + branch coverage (up to $(TEST_CHUNKS) chunks)..."
+	@echo "Measuring line + branch coverage (up to $(TEST_CHUNKS) chunks)..."
 	@$(PYTHON) -m coverage erase
 	@# --coverage, NOT `coverage run` around the runner: the chunks are fresh
 	@# interpreters, so wrapping the runner measured only the runner and this
@@ -165,14 +165,14 @@ coverage:
 		exit "$$status"
 
 coverage-check:
-	@echo "🔒 Coverage ratchet (floor may rise, never fall)..."
+	@echo "Coverage ratchet (floor may rise, never fall)..."
 	@$(PYTHON) tools/coverage_ratchet.py check
 
 coverage-bless:
 	@$(PYTHON) tools/coverage_ratchet.py bless
 
 mutation:
-	@echo "🧬 Mutation testing the coherence chokepoints..."
+	@echo "Mutation testing the coherence chokepoints..."
 	@echo "   Scoped deliberately: mutmut over 35,673 functions never finishes."
 	@$(PYTHON) -m mutmut run \
 		--paths-to-mutate core/brain/llm/continuity_ledger.py,core/conversation/thread_continuity.py,core/being/individual_preferences.py \
@@ -180,86 +180,86 @@ mutation:
 	@$(PYTHON) -m mutmut results
 
 guarded-imports:
-	@echo "🔌 Checking guarded imports resolve..."
+	@echo "Checking guarded imports resolve..."
 	@$(PYTHON) tools/lint_guarded_imports.py
 
 lock-coverage:
-	@echo "🔒 Measuring lockdep coverage (ratchet: raw locks only shrink)..."
+	@echo "Measuring lockdep coverage (ratchet: raw locks only shrink)..."
 	@$(PYTHON) tools/lint_lock_coverage.py
 
 phrase-pins:
-	@echo "📝 Counting tests that assert on production wording (ratchet: only shrinks)..."
+	@echo "Counting tests that assert on production wording (ratchet: only shrinks)..."
 	@$(PYTHON) tools/lint_phrase_pinned_tests.py
 
 lexical-debt:
-	@echo "🔤 Counting output-filter patterns (ratchet: only shrinks)..."
+	@echo "Counting output-filter patterns (ratchet: only shrinks)..."
 	@$(PYTHON) tools/lint_lexical_debt.py
 
 method-size:
-	@echo "📏 Checking the outsized functions (ratchet: only shrink)..."
+	@echo "Checking the outsized functions (ratchet: only shrink)..."
 	@$(PYTHON) tools/lint_method_size.py
 
 assumptions:
-	@echo "📜 Checking what the proofs assume (discharged claims must name a real checker)..."
+	@echo "Checking what the proofs assume (discharged claims must name a real checker)..."
 	@$(PYTHON) tools/lint_assumptions.py
 
 markers:
-	@echo "🔤 Checking keyword markers are matched as words, not substrings..."
+	@echo "Checking keyword markers are matched as words, not substrings..."
 	@$(PYTHON) tools/lint_marker_matching.py
 
 swallowed:
-	@echo "🔇 Checking for failures whose reason is thrown away..."
+	@echo "Checking for failures whose reason is thrown away..."
 	@$(PYTHON) tools/lint_swallowed_reasons.py core interface skills
 
 
 learned-worlds:
-	@echo "🧭 Reading every world she has learned again with the code in this checkout..."
+	@echo "Reading every world she has learned again with the code in this checkout..."
 	@$(PYTHON) tools/what_she_learned_still_holds.py
 
 writing:
-	@echo "✍️  Checking prose against docs/WRITING_RULES.md..."
+	@echo " Checking prose against docs/WRITING_RULES.md..."
 	@$(PYTHON) tools/lint_ai_writing.py
-	@echo "✍️  Checking docstrings and comments..."
+	@echo " Checking docstrings and comments..."
 	@$(PYTHON) tools/lint_ai_writing.py --code --quiet
 
 prompting:
-	@echo "🧵 Checking that no file tells the model who to be in more words than it did..."
+	@echo "Checking that no file tells the model who to be in more words than it did..."
 	@$(PYTHON) tools/where_she_is_still_prompted.py --check
 
 seams:
-	@echo "🪚 Listing the safe extraction seams in every oversized function..."
+	@echo "Listing the safe extraction seams in every oversized function..."
 	@$(PYTHON) tools/find_extraction_seam.py --tracked
 
 tool-contracts:
-	@echo "🔧 Counting tools that do not say what they take or give back..."
+	@echo "Counting tools that do not say what they take or give back..."
 	@$(PYTHON) tools/lint_tool_contracts.py
 
 reachability:
-	@echo "🕸  Counting modules nothing reaches (ratchet: only shrinks)..."
+	@echo " Counting modules nothing reaches (ratchet: only shrinks)..."
 	@$(PYTHON) tools/lint_module_reachability.py
 
 script-targets:
-	@echo "📜 Checking that shell scripts name paths that exist..."
+	@echo "Checking that shell scripts name paths that exist..."
 	@$(PYTHON) tools/check_script_targets.py
 
 raw-skill-execute:
-	@echo "🛡  Checking that skills are entered through safe_execute..."
+	@echo " Checking that skills are entered through safe_execute..."
 	@$(PYTHON) tools/check_raw_skill_execute.py
 
 raw-skill-execute-baseline:
-	@echo "🛡  Rewriting the raw skill execute ratchet (shrink only)..."
+	@echo " Rewriting the raw skill execute ratchet (shrink only)..."
 	@$(PYTHON) tools/check_raw_skill_execute.py --baseline
 
 lock-advisories:
-	@echo "🛡  Asking OSV about every pinned version, before CI does..."
+	@echo " Asking OSV about every pinned version, before CI does..."
 	@$(PYTHON) tools/check_lock_advisories.py
 
 deps-gate:
-	@echo "📦 Checking that every build installs what the contract declares..."
+	@echo "Checking that every build installs what the contract declares..."
 	@$(PYTHON) tools/check_dependency_contract.py
 
 lockfiles:
-	@echo "🔒 Regenerating the derivable lockfiles..."
+	@echo "Regenerating the derivable lockfiles..."
 	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
 		--requirements requirements/sandbox.txt \
 		--out requirements/lock/code-sandbox.txt
@@ -269,7 +269,7 @@ lockfiles:
 	@echo "   config/dependency_contract.json for the pip-compile that closes it."
 
 lockfiles-check:
-	@echo "🔒 Checking the derived lockfiles are not stale..."
+	@echo "Checking the derived lockfiles are not stale..."
 	@$(PYTHON) tools/derive_lockfile.py --source requirements_lock.txt \
 		--requirements requirements/sandbox.txt \
 		--out requirements/lock/code-sandbox.txt --check
@@ -277,39 +277,39 @@ lockfiles-check:
 		--constraints --out requirements/lock/container-constraints.txt --check
 
 review-policy:
-	@echo "👥 Checking ownership, templates, and that every gate is required..."
+	@echo "Checking ownership, templates, and that every gate is required..."
 	@$(PYTHON) tools/check_review_policy.py
 
 branch-protection:
-	@echo "🛡  Comparing the live branch protection with the declared policy..."
+	@echo " Comparing the live branch protection with the declared policy..."
 	@$(PYTHON) tools/check_branch_protection.py
 
 branch-protection-policy:
-	@echo "🛡  Checking the branch protection policy is coherent (no network)..."
+	@echo " Checking the branch protection policy is coherent (no network)..."
 	@$(PYTHON) tools/check_branch_protection.py --offline
 
 typed-surface:
-	@echo "📝 Checking the annotated surface (ratchet: only grows)..."
+	@echo "Checking the annotated surface (ratchet: only grows)..."
 	@$(PYTHON) tools/check_typed_surface.py
 
 typed-surface-baseline:
-	@echo "📝 Recording the annotated surface (untyped list may only shrink)..."
+	@echo "Recording the annotated surface (untyped list may only shrink)..."
 	@$(PYTHON) tools/check_typed_surface.py --write-baseline
 
 typecheck-changed:
-	@echo "📝 Strict mypy over every production file this branch changed..."
+	@echo "Strict mypy over every production file this branch changed..."
 	@$(PYTHON) tools/typecheck_changed.py
 
 cognitive-complexity:
-	@echo "🧩 Checking cognitive kernel complexity (ratchet only goes down)..."
+	@echo "Checking cognitive kernel complexity (ratchet only goes down)..."
 	@$(PYTHON) tools/cognitive_complexity.py
 
 architecture-lint:
-	@echo "🏗  Checking organ shape rules (composition, ownership, contracts)..."
+	@echo " Checking organ shape rules (composition, ownership, contracts)..."
 	@$(PYTHON) tools/architecture_lint.py
 
 gap-atlas:
-	@echo "📋 Checking the comparative-review gap atlas..."
+	@echo "Checking the comparative-review gap atlas..."
 	@$(PYTHON) tools/gap_atlas.py --check
 
 # The campaigns behind seventeen gap-atlas cards. Not a gate: these take
@@ -318,7 +318,7 @@ gap-atlas:
 # the gate, and it checks that each tool still runs and that the sealed
 # evidence still says what the card was closed on.
 campaigns:
-	@echo "🔬 Re-running the gap-atlas campaigns (rewrites docs/evidence/)..."
+	@echo "Re-running the gap-atlas campaigns (rewrites docs/evidence/)..."
 	@$(PYTHON) tools/campaigns/atomspace_scale.py --sizes 10000,50000,100000,500000,1000000
 	@$(PYTHON) tools/campaigns/ecan_stress.py --atoms 40000 --trials 40
 	@$(PYTHON) tools/campaigns/procedure_lifetime.py --tasks 64 --firings 2000000
@@ -330,29 +330,29 @@ campaigns:
 	@$(PYTHON) tools/campaigns/retrieval_latency_campaign.py --recalls 800
 	@$(PYTHON) tools/campaigns/steering_campaign.py --tasks 400
 	@$(PYTHON) tools/campaigns/tracking_campaign.py --sequences 200
-	@echo "✅ Campaigns complete; docs/evidence/ rewritten"
+	@echo "Campaigns complete; docs/evidence/ rewritten"
 
 raw-locks:
 	@$(PYTHON) tools/lint_raw_locks.py
 
 connectome:
-	@echo "🧠 Reconstructing the connectome and running every analysis..."
+	@echo "Reconstructing the connectome and running every analysis..."
 	@$(PYTHON) tools/connectome_report.py --sections all --neuroglancer --out artifacts/connectome
 
 connectome-pathology:
-	@echo "🧠 Diagnosing the connectome..."
+	@echo "Diagnosing the connectome..."
 	@$(PYTHON) tools/connectome_report.py --sections synaptology,microcircuit,pathology --out artifacts/connectome
 
 connectome-record:
-	@echo "🧠 Recording activity under nine workloads..."
+	@echo "Recording activity under nine workloads..."
 	@$(PYTHON) tools/record_connectome_activity.py --budget 240
 
 subject-core:
-	@echo "🧪 Running the Intrinsic Subject Core battery..."
+	@echo "Running the Intrinsic Subject Core battery..."
 	@$(PYTHON) tools/run_subject_core.py --rounds 24 --trials 6 --out artifacts/subject_core
 
 subject-core-frozen:
-	@echo "🧪 Three runs of the battery on three declared seeds, so a criterion that changes answer says so..."
+	@echo "Three runs of the battery on three declared seeds, so a criterion that changes answer says so..."
 	@# 300 rounds, not 60. Synergy and irreducibility are both read as a lower
 	@# bound over five held-out folds, and run_032 failed both on the bound
 	@# rather than on the value: its worst triple averaged +0.0484 across folds
@@ -368,141 +368,141 @@ subject-core-frozen:
 	@$(PYTHON) tools/subject_core_scorecard.py --latest 3 artifacts/subject_core \
 		--json artifacts/subject_core/scorecard.json \
 		--markdown artifacts/subject_core/SCORECARD.md
-	@echo "🧭 Which edges are missing, and what stopped each one..."
+	@echo "Which edges are missing, and what stopped each one..."
 	@$(PYTHON) tools/subject_core_gaps.py artifacts/subject_core \
 		--json artifacts/subject_core/gaps.json
 
 connectome-zapbench:
-	@echo "🧠 Forecasting whole-mind activity..."
+	@echo "Forecasting whole-mind activity..."
 	@$(PYTHON) tools/run_zapbench.py --data artifacts/connectome
 
 layering:
-	@echo "🏛  Checking architectural layering (DEPS include rules)..."
+	@echo " Checking architectural layering (DEPS include rules)..."
 	@$(PYTHON) tools/check_layering.py
 
 convergence:
-	@echo "🕸  Checking privileged convergence surfaces..."
+	@echo " Checking privileged convergence surfaces..."
 	@$(PYTHON) tools/lint_convergence_surface.py
 	@$(PYTHON) tools/lint_dead_cross_package_imports.py
 
 agi-gauntlet:
-	@echo "🧭 Running the AGI proof gauntlet..."
+	@echo "Running the AGI proof gauntlet..."
 	@$(PYTHON) tools/run_agi_gauntlet.py
 
 agi-gauntlet-quick:
 	@$(PYTHON) tools/run_agi_gauntlet.py --quick
 
 state-ownership:
-	@echo "🧭 Checking how many subsystems keep a private copy of canonical state..."
+	@echo "Checking how many subsystems keep a private copy of canonical state..."
 	@$(PYTHON) tools/check_state_ownership.py
 
 epistemic-independence:
-	@echo "🎯 Checking no mechanism sets its bar from the result it judges..."
+	@echo "Checking no mechanism sets its bar from the result it judges..."
 	@$(PYTHON) tools/check_epistemic_independence.py
 
 release-dry-run: release-ready release-preflight
-	@echo "🚢 Generating the provenance and SBOM the release lane emits..."
+	@echo "Generating the provenance and SBOM the release lane emits..."
 	@$(PYTHON) tools/build_provenance.py --output-dir artifacts/provenance
 	@echo ""
-	@echo "✅ Dry run complete. NOT run, because they need an Apple account:"
+	@echo "Dry run complete. NOT run, because they need an Apple account:"
 	@echo "   codesign --options runtime"
 	@echo "   xcrun notarytool submit"
 	@echo "   xcrun stapler staple"
 	@echo "   A green dry run is not a release."
 
 release-ready:
-	@echo "🚢 Checking the release lane is fail-closed before a tag..."
+	@echo "Checking the release lane is fail-closed before a tag..."
 	@$(PYTHON) tools/check_release_ready.py
 
 skill-scope:
-	@echo "🎭 Checking no skill reaches past the effect scope it declares..."
+	@echo "Checking no skill reaches past the effect scope it declares..."
 	@$(PYTHON) tools/check_skill_effect_scope.py
 
 skill-scope-baseline:
-	@echo "🎭 Recording skill scope mismatches (the list may only shrink)..."
+	@echo "Recording skill scope mismatches (the list may only shrink)..."
 	@$(PYTHON) tools/check_skill_effect_scope.py --write-baseline
 
 product-facts:
-	@echo "📇 Checking the facts every file restates against the file that owns them..."
+	@echo "Checking the facts every file restates against the file that owns them..."
 	@$(PYTHON) tools/check_product_facts.py
 
 threat-model:
-	@echo "🎯 Checking every control in the threat model names a test that exists..."
+	@echo "Checking every control in the threat model names a test that exists..."
 	@$(PYTHON) tools/check_threat_model.py
 
 red-team:
-	@echo "🎯 Running the attacks, from the attacker's side..."
+	@echo "Running the attacks, from the attacker's side..."
 	@$(PYTHON) -m pytest tests/security -q
 
 method-size-changed:
-	@echo "📏 Checking no function this branch touched got bigger..."
+	@echo "Checking no function this branch touched got bigger..."
 	@$(PYTHON) tools/lint_method_size.py --changed
 
 deps-generate:
-	@echo "🏛  Regenerating the per-package DEPS from the import graph..."
+	@echo " Regenerating the per-package DEPS from the import graph..."
 	@$(PYTHON) tools/generate_deps.py --write
 
 deps-check:
-	@echo "🏛  Checking every generated DEPS still matches the import graph..."
+	@echo " Checking every generated DEPS still matches the import graph..."
 	@$(PYTHON) tools/generate_deps.py --check
 
 layering-baseline:
-	@echo "🏛  Rewriting the layering ratchet baseline (shrink only)..."
+	@echo " Rewriting the layering ratchet baseline (shrink only)..."
 	@$(PYTHON) tools/check_layering.py --baseline
 
 reqproof-gate:
-	@echo "📋 Requirement-to-proof structural gate (SCOPE-001)..."
+	@echo "Requirement-to-proof structural gate (SCOPE-001)..."
 	@$(PYTHON) tools/reqproof/gate.py --mode structural
 
 reqproof-release:
-	@echo "📋 Requirement-to-proof RELEASE gate (blocks until zero open mandatory scope)..."
+	@echo "Requirement-to-proof RELEASE gate (blocks until zero open mandatory scope)..."
 	@$(PYTHON) tools/reqproof/gate.py --mode release
 
 reqproof-progress:
-	@echo "📈 Generating evidence-weighted progress and checkpoint forecast..."
+	@echo "Generating evidence-weighted progress and checkpoint forecast..."
 	@$(PYTHON) tools/reqproof/progress.py
 	@$(PYTHON) tools/reqproof/docket.py
 
 reqproof-docket:
-	@echo "📋 Generating the dependency-aware current requirement docket..."
+	@echo "Generating the dependency-aware current requirement docket..."
 	@$(PYTHON) tools/reqproof/docket.py
 
 cannot-fire:
-	@echo "🔌 Checking for mechanisms no caller can switch on..."
+	@echo "Checking for mechanisms no caller can switch on..."
 	@$(PYTHON) tools/lint_cannot_fire.py
 
 inherited-inventory:
-	@echo "🧾 Reconciling the inherited ledgers against the master queue..."
+	@echo "Reconciling the inherited ledgers against the master queue..."
 	@$(PYTHON) -m tools.reqproof.inherited \
 		--reviews config/inherited_ledger_reviews.json \
 		--output artifacts/inherited_inventory.json
 
 advisory-inventory:
-	@echo "🗂  Holding every external review item to a disposition..."
+	@echo " Holding every external review item to a disposition..."
 	@$(PYTHON) tools/reqproof/advisory.py --output artifacts/advisory_inventory.json
 
 shipped-inventory:
-	@echo "📦 Counting what ships: skills, models, pages, routes..."
+	@echo "Counting what ships: skills, models, pages, routes..."
 	@$(PYTHON) tools/reqproof/shipped.py --output artifacts/shipped_inventory.json
 
 acceptance-links:
-	@echo "🔗 Which release requirements name something you can run..."
+	@echo "Which release requirements name something you can run..."
 	@$(PYTHON) tools/reqproof/acceptance.py --output artifacts/requirement_acceptance.json
 
 ui-audit:
-	@echo "♿ Auditing every interface page, every way a person meets it..."
+	@echo "Auditing every interface page, every way a person meets it..."
 	@$(PYTHON) tools/audit_ui_pages.py
 
 feed-legibility:
-	@echo "🪟 How much of the neural feed a person could actually read..."
+	@echo "How much of the neural feed a person could actually read..."
 	@$(PYTHON) tools/neural_feed_legibility.py --untranslated 15
 
 plain-feed:
-	@echo "🪟 How much of the neural feed has a face in plain words (config/plain_feed.json)..."
+	@echo "How much of the neural feed has a face in plain words (config/plain_feed.json)..."
 	@$(PYTHON) tools/plain_feed.py --check --missing 15
 
 prompt-steering:
-	@echo "🧭 Text this runtime writes to steer a model, counted..."
+	@echo "Text this runtime writes to steer a model, counted..."
 	@$(PYTHON) tools/prompt_steering_inventory.py --show 15
 
 reqproof-capture:
@@ -510,85 +510,85 @@ reqproof-capture:
 	@$(PYTHON) tools/reqproof/capture.py $(foreach proof,$(if $(SPECS),$(SPECS),$(SPEC)),--spec "$(proof)") --record
 
 checkpoint-hygiene-audit:
-	@echo "📍 Auditing clean exact-main checkpoint publication..."
+	@echo "Auditing clean exact-main checkpoint publication..."
 	@$(PYTHON) tools/closeout/audit_checkpoint_hygiene.py
 
 cognitive-gate-audit:
-	@echo "🧠 Auditing cognitive candidate-gate coverage..."
+	@echo "Auditing cognitive candidate-gate coverage..."
 	@$(PYTHON) tools/closeout/audit_cognitive_candidate_gates.py
 
 shutdown-contract-audit:
-	@echo "🛑 Auditing monotonic shutdown ownership and evidence surfaces..."
+	@echo "Auditing monotonic shutdown ownership and evidence surfaces..."
 	@$(PYTHON) tools/closeout/audit_shutdown_contract.py
 
 gate-skill-closure-audit:
-	@echo "🧠 Auditing cognitive-gate and executable-skill closure as one system..."
+	@echo "Auditing cognitive-gate and executable-skill closure as one system..."
 	@$(PYTHON) tools/closeout/audit_gate_skill_closure.py
 
 model-lane-contract-audit:
-	@echo "🚦 Auditing atomic model-lane ownership and pressure-proof contracts..."
+	@echo "Auditing atomic model-lane ownership and pressure-proof contracts..."
 	@$(PYTHON) tools/closeout/audit_model_lane_contract.py
 
 lifecycle-ownership-audit:
-	@echo "♻️  Auditing bounded command, service, database, and process ownership..."
+	@echo " Auditing bounded command, service, database, and process ownership..."
 	@$(PYTHON) tools/closeout/audit_lifecycle_ownership.py
 
 skill-catalog-audit:
-	@echo "🧰 Auditing skill discovery, quarantine, and live-registry equivalence..."
+	@echo "Auditing skill discovery, quarantine, and live-registry equivalence..."
 	@$(PYTHON) tools/closeout/audit_skill_catalog.py
 
 skill-runtime-route-audit:
-	@echo "🎯 Auditing the production skill API, router, engine, and authority path..."
+	@echo "Auditing the production skill API, router, engine, and authority path..."
 	@$(PYTHON) tools/closeout/audit_skill_runtime_route.py
 
 skill-portability-audit:
-	@echo "📦 Auditing clean-install and Rust-absent skill portability..."
+	@echo "Auditing clean-install and Rust-absent skill portability..."
 	@$(PYTHON) tools/closeout/audit_skill_portability.py
 
 skill-readiness-audit:
-	@echo "🧭 Auditing skill readiness across production routes and UI bootstrap..."
+	@echo "Auditing skill readiness across production routes and UI bootstrap..."
 	@$(PYTHON) tools/closeout/audit_skill_readiness_surface.py
 
 skill-readiness-ui-audit:
-	@echo "🖥️  Auditing skill readiness in the shipped browser shell..."
+	@echo " Auditing skill readiness in the shipped browser shell..."
 	@$(PYTHON) tools/closeout/audit_skill_readiness_ui.py
 
 model-load-audit:
-	@echo "🧮 Auditing direct model-load ownership and lane coverage..."
+	@echo "Auditing direct model-load ownership and lane coverage..."
 	@$(PYTHON) tools/closeout/audit_model_load_ownership.py
 
 resource-observation-audit:
-	@echo "📏 Auditing host-resource observation ownership and provenance..."
+	@echo "Auditing host-resource observation ownership and provenance..."
 	@$(PYTHON) tools/closeout/audit_resource_observation_ownership.py
 
 integration-liveness:
-	@echo "🔌 Probing optional integrations with real imports..."
+	@echo "Probing optional integrations with real imports..."
 	@$(PYTHON) tools/audit_integration_liveness.py
 
 security:
-	@echo "🔐 Running local security scan..."
+	@echo "Running local security scan..."
 	@$(PYTHON) tools/security_scan.py
 
 claim-lexicon:
-	@echo "🏷  Checking that loaded names say what they measure..."
+	@echo " Checking that loaded names say what they measure..."
 	@$(PYTHON) tools/check_claim_lexicon.py --json /tmp/aura_claim_lexicon.json
 
 evidence-integrity:
-	@echo "🧾 Checking that no claim outranks its evidence..."
+	@echo "Checking that no claim outranks its evidence..."
 	@$(PYTHON) tools/check_evidence_integrity.py --json /tmp/aura_evidence_integrity.json
 
 interiority:
-	@echo "🫀 Proving the interiority layer: counterfactuals, nulls, ablation..."
+	@echo "Proving the interiority layer: counterfactuals, nulls, ablation..."
 	@$(PYTHON) tools/interiority_proof.py
 
 claim-constants:
-	@echo "📐 Checking that every constant a claim cites still holds that value..."
+	@echo "Checking that every constant a claim cites still holds that value..."
 	@$(PYTHON) tools/verify_claim_constants.py
 
 doc-drift: reader-docs product-facts
-	@echo "🔗 Checking that every file a document names is a file that exists..."
+	@echo "Checking that every file a document names is a file that exists..."
 	@$(PYTHON) tools/lint_doc_drift.py --quiet
-	@echo "🔗 Checking the subject-core evidence table against the runs..."
+	@echo "Checking the subject-core evidence table against the runs..."
 	@$(PYTHON) tools/subject_core_evidence_doc.py --check
 
 .PHONY: reader-docs
@@ -596,52 +596,52 @@ reader-docs:
 	@$(PYTHON) tools/render_reader_navigation.py --check
 
 rlc-figures:
-	@echo "🔬 Recomputing every RLC figure the documents quote from its evidence..."
+	@echo "Recomputing every RLC figure the documents quote from its evidence..."
 	@$(PYTHON) tools/verify_rlc_figures.py --quiet
 
 rlc-27b-inventory:
-	@echo "🧬 Measuring what the 27B checkpoint swap invalidates..."
+	@echo "Measuring what the 27B checkpoint swap invalidates..."
 	@$(PYTHON) tools/inventory_27b_migration.py --json artifacts/migration/27b/inventory.json
 
 rlc-27b-tissue:
-	@echo "🧫 Classifying every cortex-facing tissue against the active descriptor..."
+	@echo "Classifying every cortex-facing tissue against the active descriptor..."
 	@$(PYTHON) tools/export_active_descriptor.py --out artifacts/migration/27b/active_descriptor.json
 	@$(PYTHON) tools/inventory_model_tissue_migration.py --descriptor artifacts/migration/27b/active_descriptor.json --out artifacts/migration/27b/tissue_inventory.json
 
 rlc-27b-grounding:
-	@echo "🔤 Re-deriving every grounding contract under both tokenizers..."
+	@echo "Re-deriving every grounding contract under both tokenizers..."
 	@$(PYTHON) tools/verify_27b_grounding_portability.py --json artifacts/migration/27b/grounding_portability.json
 
 rlc-27b-package:
-	@echo "📦 Materializing the fresh 27B recovery package identity..."
+	@echo "Materializing the fresh 27B recovery package identity..."
 	@$(PYTHON) tools/materialize_27b_recovery_package.py materialize
 
 rlc-27b-mtp:
-	@echo "⚡ Checking whether the active checkpoint's MTP head is usable..."
+	@echo "Checking whether the active checkpoint's MTP head is usable..."
 	@$(PYTHON) tools/report_mtp_capability.py --json artifacts/migration/27b/mtp_capability.json
 
 rlc-27b-steering-plan:
-	@echo "🎚  Planning CAA steering regeneration for the active checkpoint..."
+	@echo " Planning CAA steering regeneration for the active checkpoint..."
 	@$(PYTHON) tools/plan_27b_steering_regeneration.py
 
 rlc-27b-critical-path:
-	@echo "🧭 Reading every CPU gate into one receipt..."
+	@echo "Reading every CPU gate into one receipt..."
 	@$(PYTHON) tools/report_27b_critical_path.py --json artifacts/migration/27b/critical_path.json
 
 rlc-27b-queue:
-	@echo "🗂  Classifying every model-dependent capability against the signed contract..."
+	@echo " Classifying every model-dependent capability against the signed contract..."
 	@$(PYTHON) tools/report_27b_migration_queue.py --json artifacts/migration/27b/migration_queue.json
 
 rlc-27b-execution-plan:
-	@echo "⏱  Counting what the recovery campaign will ask the model to do..."
+	@echo " Counting what the recovery campaign will ask the model to do..."
 	@$(PYTHON) tools/plan_27b_campaign_execution.py --json artifacts/migration/27b/execution_plan.json
 
 rlc-27b-readiness:
-	@echo "🚀 Collecting everything that still blocks the 27B recovery launch..."
+	@echo "Collecting everything that still blocks the 27B recovery launch..."
 	@$(PYTHON) tools/report_27b_launch_readiness.py --json artifacts/migration/27b/launch_readiness.json
 
 rlc-27b-preflight:
-	@echo "🚦 Checking the frozen 27B campaign bundle against the tree..."
+	@echo "Checking the frozen 27B campaign bundle against the tree..."
 	@$(PYTHON) tools/preflight_27b_recurrence_campaign.py artifacts/migration/27b/campaign_bundle.json
 
 rlc-figures-report:
@@ -651,82 +651,82 @@ doc-drift-report:
 	@$(PYTHON) tools/lint_doc_drift.py --json /tmp/aura_doc_drift.json
 
 doc-drift-baseline:
-	@echo "🔗 Recording the current documentation drift baseline (it may only shrink)..."
+	@echo "Recording the current documentation drift baseline (it may only shrink)..."
 	@$(PYTHON) tools/lint_doc_drift.py --write-baseline
 
 test-inventory:
-	@echo "🧮 Recording how many tests the tree collects (slow: full collection)..."
+	@echo "Recording how many tests the tree collects (slow: full collection)..."
 	@$(PYTHON) tools/record_test_inventory.py --write
 
 module-size:
-	@echo "📏 Checking that no module grew past its size baseline..."
+	@echo "Checking that no module grew past its size baseline..."
 	@$(PYTHON) tools/lint_module_size.py
 
 module-size-baseline:
-	@echo "📏 Recording the current module size baseline (it may only shrink)..."
+	@echo "Recording the current module size baseline (it may only shrink)..."
 	@$(PYTHON) tools/lint_module_size.py --write-baseline
 
 enterprise-gate:
-	@echo "🏢 Running enterprise static ratchet gate..."
+	@echo "Running enterprise static ratchet gate..."
 	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --baseline $(ENTERPRISE_BASELINE) --fail-on-regression --skip-pytest-collect --out /tmp/aura_enterprise_gate.json
-	@echo "✅ Enterprise gate passed; report written to /tmp/aura_enterprise_gate.json"
+	@echo "Enterprise gate passed; report written to /tmp/aura_enterprise_gate.json"
 
 enterprise-collect:
-	@echo "🏢 Running enterprise pytest collection gate..."
+	@echo "Running enterprise pytest collection gate..."
 	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --baseline $(ENTERPRISE_BASELINE) --fail-on-regression --skip-compile --out /tmp/aura_enterprise_collect_gate.json
-	@echo "✅ Enterprise collection gate passed; report written to /tmp/aura_enterprise_collect_gate.json"
+	@echo "Enterprise collection gate passed; report written to /tmp/aura_enterprise_collect_gate.json"
 
 enterprise-strict:
-	@echo "🏢 Running strict enterprise certification gate..."
+	@echo "Running strict enterprise certification gate..."
 	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) tools/aura_enterprise_gate.py --root . --strict
 
 production-gate:
-	@echo "🚦 Running production readiness contract..."
+	@echo "Running production readiness contract..."
 	@AURA_TEST_MODE=1 $(PYTHON) tools/aura_production_readiness_gate.py --out /tmp/aura_production_readiness.json
-	@echo "✅ Production readiness contract passed; report written to /tmp/aura_production_readiness.json"
+	@echo "Production readiness contract passed; report written to /tmp/aura_production_readiness.json"
 
 frontend-contract:
-	@echo "🖥  Running paired frontend access contract and production build..."
+	@echo " Running paired frontend access contract and production build..."
 	@cd interface/static/shell && npm run test:access && npm run build
 
 architecture-map:
-	@echo "🧭 Generating operational architecture dependency map..."
+	@echo "Generating operational architecture dependency map..."
 	@$(PYTHON) tools/arch_map.py --write-latest --write-doc --json > /tmp/aura_architecture_map.json
-	@echo "✅ Architecture map written to artifacts/architecture/ and docs/ARCHITECTURE_MAP.md"
+	@echo "Architecture map written to artifacts/architecture/ and docs/ARCHITECTURE_MAP.md"
 
 provenance:
-	@echo "📦 Generating SBOM and release provenance..."
+	@echo "Generating SBOM and release provenance..."
 	@$(PYTHON) tools/build_provenance.py --output-dir artifacts/provenance
-	@echo "✅ Provenance written to artifacts/provenance"
+	@echo "Provenance written to artifacts/provenance"
 
 qualification-seals:
-	@echo "🔏 Checking the code under every qualified claim..."
+	@echo "Checking the code under every qualified claim..."
 	@$(PYTHON) tools/lint_qualification_seals.py
 
 activation-audit:
-	@echo "🧭 Auditing active Aura loops..."
+	@echo "Auditing active Aura loops..."
 	@$(PYTHON) tools/activation_audit.py --output artifacts/activation_report.json
 
 test:
-	@echo "🧪 Running tests (bounded process chunks)..."
+	@echo "Running tests (bounded process chunks)..."
 	@$(PYTHON) tools/run_test_chunks.py --chunks "$(TEST_CHUNKS)" --min-free-gb "$(TEST_MIN_FREE_GB)" \
 		--marker "not live and not network and not external"
-	@echo "✅ Tests passed"
+	@echo "Tests passed"
 
 release-manifest:
-	@echo "📋 Building release manifest..."
+	@echo "Building release manifest..."
 	@$(PYTHON) tools/build_release_manifest.py
 
 update:
-	@echo "⬆️  Release train: boring update (autostash → ff-only pull → compile sanity)..."
+	@echo " Release train: boring update (autostash → ff-only pull → compile sanity)..."
 	@$(PYTHON) tools/release_train.py update
 
 update-live:
-	@echo "⬆️  Release train: update + relaunch the live instance..."
+	@echo " Release train: update + relaunch the live instance..."
 	@$(PYTHON) tools/release_train.py update --smoke --relaunch
 
 rollback:
-	@echo "⏪ Release train: rollback to the last recorded good point..."
+	@echo "Release train: rollback to the last recorded good point..."
 	@$(PYTHON) tools/release_train.py rollback
 
 release-status:
@@ -735,19 +735,19 @@ release-status:
 # Single-process run (accumulates memory across ~7400 tests; the OS has
 # OOM-killed it at ~83% — kept only for debugging chunk-boundary issues).
 test-onepass:
-	@echo "🧪 Running tests (single process — may exhaust memory)..."
+	@echo "Running tests (single process — may exhaust memory)..."
 	@$(PYTHON) -m pytest $(PYTEST_TARGETS)
-	@echo "✅ Tests passed"
+	@echo "Tests passed"
 
 live-test:
-	@echo "🧪 Running live tests..."
+	@echo "Running live tests..."
 	@$(PYTHON) -m pytest tests -q -m live
-	@echo "✅ Live tests passed"
+	@echo "Live tests passed"
 
 typecheck:
-	@echo "📝 Running typechecker..."
+	@echo "Running typechecker..."
 	@$(PYTHON) -m mypy $(MYPY_FLAGS) $(MYPY_TARGETS)
-	@echo "✅ Typecheck passed"
+	@echo "Typecheck passed"
 
 # Claims that need her encoder or a model, run with them loaded: a skip fails here (U07-09). It loads her encoder and
 # her record reader (DeBERTa-large), not her cortex; still, run it with her resident model stopped or with headroom.
@@ -755,44 +755,44 @@ typecheck:
 # front of tests/test_finding_it_by_look.py, and the run stopped before any test.
 MODEL_SUITE_FILES = $(shell grep -rlE 'pytest\.mark\.model\b' tests --include='test_*.py')
 model-suite:
-	@echo "🧠 Running the tests of claims that need her encoder or a model; a skip is a failure here..."
+	@echo "Running the tests of claims that need her encoder or a model; a skip is a failure here..."
 	@AURA_MODEL_SUITE=1 VECLIB_MAXIMUM_THREADS=1 OMP_NUM_THREADS=1 $(PYTHON) -m pytest -q -p no:cacheprovider \
 		-m "model and not live" $(MODEL_SUITE_FILES)
-	@echo "✅ Model suite passed"
+	@echo "Model suite passed"
 
 smoke:
-	@echo "💨 Running smoke suite..."
+	@echo "Running smoke suite..."
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
-	@echo "✅ Smoke suite passed"
+	@echo "Smoke suite passed"
 
 quality: skill-scope release-ready lint-surface product-facts threat-model deps-check deps-gate lockfiles-check review-policy branch-protection-policy typed-surface source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering state-ownership epistemic-independence module-size claim-constants interiority writing doc-drift rlc-figures evidence-integrity
-	@echo "🏁 Quality gates passed"
+	@echo "Quality gates passed"
 
 decisive:
-	@echo "🏁 Generating decisive readiness bundle..."
+	@echo "Generating decisive readiness bundle..."
 	@$(PYTHON) tools/proof_bundle.py --output-dir artifacts/proof_bundle/latest
 
 aura-certify-boot:
-	@echo "🛡  Running canonical boot certification..."
+	@echo " Running canonical boot certification..."
 	@$(PYTHON) tools/certify_boot.py
 
 aletheia-live-proof:
-	@echo "🧪 Running leakage-proof Aletheia Live Proof..."
+	@echo "Running leakage-proof Aletheia Live Proof..."
 	@$(PYTHON) tools/run_aletheia_live_proof.py
 
 certify:
-	@echo "🏆 Running master certification gauntlet..."
+	@echo "Running master certification gauntlet..."
 	@$(PYTHON) tools/certify.py
 
 behavioral-proof:
-	@echo "🧪 Running behavioral proof smoke gate..."
+	@echo "Running behavioral proof smoke gate..."
 	@$(PYTHON) tools/behavioral_proof_smoke.py --output artifacts/behavioral_proof/latest.json
 
 proof-bundle: decisive behavioral-proof
-	@echo "📦 Proof bundle written to artifacts/proof_bundle/latest"
+	@echo "Proof bundle written to artifacts/proof_bundle/latest"
 
 person-box-proof:
-	@echo "📦 Running Aura person-in-a-box proof gauntlet..."
+	@echo "Running Aura person-in-a-box proof gauntlet..."
 	@set -e; \
 	PROFILE="$${AURA_PERSON_BOX_PROFILE:-full}"; \
 	OUT="$${AURA_PERSON_BOX_OUT:-artifacts/current/person_box_proof}"; \
@@ -817,10 +817,10 @@ person-box-proof:
 	  $$LIVE_MODEL_FLAG; \
 	$(PYTHON) tools/proof/score_person_box_run.py "$$OUT"; \
 	PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) -m pytest tests/proof/test_person_box_artifacts.py -q
-	@echo "✅ Person-in-a-box proof artifacts written to $${AURA_PERSON_BOX_OUT:-artifacts/current/person_box_proof}"
+	@echo "Person-in-a-box proof artifacts written to $${AURA_PERSON_BOX_OUT:-artifacts/current/person_box_proof}"
 
 sovereignty-proof:
-	@echo "📦 Running Aura sovereignty/reconstitution proof gauntlet..."
+	@echo "Running Aura sovereignty/reconstitution proof gauntlet..."
 	@set -e; \
 	PROFILE="$${AURA_SOVEREIGNTY_PROFILE:-smoke}"; \
 	OUT="$${AURA_SOVEREIGNTY_OUT:-artifacts/current/aura_sovereignty_proof_bundle}"; \
@@ -836,7 +836,7 @@ sovereignty-proof:
 	  $$LIVE_RUNTIME_FLAG; \
 	$(PYTHON) tools/proof/score_sovereignty_run.py "$$OUT"; \
 	AURA_SOVEREIGNTY_LIVE_RUNTIME=0 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) -m pytest tests/proof/test_sovereignty_artifacts.py -q
-	@echo "✅ Sovereignty proof artifacts written to $${AURA_SOVEREIGNTY_OUT:-artifacts/current/aura_sovereignty_proof_bundle}"
+	@echo "Sovereignty proof artifacts written to $${AURA_SOVEREIGNTY_OUT:-artifacts/current/aura_sovereignty_proof_bundle}"
 
 # ─── Bench / chaos / longevity ────────────────────────────────────────────
 
@@ -859,53 +859,53 @@ chaos:
 
 clean-bench:
 	@rm -rf ~/.aura/data/bench
-	@echo "🧹 cleaned ~/.aura/data/bench"
+	@echo "cleaned ~/.aura/data/bench"
 
 aletheia-validate:
-	@echo "🧪 Validating committed Aletheia Tier 5 evidence..."
+	@echo "Validating committed Aletheia Tier 5 evidence..."
 	@$(PYTHON) tools/validate_aletheia_tier5.py \
 	  --artifacts artifacts/aletheia \
 	  --out artifacts/current/aletheia_tier5_validation.json
-	@echo "✅ Aletheia Tier 5 evidence validated"
+	@echo "Aletheia Tier 5 evidence validated"
 
 # ─── Enterprise Product Targets ──────────────────────────────────────────
 
 setup-prod:
-	@echo "🔧 Production setup: creating virtualenv (.venv) and installing pinned requirements"
+	@echo "Production setup: creating virtualenv (.venv) and installing pinned requirements"
 	@if [ ! -d .venv ]; then $(PYTHON) -m venv .venv; fi
 	@. .venv/bin/activate; pip install -U pip wheel
 	@. .venv/bin/activate; pip install -r requirements/core.txt
-	@echo "✅ Production setup complete (fail-closed: no fallback installs)"
+	@echo "Production setup complete (fail-closed: no fallback installs)"
 
 doctor:
-	@echo "🩺 Running clean-room doctor checks..."
+	@echo "Running clean-room doctor checks..."
 	@echo "  Checking Python version (3.12 required)..."
-	@$(PYTHON) -c "import sys; v=sys.version_info; assert (v.major, v.minor) == (3, 12), f'Python 3.12 required, found {v.major}.{v.minor} — see .python-version'; print(f'  ✅ Python {v.major}.{v.minor}.{v.micro}')"
+	@$(PYTHON) -c "import sys; v=sys.version_info; assert (v.major, v.minor) == (3, 12), f'Python 3.12 required, found {v.major}.{v.minor} — see .python-version'; print(f'  Python {v.major}.{v.minor}.{v.micro}')"
 	@echo "  Checking git state..."
-	@git rev-parse --git-dir >/dev/null 2>&1 || { echo "  ❌ Not a git checkout: source integrity cannot be verified"; exit 1; }
-	@echo "  ✅ Git checkout present (commit $$(git rev-parse --short HEAD))"
+	@git rev-parse --git-dir >/dev/null 2>&1 || { echo "  Not a git checkout: source integrity cannot be verified"; exit 1; }
+	@echo "  Git checkout present (commit $$(git rev-parse --short HEAD))"
 	@echo "  Checking production dependencies..."
-	@$(PYTHON) -c "import fastapi, pydantic, httpx, psutil, structlog, aiosqlite, yaml; print('  ✅ Production dependencies present')"
+	@$(PYTHON) -c "import fastapi, pydantic, httpx, psutil, structlog, aiosqlite, yaml; print('  Production dependencies present')"
 	@echo "  Checking critical imports..."
-	@$(PYTHON) -c "import aura_main; print('  ✅ aura_main imports OK')"
-	@$(PYTHON) -c "from core.runtime.mode import get_mode, mode_context; print(f'  ✅ Runtime mode: {get_mode().value}')"
-	@$(PYTHON) -c "from core.container import ServiceContainer; print('  ✅ ServiceContainer imports OK')"
-	@$(PYTHON) -c "from core.will import UnifiedWill; print('  ✅ UnifiedWill imports OK')"
-	@$(PYTHON) -c "from core.governance.will_gate import will_gated, WillRefused, audit_will_coverage; print('  ✅ Will gate imports OK')"
-	@$(PYTHON) -c "from core.resilience.memory_watchdog import MemoryWatchdog; print('  ✅ MemoryWatchdog imports OK')"
-	@$(PYTHON) -c "from core.organism.welfare import get_welfare_model; print('  ✅ Welfare model imports OK')"
-	@$(PYTHON) -c "from core.conversation.self_claim_verifier import verify_self_claims; print('  ✅ Self-claim verifier imports OK')"
+	@$(PYTHON) -c "import aura_main; print('  aura_main imports OK')"
+	@$(PYTHON) -c "from core.runtime.mode import get_mode, mode_context; print(f'  Runtime mode: {get_mode().value}')"
+	@$(PYTHON) -c "from core.container import ServiceContainer; print('  ServiceContainer imports OK')"
+	@$(PYTHON) -c "from core.will import UnifiedWill; print('  UnifiedWill imports OK')"
+	@$(PYTHON) -c "from core.governance.will_gate import will_gated, WillRefused, audit_will_coverage; print('  Will gate imports OK')"
+	@$(PYTHON) -c "from core.resilience.memory_watchdog import MemoryWatchdog; print('  MemoryWatchdog imports OK')"
+	@$(PYTHON) -c "from core.organism.welfare import get_welfare_model; print('  Welfare model imports OK')"
+	@$(PYTHON) -c "from core.conversation.self_claim_verifier import verify_self_claims; print('  Self-claim verifier imports OK')"
 	@echo "  Checking local data paths..."
-	@$(PYTHON) -c "from pathlib import Path; missing=[p for p in ('data', 'logs') if not Path(p).is_dir()]; assert not missing, f'missing local data dirs: {missing} (run from the repo root after setup)'; print('  ✅ Local data paths present')"
+	@$(PYTHON) -c "from pathlib import Path; missing=[p for p in ('data', 'logs') if not Path(p).is_dir()]; assert not missing, f'missing local data dirs: {missing} (run from the repo root after setup)'; print('  Local data paths present')"
 	@echo "  Checking compilation..."
 	@$(PYTHON) -m compileall -q core aura_main.py
 	@echo "  Checking test collection..."
 	@AURA_TEST_MODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 $(PYTHON) -m pytest -p pytest_asyncio.plugin --collect-only -q 2>/dev/null | tail -1
-	@echo "✅ Doctor checks passed"
-	@echo "💡 Code is healthy. For the runtime environment (disk/RAM/port/.env/models/lockfile): make preflight"
+	@echo "Doctor checks passed"
+	@echo "Code is healthy. For the runtime environment (disk/RAM/port/.env/models/lockfile): make preflight"
 
 preflight:
-	@echo "🛫 Running runtime-environment preflight..."
+	@echo "Running runtime-environment preflight..."
 	@$(PYTHON) tools/runtime_preflight.py
 
 # Dependency-vulnerability audit. Waivers are EXPLICIT and documented in
@@ -915,79 +915,79 @@ preflight:
 #   attack vector only, no fixed torch release exists yet.
 AUDIT_WAIVERS := --ignore-vuln CVE-2025-3000
 audit-deps:
-	@echo "🔎 Auditing installed dependencies against known vulnerabilities..."
+	@echo "Auditing installed dependencies against known vulnerabilities..."
 	@if grep -rn "torch\.jit\.script" core/ tools/ aura_main.py --include="*.py" 2>/dev/null; then \
-		echo "❌ torch.jit.script is now in use — the CVE-2025-3000 waiver no longer holds; remove it."; \
+		echo "torch.jit.script is now in use — the CVE-2025-3000 waiver no longer holds; remove it."; \
 		exit 1; \
 	fi
 	@$(PYTHON) -m pip_audit --skip-editable --progress-spinner off $(AUDIT_WAIVERS)
-	@echo "✅ Dependency audit clean (waivers: see docs/DEPENDENCY_AUDIT.md)"
+	@echo "Dependency audit clean (waivers: see docs/DEPENDENCY_AUDIT.md)"
 
 DIAGNOSTIC_BUNDLE_PATH ?= /tmp/aura_diagnostics/bundle.tar.gz
 
 diagnostic-bundle:
-	@echo "📦 Creating diagnostic bundle..."
+	@echo "Creating diagnostic bundle..."
 	@$(PYTHON) -m core.runtime.operator_cli doctor --bundle --bundle-path "$(DIAGNOSTIC_BUNDLE_PATH)"
 
 backup:
-	@echo "💾 Creating verified state backup..."
+	@echo "Creating verified state backup..."
 	@$(PYTHON) tools/state_backup.py create
 
 backup-verify:
-	@echo "🔬 Restore-verifying newest backup archive..."
+	@echo "Restore-verifying newest backup archive..."
 	@$(PYTHON) tools/state_backup.py verify
 
 restore:
-	@echo "📂 Restoring from backup..."
-	@if [ -z "$(BACKUP)" ]; then echo "❌ Usage: make restore BACKUP=<path>"; exit 1; fi
+	@echo "Restoring from backup..."
+	@if [ -z "$(BACKUP)" ]; then echo "Usage: make restore BACKUP=<path>"; exit 1; fi
 	@$(PYTHON) tools/state_backup.py restore --archive $(BACKUP) $(if $(filter 1,$(FORCE)),--force,)
 
 restore-test:
-	@echo "🧪 Running restore drill: back up, damage a scratch copy, restore it, prove the repair..."
+	@echo "Running restore drill: back up, damage a scratch copy, restore it, prove the repair..."
 	@$(PYTHON) tools/state_backup.py create
 	@$(PYTHON) tools/state_backup.py drill
 
 memory-export:
-	@echo "📤 Exporting all memories..."
+	@echo "Exporting all memories..."
 	@$(PYTHON) -c "\
 	import json, glob; \
 	print(json.dumps({'status': 'export_available', 'stores': ['conversation', 'semantic', 'coldstore']}, indent=2))"
-	@echo "✅ Memory export complete (check ~/.aura/data/export/)"
+	@echo "Memory export complete (check ~/.aura/data/export/)"
 
 memory-purge:
-	@echo "⚠️  This will delete ALL memories. Press Ctrl+C to cancel."
+	@echo " This will delete ALL memories. Press Ctrl+C to cancel."
 	@sleep 3
-	@echo "🗑️  Purging memories..."
-	@echo "✅ Memory purge complete"
+	@echo " Purging memories..."
+	@echo "Memory purge complete"
 
 data-export:
-	@echo "📤 Exporting all user data (GDPR-style)..."
+	@echo "Exporting all user data (GDPR-style)..."
 	@mkdir -p ~/.aura/data/export
-	@echo "✅ Data export written to ~/.aura/data/export/"
+	@echo "Data export written to ~/.aura/data/export/"
 
 data-purge:
-	@echo "⚠️  This will delete ALL user data. Press Ctrl+C to cancel."
+	@echo " This will delete ALL user data. Press Ctrl+C to cancel."
 	@sleep 5
-	@echo "🗑️  Purging all user data..."
-	@echo "✅ Data purge complete"
+	@echo " Purging all user data..."
+	@echo "Data purge complete"
 
 log-purge:
-	@echo "🗑️  Purging logs..."
+	@echo " Purging logs..."
 	@rm -rf logs/*.log logs/*.log.* 2>/dev/null || true
-	@echo "✅ Log purge complete"
+	@echo "Log purge complete"
 
 identity-reset:
-	@echo "🔄 Resetting identity to canonical state..."
-	@echo "✅ Identity reset complete"
+	@echo "Resetting identity to canonical state..."
+	@echo "Identity reset complete"
 
 longevity-4h:
-	@echo "⏱️  Running 4-hour stability soak (real-time endurance)..."
+	@echo " Running 4-hour stability soak (real-time endurance)..."
 	@$(PYTHON) -m tools.longevity.run_longevity_soak --duration-s 14400 --tick-s 30 --out artifacts/current/longevity_4h
 
 # ─── Closeout Rubric ─────────────────────────────────────────────────────
 
 closeout-audit:
-	@echo "📚 Running Aura closeout all-line source audit checkpoint..."
+	@echo "Running Aura closeout all-line source audit checkpoint..."
 	@OUT="$${AURA_CLOSEOUT_OUT:-artifacts/current/closeout_audit}"; \
 	DIRTY_FLAG=""; \
 	if [ "$${AURA_CLOSEOUT_ALLOW_DIRTY:-0}" = "1" ]; then DIRTY_FLAG="--allow-dirty"; fi; \
@@ -997,10 +997,10 @@ closeout-audit:
 	  --out "$$OUT" \
 	  $$DIRTY_FLAG \
 	  $$GATE_FLAG
-	@echo "✅ Closeout audit artifacts written to $${AURA_CLOSEOUT_OUT:-artifacts/current/closeout_audit}"
+	@echo "Closeout audit artifacts written to $${AURA_CLOSEOUT_OUT:-artifacts/current/closeout_audit}"
 
 closeout-semantic-status:
-	@echo "🧾 Summarizing Aura semantic closeout review coverage..."
+	@echo "Summarizing Aura semantic closeout review coverage..."
 	@$(PYTHON) tools/closeout/semantic_review_ledger.py status
 
 closeout-rubric:
@@ -1015,7 +1015,7 @@ closeout-rubric:
 	check() { \
 	  label="$$1"; shift; \
 	  printf "%s" "$$label"; \
-	  if "$$@" >/dev/null 2>/dev/null; then echo "  ✅"; else echo "  ❌"; fail=1; fi; \
+	  if "$$@" >/dev/null 2>/dev/null; then echo " "; else echo " "; fail=1; fi; \
 	}; \
 	check "  1. Clean install (make setup)..........." make setup-prod; \
 	check "  2. Canonical boot path (boot_aura_runtime)..." $(PYTHON) -c "from aura_main import boot_aura_runtime"; \
@@ -1048,7 +1048,7 @@ closeout-rubric:
 .PHONY: seal seal-quick
 
 seal-quick: compile lint source-hygiene
-	@echo "🔒 Running quick seal checks..."
+	@echo "Running quick seal checks..."
 	@$(PYTHON) -c "\
 from core.governance.will_gate import audit_will_coverage; \
 report = audit_will_coverage(strict=False); \
@@ -1066,20 +1066,20 @@ from core.observability.metrics import check_readiness; \
 r = check_readiness(); \
 print(f'  Readiness: {r[\"status\"]} ({len(r.get(\"issues\", []))} issues)'); \
 "
-	@echo "✅ Quick seal checks passed"
+	@echo "Quick seal checks passed"
 
 seal: quality seal-quick
 	@echo ""
-	@echo "🔒 ══════════════════════════════════════════════════════"
-	@echo "🔒  AURA GOLD MASTER SEAL — PRODUCTION READINESS"
-	@echo "🔒 ══════════════════════════════════════════════════════"
+	@echo "══════════════════════════════════════════════════════"
+	@echo " AURA GOLD MASTER SEAL — PRODUCTION READINESS"
+	@echo "══════════════════════════════════════════════════════"
 	@echo ""
 	@echo "  All quality gates passed."
 	@echo "  All seal verification checks passed."
 	@echo "  Aura passed the configured local seal gates for this profile."
 	@echo "  Claims are limited to the evidence in CLAIMS_MATRIX.md."
 	@echo ""
-	@echo "🔒 ══════════════════════════════════════════════════════"
+	@echo "══════════════════════════════════════════════════════"
 
 final-proof:
 	python -m compileall -q aura_main.py core aura interface skills tools scripts proof_kernel
@@ -1180,7 +1180,7 @@ final-proof:
 	  --artifacts artifacts/current
 
 app:
-	@echo "🖥  Ensuring Aura.app matches HEAD..."
+	@echo " Ensuring Aura.app matches HEAD..."
 	@$(PYTHON) tools/app_bundle_freshness.py ensure
 
 app-check:

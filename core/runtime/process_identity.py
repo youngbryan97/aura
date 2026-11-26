@@ -241,7 +241,7 @@ def assert_owned(
         return True
     described = identity.describe() if identity else "<unbound>"
     _logger.info(
-        "🛡️ %s: refusing %s — %s is no longer the process this decision was "
+        "%s: refusing %s — %s is no longer the process this decision was "
         "bound to (exited, replaced, or PID reused).",
         subsystem,
         action,

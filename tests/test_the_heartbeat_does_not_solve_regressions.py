@@ -1,6 +1,6 @@
 """The loudest CRITICAL in the runtime was arithmetic on the event loop.
 
-Live 2026-08-17: 246 "🚨 [WATCHDOG] EVENT LOOP STALL DETECTED" at 5.0-7.6s
+Live 2026-08-17: 246 "[WATCHDOG] EVENT LOOP STALL DETECTED" at 5.0-7.6s
 each, and 196 "hard event-loop lag exceeded 5.00s". The stall dump names the
 path exactly:
 

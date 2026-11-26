@@ -34,15 +34,15 @@ async def test_connection_pool():
         ConnectionRetryConfig,
     )
     
-    print("✅ Successfully imported engine_connection_pool")
+    print("Successfully imported engine_connection_pool")
     
     # Test pool instantiation
     pool = get_engine_connection_pool()
-    print("✅ Created engine connection pool")
+    print("Created engine connection pool")
     
     # Test retry config
     config = ConnectionRetryConfig()
-    print(f"✅ Retry config: max_retries={config.max_retries}, initial_backoff={config.initial_backoff_seconds}s")
+    print(f"Retry config: max_retries={config.max_retries}, initial_backoff={config.initial_backoff_seconds}s")
     
     # Test backoff calculation
     for attempt in range(config.max_retries):
@@ -57,7 +57,7 @@ async def test_connection_pool():
     
     engine = InMemoryEngine()
     await pool.acquire_engine_connection(engine, connection_id="test_conn")
-    print("✅ Acquired connection")
+    print("Acquired connection")
     
     # Test successful operation
     async def test_operation():
@@ -69,11 +69,11 @@ async def test_connection_pool():
         connection_id="test_conn",
         timeout=5.0,
     )
-    print(f"✅ Operation succeeded: {result}")
+    print(f"Operation succeeded: {result}")
     
     # Check health status
     health = pool.get_health_status("test_conn")
-    print(f"✅ Connection health: {health['health']}")
+    print(f"Connection health: {health['health']}")
     print(f"   - Success count: {health['success_count']}")
     print(f"   - Uptime: {health['uptime_seconds']:.1f}s")
     
@@ -88,19 +88,19 @@ async def test_connection_pool():
         connection_id="test_conn",
         timeout=0.5,  # Short timeout
     )
-    print(f"✅ Failing operation returned: {result}")
+    print(f"Failing operation returned: {result}")
     
     # Check degraded health status
     health = pool.get_health_status("test_conn")
-    print(f"✅ Connection health after failure: {health['health']}")
+    print(f"Connection health after failure: {health['health']}")
     print(f"   - Failure count: {health['failure_count']}")
     print(f"   - Consecutive failures: {health['consecutive_failures']}")
     
     # Close connection
     await pool.close_connection("test_conn")
-    print("✅ Connection closed")
+    print("Connection closed")
     
-    print("\n✅ All tests passed!")
+    print("\nAll tests passed!")
     return True
 
 if __name__ == "__main__":
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         success = asyncio.run(test_connection_pool())
         sys.exit(0 if success else 1)
     except SCRIPT_RECOVERABLE_ERRORS as e:
-        print(f"❌ Test failed: {e}")
+        print(f"Test failed: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

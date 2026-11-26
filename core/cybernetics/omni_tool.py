@@ -139,7 +139,7 @@ class OmniTool:
                 action="loaded omni tool without event bus publication support",
                 severity="warning",
             )
-        logger.info("🔋 [OMNI] Omni-Tool Interface ENGAGED. Field actions READY.")
+        logger.info("[OMNI] Omni-Tool Interface ENGAGED. Field actions READY.")
 
     async def execute_action(self, action_name: str, handler: Callable, *args, **kwargs) -> Any:
         """
@@ -156,17 +156,17 @@ class OmniTool:
         last_run = self._cooldowns.get(action_name, 0.0)
         cooldown_period = min(_safe_float(kwargs.pop("cooldown", 5.0), 5.0), 86400.0)
         if now - last_run < cooldown_period:
-            logger.warning("⏳ [OMNI] Action '%s' is cooling down.", action_name)
+            logger.warning("[OMNI] Action '%s' is cooling down.", action_name)
             return {"error": "cooldown_active", "remaining": cooldown_period - (now - last_run)}
 
         # 2. Permission Validation
         if not self._permissions.get(action_name, True):
-            logger.error("🚫 [OMNI] Action '%s' DENIED by system security policy.", action_name)
+            logger.error("[OMNI] Action '%s' DENIED by system security policy.", action_name)
             return {"error": "permission_denied"}
 
         # 3. Execution with Error Catching
         try:
-            logger.info("🚀 [OMNI] Executing Field Action: %s", action_name)
+            logger.info("[OMNI] Executing Field Action: %s", action_name)
             self._cooldowns[action_name] = now
             
             if inspect.iscoroutinefunction(handler):
@@ -189,7 +189,7 @@ class OmniTool:
                 severity="degraded",
                 extra={"action_name": action_name},
             )
-            logger.error("💥 [OMNI] Action '%s' FAILED: %s", action_name, e)
+            logger.error("[OMNI] Action '%s' FAILED: %s", action_name, e)
             # Log Failure
             logs = self._execution_logs.setdefault(action_name, [])
             logs.append({"ts": now, "status": "error", "error": str(e)})
@@ -284,7 +284,7 @@ class OmniTool:
 
         metadata["status"] = "running"
         metadata["pid"] = process.pid
-        logger.info("🕯️ [DAEMON] LIGHTING: %s -> %s", name, command)
+        logger.info("[DAEMON] LIGHTING: %s -> %s", name, command)
 
         get_task_tracker().create_task(
             self._watch_daemon(name, process, timeout_s, verdict),
@@ -351,7 +351,7 @@ class OmniTool:
             metadata["end_time"] = time.time()
             metadata["stdout_tail"] = await stdout_task
             metadata["stderr_tail"] = await stderr_task
-            logger.info("✨ [DAEMON] EXTINGUISHED: %s status=%s", name, metadata["status"])
+            logger.info("[DAEMON] EXTINGUISHED: %s status=%s", name, metadata["status"])
             if verdict is not None:
                 release_execution(
                     verdict,

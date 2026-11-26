@@ -498,7 +498,7 @@ class FeedbackProcessor:
         }
 
         logger.warning(
-            "🦴 Action stagnation detected: failure_rate=%.0f%% loop=%s degraded=%d",
+            "Action stagnation detected: failure_rate=%.0f%% loop=%s degraded=%d",
             failure_rate * 100,
             loop_length if loop_length else "none",
             len(degraded_limbs),

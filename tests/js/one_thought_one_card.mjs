@@ -54,7 +54,7 @@ const pulse = [
   { name: "SYS", level: "info", timestamp: 1789446661,
     message: "═══ UNIFIED HEALTH PULSE ═══\nSystem: CPU 15.8% | RAM 55.3% | Uptime: 482s\nRuntime: HEALTHY | Required probes: PASS" },
   { name: "Aura.Core.Orchestrator", level: "info", timestamp: 1789446661.2,
-    message: "🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 15.8% | RAM 55.3% | Uptime: 482s | Runtime: HEALTHY | Required probes: PASS" },
+    message: "═══ UNIFIED HEALTH PULSE ═══ | System: CPU 15.8% | RAM 55.3% | Uptime: 482s | Runtime: HEALTHY | Required probes: PASS" },
 ];
 const keys = pulse.map(fingerprint);
 let bad = 0;

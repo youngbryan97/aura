@@ -213,7 +213,7 @@ class SupervisionTree:
                     f"conflicting supervised actor registration: {spec.name}"
                 )
             self._actors[spec.name] = ManagedActor(spec=spec)
-        logger.info("🛡️ Actor Registered for Supervision: %s", spec.name)
+        logger.info("Actor Registered for Supervision: %s", spec.name)
 
     def is_actor_running(self, name: str) -> bool:
         with self._lock:
@@ -295,7 +295,7 @@ class SupervisionTree:
         """Spin up one actor and fold launch failures into bounded recovery."""
         with self._spawn_lock:
             if self._shutting_down or _shutdown_requested():
-                logger.info("🛑 Not starting Actor %s: runtime is shutting down.", name)
+                logger.info("Not starting Actor %s: runtime is shutting down.", name)
                 return None
             with self._lock:
                 actor = self._actors.get(name)
@@ -305,7 +305,7 @@ class SupervisionTree:
                 actor.desired_running = True
                 if actor.process and self._process_is_alive(actor.process):
                     logger.debug(
-                        "🛡️ start_actor: %s is already alive (PID: %s). Returning existing pipe.",
+                        "start_actor: %s is already alive (PID: %s). Returning existing pipe.",
                         name,
                         actor.process.pid,
                     )
@@ -394,7 +394,7 @@ class SupervisionTree:
                 )
                 actor.health_gate.record_heartbeat()
 
-            logger.info("🚀 Actor Started: %s (PID: %s)", name, proc.pid)
+            logger.info("Actor Started: %s (PID: %s)", name, proc.pid)
             return parent_pipe
 
     def stop_actor(
@@ -418,7 +418,7 @@ class SupervisionTree:
             if actor is not None and not preserve_desired:
                 actor.desired_running = False
         if actor and actor.process:
-            logger.info("🛑 Stopping Actor: %s", name)
+            logger.info("Stopping Actor: %s", name)
             process = actor.process
             pipe_closed = False
             try:
@@ -510,7 +510,7 @@ class SupervisionTree:
             raise
         self._register_with_control_plane()
         self._publish_conditions()
-        logger.info("🛡️ Supervision Tree initialized with one managed monitor.")
+        logger.info("Supervision Tree initialized with one managed monitor.")
 
     async def stop(self) -> None:
         """Stop the monitor and actors while preserving desired state for restart."""
@@ -530,7 +530,7 @@ class SupervisionTree:
                     self.__class__._active_instance = None
 
     async def _monitor_loop(self) -> None:
-        logger.info("🛡️ Supervision Tree ACTIVE. Monitoring actors...")
+        logger.info("Supervision Tree ACTIVE. Monitoring actors...")
         try:
             while self._is_running and not _shutdown_requested():
                 self._poll_health()
@@ -647,17 +647,17 @@ class SupervisionTree:
 
             if actor.process and not self._process_is_alive(actor.process):
                 exit_code = actor.process.exitcode
-                logger.warning("⚠️ Actor CRASHED: %s (Exit Code: %s)", name, exit_code)
+                logger.warning("Actor CRASHED: %s (Exit Code: %s)", name, exit_code)
                 self._handle_failure(name, exit_code=exit_code)
             
             elif actor.process and actor.health_gate and actor.monitor_health:
                 if not actor.health_gate.is_healthy():
-                    logger.error("🚨 Actor STALLED (Liveness Failure): %s", name)
+                    logger.error("Actor STALLED (Liveness Failure): %s", name)
                     self.stop_actor(name, preserve_desired=True)
                     self._handle_failure(name, error="actor heartbeat timeout")
             
             elif actor.process is None and actor.next_restart_time > 0 and now >= actor.next_restart_time:
-                logger.info("♻️ Restarting Actor %s after backoff...", name)
+                logger.info("Restarting Actor %s after backoff...", name)
                 actor.next_restart_time = 0 # Reset
                 self._restart_actor(name)
         self._publish_conditions()
@@ -702,7 +702,7 @@ class SupervisionTree:
                 actor.consecutive_failures = 1
 
             if actor.consecutive_failures > actor.spec.max_restarts:
-                logger.error("🛑 CIRCUIT BROKEN: Actor %s failed too many times in window.", name)
+                logger.error("CIRCUIT BROKEN: Actor %s failed too many times in window.", name)
                 actor.is_circuit_broken = True
                 actor.next_restart_time = 0.0
                 return
@@ -717,7 +717,7 @@ class SupervisionTree:
             attempt = actor.consecutive_failures
             max_restarts = actor.spec.max_restarts
         logger.info(
-            "⏳ Scheduling Restart for %s (Attempt %s/%s) in %ss...",
+            "Scheduling Restart for %s (Attempt %s/%s) in %ss...",
             name,
             attempt,
             max_restarts,
@@ -745,7 +745,7 @@ class SupervisionTree:
                     action="kept restarted actor running after restart callback failed",
                     extra={"actor": name},
                 )
-                logger.error("❌ Restart callback failed for %s: %s", name, e)
+                logger.error("Restart callback failed for %s: %s", name, e)
 
     def stop_all(self, *, preserve_desired: bool = False) -> None:
         """Kill everything."""
@@ -779,13 +779,13 @@ class SupervisionTree:
                             p.name,
                         )
                         continue
-                logger.info("🧹 Stopping active actor child after supervisor shutdown: %s", p.name)
+                logger.info("Stopping active actor child after supervisor shutdown: %s", p.name)
                 p.terminate()
                 p.join(timeout=1.0)
                 if p.is_alive():
                     p.kill()
                     p.join(timeout=0.2)
-        logger.info("🛡️ Supervision Tree Shutdown Complete.")
+        logger.info("Supervision Tree Shutdown Complete.")
 
     def get_status(self) -> dict[str, Any]:
         with self._lock:

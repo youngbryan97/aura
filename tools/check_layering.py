@@ -312,7 +312,7 @@ def main(argv: list[str] | None = None) -> int:
     fixed = baseline - {v.key() for v in violations}
 
     if fresh:
-        print(f"❌ {len(fresh)} new layering violation(s):", file=sys.stderr)
+        print(f"{len(fresh)} new layering violation(s):", file=sys.stderr)
         for violation in fresh:
             print(f"  {violation}", file=sys.stderr)
         print(
@@ -322,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    message = f"✅ layering clean ({len(baseline)} grandfathered)"
+    message = f"layering clean ({len(baseline)} grandfathered)"
     if fixed:
         message += f"; {len(fixed)} baseline entr(ies) now fixed — run --baseline to retire them"
     print(message)

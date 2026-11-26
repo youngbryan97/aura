@@ -193,14 +193,14 @@ class HerLiveContext:
             if self.text:
                 held = await self._read(self.text, self.scope)
                 if not held or held.get("status") != "ok":
-                    logger.info("🗣️ her live context could not be read (%s); her governed route answers until it is "
+                    logger.info("her live context could not be read (%s); her governed route answers until it is "
                                 "read when the person next speaks", held)
                     return
             self.ready, self._unread = True, []
         finally:
             self.opening = False
             self._opened.set()
-        logger.info("🗣️ her live context is open: %d characters of this conversation read once", len(self.text))
+        logger.info("her live context is open: %d characters of this conversation read once", len(self.text))
         if self._speaking:
             # They began before it opened (LIVE 11 November 2026, 0.45 s before): their turn's evidence is read now.
             self.a_person_began_to_speak()
@@ -401,7 +401,7 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
 
     client = await _her_cortex_client_when_up(timeout_s)
     if client is None or not hasattr(client, "generate"):
-        logger.info("🗣️ her cortex has no running client (her conversation lane reads %r); her governed route answers",
+        logger.info("her cortex has no running client (her conversation lane reads %r); her governed route answers",
                     still_waking() or "serving")
         return None
     lease = None
@@ -441,7 +441,7 @@ async def _generate_on_her_cortex(prompt: str, *, scope: str, words: str, reply_
             pacing.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await pacing
-            logger.info("🗣️ her thought waited for her voice %d time(s), %.1f s; at most %d waiting to be spoken",
+            logger.info("her thought waited for her voice %d time(s), %.1f s; at most %d waiting to be spoken",
                         paced["holds"], paced["held_s"], paced["most_waiting"])
         if hold is not None:
             hold.close()

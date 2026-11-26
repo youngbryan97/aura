@@ -152,7 +152,7 @@ class SkillLibrary:
         self._save()
         self._update_system_health()
         self.publish_as_tool(skill)
-        logger.info("🧠 Learned new skill: %s (Reliability: pending)", name)
+        logger.info("Learned new skill: %s (Reliability: pending)", name)
 
     def publish_as_tool(self, skill: LearnedSkill) -> bool:
         """Register a macro into the live catalog so the model can call it.
@@ -188,7 +188,7 @@ class SkillLibrary:
                 ),
                 replace=True,
             )
-            logger.info("🔧 Macro '%s' published as a tool (scope: %s)", skill.name, scope)
+            logger.info("Macro '%s' published as a tool (scope: %s)", skill.name, scope)
             return True
         except _SKILL_LIBRARY_RECOVABLE_OR_REGISTRATION_ERRORS as e:
             _record_skill_degradation(

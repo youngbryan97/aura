@@ -95,7 +95,7 @@ class ArchitectureIndex:
             self._index = {}
             count = self._walk_and_index()
             self._built_at = time.monotonic()
-            logger.info("🧠 ArchitectureIndex: indexed %d modules", count)
+            logger.info("ArchitectureIndex: indexed %d modules", count)
             return count
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('architecture_index', e)
@@ -194,7 +194,7 @@ class ArchitectureIndex:
         if age_s < max(0.0, quiet_s):
             self._deferred_reason = f"foreground_quiet_window:{age_s:.1f}s/{max(0.0, quiet_s):.1f}s"
             if emit_log:
-                logger.info("🧠 ArchitectureIndex build deferred (%s).", self._deferred_reason)
+                logger.info("ArchitectureIndex build deferred (%s).", self._deferred_reason)
             return True
         try:
             from core.runtime.foreground_guard import foreground_activity_reason
@@ -203,7 +203,7 @@ class ArchitectureIndex:
             if activity_reason:
                 self._deferred_reason = activity_reason
                 if emit_log:
-                    logger.info("🧠 ArchitectureIndex build deferred (%s).", activity_reason)
+                    logger.info("ArchitectureIndex build deferred (%s).", activity_reason)
                 return True
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("architecture_index", exc)

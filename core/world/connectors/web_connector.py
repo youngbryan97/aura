@@ -20,7 +20,7 @@ class WebConnector:
     """Fetches real-time web news and RSS entries related to target topics."""
 
     async def fetch_news(self, query: str) -> list[dict[str, Any]]:
-        logger.info("📡 WebConnector: querying news for '%s'", query)
+        logger.info("WebConnector: querying news for '%s'", query)
 
         # Execute network call via ActionExecutor
         try:

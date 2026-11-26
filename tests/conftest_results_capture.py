@@ -33,7 +33,7 @@ def _result_capture(request):
         test_name = request.node.nodeid
         _captured_results[test_name] = measurements
         vals = "  ".join(f"{k}={v}" for k, v in measurements.items())
-        print(f"\n    📊 {vals}")
+        print(f"\n    {vals}")
 
 
 def pytest_terminal_summary(terminalreporter, config):

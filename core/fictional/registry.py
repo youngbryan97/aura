@@ -80,7 +80,7 @@ def register_all_fictional_engines(orchestrator=None) -> dict[str, Any]:
 
     if foreground_only or background_loop_blocker:
         logger.info(
-            "✅ Fictional AI engines registered without background loops (%s).",
+            "Fictional AI engines registered without background loops (%s).",
             background_loop_blocker or "foreground-only boot",
         )
         return engines
@@ -120,5 +120,5 @@ def register_all_fictional_engines(orchestrator=None) -> dict[str, Any]:
         name="mist.idle"
     )
 
-    logger.info("✅ All fictional AI engines registered and supervised.")
+    logger.info("All fictional AI engines registered and supervised.")
     return engines

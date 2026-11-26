@@ -95,7 +95,7 @@ class OutcomeSimulationEngine:
     def __init__(self, orchestrator: Any = None):
         self.orchestrator = orchestrator
         self._sims = 0
-        logger.info("🌀 OutcomeSimulationEngine initialized (Culture Minds lineage)")
+        logger.info("OutcomeSimulationEngine initialized (Culture Minds lineage)")
 
     @staticmethod
     def _context_text(context: dict | None, key: str) -> str:

@@ -38,7 +38,7 @@ class ParliamentDebate:
         memory_context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Runs the debate sequence involving all 12 roles."""
-        logger.info("🗣️  Parliament Debate starting for objective: '%s'", self.objective)
+        logger.info(" Parliament Debate starting for objective: '%s'", self.objective)
         router = ServiceContainer.get("llm_router", default=None)
 
         # 1. Round 1: Strategist & Planner draft candidate plan

@@ -109,11 +109,11 @@ class HerSteps:
             chosen = self._by_meaning(open_steps, last)
             if chosen:
                 self.taken.append(chosen)
-                logger.info("🧭 her step %d: %s, by her reading of what she is doing", len(self.taken), chosen)
+                logger.info("her step %d: %s, by her reading of what she is doing", len(self.taken), chosen)
                 return chosen
         chosen = open_steps[0]
         self.taken.append(chosen)
-        logger.info("🧭 her step %d: %s, as her steps go", len(self.taken), chosen)
+        logger.info("her step %d: %s, as her steps go", len(self.taken), chosen)
         return chosen
 
     def _by_meaning(self, open_steps: list[str], last: str) -> str | None:
@@ -135,6 +135,6 @@ class HerSteps:
     def not_filled(self, name: str) -> None:
         """Her model wrote no call for ``name``: what the step takes could not be written from what is known."""
         self.tries[name] = self.tries.get(name, 0) + 1
-        logger.info("🧭 her model wrote no call for her step %s; it is let go", name)
+        logger.info("her model wrote no call for her step %s; it is let go", name)
         if self.tries[name] >= UNWRITTEN_TRIES:
             self.finished.add(name)

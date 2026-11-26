@@ -1117,7 +1117,7 @@ class AmbientPresence(_CarriesTheBubble):
             import logging
 
             logging.getLogger("Aura.Perception.AmbientPresence").info(
-                "🫧 remark: %s", "offered to the bubble" if offered else
+                "remark: %s", "offered to the bubble" if offered else
                 "formed and not offered (hidden, or unprompted speech suppressed now)")
         if offered:
             with self._lock:

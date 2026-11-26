@@ -195,7 +195,7 @@ def _write_baseline(current: dict[str, object], argv: list[str]) -> int:
 
     if grew and not accept:
         print(
-            f"❌ refusing to write a baseline that records growth in "
+            f"refusing to write a baseline that records growth in "
             f"{len(grew)} function(s):"
         )
         for name, (was, now) in sorted(grew.items(), key=lambda kv: kv[1][0] - kv[1][1])[:15]:
@@ -206,7 +206,7 @@ def _write_baseline(current: dict[str, object], argv: list[str]) -> int:
         )
         return 1
     if grew and accept and not reason:
-        print("❌ --accept-growth needs --reason; an unexplained ratchet reset is a reset")
+        print("--accept-growth needs --reason; an unexplained ratchet reset is a reset")
         return 1
 
     for name in grew:
@@ -282,7 +282,7 @@ def _check_changed(argv: list[str]) -> int:
 
     changed, merge_base = _changed_files(base)
     if not changed:
-        print("✅ no production Python files changed")
+        print("no production Python files changed")
         return 0
 
     grew: list[str] = []
@@ -313,9 +313,9 @@ def _check_changed(argv: list[str]) -> int:
                 shrank.append(f"{name}: {was['lines']} -> {stats['lines']} lines")
 
     for line in shrank:
-        print(f"  ⬇️  {line}")
+        print(f"   {line}")
     if grew or appeared:
-        print(f"\n❌ this branch grew {len(grew) + len(appeared)} oversized function(s):")
+        print(f"\nthis branch grew {len(grew) + len(appeared)} oversized function(s):")
         for line in grew + appeared:
             print(f"    {line}")
         print(
@@ -323,7 +323,7 @@ def _check_changed(argv: list[str]) -> int:
             "to split. Extract the part you touched."
         )
         return 1
-    print(f"✅ no function grew across {len(changed)} changed file(s)")
+    print(f"no function grew across {len(changed)} changed file(s)")
     return 0
 
 
@@ -422,7 +422,7 @@ def main(argv: list[str]) -> int:
         return _write_baseline(current, argv)
 
     if not BASELINE.is_file():
-        print(f"❌ no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
+        print(f"no baseline at {BASELINE.relative_to(ROOT)}; run --write-baseline")
         return 1
 
     baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
@@ -431,7 +431,7 @@ def main(argv: list[str]) -> int:
     grew, appeared, shrank = compare_with_baseline(functions, previous)
 
     if grew or appeared:
-        print("\n❌ tracked functions grew, or a new one crossed the threshold:")
+        print("\ntracked functions grew, or a new one crossed the threshold:")
         for line in grew + appeared:
             print(f"    {line}")
         print(
@@ -442,13 +442,13 @@ def main(argv: list[str]) -> int:
         return 1
 
     if shrank:
-        print("\n⬇️  tracked functions shrank:")
+        print("\n tracked functions shrank:")
         for line in shrank:
             print(f"    {line}")
         print("    refresh with: python tools/lint_method_size.py --write-baseline")
         return 1
 
-    print("✅ no tracked function grew")
+    print("no tracked function grew")
     return 0
 
 

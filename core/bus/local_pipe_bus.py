@@ -358,9 +358,9 @@ class LocalPipeBus:
             )
         except TimeoutError as exc:
             if context.startswith("send:"):
-                logger.debug("⏳ Pipe write timed out in %s after %.1fs.", context, timeout_s)
+                logger.debug("Pipe write timed out in %s after %.1fs.", context, timeout_s)
             else:
-                logger.warning("⏳ Pipe write timed out in %s after %.1fs.", context, timeout_s)
+                logger.warning("Pipe write timed out in %s after %.1fs.", context, timeout_s)
             raise TimeoutError(f"pipe write timed out in {context}") from exc
         finally:
             write_lock.release()
@@ -436,7 +436,7 @@ class LocalPipeBus:
             conn.close()
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('local_pipe_bus', exc)
-            logger.debug("📡 LocalPipeBus: connection close skipped: %s", exc)
+            logger.debug("LocalPipeBus: connection close skipped: %s", exc)
 
     def start(self):
         """Start the background reader task."""
@@ -476,9 +476,9 @@ class LocalPipeBus:
                     self._read_loop(),
                     name="local_pipe_bus.read",
                 )
-            logger.info("📡 LocalPipeBus reader ACTIVE (Child: %s)", self.is_child)
+            logger.info("LocalPipeBus reader ACTIVE (Child: %s)", self.is_child)
         else:
-            logger.info("📡 LocalPipeBus ACTIVE (Manual Polling mode)")
+            logger.info("LocalPipeBus ACTIVE (Manual Polling mode)")
 
     async def stop(self):
         """Stop the reader task."""
@@ -489,33 +489,33 @@ class LocalPipeBus:
             try:
                 await asyncio.wait_for(self._reader_task, timeout=1.0)
             except asyncio.CancelledError:
-                logger.debug("📡 LocalPipeBus reader task cancelled during shutdown")
+                logger.debug("LocalPipeBus reader task cancelled during shutdown")
             except TimeoutError as e:
                 record_degradation(
                     "local_pipe_bus",
                     e,
                     action="reader task did not stop before shutdown timeout",
                 )
-                logger.warning("📡 LocalPipeBus reader did not stop before shutdown timeout")
+                logger.warning("LocalPipeBus reader did not stop before shutdown timeout")
             except (RuntimeError, AttributeError) as e:
                 record_degradation('local_pipe_bus', e)
-                logger.error("📡 LocalPipeBus: Error during stop: %s", e)
+                logger.error("LocalPipeBus: Error during stop: %s", e)
         if self._dispatcher_task:
             self._dispatcher_task.cancel()
             try:
                 await asyncio.wait_for(self._dispatcher_task, timeout=1.0)
             except asyncio.CancelledError:
-                logger.debug("📡 LocalPipeBus dispatcher task cancelled during shutdown")
+                logger.debug("LocalPipeBus dispatcher task cancelled during shutdown")
             except TimeoutError as e:
                 record_degradation(
                     "local_pipe_bus",
                     e,
                     action="dispatcher task did not stop before shutdown timeout",
                 )
-                logger.warning("📡 LocalPipeBus dispatcher did not stop before shutdown timeout")
+                logger.warning("LocalPipeBus dispatcher did not stop before shutdown timeout")
             except (RuntimeError, AttributeError) as e:
                 record_degradation('local_pipe_bus', e)
-                logger.error("📡 LocalPipeBus: Dispatcher stop error: %s", e)
+                logger.error("LocalPipeBus: Dispatcher stop error: %s", e)
         self._cleanup_expired_shm_segments(force=True)
         if self.read_conn is self.write_conn:
             self._safe_close_connection(self.read_conn)
@@ -556,7 +556,7 @@ class LocalPipeBus:
                 shm.close()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('local_pipe_bus', e)
-                logger.debug("📡 LocalPipeBus: SHM cleanup failed for %s: %s", name, e)
+                logger.debug("LocalPipeBus: SHM cleanup failed for %s: %s", name, e)
 
     def _retain_outbound_shm(self, shm: SharedMemoryTransport):
         self._cleanup_expired_shm_segments()
@@ -582,7 +582,7 @@ class LocalPipeBus:
             await shm.create()
             await asyncio.to_thread(shm.write_serialized, serialized_payload)
             self._retain_outbound_shm(shm)
-            logger.debug("🚀 [SHM] Offloaded payload: %s (%d bytes)", shm_name, len(payload_bytes))
+            logger.debug("[SHM] Offloaded payload: %s (%d bytes)", shm_name, len(payload_bytes))
             return {"__shm__": shm_name}
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('local_pipe_bus', e)
@@ -592,7 +592,7 @@ class LocalPipeBus:
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
                     record_degradation('local_pipe_bus', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
-            logger.warning("⚠️ SHM offload failed, falling back to Pipe: %s", e)
+            logger.warning("SHM offload failed, falling back to Pipe: %s", e)
             return payload
 
     async def send(
@@ -619,7 +619,7 @@ class LocalPipeBus:
             )
         except RuntimeError as e:
             if self._is_running:
-                logger.error("❌ Unexpected error in bus send: %s", e)
+                logger.error("Unexpected error in bus send: %s", e)
             return SendOutcome(False, f"transport_loop_error:{type(e).__name__}")
         return outcome if isinstance(outcome, SendOutcome) else SendOutcome(True, "")
 
@@ -660,7 +660,7 @@ class LocalPipeBus:
                         "fire-and-forget send dropped by write backpressure",
                     )
                     logger.debug(
-                        "📡 Pipe write backpressure: dropped fire-and-forget message "
+                        "Pipe write backpressure: dropped fire-and-forget message "
                         "(drops=%d, msg_type=%s).",
                         self._write_backpressure_drops,
                         msg_type,
@@ -692,7 +692,7 @@ class LocalPipeBus:
                 ),
             )
             logger.debug(
-                "📡 Pipe write TIMEOUT (%.1fs) — suppressing fire-and-forget writes "
+                "Pipe write TIMEOUT (%.1fs) — suppressing fire-and-forget writes "
                 "for %.1fs (streak=%d).",
                 self._fire_and_forget_write_timeout_s(),
                 suppress_for_s,
@@ -700,7 +700,7 @@ class LocalPipeBus:
             )
             if self._write_timeout_count >= 3:
                 logger.error(
-                    "📡 Pipe write repeatedly timed out; transport is saturated."
+                    "Pipe write repeatedly timed out; transport is saturated."
                 )
                 try:
                     from core.resilience.omni_tracer import write_trace
@@ -724,13 +724,13 @@ class LocalPipeBus:
                         e,
                         "pipe closed during fire-and-forget send; transport marked unhealthy",
                     )
-                logger.info("📡 Bus pipe closed (normal shutdown): %s", str(e)[:60])
+                logger.info("Bus pipe closed (normal shutdown): %s", str(e)[:60])
             self._safe_close_connection(self.write_conn)
             return SendOutcome(False, f"pipe_closed:{type(e).__name__}")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('local_pipe_bus', e)
             if self._is_running:
-                logger.error("❌ Unexpected error in bus send: %s", e)
+                logger.error("Unexpected error in bus send: %s", e)
             return SendOutcome(False, f"send_error:{type(e).__name__}")
 
     async def request(  # noqa: ASYNC109 - timeout is part of the public bus API.
@@ -763,7 +763,7 @@ class LocalPipeBus:
                 "request admission blocked by pending-request backpressure",
             )
             logger.warning(
-                "📡 LocalPipeBus request admission blocked: pending=%d max=%d msg_type=%s",
+                "LocalPipeBus request admission blocked: pending=%d max=%d msg_type=%s",
                 pending_count,
                 self._max_pending_requests,
                 msg_type,
@@ -791,7 +791,7 @@ class LocalPipeBus:
 
             msg["payload"] = await self._prepare_payload_for_transport(payload)
             raw_msg = await asyncio.to_thread(json.dumps, msg)
-            logger.debug("📡 Sending request: %s (ID: %s)", msg_type, request_id)
+            logger.debug("Sending request: %s (ID: %s)", msg_type, request_id)
             
             # ZENITH LOCKDOWN: Use isolated pipe executor and hard 10s timeout on write
             await self._write_raw_message(
@@ -808,7 +808,7 @@ class LocalPipeBus:
                 TimeoutError(f"pipe request timed out for {msg_type}"),
                 f"pipe request timed out for {msg_type}",
             )
-            logger.warning("⏳ Bus request timed out: %s", msg_type)
+            logger.warning("Bus request timed out: %s", msg_type)
             raise
         except (BrokenPipeError, EOFError, OSError) as e:
             # [GENESIS FIX] Immediately resolve the specific future to avoid hanging the caller
@@ -821,19 +821,19 @@ class LocalPipeBus:
             if not getattr(self, '_pipe_broken', False):
                 self._pipe_broken = True
                 if quiet_shutdown_commit:
-                    logger.debug("📡 Bus closed during shutdown commit; caller will handle snapshot fallback.")
+                    logger.debug("Bus closed during shutdown commit; caller will handle snapshot fallback.")
                 else:
                     self._mark_transport_degraded(
                         e,
                         "pipe request failed with broken transport",
                     )
-                    logger.warning("📡 Bus request failed (Broken Pipe): %s", e)
+                    logger.warning("Bus request failed (Broken Pipe): %s", e)
             
             try:
                 self._safe_close_connection(self.write_conn)
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
                 record_degradation('local_pipe_bus', _e)
-                logger.debug("📡 LocalPipeBus: Secondary error during request-failure close: %s", _e)
+                logger.debug("LocalPipeBus: Secondary error during request-failure close: %s", _e)
             raise
 
     async def _read_loop(self):
@@ -848,7 +848,7 @@ class LocalPipeBus:
                     try:
                         msg = json.loads(msg)
                     except json.JSONDecodeError:
-                        logger.error("🛑 Failed to parse bus message: %s...", msg[:100])
+                        logger.error("Failed to parse bus message: %s...", msg[:100])
                         continue
 
                 if not msg or not isinstance(msg, dict):
@@ -864,30 +864,30 @@ class LocalPipeBus:
                         IndexError, LookupError) as frame_err:
                     record_degradation('local_pipe_bus', frame_err)
                     logger.error(
-                        "🛑 Dropped malformed bus frame (type=%r): %s",
+                        "Dropped malformed bus frame (type=%r): %s",
                         msg.get("type") if isinstance(msg, dict) else None,
                         frame_err,
                     )
                     continue
 
             except EOFError:
-                logger.info("🔌 Bus connection closed by peer.")
+                logger.info("Bus connection closed by peer.")
                 self._is_running = False
                 self._cancel_pending_requests(cancel=True)
                 break
             except (BrokenPipeError, ConnectionResetError) as e:
-                logger.error("🛑 Bus read error: %s", e)
+                logger.error("Bus read error: %s", e)
                 self._is_running = False
                 self._cancel_pending_requests(e)
                 break
             except OSError as e:
                 if not self._is_running or "handle is closed" in str(e).lower():
-                    logger.info("🔌 Bus connection closed during shutdown.")
+                    logger.info("Bus connection closed during shutdown.")
                     self._is_running = False
                     self._cancel_pending_requests(cancel=True)
                     break
                 record_degradation('local_pipe_bus', e)
-                logger.exception("❌ Error in Bus read loop: %s", e)
+                logger.exception("Error in Bus read loop: %s", e)
                 
                 # Component Hardening: Active Self-Repair Invocation
                 try:
@@ -928,10 +928,10 @@ class LocalPipeBus:
                 msg["payload"] = await shm.read()
                 # Detach but don't unlink yet (let owner clean up or use a policy).
                 shm.close()
-                logger.debug("📥 Resolved SHM payload: %s", shm_name)
+                logger.debug("Resolved SHM payload: %s", shm_name)
             except (RuntimeError, TimeoutError, AttributeError) as e:
                 record_degradation('local_pipe_bus', e)
-                logger.error("❌ Failed to resolve SHM payload %s: %s", shm_name, e)
+                logger.error("Failed to resolve SHM payload %s: %s", shm_name, e)
                 if msg.get("is_request") and "request_id" in msg:
                     err_resp = {
                         "response_to": msg["request_id"],
@@ -966,7 +966,7 @@ class LocalPipeBus:
         # from the dict membership test.
         msg_type = msg.get("type")
         if not isinstance(msg_type, Hashable):
-            logger.debug("❓ Dropped bus message with non-hashable type: %r", type(msg_type))
+            logger.debug("Dropped bus message with non-hashable type: %r", type(msg_type))
             return
         if msg_type in self._handlers:
             handler = self._handlers[msg_type]
@@ -978,7 +978,7 @@ class LocalPipeBus:
                     timeout=1.0,
                 )
             except TimeoutError:
-                logger.warning("📡 Bus dispatch queue saturated. Dropping %s.", msg_type)
+                logger.warning("Bus dispatch queue saturated. Dropping %s.", msg_type)
                 if msg.get("is_request") and "request_id" in msg:
                     err_resp = {
                         "response_to": msg["request_id"],
@@ -998,7 +998,7 @@ class LocalPipeBus:
                             "failed to send dispatch-saturation error response",
                         )
         else:
-            logger.debug("❓ Unhandled bus message type: %s", msg_type)
+            logger.debug("Unhandled bus message type: %s", msg_type)
 
     async def _dispatch_loop(self):
         """Process inbound messages in arrival order with bounded backpressure."""
@@ -1016,7 +1016,7 @@ class LocalPipeBus:
                 break
             except Exception as e:  # noqa: BLE001 — dispatcher must outlive any fault
                 record_degradation('local_pipe_bus', e)
-                logger.error("❌ Error in Bus dispatch loop: %s", e)
+                logger.error("Error in Bus dispatch loop: %s", e)
                 
                 # Component Hardening: Active Self-Repair Invocation
                 try:
@@ -1058,7 +1058,7 @@ class LocalPipeBus:
             # previously escaped the dispatcher and terminated the worker) is
             # contained here and, for requests, returned as a typed failure.
             record_degradation('local_pipe_bus', e)
-            logger.error("❌ Bus handler error (%s): %s", msg.get("type"), e)
+            logger.error("Bus handler error (%s): %s", msg.get("type"), e)
 
             # Component Hardening: Active Self-Repair Invocation
             try:
@@ -1089,7 +1089,7 @@ class LocalPipeBus:
                 except _BUS_HANDLER_ERRORS as send_exc:
                     record_degradation('local_pipe_bus', send_exc)
                     logger.error(
-                        "❌ Bus error-response write failed (%s): %s",
+                        "Bus error-response write failed (%s): %s",
                         msg.get("type"),
                         send_exc,
                     )
@@ -1111,4 +1111,4 @@ class LocalPipeBus:
                 )
             except _BUS_HANDLER_ERRORS as e:
                 record_degradation('local_pipe_bus', e)
-                logger.error("❌ Bus response write failed (%s): %s", msg.get("type"), e)
+                logger.error("Bus response write failed (%s): %s", msg.get("type"), e)

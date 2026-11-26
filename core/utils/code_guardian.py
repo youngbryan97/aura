@@ -65,13 +65,13 @@ class CodeGuardian:
 
         # 1. Run Ruff (Linter for Syntax and NameErrors)
         ruff_path = cls._get_bin_path("ruff")
-        logger.info("🛡️ CodeGuardian: Running %s on %s", ruff_path, filepath.name)
+        logger.info("CodeGuardian: Running %s on %s", ruff_path, filepath.name)
         try:
             ruff_res = cls._run_command((ruff_path, "check", *RUFF_FINDS, str(filepath)), 10.0, command_runner)
             if ruff_res.timed_out:
                 return ValidationReport(success=False, error_message="Ruff check timed out.")
             if not ruff_res.ok:
-                logger.warning("❌ CodeGuardian: Ruff check failed for %s", filepath.name)
+                logger.warning("CodeGuardian: Ruff check failed for %s", filepath.name)
                 return ValidationReport(
                     success=False,
                     ruff_output=ruff_res.stdout + ruff_res.stderr,
@@ -83,7 +83,7 @@ class CodeGuardian:
 
         # 2. Run Mypy (Static Type Checker)
         mypy_path = cls._get_bin_path("mypy")
-        logger.info("🛡️ CodeGuardian: Running %s on %s", mypy_path, filepath.name)
+        logger.info("CodeGuardian: Running %s on %s", mypy_path, filepath.name)
         try:
             mypy_res = cls._run_command(
                 (mypy_path, "--ignore-missing-imports", "--follow-imports=silent", str(filepath)),
@@ -93,7 +93,7 @@ class CodeGuardian:
             if mypy_res.timed_out:
                 return ValidationReport(success=False, error_message="Mypy check timed out.")
             if not mypy_res.ok:
-                logger.warning("❌ CodeGuardian: Mypy check failed for %s", filepath.name)
+                logger.warning("CodeGuardian: Mypy check failed for %s", filepath.name)
                 return ValidationReport(
                     success=False,
                     mypy_output=mypy_res.stdout + mypy_res.stderr,
@@ -103,7 +103,7 @@ class CodeGuardian:
             record_degradation('code_guardian', e)
             return ValidationReport(success=False, error_message=f"Mypy execution error ({mypy_path}): {e}")
 
-        logger.info("✅ CodeGuardian: %s passed all checks.", filepath.name)
+        logger.info("CodeGuardian: %s passed all checks.", filepath.name)
         return ValidationReport(success=True)
 
     @staticmethod

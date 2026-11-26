@@ -288,7 +288,7 @@ class CuriosityEngine:
             topic.explored = False
             return
 
-        logger.info("🔍 Exploring: %s", topic.topic)
+        logger.info("Exploring: %s", topic.topic)
         self.current_topic = topic.topic
         self._last_exploration_at = time.time()
         success = False
@@ -298,7 +298,7 @@ class CuriosityEngine:
             from .thought_stream import get_emitter
             emitter = get_emitter()
             if emitter:
-                emitter.emit("Curiosity 🔍", f"Researching: {topic.topic}", level="info")
+                emitter.emit("Curiosity", f"Researching: {topic.topic}", level="info")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('curiosity_engine', exc)
             logger.debug("Suppressed: %s", exc)        
@@ -400,7 +400,7 @@ class CuriosityEngine:
                                     }
                                 )
                                 if emitter:
-                                    emitter.emit("Curiosity Result 📚", f"Learned about: {topic.topic}", level="info")
+                                    emitter.emit("Curiosity Result", f"Learned about: {topic.topic}", level="info")
                                 
                                 # Phase XXII.E: Feed architecture insights into MetaEvolution
                                 self._feed_to_meta_evolution(topic.topic, result_content)
@@ -501,7 +501,7 @@ class CuriosityEngine:
         if not is_architecture_relevant:
             return
         
-        logger.info("🧠 Curiosity→Evolution: Feeding insight '%s' to MetaEvolution", topic[:50])
+        logger.info("Curiosity→Evolution: Feeding insight '%s' to MetaEvolution", topic[:50])
         
         try:
             from core.container import ServiceContainer

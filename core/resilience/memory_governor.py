@@ -426,7 +426,7 @@ class MemoryGovernor:
                 continue
         held.sort(reverse=True)
         logger.critical(
-            "🚨 RUNAWAY, what grew over its last %.0f min: her own process %+.0f MB (now %.0f MB), her workers and other "
+            "RUNAWAY, what grew over its last %.0f min: her own process %+.0f MB (now %.0f MB), her workers and other "
             "children %+.0f MB (now %.0f MB); workers now: %s",
             (parts[-1][0] - began[0]) / 60.0, parts[-1][1] - began[1], parts[-1][1], parts[-1][2] - began[2],
             parts[-1][2],
@@ -445,7 +445,7 @@ class MemoryGovernor:
             )
         except (ImportError, AttributeError, RuntimeError):
             self._task = get_task_tracker().create_task(self._run_loop(), name="aura.memory_governor")
-        logger.info("🛡️ Memory Governor active. Thresholds: Prune=%dMB, Unload=%dMB, Critical=%dMB", 
+        logger.info("Memory Governor active. Thresholds: Prune=%dMB, Unload=%dMB, Critical=%dMB", 
                     self.threshold_prune, self.threshold_unload, self.threshold_critical)
 
     async def stop(self):
@@ -463,7 +463,7 @@ class MemoryGovernor:
         # v8.1.0: Ensure total cleanup of any leaked worker handles (ORPHAN-05/07)
         try:
             await self._critical_cleanup(reason="shutdown")
-            logger.info("🛡️ Memory Governor shutdown complete. All worker handles purged.")
+            logger.info("Memory Governor shutdown complete. All worker handles purged.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             self._record_degradation(
                 e,
@@ -590,7 +590,7 @@ class MemoryGovernor:
             # RAM crossed 98%, which macOS memory compression can prevent
             # even while this process tree balloons toward host freeze.
             logger.critical(
-                "🚨 CRITICAL MEMORY: system %.1f%%, managed RSS %.0fMB "
+                "CRITICAL MEMORY: system %.1f%%, managed RSS %.0fMB "
                 "(threshold %.0fMB). Checking for idle MLX runtime workers.",
                 sys_percent,
                 managed_rss_mb,
@@ -609,7 +609,7 @@ class MemoryGovernor:
                     cpu = proc.cpu_percent(interval=0.1)
                     if cpu < 1.0:
                         logger.warning(
-                            "🚨 NEURAL PURGE: Terminating idle runtime worker (PID: %d, CPU: %.1f%%, CMD: %s) to reclaim RAM.",
+                            "NEURAL PURGE: Terminating idle runtime worker (PID: %d, CPU: %.1f%%, CMD: %s) to reclaim RAM.",
                             proc.info['pid'],
                             cpu,
                             cmd_str[:180],
@@ -625,7 +625,7 @@ class MemoryGovernor:
                     continue
 
             if idle_purged > 0:
-                logger.info("✅ NEURAL PURGE: Reclaimed RAM from %d idle workers.", idle_purged)
+                logger.info("NEURAL PURGE: Reclaimed RAM from %d idle workers.", idle_purged)
                 # The full cleanup said "memory remains critical" without looking again, and took her model with it.
                 critical, sys_percent, managed_rss_mb = await self._still_critical()
                 if not critical:
@@ -635,7 +635,7 @@ class MemoryGovernor:
 
             if (now - self._last_critical_action_time) >= self.critical_cooldown_s:
                 logger.critical(
-                    "🚨 EMERGENCY: memory remains critical (system %.1f%%, managed %.0fMB). Triggering FULL cleanup.",
+                    "EMERGENCY: memory remains critical (system %.1f%%, managed %.0fMB). Triggering FULL cleanup.",
                     sys_percent,
                     managed_rss_mb,
                 )
@@ -651,7 +651,7 @@ class MemoryGovernor:
             )
             if (now - self._last_unload_action_time) >= self.unload_cooldown_s and should_unload:
                 logger.warning(
-                    "⚠️ High Memory: total managed runtime %.2f MB (core %.2f + runtime %.2f). Unloading idle local models.",
+                    "High Memory: total managed runtime %.2f MB (core %.2f + runtime %.2f). Unloading idle local models.",
                     managed_rss_mb,
                     rss_mb,
                     runtime_rss_mb,
@@ -669,7 +669,7 @@ class MemoryGovernor:
             )
             if (now - self._last_prune_action_time) >= self.prune_cooldown_s and should_prune:
                 logger.info(
-                    "ℹ️ Low Salience Pruning Triggered: managed total %.2f MB (system %.1f%%)",
+                    "Low Salience Pruning Triggered: managed total %.2f MB (system %.1f%%)",
                     managed_rss_mb,
                     sys_percent,
                 )
@@ -705,7 +705,7 @@ class MemoryGovernor:
                             episodic.store(ep)
                     if result["episodes_evaporated"] > 0:
                         logger.info(
-                            "🌌 Hawking Decay: Evaporated %d forgotten episodes.",
+                            "Hawking Decay: Evaporated %d forgotten episodes.",
                             result["episodes_evaporated"],
                         )
             except (sqlite3.Error, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
@@ -721,7 +721,7 @@ class MemoryGovernor:
                 pruned = vector.prune_low_salience(threshold_days=30, min_salience=-0.2) or 0
                 result["vectors_pruned"] = int(pruned)
                 if result["vectors_pruned"] > 0:
-                    logger.info("✅ Pruned %d low-salience vectors.", result["vectors_pruned"])
+                    logger.info("Pruned %d low-salience vectors.", result["vectors_pruned"])
             except (RuntimeError, AttributeError, TypeError, ValueError, sqlite3.Error, OSError) as e:
                 self._record_degradation(
                     e,
@@ -757,7 +757,7 @@ class MemoryGovernor:
             try:
                 await llm_router.unload_models()
                 result["router_unloaded"] = 1
-                logger.info("✅ LLM models unloaded from memory.")
+                logger.info("LLM models unloaded from memory.")
             except _MODEL_UNLOAD_ERRORS as e:
                 self._record_degradation(
                     e,
@@ -795,7 +795,7 @@ class MemoryGovernor:
                     raise TimeoutError("GPU sentinel was busy during memory pressure cleanup")
                 self._clear_mlx_cache(mx)
                 result["mlx_cache_cleared"] = 1
-                logger.info("🌿 [MLX] Metal cache cleared aggressively.")
+                logger.info("[MLX] Metal cache cleared aggressively.")
             except (ImportError, AttributeError) as e:
                 self._record_degradation(
                     e,
@@ -851,7 +851,7 @@ class MemoryGovernor:
             db_coord = get_db_coordinator()
             # v50: Only vacuum if we haven't in 24 hours (86400s)
             if time.monotonic() - self._last_vacuum_time > 86400:
-                logger.info("🧹 [MEMORY] Starting scheduled DB vacuum (Safe/Non-blocking)...")
+                logger.info("[MEMORY] Starting scheduled DB vacuum (Safe/Non-blocking)...")
                 # We use to_thread because VACUUM is a heavy synchronous SQLite command
                 await asyncio.to_thread(db_coord.vacuum_all_databases)
                 self._last_vacuum_time = time.monotonic()
@@ -882,7 +882,7 @@ class MemoryGovernor:
         if reason == "shutdown":
             logger.info("Releasing heavy MLX runtime workers during orderly shutdown.")
         else:
-            logger.critical("🚨 NEURAL PURGE: Killing heavy MLX runtime workers to recover system RAM.")
+            logger.critical("NEURAL PURGE: Killing heavy MLX runtime workers to recover system RAM.")
         
         unload_result = await self._unload_models()
 
@@ -908,7 +908,7 @@ class MemoryGovernor:
                         log = logger.info if reason == "shutdown" else logger.warning
                         log(
                             "%s heavy MLX/Metal process (PID: %d, Name: %s)",
-                            "Stopping" if reason == "shutdown" else "🚨 NEURAL PURGE: Forcibly terminating",
+                            "Stopping" if reason == "shutdown" else "NEURAL PURGE: Forcibly terminating",
                             proc.info["pid"],
                             proc.info["name"],
                         )
@@ -977,7 +977,7 @@ class MemoryGovernor:
             from core.container import ServiceContainer
             root = ServiceContainer.get("platform_root", default=None)
             if root and hasattr(root, "force_compiler_wake"):
-                logger.info("🌿 [MEMORY GOVERNOR] Reclaiming Metal context post-purge...")
+                logger.info("[MEMORY GOVERNOR] Reclaiming Metal context post-purge...")
                 root.force_compiler_wake()
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._record_degradation(

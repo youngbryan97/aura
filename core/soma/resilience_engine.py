@@ -172,7 +172,7 @@ class ResilienceEngine:
         self._update_task = get_task_tracker().create_task(
             self._decay_loop(), name="resilience_decay"
         )
-        logger.info("💪 [Resilience] Spinal cord online.")
+        logger.info("[Resilience] Spinal cord online.")
 
     async def stop(self) -> None:
         task = self._update_task
@@ -258,7 +258,7 @@ class ResilienceEngine:
         self._invalidate_snapshot_cache()
 
         logger.info(
-            "💔 [Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f/%.2f → "
+            "[Resilience] Failure recorded [%s] sev=%.2f stakes=%.2f novelty=%.2f/%.2f → "
             "frustration=%.2f depletion=%.2f state=%s",
             domain,
             severity,
@@ -334,7 +334,7 @@ class ResilienceEngine:
         self._invalidate_snapshot_cache()
 
         logger.info(
-            "✅ [Resilience] Success [%s] → frustration=%.2f depletion=%.2f state=%s",
+            "[Resilience] Success [%s] → frustration=%.2f depletion=%.2f state=%s",
             domain,
             self.profile.frustration,
             self.profile.depletion,
@@ -362,7 +362,7 @@ class ResilienceEngine:
 
         if self.profile.state == ResilienceState.STRAIN and recent_domain_failures >= 3:
             logger.info(
-                "⚠️ [Resilience] STRAIN + 3 failures in '%s' — strategy change required.", domain
+                "[Resilience] STRAIN + 3 failures in '%s' — strategy change required.", domain
             )
             return False
 
@@ -562,7 +562,7 @@ class ResilienceEngine:
                         category=category,
                         resolution="Auto-recovered: No new degradation events recorded for 300 seconds."
                     )
-                    logger.info("🏥 Subsystem %s auto-recovered back to healthy.", name)
+                    logger.info("Subsystem %s auto-recovered back to healthy.", name)
         except _SOMA_RESILIENCE_RECOVERABLE_ERRORS as err:
             logger.debug("Error checking subsystem auto recovery in decay loop: %s", err)
 

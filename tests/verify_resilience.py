@@ -36,7 +36,7 @@ async def test_resilience():
     if snapshot_path.exists():
         print(f"✓ Snapshot file created at {snapshot_path}")
     else:
-        print("❌ Snapshot file missing!")
+        print("Snapshot file missing!")
         return
 
     # 3. Simulate Crash (New Instance)
@@ -49,17 +49,17 @@ async def test_resilience():
     if new_orchestrator.status.cycle_count == 42:
         print("✓ Cycle Count Restored (42)")
     else:
-        print(f"❌ Cycle Count Mismatch: {new_orchestrator.status.cycle_count}")
+        print(f"Cycle Count Mismatch: {new_orchestrator.status.cycle_count}")
         
     if len(new_orchestrator.conversation_history) == 2:
         print("✓ Conversation History Restored")
     else:
-        print(f"❌ History Mismatch: len={len(new_orchestrator.conversation_history)}")
+        print(f"History Mismatch: len={len(new_orchestrator.conversation_history)}")
 
     if new_orchestrator.boredom == 5:
         print("✓ Boredom Level Restored")
     else:
-        print(f"❌ Boredom Mismatch: {new_orchestrator.boredom}")
+        print(f"Boredom Mismatch: {new_orchestrator.boredom}")
         
     print("--- Resilience Test Complete ---")
 

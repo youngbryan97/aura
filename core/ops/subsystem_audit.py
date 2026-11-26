@@ -35,7 +35,7 @@ def _cognition_stall_line(now: float) -> str:
     last = float(ledger.get("last_committed_at") or 0.0)
     committed = f"{int((now - last) // 60)} min ago" if last else "not yet this run"
     return (
-        f"  ❌ cognition: {refused} thoughts refused over {int((now - since) // 60)} min, none committed; "
+        f"  failed cognition: {refused} thoughts refused over {int((now - since) // 60)} min, none committed; "
         f"last committed {committed}; last refusal: {ledger.get('last_refusal') or 'unknown'}"
     )
 
@@ -262,7 +262,7 @@ class SubsystemAudit:
         self._health_pulse_interval = 15  # TEMPORARY TEST: Emit full health report every 15s
         self._cycle_counts = 0
         self._start_time = time.time()
-        logger.info("🫀 SubsystemAudit initialized. Tracking %d subsystems.", len(self.SUBSYSTEMS))
+        logger.info("SubsystemAudit initialized. Tracking %d subsystems.", len(self.SUBSYSTEMS))
     
     def heartbeat(self, subsystem_name: str):
         """Register a heartbeat from a subsystem."""
@@ -281,7 +281,7 @@ class SubsystemAudit:
         history = self._failures[subsystem_name]
         if len(history) > 5:
             self._failures[subsystem_name] = history[-5:]
-        logger.error("🚨 Subsystem [%s] reported failure: %s", subsystem_name, error)
+        logger.error("Subsystem [%s] reported failure: %s", subsystem_name, error)
 
     def get_status(self, subsystem_name: str | None = None) -> dict[str, Any]:
         """Get subsystem health.
@@ -355,7 +355,7 @@ class SubsystemAudit:
                         "integrity": integrity,
                         "reason": "Affective/Homeostatic collapse imminent"
                     }
-                    logger.warning("🚨 [ESC] Homeostatic collapse detected in SubsystemAudit (Vitality: %.2f)", vitality)
+                    logger.warning("[ESC] Homeostatic collapse detected in SubsystemAudit (Vitality: %.2f)", vitality)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('subsystem_audit', e)
             logger.debug("Affective escalation check failed: %s", e)
@@ -375,8 +375,8 @@ class SubsystemAudit:
         computer = re.search(r"CPU ([\d.]+)% \| RAM ([\d.]+)%", report)
         load = (f" The computer is at {float(computer.group(1)):.0f}% processor and {float(computer.group(2)):.0f}% memory."
                 if computer else "")
-        trouble = [re.sub(r"^\s*(?:⚠️|❌|⏳)\s*", "", line).split(":")[0].replace("_", " ")
-                   for line in report.splitlines() if re.match(r"^\s*(?:⚠️|❌)", line)]
+        trouble = [re.sub(r"^\s*(?:warning|failed|pending)\s+", "", line).split(":")[0].replace("_", " ")
+                   for line in report.splitlines() if re.match(r"^\s*(?:warning|failed)\s", line)]
         if runtime == "SHUTTING_DOWN":
             return "Health check: she is shutting down."
         if runtime == "BOOTING":
@@ -439,13 +439,13 @@ class SubsystemAudit:
                 active_count += 1
             elif status == "STALE":
                 stale_count += 1
-                lines.append(f"  ⚠️ {name}: STALE ({info['stale_seconds']}s)")
+                lines.append(f"  warning {name}: STALE ({info['stale_seconds']}s)")
             elif status == "DEGRADED":
                 degraded_count += 1
-                lines.append(f"  ⚠️ {name}: DEGRADED ({info.get('last_error') or 'recent failures'})")
+                lines.append(f"  warning {name}: DEGRADED ({info.get('last_error') or 'recent failures'})")
             else:
                 missing_count += 1
-                lines.append(f"  ❌ {name}: NEVER SEEN")
+                lines.append(f"  failed {name}: NEVER SEEN")
         
         required = contract.get("required_probes", {}) if isinstance(contract, dict) else {}
         try:
@@ -546,11 +546,11 @@ class SubsystemAudit:
             f"Heartbeats: {active_count}/{len(self.SUBSYSTEMS)} ACTIVE"
         )
         if core_boot_warming:
-            lines.append("  ⏳ boot: required runtime probes are still warming.")
+            lines.append("  pending boot: required runtime probes are still warming.")
         elif conversation_boot_warming:
-            lines.append("  ⏳ boot: conversation lane is still warming.")
+            lines.append("  pending boot: conversation lane is still warming.")
         elif conversation_grace_standby:
-            lines.append("  ⏳ boot: conversation lane is standing by for the first visible turn.")
+            lines.append("  pending boot: conversation lane is standing by for the first visible turn.")
         if not shutdown_active and not boot_warming and (not contract_healthy or not required_ok):
             failures = contract.get("failures", {}) if isinstance(contract, dict) else {}
             for tier in ("critical", "important"):
@@ -559,25 +559,25 @@ class SubsystemAudit:
                         continue
                     name = failure.get("container_key") or failure.get("name") or "unknown"
                     reason = failure.get("error") or failure.get("liveness") or "failed"
-                    lines.append(f"  ❌ contract/{tier}: {name} ({reason})")
+                    lines.append(f"  failed contract/{tier}: {name} ({reason})")
         if required_ok and contract_healthy and not subsystem_ok and not shutdown_active:
             lines.append(
-                "  ❌ subsystem_audit: required subsystem heartbeat contract not satisfied"
+                "  failed subsystem_audit: required subsystem heartbeat contract not satisfied"
             )
         if not (conversation_ready or conversation_working) and not shutdown_active and not boot_warming:
             reason = str(conversation_lane.get("last_failure_reason", "") or "conversation lane unavailable")
             lines.append(
-                f"  ❌ conversation_lane: {conversation_state} ({reason})"
+                f"  failed conversation_lane: {conversation_state} ({reason})"
             )
         if cognition_stall:
             summary += " | Cognition: STALLED"
             lines.append(cognition_stall)
         if stale_count:
-            summary += f" | ⚠️ {stale_count} STALE"
+            summary += f" | warning {stale_count} STALE"
         if degraded_count:
-            summary += f" | ⚠️ {degraded_count} DEGRADED"
+            summary += f" | warning {degraded_count} DEGRADED"
         if missing_count:
-            summary += f" | ❌ {missing_count} MISSING"
+            summary += f" | failed {missing_count} MISSING"
         
         lines.insert(2, summary)
         lines.append("═══════════════════════════")

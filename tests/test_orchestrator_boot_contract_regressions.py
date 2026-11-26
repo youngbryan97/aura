@@ -446,7 +446,7 @@ def test_orchestrator_main_loop_refreshes_watchdog_heartbeat():
         encoding="utf-8"
     )
     loop_slice = main_source.split(
-        "logger.info(\"🚩 [ORCHESTRATOR] Main Heartbeat Active",
+        "logger.info(\"[ORCHESTRATOR] Main Heartbeat Active",
         1,
     )[1].split("await asyncio.sleep(0.05)", 1)[0]
 

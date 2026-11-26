@@ -72,7 +72,7 @@ async def _start_aura_protocol(
                 "no other instance to reach, so no listener was bound"
             )
             logger.info(
-                "🧠 Layer 8: AuraProtocol not started — this organism has no peer to reach."
+                "Layer 8: AuraProtocol not started — this organism has no peer to reach."
             )
             return
         self.aura_protocol = get_protocol_server()
@@ -80,7 +80,7 @@ async def _start_aura_protocol(
         if protocol_started:
             self._mark_layer_online("aura_protocol")
             logger.info(
-                "🧠 Layer 8: AuraProtocolServer ONLINE (port=%d)",
+                "Layer 8: AuraProtocolServer ONLINE (port=%d)",
                 self.aura_protocol._port,
             )
         else:
@@ -95,7 +95,7 @@ async def _start_aura_protocol(
                 status.get("last_error") or "protocol listener did not bind"
             )
             logger.warning(
-                "🧠 Layer 8: AuraProtocolServer OFFLINE (port=%d, reason=%s)",
+                "Layer 8: AuraProtocolServer OFFLINE (port=%d, reason=%s)",
                 self.aura_protocol._port,
                 self._degraded_layers["aura_protocol"],
             )
@@ -280,7 +280,7 @@ class ConsciousnessSystem:
             self.being_runtime.start()
             register_runtime_service("being_runtime", self.being_runtime, required=False)
             self._mark_layer_online("being_runtime")
-            logger.info("🧠 LAMP/AuraNow BeingRuntime ONLINE")
+            logger.info("LAMP/AuraNow BeingRuntime ONLINE")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._mark_layer_degraded(
                 "being_runtime",
@@ -298,7 +298,7 @@ class ConsciousnessSystem:
 
             self.stream_of_being = await boot_stream_of_being(orchestrator=self.orch)
             self._mark_layer_online("stream_of_being")
-            logger.info("🧠 Layer 1: StreamOfBeing ONLINE")
+            logger.info("Layer 1: StreamOfBeing ONLINE")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "stream_of_being",
@@ -320,7 +320,7 @@ class ConsciousnessSystem:
             # We register it so other layers can find it.
             register_runtime_service("affective_steering", steering_engine)
             self._mark_layer_online("affective_steering")
-            logger.info("🧠 Layer 2: AffectiveSteering registered (awaiting model attach)")
+            logger.info("Layer 2: AffectiveSteering registered (awaiting model attach)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "affective_steering",
@@ -343,7 +343,7 @@ class ConsciousnessSystem:
             "get_latent_bridge().get_diagnostics() for live hook count."
         )
         logger.info(
-            "🧠 Layer 3: LatentBridge WIRED — model hidden state reaches the "
+            "Layer 3: LatentBridge WIRED — model hidden state reaches the "
             "substrate once a model is attached in the worker."
         )
 
@@ -353,7 +353,7 @@ class ConsciousnessSystem:
 
             self.closed_loop = await boot_closed_loop()
             self._mark_layer_online("closed_loop")
-            logger.info("🧠 Layer 4: ClosedCausalLoop ONLINE")
+            logger.info("Layer 4: ClosedCausalLoop ONLINE")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "closed_loop",
@@ -370,7 +370,7 @@ class ConsciousnessSystem:
             self.phi_core = PhiCore()
             register_runtime_service("phi_core", self.phi_core)
             self._mark_layer_online("phi_core")
-            logger.info("🧠 Layer 5: PhiCore ONLINE (recording via ClosedCausalLoop)")
+            logger.info("Layer 5: PhiCore ONLINE (recording via ClosedCausalLoop)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "phi_core",
@@ -388,7 +388,7 @@ class ConsciousnessSystem:
             register_runtime_service("hierarchical_phi", self.hierarchical_phi)
             self._mark_layer_online("hierarchical_phi")
             logger.info(
-                "🧠 Layer 5b: HierarchicalPhi ONLINE (32-node primary + %d×16-node subsystems)",
+                "Layer 5b: HierarchicalPhi ONLINE (32-node primary + %d×16-node subsystems)",
                 getattr(self.hierarchical_phi, "_subsystems", []).__len__(),
             )
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -406,7 +406,7 @@ class ConsciousnessSystem:
             self.hemispheric_split = get_hemispheric_split()
             register_runtime_service("hemispheric_split", self.hemispheric_split)
             self._mark_layer_online("hemispheric_split")
-            logger.info("🧠 Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)")
+            logger.info("Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "hemispheric_split",
@@ -422,7 +422,7 @@ class ConsciousnessSystem:
             self.minimal_selfhood = get_minimal_selfhood()
             register_runtime_service("minimal_selfhood", self.minimal_selfhood)
             self._mark_layer_online("minimal_selfhood")
-            logger.info("🧠 Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)")
+            logger.info("Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "minimal_selfhood",
@@ -454,7 +454,7 @@ class ConsciousnessSystem:
             self.octopus_federation = get_octopus_federation()
             register_runtime_service("octopus_federation", self.octopus_federation)
             self._mark_layer_online("octopus_federation")
-            logger.info("🧠 Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)")
+            logger.info("Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "octopus_federation",
@@ -473,7 +473,7 @@ class ConsciousnessSystem:
                 self.cellular_turnover.attach(mesh)
             register_runtime_service("cellular_turnover", self.cellular_turnover)
             self._mark_layer_online("cellular_turnover")
-            logger.info("🧠 Layer 5g: CellularTurnover ONLINE (attached=%s)", mesh is not None)
+            logger.info("Layer 5g: CellularTurnover ONLINE (attached=%s)", mesh is not None)
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "cellular_turnover",
@@ -490,7 +490,7 @@ class ConsciousnessSystem:
             register_runtime_service("absorbed_voices", self.absorbed_voices)
             self._mark_layer_online("absorbed_voices")
             logger.info(
-                "🧠 Layer 5h: AbsorbedVoices ONLINE (%d voices loaded)",
+                "Layer 5h: AbsorbedVoices ONLINE (%d voices loaded)",
                 self.absorbed_voices.voice_count(),
             )
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -508,7 +508,7 @@ class ConsciousnessSystem:
             self.existential_stakes = get_existential_stakes()
             register_runtime_service("existential_stakes", self.existential_stakes)
             self._mark_layer_online("existential_stakes")
-            logger.info("🧠 Layer 5i: ExistentialStakes ONLINE (memory limit monitoring active)")
+            logger.info("Layer 5i: ExistentialStakes ONLINE (memory limit monitoring active)")
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "existential_stakes",
@@ -524,7 +524,7 @@ class ConsciousnessSystem:
             self.synaptic_plasticity = get_synaptic_plasticity()
             register_runtime_service("synaptic_plasticity", self.synaptic_plasticity)
             self._mark_layer_online("synaptic_plasticity")
-            logger.info("🧠 Layer 5j: SynapticPlasticity ONLINE (bounded projection learning)")
+            logger.info("Layer 5j: SynapticPlasticity ONLINE (bounded projection learning)")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._mark_layer_degraded(
                 "synaptic_plasticity",
@@ -540,7 +540,7 @@ class ConsciousnessSystem:
             self.temporal_continuity = get_temporal_continuity()
             register_runtime_service("temporal_continuity", self.temporal_continuity)
             self._mark_layer_online("temporal_continuity")
-            logger.info("🧠 Layer 5k: TemporalContinuity ONLINE (silence residue active)")
+            logger.info("Layer 5k: TemporalContinuity ONLINE (silence residue active)")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._mark_layer_degraded(
                 "temporal_continuity",
@@ -556,7 +556,7 @@ class ConsciousnessSystem:
             self.attention_gate = get_attention_gate()
             register_runtime_service("attention_gate", self.attention_gate)
             self._mark_layer_online("attention_gate")
-            logger.info("🧠 Layer 5l: AttentionGate ONLINE (causal context pruning active)")
+            logger.info("Layer 5l: AttentionGate ONLINE (causal context pruning active)")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._mark_layer_degraded(
                 "attention_gate",
@@ -572,7 +572,7 @@ class ConsciousnessSystem:
             self.somatic_qualia = get_somatic_qualia()
             register_runtime_service("somatic_qualia", self.somatic_qualia)
             self._mark_layer_online("somatic_qualia")
-            logger.info("🧠 Layer 5m: SomaticQualia ONLINE (raw felt perturbation active)")
+            logger.info("Layer 5m: SomaticQualia ONLINE (raw felt perturbation active)")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
             self._mark_layer_degraded(
                 "somatic_qualia",
@@ -592,7 +592,7 @@ class ConsciousnessSystem:
             register_runtime_service("consciousness_bridge", self.bridge)
             self._mark_layer_online("consciousness_bridge")
             logger.info(
-                "🧠 Layer 6: ConsciousnessBridge ONLINE (%d/7 layers)",
+                "Layer 6: ConsciousnessBridge ONLINE (%d/7 layers)",
                 self.bridge.get_status().get("layers_active", 0),
             )
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -612,7 +612,7 @@ class ConsciousnessSystem:
             await self.branch_manager.start()
             self._mark_layer_online("parallel_branches")
             logger.info(
-                "🧠 Layer 7: BranchManager ONLINE (max_branches=%d)",
+                "Layer 7: BranchManager ONLINE (max_branches=%d)",
                 self.branch_manager.MAX_BRANCHES,
             )
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -654,11 +654,11 @@ class ConsciousnessSystem:
         self._task = get_task_tracker().create_task(self.heartbeat.run())
         if self._degraded_layers:
             logger.warning(
-                "🧠 Consciousness System ONLINE with degraded layers: %s",
+                "Consciousness System ONLINE with degraded layers: %s",
                 ", ".join(sorted(self._degraded_layers)),
             )
         else:
-            logger.info("🧠 Consciousness System ONLINE — full stack active")
+            logger.info("Consciousness System ONLINE — full stack active")
 
     async def stop(self):
         if self.heartbeat:
@@ -744,7 +744,7 @@ class ConsciousnessSystem:
             logger.debug("Ignored Exception stopping liquid_substrate: %s", _e)
         finally:
             self._running = False
-        logger.info("🧠 Consciousness System OFFLINE")
+        logger.info("Consciousness System OFFLINE")
 
     def get_state(self) -> dict:
         import copy

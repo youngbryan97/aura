@@ -64,7 +64,7 @@ class BryanModelEngine:
         self._last_saved = 0.0
         self._save_lock = threading.Lock()
         self._save_timer: threading.Timer | None = None
-        logger.info("🧠 Bryan model loaded: %d domain records, %d patterns",
+        logger.info("Bryan model loaded: %d domain records, %d patterns",
                     len(self._model.known_domains), len(self._model.observed_patterns))
 
     def _load(self) -> UserModel:

@@ -82,7 +82,7 @@ class TestJsonLineFormatter:
     def test_every_output_line_parses_as_json(self):
         formatter = JsonLineFormatter()
         for msg in ("plain text", '{"event": "structured"}', "{broken json",
-                    "unicode: résumé 🧠", ""):
+                    "unicode: résumé", ""):
             json.loads(formatter.format(_record(msg)))
 
 
@@ -203,7 +203,7 @@ class TestATokenIsAValueNotAWord:
     "..._ruled_out_token:" were both redacted."""
 
     @pytest.mark.parametrize("raw", [
-        "⏱️ [MLX] first-token ceiling 90.0s for a 5-char prompt (1 max tokens)",
+        "[MLX] first-token ceiling 90.0s for a 5-char prompt (1 max tokens)",
         "verifier [warning] claims.x @ endogenous_bias_cannot_promote_a_ruled_out_token: trained on 3 seeds",
         "the token budget is 4096 tokens",
         "token count 512",

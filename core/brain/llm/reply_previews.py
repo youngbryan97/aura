@@ -108,7 +108,7 @@ def ready_reply_preview(job: dict, text: str, *, thinking: Any, attempt: int,
         # LIVE 11 November 2026: a sentence failed fabricated_shared_history at 16:01:06 and her draft went on for
         # 20 s and 167 more failed checks before it was rejected, while she was silent. It ends at the sentence now.
         job[_FAILED] = lasting
-        logger.info("🗣️ her draft ends at a sentence that failed %s; the retry goes on from what she said", lasting)
+        logger.info("her draft ends at a sentence that failed %s; the retry goes on from what she said", lasting)
     return '' if reasons else candidate
 
 

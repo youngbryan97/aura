@@ -74,7 +74,7 @@ class AddressProcess:
         except (OSError, RuntimeError, ValueError, TimeoutError):
             self.close()
             raise
-        logger.info("👂 her address reader runs in its own process (pid %s): %s, holding %s", self.process.pid,
+        logger.info("her address reader runs in its own process (pid %s): %s, holding %s", self.process.pid,
                     self.name, ready.get("memory") or "an unreported amount")
 
     def read(self, text: str, words: str, scope: str, *, timeout_s: float = 30.0) -> list[float]:

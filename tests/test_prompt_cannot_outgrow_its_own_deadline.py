@@ -2,8 +2,8 @@
 
 Live 2026-08-03, repeatedly:
 
-    ⏱️ [WORKER] Request deadline reached at token 1; stopping decode cooperatively.
-    ⚠️ [WORKER] Generation produced 1 token(s) but no text survived to the
+    [WORKER] Request deadline reached at token 1; stopping decode cooperatively.
+    [WORKER] Generation produced 1 token(s) but no text survived to the
        caller — discarded downstream, not a decode failure.
        Prompt length: 91441
 

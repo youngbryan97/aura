@@ -282,7 +282,7 @@ Return ONLY the final synthesized belief.
 
         reason = self._background_deferral_reason(concept)
         if reason:
-            logger.info("⏸️ Crucible deferred for '%s' (%s).", concept[:50], reason)
+            logger.info("Crucible deferred for '%s' (%s).", concept[:50], reason)
             return {"ok": False, "reason": reason}
 
         if not self._llm_background_debate_enabled:
@@ -292,7 +292,7 @@ Return ONLY the final synthesized belief.
             logger.warning("Crucible at capacity. Skipping dialectic for: %s", concept[:30])
             return {"ok": False, "reason": "capacity"}
 
-        logger.info("⚔️ Crucible Initiated: %s...", concept[:50])
+        logger.info("Crucible Initiated: %s...", concept[:50])
 
         try:
             # 1. The Attack
@@ -310,7 +310,7 @@ Return ONLY the final synthesized belief.
             if not synthesis:
                 return {"ok": False, "reason": "synthesis_failed"}
 
-            logger.info("🛡️ Crucible Survived. Synthesis achieved.")
+            logger.info("Crucible Survived. Synthesis achieved.")
 
             # 4. Commit to Belief System
             belief_committed = await self._commit_synthesis(synthesis)

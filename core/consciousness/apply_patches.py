@@ -35,4 +35,4 @@ def apply_consciousness_patches(orchestrator: Any) -> None:
         logger.error("ConsciousnessPatches: loop monitor failed — %s", exc, exc_info=True)
 
     orchestrator._consciousness_patches_applied = True
-    logger.info("🧠 Consciousness runtime wiring is native; compatibility hook completed")
+    logger.info("Consciousness runtime wiring is native; compatibility hook completed")

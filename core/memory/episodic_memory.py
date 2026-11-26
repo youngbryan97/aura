@@ -367,7 +367,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         
         # Threshold: at least 2 relational keywords indicates bonding conversation
         if keyword_count >= 2:
-            logger.debug(f"🤝 Relational conversation detected ({keyword_count} markers)")
+            logger.debug(f"Relational conversation detected ({keyword_count} markers)")
             return True
         
         # Also detect strong bonding patterns
@@ -380,7 +380,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         
         for pattern in bonding_patterns:
             if all(p.lower() in combined for p in pattern):
-                logger.debug(f"🤝 Relational pattern detected: {pattern}")
+                logger.debug(f"Relational pattern detected: {pattern}")
                 return True
         
         return False
@@ -475,7 +475,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
                 if col_name not in existing_columns:
                     conn.execute(f"ALTER TABLE episodes ADD COLUMN {col_name} {col_def}")
                     conn.commit()
-                    logger.info("📝 Schema migration: added %s column", col_name)
+                    logger.info("Schema migration: added %s column", col_name)
                     existing_columns.add(col_name)
 
             self._migrate_conversation_revision_authority(conn)
@@ -891,7 +891,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         # encoding is broadcast so self-model / dreaming / identity can react.
         self._on_encode_signals(episode_id, novelty, importance, emotional_valence, success)
 
-        logger.info("📝 Episode recorded: %s (success=%s, importance=%.2f, q=%.2f, novelty=%.2f)",
+        logger.info("Episode recorded: %s (success=%s, importance=%.2f, q=%.2f, novelty=%.2f)",
                     episode_id, success, importance, qualia_snapshot.get("q_norm", 0.0), novelty)
         return episode_id
 
@@ -1197,7 +1197,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
 
             if pruned or boosted or replayed:
                 logger.info(
-                    "🧠 Memory consolidation: pruned %d, boosted %d, replayed %d",
+                    "Memory consolidation: pruned %d, boosted %d, replayed %d",
                     pruned, boosted, replayed
                 )
                 self._emit_event("memory.consolidated", {
@@ -1217,7 +1217,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
                     record_degradation('episodic_memory', exc)
                     logger.debug("Sleep-time softening skipped for %s: %s", episode_id, exc)
             if softened:
-                logger.info("🌙 Sleep-time emotional processing softened %d memories", softened)
+                logger.info("Sleep-time emotional processing softened %d memories", softened)
 
         except (sqlite3.Error, OSError) as e:
             record_degradation('episodic_memory', e)
@@ -1809,7 +1809,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
         ep.reconsolidation_count = outcome.reconsolidation_count
         ep.last_reconsolidated = now
         self._on_reconsolidation_signals(ep, outcome)
-        logger.info("🛋️ Therapeutic reconsolidation of %s → valence %.2f (fidelity %.2f)",
+        logger.info("Therapeutic reconsolidation of %s → valence %.2f (fidelity %.2f)",
                     episode_id, outcome.emotional_valence, outcome.fidelity)
         return True
 
@@ -2052,7 +2052,7 @@ class EpisodicMemory(_RecallsEpisodes, _RanksWhatToRecall):
                         record_degradation('episodic_memory', e)
                         logger.debug("Vector deletion failed during episode prune: %s", e)
                 
-                logger.info("🗑️ Deleted %d episodes from storage.", len(episode_ids))
+                logger.info("Deleted %d episodes from storage.", len(episode_ids))
             except (sqlite3.Error, OSError) as e:
                 record_degradation('episodic_memory', e)
                 logger.error("Failed to delete episodes: %s", e)

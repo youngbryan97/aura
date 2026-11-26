@@ -512,7 +512,7 @@ class AppleSiliconMemoryMonitor:
                 self._pressure = await asyncio.to_thread(self._get_pressure_sysctl)
                 self._high_pressure.report(
                     self._pressure >= self.threshold,
-                    "⚠️ HIGH MEMORY PRESSURE: %s%% (Threshold: %s%%)",
+                    "HIGH MEMORY PRESSURE: %s%% (Threshold: %s%%)",
                     self._pressure,
                     self.threshold,
                     level=float(self._pressure),

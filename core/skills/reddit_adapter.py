@@ -546,7 +546,7 @@ class RedditAdapterSkill(BaseSkill):
                     ),
                     source="core.skills.reddit_adapter.save_session",
                 )
-                logger.info("💾 Reddit session saved (%d cookies)", len(cookies))
+                logger.info("Reddit session saved (%d cookies)", len(cookies))
         except _REDDIT_RECOVERABLE_ERRORS as e:
             _record_reddit_degradation(
                 e,
@@ -611,7 +611,7 @@ class RedditAdapterSkill(BaseSkill):
                     "session_valid",
                     reason="existing_session_validated",
                 )
-                logger.info("✅ Already logged into Reddit")
+                logger.info("Already logged into Reddit")
                 return True
             if self._captcha_present(content):
                 await self._set_connection_state(
@@ -643,7 +643,7 @@ class RedditAdapterSkill(BaseSkill):
                 )
                 return False
 
-            logger.info("🔐 Recovering Reddit authentication for foreground request...")
+            logger.info("Recovering Reddit authentication for foreground request...")
             if not await browser.browse("https://www.reddit.com/login/"):
                 await self._set_connection_state(
                     "transient_failure",
@@ -703,7 +703,7 @@ class RedditAdapterSkill(BaseSkill):
             await asyncio.sleep(5)
             content = await page.content()
             if self._session_markers(content):
-                logger.info("✅ Reddit login successful")
+                logger.info("Reddit login successful")
                 await self._save_session(browser)
                 await self._set_connection_state(
                     "session_valid",
@@ -846,7 +846,7 @@ class RedditAdapterSkill(BaseSkill):
                 try:
                     content = await page.content()
                     if "g-recaptcha" in content or "captcha-delivery" in content:
-                        logger.warning("🚨 CAPTCHA detected on Reddit!")
+                        logger.warning("CAPTCHA detected on Reddit!")
 
                         visual_note = ""
                         try:
@@ -854,7 +854,7 @@ class RedditAdapterSkill(BaseSkill):
                             screenshot_b64 = await browser.screenshot()
                             if screenshot_b64:
                                 logger.info(
-                                    "👁️ Routing CAPTCHA screenshot to local visual cortex..."
+                                    "Routing CAPTCHA screenshot to local visual cortex..."
                                 )
                                 from core.brain.llm.mlx_vision_client import MLXVisionClient
 
@@ -933,7 +933,7 @@ class RedditAdapterSkill(BaseSkill):
             if params.mode == "browse":
                 subreddit = params.subreddit or "all"
                 posts = await reddit_reading.read_subreddit(subreddit, params.sort or "hot", params.limit)
-                logger.info("📱 Found %d posts on r/%s by her application", len(posts), subreddit)
+                logger.info("Found %d posts on r/%s by her application", len(posts), subreddit)
                 return {"ok": bool(posts), "completed": bool(posts), "subreddit": subreddit, "sort": params.sort,
                         "posts": posts, "count": len(posts), "read_by": "her application",
                         "message": f"Browsed r/{subreddit} ({params.sort}): {len(posts)} posts found."}
@@ -951,7 +951,7 @@ class RedditAdapterSkill(BaseSkill):
         sort = params.sort or "hot"
         url = f"https://www.reddit.com/r/{subreddit}/{sort}/"
 
-        logger.info("📱 Browsing r/%s (%s)", subreddit, sort)
+        logger.info("Browsing r/%s (%s)", subreddit, sort)
         if not await browser.browse(url):
             return {"ok": False, "error": self._could_not_load(f"r/{subreddit}", browser)}
 
@@ -991,7 +991,7 @@ class RedditAdapterSkill(BaseSkill):
             return posts;
         }"""), params.limit)
 
-        logger.info("📱 Found %d posts on r/%s", len(posts), subreddit)
+        logger.info("Found %d posts on r/%s", len(posts), subreddit)
         if not posts:
             return {
                 "ok": False,
@@ -1041,7 +1041,7 @@ class RedditAdapterSkill(BaseSkill):
             else:
                 return {"ok": False, "error": "read_post requires a 'url'."}
 
-        logger.info("📖 Reading post: %s", url[:80])
+        logger.info("Reading post: %s", url[:80])
         if not await browser.browse(url):
             return {"ok": False, "error": self._could_not_load(url, browser)}
 
@@ -1166,7 +1166,7 @@ class RedditAdapterSkill(BaseSkill):
             _comment_timestamps.append(time.time())
             await self._save_session(browser)
 
-            logger.info("💬 Comment posted on %s", params.url[:60])
+            logger.info("Comment posted on %s", params.url[:60])
             return {
                 "ok": True,
                 "url": params.url,
@@ -1276,7 +1276,7 @@ class RedditAdapterSkill(BaseSkill):
             _post_timestamps.append(time.time())
             await self._save_session(browser)
 
-            logger.info("📝 Post created on r/%s: %s", params.subreddit, title[:50])
+            logger.info("Post created on r/%s: %s", params.subreddit, title[:50])
             return {
                 "ok": True,
                 "subreddit": params.subreddit,
@@ -1387,7 +1387,7 @@ class RedditAdapterSkill(BaseSkill):
             return {"ok": False, "error": "read_rules requires a 'subreddit'."}
 
         url = f"https://www.reddit.com/r/{params.subreddit}/"
-        logger.info("📜 Reading rules for r/%s", params.subreddit)
+        logger.info("Reading rules for r/%s", params.subreddit)
 
         if not await browser.browse(url):
             return {

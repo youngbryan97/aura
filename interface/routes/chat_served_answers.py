@@ -97,7 +97,7 @@ async def _readings_for(text: str) -> list[str]:
         return []
     if readings:
         logger.info(
-            "🔭 [GROUNDING] ladder took %d reading(s): %s",
+            "[GROUNDING] ladder took %d reading(s): %s",
             len(readings),
             ",".join(
                 block.split("\n", 1)[0].removeprefix("## ").lower()
@@ -212,7 +212,7 @@ def _serve_tabular_answer(user_message: object, reply: object) -> object:
             readings = _tabular_readings(path, question)
             if readings:
                 logger.info(
-                    "📊 Served %d computed reading(s) of %s.", len(readings), path
+                    "Served %d computed reading(s) of %s.", len(readings), path
                 )
                 computed = "\n\n".join(readings)
                 # A reading is evidence for an answer, not a replacement for it.
@@ -307,7 +307,7 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
             return reply
         measured = describe_lifetime()
         if measured:
-            logger.info("⏳ Served the cumulative lifetime from the continuity record.")
+            logger.info("Served the cumulative lifetime from the continuity record.")
             from core.self.lifetime import strike_uptime_contradiction
 
             return _compose(
@@ -352,7 +352,7 @@ def _serve_worked_out_sequence(user_message: object, reply: object) -> object:
         worked_out = answer_sequence_question(str(user_message or ""))
         if not worked_out:
             return reply
-        logger.info("🔁 Served a sequence question from the rule it worked out.")
+        logger.info("Served a sequence question from the rule it worked out.")
         return worked_out
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
@@ -391,7 +391,7 @@ def _serve_positional_solution(user_message: object, reply: object) -> object:
         )
         if not described:
             return reply
-        logger.info("🪑 Served a seating problem from the enumeration.")
+        logger.info("Served a seating problem from the enumeration.")
         return described
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
@@ -437,7 +437,7 @@ def _serve_queued_work(user_message: object, reply: object) -> object:
             f"{count} job{'s' if count != 1 else ''} waiting to run, "
             "and nothing else queued:"
         )
-        logger.info("🗓️ Served the queued-work list from the coordinator.")
+        logger.info("Served the queued-work list from the coordinator.")
         return _compose(
             user_message, reply, head + "\n" + "\n".join(lines), _matches_queued_work
         )
@@ -506,7 +506,7 @@ def _serve_earlier_conversation(user_message: object, reply: object) -> object:
             return reply
         composed = earlier_conversation_answer(exclude=question)
         if composed:
-            logger.info("🗒️ Served the earlier conversation from the durable record.")
+            logger.info("Served the earlier conversation from the durable record.")
             return composed
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
@@ -538,7 +538,7 @@ def _serve_measured_belief_history(reply: object) -> object:
         measured = unevidenced_revision_claim(reply)
         if measured:
             logger.warning(
-                "🧠 Replaced an unevidenced revision claim with the snapshot reading."
+                "Replaced an unevidenced revision claim with the snapshot reading."
             )
             return measured
     except _CHAT_RECOVERABLE_ERRORS as exc:
@@ -642,7 +642,7 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
             f"{' ' + counted.suffix if counted.suffix else ''} files, not {claimed}"
             for claimed, counted in contradicted
         )
-        logger.warning("📁 Corrected a stated count: %s.", corrections)
+        logger.warning("Corrected a stated count: %s.", corrections)
         correction = (
             f"Not quite — {corrections}. I counted the directory just now rather "
             "than agreeing."
@@ -732,7 +732,7 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
             # every file — a wall of names buries the second number.
             sentences.append(f"{where}: {counted.count} {kind}files, counted from disk.")
     logger.warning(
-        "📁 Served %d measured count(s) over the generated one(s): %s.",
+        "Served %d measured count(s) over the generated one(s): %s.",
         len(counts),
         ", ".join(f"{c.path}={c.count}" for c in counts),
     )

@@ -9,7 +9,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("verify_unified_brain")
 
 async def verify():
-    logger.info("🚀 Starting Unified Brain Verification")
+    logger.info("Starting Unified Brain Verification")
     
     # 1. Setup Router
     router = IntelligentLLMRouter()
@@ -26,21 +26,21 @@ async def verify():
         primary_points=["Expression point 1"]
     )
     
-    logger.info("📡 Testing Legacy Dispatch (api_deep)...")
+    logger.info("Testing Legacy Dispatch (api_deep)...")
     # Use a local endpoint fixture if no real ones are available,
     # but the router should at least attempt to find PRIMARY.
     try:
         response = await lc.express("Hello", thought)
-        logger.info("✅ Dispatch successful. Response: %s", response)
+        logger.info("Dispatch successful. Response: %s", response)
     except (AttributeError, ImportError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
-        logger.error("❌ Dispatch failed: %s", e)
+        logger.error("Dispatch failed: %s", e)
         return False
 
     # 4. Verify Racing is disabled
     # If we check the logs of the router (manually or via intercept), 
-    # it should NOT log "🏁 Racing:".
+    # it should NOT log "Racing:".
     
-    logger.info("🏁 Verification complete.")
+    logger.info("Verification complete.")
     return True
 
 if __name__ == "__main__":

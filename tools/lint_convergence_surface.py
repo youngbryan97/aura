@@ -169,7 +169,7 @@ def main() -> int:
     was = json.loads(BASELINE.read_text())
     if float(now["worst_total"]) > float(was["worst_total"]):
         print(
-            f"❌ convergence surface grew: {was['worst_total']:,} -> "
+            f"convergence surface grew: {was['worst_total']:,} -> "
             f"{now['worst_total']:,}"
         )
         print(
@@ -180,7 +180,7 @@ def main() -> int:
         return 1
     if float(now["worst_total"]) < float(was["worst_total"]):
         print(
-            f"⬇️  convergence surface fell: {was['worst_total']:,} -> "
+            f" convergence surface fell: {was['worst_total']:,} -> "
             f"{now['worst_total']:,}\n    refresh with --write-baseline"
         )
     return 0

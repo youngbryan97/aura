@@ -33,7 +33,7 @@ class ZenithBootloader:
     @classmethod
     async def ignite(cls):
         """Main entry point for Aura 3.0."""
-        logger.info("🚀 ZENITH PROTOCOL IGNITION SEQUENCE START")
+        logger.info("ZENITH PROTOCOL IGNITION SEQUENCE START")
         
         try:
             # --- LEVEL 0: SECURITY STACK ---
@@ -75,7 +75,7 @@ class ZenithBootloader:
             logger.info("✓ Woke %d services: %s", len(woken_list), ", ".join(woken_list))
             
             # Final Lock
-            logger.info("🔒 SYSTEM STABILIZED. RADAR ONLINE.")
+            logger.info("SYSTEM STABILIZED. RADAR ONLINE.")
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('aura_3_boot', e)

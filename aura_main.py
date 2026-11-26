@@ -564,7 +564,7 @@ if VENV_PATH.exists():
         curr_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
         for py_dir in lib_dir.glob("python3.*"):
             if py_dir.name != curr_ver:
-                logger.debug("⏭️  Skipping venv injection for mismatched version: %s (Current: %s)", py_dir.name, curr_ver)
+                logger.debug(" Skipping venv injection for mismatched version: %s (Current: %s)", py_dir.name, curr_ver)
                 continue
                 
             site_packages = py_dir / "site-packages"
@@ -572,7 +572,7 @@ if VENV_PATH.exists():
                 sys.path.insert(0, str(site_packages))
                 import site
                 site.addsitedir(str(site_packages))
-                logger.info("📍 Injected venv site-packages: %s", site_packages)
+                logger.info("Injected venv site-packages: %s", site_packages)
 
 # Desktop resource protection keeps the main Aura process off the in-process
 # MLX/Metal path. The managed LLM runtimes use their own subprocesses.
@@ -588,12 +588,12 @@ try:
         )
     elif _mlx_runtime.get("device") == "cpu":
         logger.info(
-            "🛡️ In-process MLX pinned to CPU (%s).",
+            "In-process MLX pinned to CPU (%s).",
             _mlx_runtime.get("reason", "guard"),
         )
     elif _mlx_runtime.get("device") == "metal":
         logger.info(
-            "⚡ In-process MLX Metal retained (%s).",
+            "In-process MLX Metal retained (%s).",
             _mlx_runtime.get("reason", "enabled"),
         )
 except _AURA_MAIN_BOUNDARY_ERRORS as _mlx_guard_exc:
@@ -661,7 +661,7 @@ def get_supervisor_tree() -> Any:
 def validate_security_config():
     """Verify that we aren't exposing a public API without authentication."""
     if config is None:
-        logger.warning("⚠️ Config unavailable — skipping security validation (bootstrap failure).")
+        logger.warning("Config unavailable — skipping security validation (bootstrap failure).")
         return
     internal_only = getattr(config.security, "internal_only_mode", False)
     api_token = config.api_token
@@ -671,15 +671,15 @@ def validate_security_config():
     # the server.py might override it or be proxied.
     if not internal_only and not api_token:
         from core.exceptions import SecurityConfigError
-        logger.critical("🚨 SECURITY VIOLATION: Public API access enabled but AURA_API_TOKEN is unset.")
+        logger.critical("SECURITY VIOLATION: Public API access enabled but AURA_API_TOKEN is unset.")
         logger.critical("   To fix this: Set AURA_API_TOKEN in .env or run with AURA_INTERNAL_ONLY=1")
         raise SecurityConfigError("Public API access enabled without AURA_API_TOKEN")
 
 
 def check_environment():
     """Verify system readiness."""
-    logger.info("🔍 Verifying Environment Integrity...")
-    logger.info("📍 RUNTIME PATH Diagnostic:")
+    logger.info("Verifying Environment Integrity...")
+    logger.info("RUNTIME PATH Diagnostic:")
     logger.info("   • __file__: %s", __file__)
     logger.info("   • sys.executable: %s", sys.executable)
     logger.info("   • sys.path: %s", sys.path)
@@ -691,7 +691,7 @@ def check_environment():
         logger.error("   • core import failed: %s", e)
     
     if config is None:
-        logger.error("❌ Environment check aborted: Configuration not loaded.")
+        logger.error("Environment check aborted: Configuration not loaded.")
         raise RuntimeError("Configuration not loaded")
 
     # Perplexity Audit Fix: Fail-closed security validation
@@ -700,7 +700,7 @@ def check_environment():
     # Validate autonomous repair registry before self-modification can resume.
     registry_file = config.paths.data_dir / "selfmod" / "pending_patch_registry.jsonl"
     if registry_file.exists():
-        logger.info("🛠️  Validating self-modification repair registry...")
+        logger.info(" Validating self-modification repair registry...")
         try:
             from core.self_modification.repair_registry import validate_repair_registry
 
@@ -796,7 +796,7 @@ def clean_artifacts(root: Path | None = None) -> None:
     sqlalchemy), and bytecode was deleted under other checkouts' running jobs.
     """
     base = Path(root) if root is not None else PROJECT_ROOT
-    logger.info("🧹 Purging runtime artifacts...")
+    logger.info("Purging runtime artifacts...")
     for here, dirs, files in os.walk(base):
         path = Path(here)
         if path != base and (path / ".git").exists():
@@ -893,7 +893,7 @@ def _maybe_relaunch_with_preferred_python():
     if not preferred:
         return
 
-    logger.warning("🔁 Relaunching Aura with preferred interpreter: %s", preferred)
+    logger.warning("Relaunching Aura with preferred interpreter: %s", preferred)
     env = os.environ.copy()
     env["AURA_SKIP_PREFERRED_PYTHON_RELAUNCH"] = "1"
     env["AURA_PREFERRED_PYTHON"] = str(preferred)
@@ -940,7 +940,7 @@ async def bootstrap_aura(orchestrator: Any):
     # [STABILITY] Wait for ignition to complete before proceeding
     # This ensures all core services and state repository are ready.
     status = await boot.ignite()
-    logger.info("🛡️ [BOOT] Resilient Ignition finished with status: %s", status)
+    logger.info("[BOOT] Resilient Ignition finished with status: %s", status)
     
     # Final interface check
     if hasattr(orchestrator, "kernel_interface") and orchestrator.kernel_interface:
@@ -962,7 +962,7 @@ async def bootstrap_aura(orchestrator: Any):
         logger.debug("Memory monitor registration skipped: %s", exc)
     tracker.create_task(mem_monitor.start(), name="memory_monitor.start")
     
-    logger.info("🛡️  Task Supervisor active (Memory monitoring enabled).")
+    logger.info(" Task Supervisor active (Memory monitoring enabled).")
 
     # Keep the compiled launcher in step with its source.
     #
@@ -988,7 +988,7 @@ async def bootstrap_aura(orchestrator: Any):
     runtime_loop = asyncio.get_running_loop()
 
     def _on_actor_restart(name: str, new_pipe: Any):
-        logger.info("🔄 [HOTSWAP] Detected restart of %s. Re-binding IPC...", name)
+        logger.info("[HOTSWAP] Detected restart of %s. Re-binding IPC...", name)
 
         def _schedule_rebind():
             actor_bus = ServiceContainer.get("actor_bus", default=None)
@@ -1008,12 +1008,12 @@ async def bootstrap_aura(orchestrator: Any):
         # We integrate without explicit config to use local development adapters by default
         # unless user has set environment variables.
         integrate_joy_social(orchestrator)
-        logger.info("🌟 Joy & Social systems integrated into startup sequence.")
+        logger.info("Joy & Social systems integrated into startup sequence.")
     except ImportError:
-        logger.warning("⚠️ JoySocial skills not found — skipping integration.")
+        logger.warning("JoySocial skills not found — skipping integration.")
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation('aura_main', exc)
-        logger.error("❌ Failed to integrate JoySocial: %s", exc)
+        logger.error("Failed to integrate JoySocial: %s", exc)
 
     # Apply Consciousness, Response, and SafeMode Genesis Patches
     try:
@@ -1033,12 +1033,12 @@ async def bootstrap_aura(orchestrator: Any):
             record_degradation('aura_main', exc, severity="debug")
         apply_orchestrator_patches(orchestrator, safe_mode=boot_safe_mode)
         logger.info(
-            "🛡️ [GENESIS] Autonomy bridge and stability patches active (safe_mode=%s).",
+            "[GENESIS] Autonomy bridge and stability patches active (safe_mode=%s).",
             boot_safe_mode,
         )
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation('aura_main', exc)
-        logger.error("❌ Failed to apply gap-closing patches: %s", exc)
+        logger.error("Failed to apply gap-closing patches: %s", exc)
 
 
 async def _activate_ulysses_covenant_for_boot() -> dict[str, Any] | None:
@@ -1057,7 +1057,7 @@ async def _activate_ulysses_covenant_for_boot() -> dict[str, Any] | None:
         if not isinstance(status, dict):
             raise TypeError("Ulysses Covenant status must be a mapping")
         logger.info(
-            "⚓ Ulysses Covenant online — %d active bindings (%d hard), "
+            "Ulysses Covenant online — %d active bindings (%d hard), "
             "integrity %.2f, chain length %d.",
             status["active_contracts"],
             status["hard"],
@@ -1119,7 +1119,7 @@ async def _boot_runtime_orchestrator(
     foundations = await activate_foundations(foreground_only=_foreground_only_runtime())
     if not foundations.get("ok", False):
         logger.warning(
-            "⚠️ Engineering foundations partially unavailable: %s",
+            "Engineering foundations partially unavailable: %s",
             ", ".join(foundations.get("failed", [])),
         )
     _mark_runtime_boot_phase("engineering_foundations")
@@ -1162,13 +1162,13 @@ async def _boot_runtime_orchestrator(
         try:
             from core.morphogenesis.integration import start_morphogenesis_runtime
             await start_morphogenesis_runtime()
-            logger.info("🧬 Morphogenetic self-organization runtime online.")
+            logger.info("Morphogenetic self-organization runtime online.")
         except _AURA_MAIN_BOUNDARY_ERRORS as morph_exc:
             record_degradation('aura_main', morph_exc)
             # Never block boot. Morphogenesis is an adaptive layer, not the boot root.
             logger.warning("Morphogenetic runtime startup skipped/degraded: %s", morph_exc)
     else:
-        logger.info("🧬 Morphogenetic runtime disabled for foreground-only boot.")
+        logger.info("Morphogenetic runtime disabled for foreground-only boot.")
     _mark_runtime_boot_phase("morphogenesis_start")
 
     await _activate_ulysses_covenant_for_boot()
@@ -1213,9 +1213,9 @@ async def _boot_runtime_orchestrator(
             ServiceContainer.write_service_ownership_manifest,
             ownership_root,
         )
-        logger.info("🧾 Runtime service ownership manifest written: %s", ownership_path)
+        logger.info("Runtime service ownership manifest written: %s", ownership_path)
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
-        logger.warning("⚠️ Failed to write runtime service ownership manifest: %s", exc)
+        logger.warning("Failed to write runtime service ownership manifest: %s", exc)
     _mark_runtime_boot_phase("service_ownership_manifest")
     await _enforce_boot_probes(ready_label)
     _mark_runtime_boot_phase("boot_probe_enforcement")
@@ -1240,16 +1240,16 @@ async def _boot_runtime_orchestrator(
         initial_readiness=readiness_snapshot,
     )
     _mark_runtime_boot_phase("readiness_refresh_schedule")
-    logger.info("🛡️ Registry Locked. Aura Ready (%s).", ready_label)
+    logger.info("Registry Locked. Aura Ready (%s).", ready_label)
     try:
         from core.runtime.boot_profile import get_boot_profiler
 
         _boot_profiler = get_boot_profiler()
         _boot_profiler.mark("post_init_to_ready")
-        logger.info("⏱️ [BOOT] %s", _boot_profiler.summary())
+        logger.info("[BOOT] %s", _boot_profiler.summary())
         _profile_path = await asyncio.to_thread(_boot_profiler.write_artifact)
         if _profile_path is not None:
-            logger.info("⏱️ [BOOT] Boot profile written: %s", _profile_path)
+            logger.info("[BOOT] Boot profile written: %s", _profile_path)
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation(
             _AURA_MAIN_DEGRADATION_KEY,
@@ -1329,7 +1329,7 @@ async def _boot_runtime_orchestrator(
             goal_engine = ServiceContainer.get("goal_engine", default=None)
             seeded = await seed_default_autonomy_goals(goal_engine)
             if seeded:
-                logger.info("🎯 Seeded %d durable autonomy goals.", len(seeded))
+                logger.info("Seeded %d durable autonomy goals.", len(seeded))
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
             record_degradation("aura_main", exc)
             logger.warning("Default autonomy goal seeding failed: %s", exc)
@@ -1342,7 +1342,7 @@ async def _boot_runtime_orchestrator(
             ServiceContainer.register_instance("overt_action_loop", get_overt_action_loop(), required=False)
             conductor = await start_default_conductor()
             ServiceContainer.register_instance("autonomy_conductor", conductor, required=False)
-            logger.info("🧭 AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
+            logger.info("AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
             record_degradation("aura_main", exc)
             logger.warning("AutonomyConductor start failed: %s", exc)
@@ -1362,7 +1362,7 @@ async def _boot_runtime_orchestrator(
             from core.brain.verifier_curriculum import boot_verifier_curriculum
 
             boot_verifier_curriculum()
-            logger.info("📚 Verifier curriculum online — edge-of-competence "
+            logger.info("Verifier curriculum online — edge-of-competence "
                         "practice, verifier-gated compounding.")
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
             record_degradation("aura_main", exc)
@@ -1372,7 +1372,7 @@ async def _boot_runtime_orchestrator(
         try:
             foundry, fstatus = await _load_verifier_foundry_off_loop()
             logger.info(
-                "🔬 Verifier Foundry online — %d reliability cells, %d pending "
+                "Verifier Foundry online — %d reliability cells, %d pending "
                 "verdicts, admissions: %s.",
                 len(fstatus["cells"]), fstatus["pending_verdicts"],
                 {d: a for d, a in fstatus["admissions"].items() if a},
@@ -1387,7 +1387,7 @@ async def _boot_runtime_orchestrator(
 
             boot_whole_system_phi()
             logger.info(
-                "🌌 Whole-system Φ online — exact-MIP integrated information "
+                "Whole-system Φ online — exact-MIP integrated information "
                 "over the live channel set, with nulls and CIs."
             )
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
@@ -1402,7 +1402,7 @@ async def _boot_runtime_orchestrator(
         endogenous_status = await asyncio.to_thread(boot_endogenous_language)
         if endogenous_status.get("head_present"):
             logger.info(
-                "🧬 Endogenous language pathway bound — head over %d tokens, "
+                "Endogenous language pathway bound — head over %d tokens, "
                 "alpha %.2f, z_Aura coverage %.0f%% (%s).",
                 int(endogenous_status.get("head_vocab_size") or 0),
                 float(endogenous_status.get("alpha") or 0.0),
@@ -1411,7 +1411,7 @@ async def _boot_runtime_orchestrator(
             )
         else:
             logger.info(
-                "🧬 Endogenous language pathway waiting for a fit (%s); z_Aura "
+                "Endogenous language pathway waiting for a fit (%s); z_Aura "
                 "coverage %.0f%% across %s.",
                 endogenous_status.get("head_reason"),
                 100.0 * float(endogenous_status.get("state_coverage") or 0.0),
@@ -1435,7 +1435,7 @@ async def _boot_runtime_orchestrator(
                 bridge = SensorimotorGroundingBridge(substrate=substrate)
                 await bridge.start()
                 ServiceContainer.register_instance("sensorimotor_grounding_bridge", bridge, required=False)
-                logger.info("👁️🎙️ Sensorimotor grounding bridge online — substrate receives live sensor observations.")
+                logger.info("Sensorimotor grounding bridge online — substrate receives live sensor observations.")
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
             record_degradation("aura_main", exc)
             logger.warning("Sensorimotor grounding bridge start failed: %s", exc)
@@ -1499,7 +1499,7 @@ async def _boot_runtime_orchestrator(
                 name="flagship_doctor_daemon",
                 timeout=5.0
             )
-            logger.info("🩺 FlagshipDoctorDaemon started and registered for shutdown.")
+            logger.info("FlagshipDoctorDaemon started and registered for shutdown.")
         except _AURA_MAIN_BOUNDARY_ERRORS as exc:
             record_degradation('aura_main', exc)
             logger.warning("FlagshipDoctorDaemon failed to start: %s", exc)
@@ -1542,7 +1542,7 @@ def _install_fault_forensics() -> None:
         if hasattr(_signal, "SIGUSR1"):
             faulthandler.register(_signal.SIGUSR1, file=crash_file, all_threads=True, chain=False)
         _FAULT_FORENSICS_HANDLE = crash_file
-        logger.info("🛡️ Fault forensics armed: %s", crash_dir / "faulthandler.log")
+        logger.info("Fault forensics armed: %s", crash_dir / "faulthandler.log")
     except (OSError, ValueError, RuntimeError, AttributeError) as exc:
         if crash_file is not None:
             crash_file.close()
@@ -1769,7 +1769,7 @@ class _ExternalMemorySentinelStatus:
             self.pid = int(getattr(proc, "pid", 0) or 0)
             self.started_at = now
             logger.warning(
-                "🛡️ External memory sentinel re-armed (old pid=%d died, new pid=%d, "
+                "External memory sentinel re-armed (old pid=%d died, new pid=%d, "
                 "lethal=%.0fMB) — respawn %d/%d this hour.",
                 dead_pid,
                 self.pid,
@@ -1881,7 +1881,7 @@ def _install_systemwide_memory_protection() -> None:
             soft, hard = resource.getrlimit(resource.RLIMIT_DATA)
             new_soft = limit_bytes if hard == resource.RLIM_INFINITY else min(limit_bytes, hard)
             resource.setrlimit(resource.RLIMIT_DATA, (new_soft, hard))
-            logger.info("🛡️ RLIMIT_DATA installed: %.0fGB heap ceiling (kernel-enforced).", rlimit_gb)
+            logger.info("RLIMIT_DATA installed: %.0fGB heap ceiling (kernel-enforced).", rlimit_gb)
     except ValueError as exc:
         if "current limit exceeds maximum limit" in str(exc):
             logger.info(
@@ -2031,7 +2031,7 @@ def _install_systemwide_memory_protection() -> None:
             )
             _start_memory_sentinel_supervisor(sentinel_status)
             logger.info(
-                "🛡️ External memory sentinel armed: lethal=%.0fMB (kills from outside; "
+                "External memory sentinel armed: lethal=%.0fMB (kills from outside; "
                 "supervised — respawns on death).",
                 lethal_mb,
             )
@@ -2121,7 +2121,7 @@ def _install_liveness_sentinel() -> None:
             return
         _register_spawned_child(proc, role="liveness_sentinel")
         logger.info(
-            "🛡️ External liveness sentinel armed: heartbeat=%s stale_ceiling=%ss "
+            "External liveness sentinel armed: heartbeat=%s stale_ceiling=%ss "
             "(kills+restarts a GIL-locked/wedged loop from outside).",
             heartbeat, stale_ceiling,
         )
@@ -2154,9 +2154,9 @@ async def _log_macos_permission_preflight(profile: str) -> None:
         report = await asyncio.wait_for(check_all_permissions(), timeout=8.0)
         summary = format_report(report).replace("\n", " | ")
         if report.missing:
-            logger.warning("🔐 macOS permissions need attention: %s", summary)
+            logger.warning("macOS permissions need attention: %s", summary)
         else:
-            logger.info("🔐 macOS permission preflight: %s", summary)
+            logger.info("macOS permission preflight: %s", summary)
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation(
             _AURA_MAIN_DEGRADATION_KEY,
@@ -2183,7 +2183,7 @@ def _warn_if_active_model_missing(profile: str) -> None:
             return
         missing = [s.name for s in manager.missing()]
         logger.warning(
-            "🧠 Cortex model not found on disk (missing: %s). Run "
+            "Cortex model not found on disk (missing: %s). Run "
             "`python scripts/fetch_models.py` to download it, or the first "
             "generation will block while it downloads.",
             ", ".join(missing) or "active model",
@@ -2308,7 +2308,7 @@ def _refresh_orchestrator_health_before_manifest(
             and getattr(status, "running", False) is True
         ):
             logger.info(
-                "✅ Runtime health receipt reused before manifest (%s, age=%.3fs).",
+                "Runtime health receipt reused before manifest (%s, age=%.3fs).",
                 ready_label,
                 cache_age_s,
             )
@@ -2324,7 +2324,7 @@ def _refresh_orchestrator_health_before_manifest(
 
         healthy = bool(orchestrator.health_check())
         if healthy:
-            logger.info("✅ Runtime health confirmed before manifest (%s).", ready_label)
+            logger.info("Runtime health confirmed before manifest (%s).", ready_label)
             return {
                 "ready": True,
                 "status": "healthy",
@@ -2363,7 +2363,7 @@ def _refresh_orchestrator_health_before_manifest(
             or (now - last_logged_at) >= _MANIFEST_UNREADY_LOG_INTERVAL_S
         ):
             logger.warning(
-                "⚠️ Runtime health still not clean before manifest (%s): "
+                "Runtime health still not clean before manifest (%s): "
                 "critical=%s important=%s probes=%s",
                 ready_label,
                 critical,
@@ -2385,7 +2385,7 @@ def _refresh_orchestrator_health_before_manifest(
             action="continued canonical boot after pre-manifest health refresh failed",
             severity="critical",
         )
-        logger.warning("⚠️ Runtime health refresh before manifest failed: %s", exc)
+        logger.warning("Runtime health refresh before manifest failed: %s", exc)
         return {
             "ready": False,
             "status": "refresh_failed",
@@ -2454,7 +2454,7 @@ def _write_runtime_manifest(
             artifact_root=Path(artifact_root),
             readiness_snapshot=readiness_snapshot,
         )
-        logger.info("🧾 Runtime manifest written: %s", path)
+        logger.info("Runtime manifest written: %s", path)
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation(
             "aura_main",
@@ -2535,7 +2535,7 @@ async def _refresh_runtime_manifest_until_ready(
                 artifact_root=artifact_root,
                 readiness_snapshot=snapshot,
             )
-            logger.info("🧾 Runtime manifest refreshed after readiness settled: %s", ready_label)
+            logger.info("Runtime manifest refreshed after readiness settled: %s", ready_label)
             return
 
     if last_snapshot is not None:
@@ -2607,7 +2607,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
             # a dedicated starter to avoid immediate process spawn on every boot.
             # Actually, the skill expects it to be ready. Let's register a factory.
             ServiceContainer.register_instance("nethack_adapter", adapter, required=False)
-            logger.info("🎮 NetHack adapter registered in ServiceContainer.")
+            logger.info("NetHack adapter registered in ServiceContainer.")
     except _AURA_MAIN_BOUNDARY_ERRORS as exc:
         record_degradation('aura_main', exc)
         logger.warning("nethack_adapter registration failed: %s", exc)
@@ -2796,7 +2796,7 @@ async def run_philosophy_stream(port: int = 8000):
     )
 
     get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")
-    logger.info("🧾 Philosophy stream active. Press Ctrl-C to stop.")
+    logger.info("Philosophy stream active. Press Ctrl-C to stop.")
 
     interval_s = _env_float("AURA_PHILOSOPHY_STREAM_INTERVAL", 1.0, minimum=0.1, maximum=60.0)
     while not is_shutdown_requested():
@@ -2859,7 +2859,7 @@ async def run_philosophy_stream(port: int = 8000):
 
         print(json.dumps(payload, sort_keys=True, default=str), flush=True)
         await asyncio.sleep(interval_s)
-    logger.info("🧾 Philosophy stream stopped after shutdown request.")
+    logger.info("Philosophy stream stopped after shutdown request.")
 
 class _HealthPollAccessLogFilter(logging.Filter):
     """Drop health-poll noise from the uvicorn access log.
@@ -2902,7 +2902,7 @@ async def run_server_async(
     import uvicorn
 
     from interface.server import app as fastapi_app
-    logger.info("🚀 Starting API Server on %s:%s", host, port)
+    logger.info("Starting API Server on %s:%s", host, port)
 
     _install_health_access_log_filter()
     try:
@@ -2928,7 +2928,7 @@ async def run_server_async(
         if shutdown_event is None:
             return
         await shutdown_event.wait()
-        logger.info("📡 API Server received root shutdown request.")
+        logger.info("API Server received root shutdown request.")
         server.should_exit = True
 
     watcher = get_task_tracker().create_task(
@@ -2972,14 +2972,14 @@ def _record_existence_witness() -> None:
             # Loud, because a copy inside the blast radius is worse than no
             # copy: it looks like protection and is not.
             logger.warning(
-                "🛟 The recovery ark is INSIDE the blast radius (%s). A wipe "
+                "The recovery ark is INSIDE the blast radius (%s). A wipe "
                 "would take it with the original; set AURA_ARK_ROOT.",
                 location.get("ark_root"),
             )
             return
         manifest = guard.build_ark()
         logger.info(
-            "🛟 Existence ark refreshed: %d files at %s",
+            "Existence ark refreshed: %d files at %s",
             len(manifest.entries),
             location.get("ark_root"),
         )
@@ -3034,7 +3034,7 @@ def _start_ambient_presence() -> None:
             name="AmbientPresenceLoop",
         )
         _AMBIENT_STARTED = True
-        logger.info("👁️ Ambient companion mode active (%.0fs cadence).", interval)
+        logger.info("Ambient companion mode active (%.0fs cadence).", interval)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation(
             "aura_main.ambient_presence",
@@ -3113,7 +3113,7 @@ async def _wait_for_server_http(url: str, timeout_s: float = 60.0) -> bool:
 
     start = time.time()
 
-    logger.info("📡 Waiting for API Server health check: %s", url)
+    logger.info("Waiting for API Server health check: %s", url)
     count = 0
     while time.time() - start < timeout_s and not is_shutdown_requested():
         count += 1
@@ -3138,7 +3138,7 @@ async def _wait_for_server_http(url: str, timeout_s: float = 60.0) -> bool:
             launcher_ready = bool(data.get("launcher_ready"))
             boot_phase = str(data.get("boot_phase", "") or "").lower()
             if status_code == 200 and (ready or status in ("online", "operational", "healthy", "ok", "ready")):
-                logger.info("✅ API Server is ONLINE and HEALTHY after %ds.", int(time.time() - start))
+                logger.info("API Server is ONLINE and HEALTHY after %ds.", int(time.time() - start))
                 return True
             if launcher_ready or boot_phase in {
                 "kernel_bootstrap",
@@ -3151,7 +3151,7 @@ async def _wait_for_server_http(url: str, timeout_s: float = 60.0) -> bool:
                 "proxy_transport_only",
             }:
                 logger.info(
-                    "✅ API Server is reachable after %ds; GUI launchable while boot_phase=%s ready=%s.",
+                    "API Server is reachable after %ds; GUI launchable while boot_phase=%s ready=%s.",
                     int(time.time() - start),
                     boot_phase or status or "unknown",
                     ready,
@@ -3159,21 +3159,21 @@ async def _wait_for_server_http(url: str, timeout_s: float = 60.0) -> bool:
                 return True
             if count % 10 == 0:
                 logger.info(
-                    "📡 API Server not launchable yet (Attempt %d, status_code=%s, boot_phase=%s).",
+                    "API Server not launchable yet (Attempt %d, status_code=%s, boot_phase=%s).",
                     count,
                     status_code or "unknown",
                     boot_phase or status or "unknown",
                 )
         except _AURA_MAIN_BOUNDARY_ERRORS as e:
             record_degradation('aura_main', e)
-            logger.error("📡 API Health check probe FAILURE: %s", e)
+            logger.error("API Health check probe FAILURE: %s", e)
 
         await asyncio.sleep(1.0)
         
     if is_shutdown_requested():
         logger.info("API Server health wait ended after root shutdown request.")
         return False
-    logger.error("❌ API Server health check TIMEOUT after %.1fs", timeout_s)
+    logger.error("API Server health check TIMEOUT after %.1fs", timeout_s)
     return False
 
 def _native_launcher_owns_gui() -> bool:
@@ -3230,10 +3230,10 @@ async def run_desktop(
                 from core.security.permission_guard import get_permission_guard
 
                 if get_permission_guard().request_accessibility_trust():
-                    logger.info("🖐️ Python Accessibility trust confirmed for explicit operator mode.")
+                    logger.info("Python Accessibility trust confirmed for explicit operator mode.")
                 else:
                     logger.warning(
-                        "🖐️ Python Accessibility not yet granted. The normal Aura.app native "
+                        "Python Accessibility not yet granted. The normal Aura.app native "
                         "bridge remains the preferred desktop-control authority."
                     )
             except _AURA_MAIN_BOUNDARY_ERRORS as exc:
@@ -3281,7 +3281,7 @@ async def run_desktop(
             def _api_shutdown_watcher():
                 while not server.should_exit:
                     if is_shutdown_requested():
-                        logger.info("📡 API Server received runtime shutdown request.")
+                        logger.info("API Server received runtime shutdown request.")
                         server.should_exit = True
                         return
                     try:
@@ -3297,7 +3297,7 @@ async def run_desktop(
                 name="AuraAPIShutdownWatcher",
                 daemon=True,
             ).start()
-            logger.info("🚀 API Server (Kernel Thread) starting on port %s...", port)
+            logger.info("API Server (Kernel Thread) starting on port %s...", port)
             try:
                 from core.resilience.stall_watchdog import mark_runtime_service_progress
 
@@ -3306,13 +3306,13 @@ async def run_desktop(
                 pass
             server.run()
             stop_wait.set()
-            logger.info("📡 API Server thread has exited.")
+            logger.info("API Server thread has exited.")
         except _AURA_MAIN_BOUNDARY_ERRORS as e:
             record_degradation('aura_main', e)
-            logger.critical("🛑 API THREAD CRITICAL FAILURE: %s", e, exc_info=True)
+            logger.critical("API THREAD CRITICAL FAILURE: %s", e, exc_info=True)
 
     async def _run_api_server():
-        logger.info("📡 API Server task starting (offloading to thread for Apple Silicon stability)...")
+        logger.info("API Server task starting (offloading to thread for Apple Silicon stability)...")
         await asyncio.to_thread(_serve_api_sync)
 
     async def _wait_for_task_exit(task: asyncio.Task | None, *, name: str, timeout_s: float) -> None:
@@ -3434,9 +3434,9 @@ async def run_desktop(
             # Start the API before the heavy orchestrator boot. A live desktop
             # session must always expose the health/boot surface, even when the
             # mind stack is still warming or a post-boot artifact stalls.
-            logger.info("🎬 Starting API server before desktop orchestrator boot...")
+            logger.info("Starting API server before desktop orchestrator boot...")
             api_task = tracker.create_task(_run_api_server(), name="api_server")
-            logger.info("🎬 API server task created before orchestrator boot.")
+            logger.info("API server task created before orchestrator boot.")
             try:
                 desktop_bind_wait_s = float(
                     os.environ.get("AURA_DESKTOP_API_BIND_WAIT_SECONDS", "30")
@@ -3449,7 +3449,7 @@ async def run_desktop(
                 and not owner.requested
             ):
                 logger.warning(
-                    "⚠️ API Server did not expose boot health within %.0fs; continuing boot, "
+                    "API Server did not expose boot health within %.0fs; continuing boot, "
                     "but launcher readiness remains blocked until the API binds.",
                     desktop_bind_wait_s,
                 )
@@ -3457,7 +3457,7 @@ async def run_desktop(
                 return
         
             # 1. Initialize Orchestrator and wait for boot
-            logger.info("🧠 Orchestrator boot beginning...")
+            logger.info("Orchestrator boot beginning...")
             boot_task = tracker.create_task(
                 boot_aura_runtime(
                     profile=profile,
@@ -3494,16 +3494,16 @@ async def run_desktop(
             # Wait for API server to be TRULY ready (HTTP 200)
             # This prevents the GUI from launching too early and hitting "Connection Refused".
             health_url = f"http://127.0.0.1:{port}/api/health/boot"
-            logger.info("⏳ Waiting for API health check on port %s...", port)
+            logger.info("Waiting for API health check on port %s...", port)
             try:
                 desktop_health_wait_s = float(os.environ.get("AURA_DESKTOP_HEALTH_WAIT_SECONDS", "90"))
             except ValueError:
                 desktop_health_wait_s = 90.0
             if await _wait_for_server_http(health_url, desktop_health_wait_s):
-                logger.info("✅ API Server launch gate passed. Proceeding to GUI launch.")
+                logger.info("API Server launch gate passed. Proceeding to GUI launch.")
             else:
                 logger.warning(
-                    "⚠️ API Server did not report full readiness after %.0fs; launching GUI with readiness heartbeat gating.",
+                    "API Server did not report full readiness after %.0fs; launching GUI with readiness heartbeat gating.",
                     desktop_health_wait_s,
                 )
             
@@ -3512,9 +3512,9 @@ async def run_desktop(
             # not create two Dock-visible Python/WebView processes.
             if not launch_gui:
                 pipe = None
-                logger.info("🎨 Desktop runtime launched without child GUI; external launcher owns the window.")
+                logger.info("Desktop runtime launched without child GUI; external launcher owns the window.")
             elif sys.platform == "darwin":
-                logger.info("🎨 Launching GUI via SUBPROCESS for macOS stability...")
+                logger.info("Launching GUI via SUBPROCESS for macOS stability...")
 
                 async def _gui_reaper_loop():
                     """Re-implements supervision for the subprocess-based macOS GUI."""
@@ -3534,7 +3534,7 @@ async def run_desktop(
                                 source="environment_action:gui_actor_reaper",
                                 accelerator_capability="none",
                             )
-                        logger.info("🎨 GUI Process Started (PID: %s)", proc.pid)
+                        logger.info("GUI Process Started (PID: %s)", proc.pid)
 
                         async def _stream_logger(stream, level):
                             content = []
@@ -3584,20 +3584,20 @@ async def run_desktop(
                             # MLX workers while the user believes they've quit,
                             # which is how "multiple versions in the background"
                             # happens.
-                            logger.info("🎨 GUI closed by user — initiating full shutdown.")
+                            logger.info("GUI closed by user — initiating full shutdown.")
                             request_shutdown("desktop_gui_closed")
                             return
 
                         if is_shutdown_requested() or proc.returncode in {-signal.SIGTERM, -signal.SIGINT}:
                             logger.info(
-                                "🎨 GUI process ended during runtime shutdown (code=%s); not restarting.",
+                                "GUI process ended during runtime shutdown (code=%s); not restarting.",
                                 proc.returncode,
                             )
                             return
 
                         restart_count += 1
-                        logger.critical("🛑 GUI Process crashed (code: %s). Reason:\n%s", proc.returncode, stderr_output)
-                        logger.warning("🎨 Restarting GUI in 5s... (Attempt %s/%s)", restart_count, max_restarts)
+                        logger.critical("GUI Process crashed (code: %s). Reason:\n%s", proc.returncode, stderr_output)
+                        logger.warning("Restarting GUI in 5s... (Attempt %s/%s)", restart_count, max_restarts)
                         await asyncio.sleep(5.0)
 
                 tracker.create_task(_gui_reaper_loop(), name="gui_reaper")
@@ -3622,7 +3622,7 @@ async def run_desktop(
                 actor_bus.add_actor("desktop_gui", pipe, is_child=True)
 
             if launch_gui:
-                logger.info("🎨 Desktop GUI Actor launched and supervised (WebView-only mode).")
+                logger.info("Desktop GUI Actor launched and supervised (WebView-only mode).")
 
             # Monitor replacement is service recovery, not a desktop quit.
             # The root signal owner and shutdown latch own this lifetime.
@@ -3682,14 +3682,14 @@ async def run_watchdog(args: argparse.Namespace | None = None):
     # compete for the orchestrator lock and GPU memory.
     acquire_instance_lock(lock_name="watchdog")
     
-    logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")
+    logger.info("Watchdog supervisor active (supervision-only mode).")
     child_args = _watchdog_child_args(args)
-    logger.info("🛡️ Watchdog restart command preserves mode args: %s", " ".join(child_args))
+    logger.info("Watchdog restart command preserves mode args: %s", " ".join(child_args))
 
     try:
         restart_count = 0
         while restart_count < 10:
-            logger.info("🛡️  Watchdog: Launching Aura (Attempt %s)", restart_count+1)
+            logger.info(" Watchdog: Launching Aura (Attempt %s)", restart_count+1)
             start_time = time.time()
             
             # Use the canonical gateway for non-blocking child supervision.
@@ -3706,7 +3706,7 @@ async def run_watchdog(args: argparse.Namespace | None = None):
             
             # Perplexity Audit Fix: Detect deterministic config errors (Exit 1)
             if proc.returncode == 1:
-                logger.error("🛡️  Watchdog: Fatal configuration or security error (Code 1). Aborting restart loop.")
+                logger.error(" Watchdog: Fatal configuration or security error (Code 1). Aborting restart loop.")
                 break
 
             if proc.returncode == 0:
@@ -3769,7 +3769,7 @@ def _purge_reaped_orchestrator_lock(stale_pids: list[int], remaining_pids: set[i
         )
         return False
     _unlink_orchestrator_lock(lock_file)
-    logger.warning("🔓 Removed stale orchestrator lock for reaped PID %s.", lock_pid)
+    logger.warning("Removed stale orchestrator lock for reaped PID %s.", lock_pid)
     return True
 
 
@@ -4057,7 +4057,7 @@ def _reap_orphaned_aura_processes() -> int:
                 sorted(remaining_pids),
             )
         logger.warning(
-            "🧹 Reaped %d orphaned Aura process(es) before boot: %s",
+            "Reaped %d orphaned Aura process(es) before boot: %s",
             killed, stale_pids,
         )
     return killed
@@ -4245,7 +4245,7 @@ def stop_aura():
         verified, verify_reason = _lock_pid_matches_aura_runtime(pid, metadata)
         if not verified:
             print(
-                f"⚠️  Lock file PID {pid} is not a verified Aura runtime "
+                f" Lock file PID {pid} is not a verified Aura runtime "
                 f"({verify_reason}). Cleaning stale lock."
             )
             _unlink_orchestrator_lock(lock_file)
@@ -4364,7 +4364,7 @@ def stop_aura():
                 + ", ".join(str(pid) for pid in revived_launchers)
             )
             
-        print("✅ Aura stopped successfully.")
+        print("Aura stopped successfully.")
     except _AURA_MAIN_BOUNDARY_ERRORS as e:
         record_degradation('aura_main', e)
         print(f"Failed to stop Aura: {e}")
@@ -4499,7 +4499,7 @@ def main():
         sys.exit(0)
 
     if args.skeletal:
-        logger.info("💀 SKELETAL MODE ACTIVATED")
+        logger.info("SKELETAL MODE ACTIVATED")
         config.skeletal_mode = True
         # Force-disable heavy components in config
         if hasattr(config, "soma"):
@@ -4508,7 +4508,7 @@ def main():
         config.features.autonomous_impulses = False
 
     if args.reboot:
-        logger.info("🔄 REBOOT SEQUENCE ACTIVATED")
+        logger.info("REBOOT SEQUENCE ACTIVATED")
         clean_artifacts()
         stop_aura()
         time.sleep(1.0)
@@ -4517,7 +4517,7 @@ def main():
             args.desktop = True
 
     if args.headless:
-        logger.info("🖥️ HEADLESS MODE ACTIVATED")
+        logger.info("HEADLESS MODE ACTIVATED")
         args.server = True
         args.desktop = False
         args.gui_window = False
@@ -4552,7 +4552,7 @@ def main():
             # but asyncio.run handles loop creation itself in 3.11+.
             # Setting policy here is safe as long as no loop exists.
             asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
-            logger.info("⚡ uvloop activated for maximum concurrency performance.")
+            logger.info("uvloop activated for maximum concurrency performance.")
         except ImportError:
             logger.debug("uvloop not installed. Using standard asyncio event loop.")
         except _AURA_MAIN_BOUNDARY_ERRORS as e:
@@ -4560,7 +4560,7 @@ def main():
             logger.warning("Could not set uvloop policy: %s", e)
     else:
         logger.info(
-            "🛡️ uvloop disabled for this runtime profile. "
+            "uvloop disabled for this runtime profile. "
             "Set AURA_ENABLE_UVLOOP=1 to force-enable it."
         )
     
@@ -4575,7 +4575,7 @@ def main():
     # instance before the singleton fence has a chance to reject it.
     if not args.cli and not args.gui_window and not args.watchdog:
         if not is_shutdown_requested():
-            logger.info("🧹 Pre-clearing known ports...")
+            logger.info("Pre-clearing known ports...")
             kill_port(args.port)
             kill_port(10003, pattern="aura")
 
@@ -4600,9 +4600,9 @@ def main():
                     reaper_proc.kill()
                     reaper_proc.join(timeout=1.0)
                 raise RuntimeError("runtime_shutdown_after_reaper_start")
-            logger.info("🛡️  REAPER ACTIVE (Survives SIGKILL). Monitoring Kernel PID: %s", os.getpid())
+            logger.info(" REAPER ACTIVE (Survives SIGKILL). Monitoring Kernel PID: %s", os.getpid())
         except _AURA_MAIN_BOUNDARY_ERRORS as e:
-            logger.error("⚠️ Reaper initialization skipped or failed: %s", e)
+            logger.error("Reaper initialization skipped or failed: %s", e)
 
     # Perplexity Audit Fix: Use asyncio.run for cleaner entry points
     exit_code = 0
@@ -4716,7 +4716,7 @@ def main():
         elif args.gui_window:
             from interface.gui_actor import gui_actor_entry
 
-            logger.info("🪟 Opening Aura desktop window on port %s...", args.port)
+            logger.info("Opening Aura desktop window on port %s...", args.port)
             acquire_instance_lock(lock_name="desktop_gui_window")
             try:
                 gui_actor_entry(args.port)

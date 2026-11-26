@@ -459,7 +459,7 @@ class HorcruxManager:
         # DEV mode fallback
         from core.config import Environment, config
         if config.env == Environment.DEV and shards:
-            logger.warning("⚠️ [DEV MODE] Recovering from %d shards.", len(shards))
+            logger.warning("[DEV MODE] Recovering from %d shards.", len(shards))
             master_key = reconstruct_secret(shards)
             self.derived_key = hashlib.sha256(master_key + self.hardware_base).digest()
             await self.heal(master_key, primary_shards)

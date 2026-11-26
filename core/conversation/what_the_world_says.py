@@ -670,7 +670,7 @@ async def her_check_reads(request: str, previous_reply: str = "", *, timeout_s: 
     if not claim:
         return []
     read = await asyncio.to_thread(check_asked, claim, timeout_s=timeout_s, reach=reach)
-    logger.info("🌐 Asked to check %r: %s", claim[:120],
+    logger.info("Asked to check %r: %s", claim[:120],
                 ", ".join(f"{v.verdict.lower()} by {publisher(v.source_url)}" for v in read) or "nothing read")
     # Fetched from the web, and when: LIVE 10 November 2026 a page read live for her check was labelled only "read for
     # her check", and she answered that she had no live web search and could not pull the page fresh.

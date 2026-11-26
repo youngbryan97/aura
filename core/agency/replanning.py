@@ -226,7 +226,7 @@ async def replan(
         graph=graph,
     )
     if not chosen.reached:
-        logger.info("🛑 [Replan] no repair for '%s': %s", goal, chosen.reason)
+        logger.info("[Replan] no repair for '%s': %s", goal, chosen.reason)
         return None
     kind = chosen.chosen.name
     return Repair(

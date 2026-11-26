@@ -163,7 +163,7 @@ def _get_whisper_model_class():
         logger.warning("faster-whisper not installed — STT unavailable")
     except (AttributeError, RuntimeError) as exc:
         record_degradation('voice_engine', exc)
-        logger.error("❌ faster-whisper import failed — STT unavailable: %s", exc)
+        logger.error("faster-whisper import failed — STT unavailable: %s", exc)
     finally:
         _whisper_import_attempted = True
     return _WhisperModel
@@ -427,13 +427,13 @@ class SovereignVoiceEngine:
                 "Using Piper/pyttsx3 fallback."
             )
 
-        logger.info("🎙️ SovereignVoiceEngine v5.0 (Server-Side + Mycelial) initialized")
+        logger.info("SovereignVoiceEngine v5.0 (Server-Side + Mycelial) initialized")
         if self.should_auto_listen():
-            logger.info("🎙️ Voice auto-listen enabled by verified runtime settings.")
+            logger.info("Voice auto-listen enabled by verified runtime settings.")
         elif self.microphone_enabled:
-            logger.info("🎙️ Voice input permitted; automatic capture is disabled.")
+            logger.info("Voice input permitted; automatic capture is disabled.")
         else:
-            logger.info("🎙️ Voice input disabled by verified runtime settings.")
+            logger.info("Voice input disabled by verified runtime settings.")
         
         # Start presence pulse in background (BUG-035)
         if self.loop and self.loop.is_running():
@@ -1103,7 +1103,7 @@ class SovereignVoiceEngine:
                 self._stt_load_state = "ready"
                 self._pulse_hypha("voice_engine", "sensory_gate", success=True)
                 logger.info(
-                    "✅ Whisper STT online (model=%s, device=%s)",
+                    "Whisper STT online (model=%s, device=%s)",
                     self.whisper_model_name,
                     actual_device,
                 )
@@ -1195,7 +1195,7 @@ class SovereignVoiceEngine:
                 self._tts_lane_lease = lane_lease
                 lane_lease = None
                 self._tts_initialized = True
-                logger.info("✅ Piper Voice '%s' loaded (High Fidelity)", self.piper_voice_name)
+                logger.info("Piper Voice '%s' loaded (High Fidelity)", self.piper_voice_name)
                 self._pulse_hypha("cognition", "voice_engine", success=True)
                 return
             except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
@@ -1213,7 +1213,7 @@ class SovereignVoiceEngine:
             self.tts_engine = pyttsx3.init()
             self._tts_initialized = True
             self._pulse_hypha("cognition", "voice_engine", success=True)
-            logger.info("✅ pyttsx3 TTS online (macOS NSSpeechSynthesizer)")
+            logger.info("pyttsx3 TTS online (macOS NSSpeechSynthesizer)")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('voice_engine', e)
             logger.error("Failed to init TTS: %s", e)
@@ -1319,7 +1319,7 @@ class SovereignVoiceEngine:
             if _load_tts_api() is None:
                 raise ImportError(_tts_api_import_error or "TTS library not installed")
         
-        logger.info("🎬 Initializing Sara v3 (XTTS-v2)...")
+        logger.info("Initializing Sara v3 (XTTS-v2)...")
         # Initialize the model (downloads automatically to ~/.local/share/tts if not present)
         self._xtts_engine = TTS(self.xtts_model_name).to("mps") # Native Apple Silicon GPU
         
@@ -1332,10 +1332,10 @@ class SovereignVoiceEngine:
         if not self._speaker_wavs:
             logger.warning("No speaker references found for Sara v3 in %s. Fallback to default speaker.", self._voice_ref_dir)
         else:
-            logger.info("🧬 Loaded %d vocal references for Sara v3.", len(self._speaker_wavs))
+            logger.info("Loaded %d vocal references for Sara v3.", len(self._speaker_wavs))
 
         self._tts_initialized = True
-        logger.info("✅ Sara v3 Persona Online (High Fidelity XTTS-v2)")
+        logger.info("Sara v3 Persona Online (High Fidelity XTTS-v2)")
         self._pulse_hypha("cognition", "voice_engine", success=True)
 
     # ══════════════════════════════════════════════════════
@@ -1516,7 +1516,7 @@ class SovereignVoiceEngine:
                 {"event": "mic_activated", "sample_rate": SAMPLE_RATE},
             )
             logger.info(
-                "🎙️ Server-side mic capture ACTIVE (sounddevice, %dHz mono)",
+                "Server-side mic capture ACTIVE (sounddevice, %dHz mono)",
                 SAMPLE_RATE,
             )
             return True
@@ -1776,7 +1776,7 @@ class SovereignVoiceEngine:
         self._signal_mycelium("voice_engine", "cognition", {
             "event": "mic_deactivated"
         })
-        logger.info("🎙️ Mic capture stopped")
+        logger.info("Mic capture stopped")
         if not preserve_request:
             self._mic_device_generation += 1
             self._mic_device_state = "stopped"
@@ -1838,7 +1838,7 @@ class SovereignVoiceEngine:
         is_speaking = False
         voiced = False  # whether anything in `accumulated` crossed the voice gate
 
-        logger.info("🧵 STT worker thread started")
+        logger.info("STT worker thread started")
 
         while self._is_feeding:
             try:
@@ -1847,7 +1847,7 @@ class SovereignVoiceEngine:
                 
                 # BUG-015: Prevent infinite buffer growth
                 if len(accumulated) > 1024 * 1024 * 5: # 5MB safety cap (~2.5 mins)
-                    logger.error("⚠️ STT Buffer Safety: Clearing massive accumulated audio buffer (%.2f MB)", len(accumulated)/1024/1024)
+                    logger.error("STT Buffer Safety: Clearing massive accumulated audio buffer (%.2f MB)", len(accumulated)/1024/1024)
                     accumulated = b""
 
                 # Energy-based VAD
@@ -1865,7 +1865,7 @@ class SovereignVoiceEngine:
                 _hb_now = time.time()
                 if _hb_now - getattr(self, "_vad_heartbeat_at", 0.0) > 15.0:
                     logger.info(
-                        "🎙️ Voice listening: RMS=%.4f gate=%.4f speaking=%s buffered=%dB",
+                        "Voice listening: RMS=%.4f gate=%.4f speaking=%s buffered=%dB",
                         rms, current_silence_threshold, is_speaking, len(accumulated),
                     )
                     self._vad_heartbeat_at = _hb_now
@@ -1877,11 +1877,11 @@ class SovereignVoiceEngine:
                         is_speaking = True
                         if self._on_vad_change:
                             self._on_vad_change(True)
-                        logger.debug("🎙️ Voice activity detected (RMS=%.4f, Gate=%.4f)", rms, current_silence_threshold)
+                        logger.debug("Voice activity detected (RMS=%.4f, Gate=%.4f)", rms, current_silence_threshold)
                         # Add Barge-in Detection
                         from core.senses.voice_engine import VoiceState
                         if self.state == VoiceState.SPEAKING and not self.interrupt_flag.is_set():
-                            logger.warning("🎙️ Barge-in detected in VAD! Interrupting Aura...")
+                            logger.warning("Barge-in detected in VAD! Interrupting Aura...")
                             self.interrupt_flag.set()
                 elif is_speaking and (time.time() - last_voice_time) > SILENCE_TIMEOUT:
                     # UN-LATCH: without this, the first gate crossing pinned
@@ -1893,7 +1893,7 @@ class SovereignVoiceEngine:
                     if self._on_vad_change:
                         self._on_vad_change(False)
                     logger.debug(
-                        "🎙️ Voice activity ended (RMS=%.4f, Gate=%.4f) — utterance closing",
+                        "Voice activity ended (RMS=%.4f, Gate=%.4f) — utterance closing",
                         rms, current_silence_threshold,
                     )
                 
@@ -1926,7 +1926,7 @@ class SovereignVoiceEngine:
                         accumulated, voiced = b"", False
                 continue
 
-        logger.info("🧵 STT worker thread exiting")
+        logger.info("STT worker thread exiting")
 
     def _process_transcript(self, audio_bytes: bytes, *, voiced: bool = False):
         """Run Whisper on accumulated audio and dispatch the result.
@@ -1951,7 +1951,7 @@ class SovereignVoiceEngine:
         min_rms_db = -35.0
         if rms_db < min_rms_db:
             # Speech the voice gate heard and this one drops is a person not answered (LIVE 2026-11-10: no line at all).
-            (logger.info if voiced else logger.debug)("🎙️ STT: heard %.1fs %s at %.1f dB, under the %.1f dB gate; "
+            (logger.info if voiced else logger.debug)("STT: heard %.1fs %s at %.1f dB, under the %.1f dB gate; "
                                                       "not transcribed", audio_seconds, "of speech" if voiced else "of audio", rms_db, min_rms_db)
             return
 
@@ -2013,7 +2013,7 @@ class SovereignVoiceEngine:
                 return
             
             # Passed all filters — this is likely real user speech
-            logger.info("🎙️ STT Result (%.1fs audio, %.1fdB, conf=%.2f): %s", 
+            logger.info("STT Result (%.1fs audio, %.1fdB, conf=%.2f): %s", 
                        audio_seconds, rms_db, 
                        avg_prob if segments else 0, text)
             self._pulse_hypha("voice_engine", "cognition", success=True)
@@ -2082,7 +2082,7 @@ class SovereignVoiceEngine:
         ).as_dict()
         self._last_audio_source_assessment = assessment
         logger.info(
-            "🎧 Audio attribution: source=%s confidence=%.2f attention=%s response_authorized=%s",
+            "Audio attribution: source=%s confidence=%.2f attention=%s response_authorized=%s",
             assessment.get("source"),
             float(assessment.get("confidence", 0.0) or 0.0),
             assessment.get("attention_mode"),
@@ -2112,13 +2112,13 @@ class SovereignVoiceEngine:
         self._owner_voice_conversation = True
         self._owner_voice_conversation_started_at = time.time()
         logger.info(
-            "🎙️ Owner voice conversation OPEN — speech routes to chat without a "
+            "Owner voice conversation OPEN — speech routes to chat without a "
             "wake word until voice is switched off."
         )
 
     def end_owner_voice_conversation(self) -> None:
         if getattr(self, "_owner_voice_conversation", False):
-            logger.info("🎙️ Owner voice conversation CLOSED — wake word required again.")
+            logger.info("Owner voice conversation CLOSED — wake word required again.")
         self._owner_voice_conversation = False
         self._owner_voice_conversation_started_at = 0.0
         self._owner_voice_chunk_at = 0.0
@@ -2212,7 +2212,7 @@ class SovereignVoiceEngine:
         source = str(assessment.get("source") or "")
         if source not in self._SPEAKER_AT_THE_MACHINE_SOURCES:
             logger.info(
-                "🔇 Ambient speech not answered — source=%r is not a person at "
+                "Ambient speech not answered — source=%r is not a person at "
                 "the machine.",
                 source or "unclassified",
             )
@@ -2232,7 +2232,7 @@ class SovereignVoiceEngine:
         if attribution.get("owner_attributed"):
             return True
         logger.info(
-            "🔇 Ambient speech not answered — %s",
+            "Ambient speech not answered — %s",
             attribution.get("owner_attribution_reason", "unattributed"),
         )
         return False
@@ -2297,7 +2297,7 @@ class SovereignVoiceEngine:
                 audio_source=audio_source,
             )
             logger.info(
-                "🎙️ Recorded %svoice transcript in WorldState",
+                "Recorded %svoice transcript in WorldState",
                 "" if direct_command_dispatch else "candidate ",
             )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
@@ -2333,7 +2333,7 @@ class SovereignVoiceEngine:
                 from core.event_bus import get_event_bus
                 bus = get_event_bus()
                 bus.publish_threadsafe("user_input", {"message": text, "source": "voice"})
-                logger.info("🍄 Transcript routed via EventBus: %s", text[:60])
+                logger.info("Transcript routed via EventBus: %s", text[:60])
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('voice_engine', e)
                 logger.error("EventBus dispatch failed: %s", e)
@@ -2350,7 +2350,7 @@ class SovereignVoiceEngine:
             # indistinguishable from a dead microphone, so the one person who
             # could act on it had no way to learn what to do.
             logger.info(
-                "🎙️ Heard %r but did not answer: no wake word and no open voice "
+                "Heard %r but did not answer: no wake word and no open voice "
                 "conversation. Say 'Hey Aura' first, or press Voice to talk "
                 "without one.",
                 text[:120],
@@ -2543,10 +2543,10 @@ class SovereignVoiceEngine:
         if not text or not text.strip():
             return ""
         if not getattr(self, "speaking_enabled", True):
-            logger.debug("🔇 TTS suppressed: speaking_enabled=False")
+            logger.debug("TTS suppressed: speaking_enabled=False")
             return ""
         if not _user_voice_output_enabled():
-            logger.debug("🔇 TTS suppressed: voice.output_enabled=False (user setting)")
+            logger.debug("TTS suppressed: voice.output_enabled=False (user setting)")
             return ""
 
         async def _iter():
@@ -2560,10 +2560,10 @@ class SovereignVoiceEngine:
     async def speak_stream(self, text_iterator) -> str:
         """Plays TTS audio and returns exactly what was successfully spoken."""
         if not getattr(self, "speaking_enabled", True):
-            logger.debug("🔇 TTS stream suppressed: speaking_enabled=False")
+            logger.debug("TTS stream suppressed: speaking_enabled=False")
             return ""
         if not _user_voice_output_enabled():
-            logger.debug("🔇 TTS stream suppressed: voice.output_enabled=False (user setting)")
+            logger.debug("TTS stream suppressed: voice.output_enabled=False (user setting)")
             return ""
 
         if not await self.tts_async_lock.acquire_robust(timeout=5.0):
@@ -2583,7 +2583,7 @@ class SovereignVoiceEngine:
                 while not self.interrupt_flag.is_set():
                     try:
                         if self.interrupt_flag.is_set():
-                            logger.info("🛑 Aura interrupted. Halting synthesis.")
+                            logger.info("Aura interrupted. Halting synthesis.")
                             break
                         
                         text_chunk = await it.__anext__()
@@ -2676,7 +2676,7 @@ class SovereignVoiceEngine:
         self.microphone_enabled = False
         self.speaking_enabled = False
         self.stop_listening()
-        logger.info("🔇 Voice Engine muted (STT + TTS disabled)")
+        logger.info("Voice Engine muted (STT + TTS disabled)")
 
     def unmute(self):
         """Enable microphone input and speaker output, restart capture."""
@@ -2692,7 +2692,7 @@ class SovereignVoiceEngine:
         except RuntimeError as _e:
             # Fallback if unmuted from non-async context
             logger.debug('Ignored RuntimeError in voice_engine.py: %s', _e)
-        logger.info("🔊 Voice Engine unmuted (STT + TTS enabled)")
+        logger.info("Voice Engine unmuted (STT + TTS enabled)")
 
     async def reset(self):
         """Full reset — stop listening, clear buffers."""

@@ -258,7 +258,7 @@ class ReasoningStrategies:
         # identity prompts through the strategy layer. Treat those as direct
         # generation so we do not debate Aura's own instruction scaffold.
         if self._looks_like_instructional_prompt(query_lower):
-            logger.info("🧭 Strategy: Instructional/system prompt detected. Routing to DIRECT.")
+            logger.info("Strategy: Instructional/system prompt detected. Routing to DIRECT.")
             return StrategyType.DIRECT
         
         # Short queries or greetings → direct
@@ -272,7 +272,7 @@ class ReasoningStrategies:
             # (e.g., "Think about ethics")
             deliberate_triggers = ["ethic", "moral", "philosophy", "logic", "reason"]
             if not any(t in lower_input for t in deliberate_triggers):
-                logger.info("🧭 Strategy: Short 'think' query. Routing to DIRECT.")
+                logger.info("Strategy: Short 'think' query. Routing to DIRECT.")
                 return StrategyType.DIRECT
         
         # Check for debate-worthy queries
@@ -370,7 +370,7 @@ class ReasoningStrategies:
             "conjecture": 0.25,
         }.get(status, 0.3)
         logger.info(
-            "🔭 [FrontierDiscovery-live] status=%s committed=%s form=%s",
+            "[FrontierDiscovery-live] status=%s committed=%s form=%s",
             status, verdict.get("committed"), verdict.get("formal_form"),
         )
         return StrategyResult(
@@ -457,7 +457,7 @@ class ReasoningStrategies:
         if not result.answer:
             return None
         logger.info(
-            "🧠 [AmplifyV2-live] task=%s mode=%s verified=%s conf=%.2f",
+            "[AmplifyV2-live] task=%s mode=%s verified=%s conf=%.2f",
             task_type, result.receipt.mode, result.verified, result.confidence,
         )
         return StrategyResult(
@@ -521,7 +521,7 @@ class ReasoningStrategies:
             strategy = self.classify(query)
 
         logger.info(
-            "🧠 Reasoning strategy: %s for query preview (%d chars): %s",
+            "Reasoning strategy: %s for query preview (%d chars): %s",
             strategy.name,
             len(query),
             _neural_query_preview(query),
@@ -571,7 +571,7 @@ class ReasoningStrategies:
                         )
                         if tot_result and tot_result.final_response:
                             logger.info(
-                                "🌳 Tree of Thoughts: synthesized from %d drafts in %.0fms",
+                                "Tree of Thoughts: synthesized from %d drafts in %.0fms",
                                 len(tot_result.drafts),
                                 tot_result.elapsed_ms,
                             )
@@ -616,7 +616,7 @@ class ReasoningStrategies:
             if should_critique:
                 critique_response = await self._self_critique(query, result.content, **kwargs)
                 if critique_response and critique_response != result.content:
-                    logger.info("⚡ [Critique] Self-critique corrected the generated response!")
+                    logger.info("[Critique] Self-critique corrected the generated response!")
                     result.content = critique_response
             
             self._track_stats(result)

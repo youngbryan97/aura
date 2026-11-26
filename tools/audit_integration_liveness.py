@@ -21,7 +21,7 @@ from core.runtime.integration_liveness import (  # noqa: E402
     probe_all,
 )
 
-_MARK = {"live": "✅", "broken": "❌", "absent": "○"}
+_MARK = {"live": "ok", "broken": "failed", "absent": "○"}
 
 
 def main() -> int:
@@ -42,7 +42,7 @@ def main() -> int:
     if args.json:
         print(json.dumps(payload, indent=2))
     else:
-        print("🔌 Integration liveness (real imports, not find_spec)")
+        print("Integration liveness (real imports, not find_spec)")
         print("=" * 62)
         for result in report.results:
             mark = _MARK.get(result.state, "?")
@@ -69,7 +69,7 @@ def main() -> int:
         print()
         for result in failed:
             print(
-                f"❌ {result.integration.name} is {result.state}: "
+                f"{result.integration.name} is {result.state}: "
                 f"{result.integration.powers}"
             )
         print(
@@ -78,7 +78,7 @@ def main() -> int:
         )
         return 1
 
-    print("\n✅ No broken integrations.")
+    print("\nNo broken integrations.")
     return 0
 
 

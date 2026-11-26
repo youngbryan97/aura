@@ -253,7 +253,7 @@ def main() -> int:
             print(f"UNREACHABLE: {report.get('error')}")
             return 2
         for name, c in report["checks"].items():
-            mark = "✅" if c["ok"] else "❌"
+            mark = "ok" if c["ok"] else "failed"
             extra = f" ({c['elapsed_s']}s)" if "elapsed_s" in c else ""
             print(f"{mark} {name}: {c['detail']}{extra}")
         print("PASS" if report["passed"] else "FAIL")

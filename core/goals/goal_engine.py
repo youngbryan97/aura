@@ -694,7 +694,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
         )
         self._subgoals_stack.append(sub_goal)
         self._save_subgoals_stack()
-        logger.info("⚡ [GOAL] Pushed subgoal to stack: '%s' (parent=%s)", objective, parent_goal_id)
+        logger.info("[GOAL] Pushed subgoal to stack: '%s' (parent=%s)", objective, parent_goal_id)
         return sub_goal
 
     async def pop_subgoal(self) -> dict[str, Any] | None:
@@ -702,7 +702,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             return None
         sub_goal = self._subgoals_stack.pop()
         self._save_subgoals_stack()
-        logger.info("⚡ [GOAL] Popped subgoal from stack: '%s'", sub_goal.get("objective"))
+        logger.info("[GOAL] Popped subgoal from stack: '%s'", sub_goal.get("objective"))
         return sub_goal
 
     def get_subgoal_stack(self) -> list[dict[str, Any]]:
@@ -1250,7 +1250,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
         normalized_status = self._coerce_status(status)
 
         if normalized_status == GoalStatus.FAILED.value and existing.status != GoalStatus.FAILED.value:
-            logger.warning("⚡ [GOAL] Goal failure detected: '%s'. Initiating counterfactual replanning...", existing.objective)
+            logger.warning("[GOAL] Goal failure detected: '%s'. Initiating counterfactual replanning...", existing.objective)
             try:
                 from core.runtime.action_executor import ActionExecutor
                 from core.will import ActionDomain

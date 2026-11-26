@@ -33,7 +33,7 @@ class KernelRefiner:
         Returns:
             List of optimization proposals.
         """
-        logger.info("💎 Refiner: Initiating CognitiveKernel health audit...")
+        logger.info("Refiner: Initiating CognitiveKernel health audit...")
         
         if not self.kernel_path.exists():
             logger.error("Kernel file not found: %s", self.kernel_path)
@@ -116,7 +116,7 @@ class KernelRefiner:
             logger.debug("Refiner: deep semantic audit skipped; static audit is live-safe default.")
             return []
 
-        logger.info("🧠 Refiner: Running deep semantic audit via LLM...")
+        logger.info("Refiner: Running deep semantic audit via LLM...")
         
         # Read evaluate() method specifically
         tree = ast.parse(content)
@@ -190,7 +190,7 @@ If no refinement is needed, return {{"found": false}}.
 
     async def refine_kernel(self, proposal: Dict[str, Any]) -> bool:
         """Executes the proposed refinement using the logic transplantation protocol."""
-        logger.info("🧬 Refiner: Initiating Logic Transplantation for: %s", proposal['message'])
+        logger.info("Refiner: Initiating Logic Transplantation for: %s", proposal['message'])
         
         # Phase 15 Integration: Delegate to SelfModificationEngine
         # We need the SME instance to apply the fix safely (testing, swarm review, etc.)
@@ -205,15 +205,15 @@ If no refinement is needed, return {{"found": false}}.
             success = await sme.report_optimization(proposal)
             
             if success:
-                logger.info("✅ Refinement successful: %s applied via SME.", proposal['type'])
+                logger.info("Refinement successful: %s applied via SME.", proposal['type'])
                 # Emit success to thought stream if available
                 try:
                     from core.thought_stream import get_emitter
-                    get_emitter().emit("Kernel Evolved 💎", f"Logic optimized in {proposal['file']}", level="success")
+                    get_emitter().emit("Kernel Evolved", f"Logic optimized in {proposal['file']}", level="success")
                 except (ImportError, AttributeError, RuntimeError) as _exc:
                     logger.debug("Suppressed %s in core.self_modification.kernel_refiner: %s", type(_exc).__name__, _exc)
             else:
-                logger.warning("❌ Refinement rejected or failed during SME application loop.")
+                logger.warning("Refinement rejected or failed during SME application loop.")
                 
             return success
         except (ImportError, AttributeError, RuntimeError) as e:

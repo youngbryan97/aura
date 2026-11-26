@@ -27,7 +27,7 @@ class TestRunner:
         timeout: float = 120.0,
     ) -> Dict[str, Any]:
         """Run the test suite and return structured results."""
-        logger.info("🧪 TestRunner: executing tests in %s", repo_path)
+        logger.info("TestRunner: executing tests in %s", repo_path)
         started = time.time()
 
         try:

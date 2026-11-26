@@ -451,7 +451,7 @@ class AutonomousCognitiveEngine:
         Callers pass content-free descriptors; CP126 c0fbd774 removed the
         prompt text that used to travel through here.
         """
-        logger.info("🔍 [BRAIN-TRACE] %s", message)
+        logger.info("[BRAIN-TRACE] %s", message)
 
     def _stability_state(self) -> tuple[bool, str]:
         """``(safe_mode, basis)`` from the stability guardian.
@@ -577,7 +577,7 @@ class AutonomousCognitiveEngine:
                     model_name=cortex_model_path.split("/")[-1],
                     client=cortex_client,
                 ))
-                logger.info("🧠 PRIMARY Tier registered: %s (%s) — Daily Brain", PRIMARY_ENDPOINT, ACTIVE_MODEL)
+                logger.info("PRIMARY Tier registered: %s (%s) — Daily Brain", PRIMARY_ENDPOINT, ACTIVE_MODEL)
             except BRAIN_RECOVERABLE_ERRORS as e:
                 _record_brain_degradation(
                     e,
@@ -589,7 +589,7 @@ class AutonomousCognitiveEngine:
         # Optional local reasoning specialist. Ask the canonical admission
         # contract before resolving or constructing the model client.
         if primary_proof_lane:
-            logger.info("🛡️ Proof-primary lane active — non-primary local LLM endpoints are not registered.")
+            logger.info("Proof-primary lane active — non-primary local LLM endpoints are not registered.")
         specialist_enabled = False
         if allow_non_primary_tiers:
             try:
@@ -623,7 +623,7 @@ class AutonomousCognitiveEngine:
                     timeout=300.0,
                 ))
                 logger.info(
-                    "🧠 SECONDARY Tier registered: %s (%s) — local reasoning specialist",
+                    "SECONDARY Tier registered: %s (%s) — local reasoning specialist",
                     DEEP_ENDPOINT,
                     deep_model_name,
                 )
@@ -661,7 +661,7 @@ class AutonomousCognitiveEngine:
                 # typed into a message is a claim nobody checks; this reads the
                 # one the lifecycle declares.
                 logger.info(
-                    "⚡ TERTIARY Tier registered: %s (%s, %.1fGB) — Background/Reflex",
+                    "TERTIARY Tier registered: %s (%s, %.1fGB) — Background/Reflex",
                     BRAINSTEM_ENDPOINT,
                     brainstem_model_path.split("/")[-1],
                     _declared_footprint_gb(brainstem_model_path),
@@ -675,7 +675,7 @@ class AutonomousCognitiveEngine:
                 logger.error("Failed to register %s pathway: %s", BRAINSTEM_ENDPOINT, e)
         elif cortex_model_path:
             # If no explicit brainstem path, use the cortex model as brainstem too
-            logger.info("⚡ No explicit brainstem path — cortex will handle all local tiers")
+            logger.info("No explicit brainstem path — cortex will handle all local tiers")
 
         # ── EMERGENCY: CPU Fallback (1.5B — bypasses Metal entirely) ──
         # If 7B brainstem fails, fall back to 1.5B on CPU
@@ -711,7 +711,7 @@ class AutonomousCognitiveEngine:
                     client=cpu_client,
                     timeout=120.0  # CPU is slow, allow more time
                 ))
-                logger.info("🚨 EMERGENCY Tier registered: %s (1.5B CPU emergency)", FALLBACK_ENDPOINT)
+                logger.info("EMERGENCY Tier registered: %s (1.5B CPU emergency)", FALLBACK_ENDPOINT)
             except BRAIN_RECOVERABLE_ERRORS as e:
                 _record_brain_degradation(
                     e,
@@ -739,7 +739,7 @@ class AutonomousCognitiveEngine:
                     severity="critical",
                     extra={"registered": sorted(self.llm_router.endpoints)},
                 )
-            logger.error("⚠️ NO USABLE LLM endpoints! Registering Emergency Reflex pathway.")
+            logger.error("NO USABLE LLM endpoints! Registering Emergency Reflex pathway.")
             reflex_client = ReflexClient()
             self.llm_router.register_endpoint(LLMEndpoint(
                 name="Reflex-Model",
@@ -760,7 +760,7 @@ class AutonomousCognitiveEngine:
             label = name if _endpoint_is_usable(ep) else f"{name}(unusable)"
             tier_layout.setdefault(tier_name, []).append(label)
         logger.info(
-            "🏗️ LLM Tier Layout (registered, NOT probed for load/generation): %s", tier_layout
+            "LLM Tier Layout (registered, NOT probed for load/generation): %s", tier_layout
         )
 
 
@@ -795,7 +795,7 @@ class AutonomousCognitiveEngine:
         allow_cloud = False
         deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
         if deep_handoff and measured_unhealthy:
-            logger.info("🛟 Ill health measured: deep handoff withheld (%s)", stability_basis)
+            logger.info("Ill health measured: deep handoff withheld (%s)", stability_basis)
             deep_handoff = False
 
         turns = bounded_turns(max_turns)
@@ -944,7 +944,7 @@ class AutonomousCognitiveEngine:
                 objective, context, system_prompt, max_turns, priority, kwargs
             )
             # CP126 c0fbd774: the objective itself used to be logged here.
-            logger.info("🧠 Mind pondering objective %s", request.ref["ref"])
+            logger.info("Mind pondering objective %s", request.ref["ref"])
             self._trace(f"Pondering objective {request.ref['ref']} ({request.ref['chars']} chars)")
             return await self._route(request)
         except PROGRAMMING_DEFECT_ERRORS as exc:
@@ -990,7 +990,7 @@ class AutonomousCognitiveEngine:
                     kind="routing",
                     extra={"requested": request.requested_endpoint, "request": request.ref},
                 )
-            self._trace(f"⚡ Background-path routing: {name or 'tertiary'}")
+            self._trace(f"Background-path routing: {name or 'tertiary'}")
             return await self._router_call(
                 request, lane="background", route="background",
                 prefer_endpoint=name, prefer_tier="tertiary", deep_handoff=False,
@@ -1009,12 +1009,12 @@ class AutonomousCognitiveEngine:
             return await self._agentic_call(request, selection["agentic"])
         if wants_tools and request.measured_unhealthy:
             logger.info(
-                "🛟 Ill health measured: tool use withheld (%s)", request.stability_basis
+                "Ill health measured: tool use withheld (%s)", request.stability_basis
             )
 
         if request.deep_handoff and selection["deep"] is not None:
             name = selection["deep"].name
-            self._trace(f"🧪 Deep-handoff routing: {name}")
+            self._trace(f"Deep-handoff routing: {name}")
             return await self._router_call(
                 request, lane="deep", route="deep",
                 prefer_endpoint=name, prefer_tier="secondary", deep_handoff=True,
@@ -1022,7 +1022,7 @@ class AutonomousCognitiveEngine:
 
         if selection["fast"] is not None:
             name = selection["fast"].name
-            self._trace(f"⚡ Fast-path routing: {name}")
+            self._trace(f"Fast-path routing: {name}")
             return await self._router_call(
                 request, lane="foreground", route="fast",
                 prefer_endpoint=name, prefer_tier="primary", deep_handoff=False,
@@ -1063,7 +1063,7 @@ class AutonomousCognitiveEngine:
     async def _agentic_call(self, request: ThinkRequest, endpoint: Any) -> dict[str, Any]:
         """Run the agentic lane under scoped tool authority and a deadline."""
         self._trace(
-            f"🤔 Agentic-path routing: {endpoint.name} (turns={request.max_turns}, "
+            f"Agentic-path routing: {endpoint.name} (turns={request.max_turns}, "
             f"deadline={request.deadline_s:.0f}s)"
         )
         async with self._lane("agentic"):

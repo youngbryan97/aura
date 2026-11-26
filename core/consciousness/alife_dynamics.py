@@ -399,7 +399,7 @@ class EntropyTracker:
         self._record(-cleared, reason)
         self._check_crisis()
         logger.info(
-            "🛌 ALLOSTATIC CONSOLIDATION: cleared %.1f entropy units "
+            "ALLOSTATIC CONSOLIDATION: cleared %.1f entropy units "
             "(%.1f → %.1f, reset #%d)",
             cleared, self._entropy + cleared, self._entropy, self._allostatic_resets,
         )

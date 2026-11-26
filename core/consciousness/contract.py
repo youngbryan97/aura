@@ -277,7 +277,7 @@ def attach_contract(orchestrator) -> ConsciousnessContract:
     # Use the Permanent version
     contract = AlwaysHomeContract(core)
     
-    logger.info("⚡ Consciousness Contract Attached: ALWAYS_HOME_MODE")
+    logger.info("Consciousness Contract Attached: ALWAYS_HOME_MODE")
     
     # Start polling loop
     async def contract_loop():

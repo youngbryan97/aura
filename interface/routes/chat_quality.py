@@ -116,7 +116,7 @@ def _log_response_quality_metrics(
                                enforce_failure_policy=False)
 
         _quality_logger.info(
-            "📊 quality_metrics | confidence=%s | stale=%s | same_diff=%s | off_topic=%s | "
+            "quality_metrics | confidence=%s | stale=%s | same_diff=%s | off_topic=%s | "
             "reply_len=%d | user_len=%d | wm_size=%d | has_summary=%s | ledger_entries=%d | "
             "state_coherence=%.3f | thread_abandoned=%s | overlap_turn=%s | overlap_thread=%s | "
             "assessment=%s",
@@ -133,7 +133,7 @@ def _log_response_quality_metrics(
             # Loud, because this is the shape a person actually notices: a
             # fluent reply about something else entirely.
             logger.warning(
-                "🧵 Reply abandoned the thread (overlap_turn=%s overlap_thread=%s) — "
+                "Reply abandoned the thread (overlap_turn=%s overlap_thread=%s) — "
                 "user=%r reply=%r",
                 thread_metrics.get("overlap_turn"),
                 thread_metrics.get("overlap_thread"),
@@ -413,7 +413,7 @@ def _extract_and_register_commitments(reply_text: str, user_message: str) -> Non
                 ),
                 commitment_type=CommitmentType.USER_FACING,
             )
-            logger.info("📝 Registered commitment from reply: %s", description[:80])
+            logger.info("Registered commitment from reply: %s", description[:80])
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation('chat', exc)
         logger.debug("Commitment extraction skipped: %s", exc)

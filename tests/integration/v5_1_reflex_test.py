@@ -31,7 +31,7 @@ class MemoryVaultFixture:
 
 
 async def test_reflex_layer():
-    print("\n🍄 --- STARTING REFLEX LAYER VERIFICATION --- 🍄")
+    print("\n--- STARTING REFLEX LAYER VERIFICATION ---")
     # Clean up the container state first to protect from previous leaky tests
     ServiceContainer.clear()
     
@@ -44,11 +44,11 @@ async def test_reflex_layer():
     if match:
         pathway, params = match
         if pathway.direct_response:
-            print(f"✅ MATCHED: 'who are you' -> '{pathway.direct_response}'")
+            print(f"MATCHED: 'who are you' -> '{pathway.direct_response}'")
         else:
-            print("❌ FAILED: Pathway matched but no direct_response found.")
+            print("FAILED: Pathway matched but no direct_response found.")
     else:
-        print("❌ FAILED: No match for 'who are you'")
+        print("FAILED: No match for 'who are you'")
 
     # 2. Test ReflexEngine (Tiny Brain)
     print("\n[2/4] Testing ReflexEngine (The Tiny Brain)...")
@@ -57,11 +57,11 @@ async def test_reflex_layer():
     
     # Test generation
     response = await engine.get_emergency_response("test prompt")
-    print(f"✅ GENERATED (Tiny Brain): '{response}'")
+    print(f"GENERATED (Tiny Brain): '{response}'")
     if len(response) > 10:
-        print("✅ SUCCESS: Tiny Brain generated a substantial response.")
+        print("SUCCESS: Tiny Brain generated a substantial response.")
     else:
-        print("❌ FAILED: Tiny Brain response too short or empty.")
+        print("FAILED: Tiny Brain response too short or empty.")
 
     # 3. Test StaticReflexClient (Fallback Model)
     print("\n[3/4] Testing StaticReflexClient Contextual Awareness...")
@@ -73,17 +73,17 @@ async def test_reflex_layer():
     ServiceContainer.register_instance("memory", MemoryVaultFixture())
     
     success, response_text, metadata = await client.call("How are you?")
-    print(f"✅ FALLBACK RESPONSE: '{response_text}'")
+    print(f"FALLBACK RESPONSE: '{response_text}'")
     
     if "harmonic" in response_text.lower():
-        print("✅ SUCCESS: Mood context injected.")
+        print("SUCCESS: Mood context injected.")
     else:
-        print("⚠️ WARNING: Mood context not found in response.")
+        print("WARNING: Mood context not found in response.")
         
     if "memory" in response_text.lower() or "fragment" in response_text.lower() or "alpha" in response_text.lower():
-        print("✅ SUCCESS: Memory context injected.")
+        print("SUCCESS: Memory context injected.")
     else:
-        print("⚠️ WARNING: Memory context not found in response.")
+        print("WARNING: Memory context not found in response.")
 
     # 4. Test Orchestrator Bypass configuration
     print("\n[4/4] Verifying Orchestrator Bypass Configuration...")
@@ -104,15 +104,15 @@ async def test_reflex_layer():
         orchestrator.reflex_engine = engine
         orchestrator.mycelium = mycelium
         
-        print("✅ Logic Check: Orchestrator has 'reflex_engine' and 'mycelium' routes.")
-        print("✅ Logic Check: Boot sequence updated to call 'prime_voice()'.")
+        print("Logic Check: Orchestrator has 'reflex_engine' and 'mycelium' routes.")
+        print("Logic Check: Boot sequence updated to call 'prime_voice()'.")
     finally:
         boot_module.OrchestratorBootMixin._init_reflex_engine = original_init_reflex
 
     # Clean up the container state to prevent test pollution
     ServiceContainer.clear()
 
-    print("\n🍄 --- REFLEX LAYER VERIFICATION COMPLETE --- 🍄")
+    print("\n--- REFLEX LAYER VERIFICATION COMPLETE ---")
 
 if __name__ == "__main__":
     asyncio.run(test_reflex_layer())

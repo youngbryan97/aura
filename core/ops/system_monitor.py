@@ -50,11 +50,11 @@ class SystemStateMonitor:
         OVERWHELM_THRESHOLD = 20
         if queue_size > OVERWHELM_THRESHOLD:
             from core.brain.reasoning_queue import get_reasoning_queue, ReasoningPriority
-            logger.warning("🚨 [COGNITIVE OVERWHELM] Queue size %d exceeds threshold %d. Triggering reflex.", queue_size, OVERWHELM_THRESHOLD)
+            logger.warning("[COGNITIVE OVERWHELM] Queue size %d exceeds threshold %d. Triggering reflex.", queue_size, OVERWHELM_THRESHOLD)
             rq = get_reasoning_queue()
             # Drop everything below HIGH (i.e. keep CRITICAL and HIGH)
             dropped = await rq.prune_low_priority(threshold_priority=ReasoningPriority.HIGH.value)
-            logger.info("🗑️ Overwhelm reflex dropped %d low-priority reasoning tasks.", dropped)
+            logger.info("Overwhelm reflex dropped %d low-priority reasoning tasks.", dropped)
             # Re-fetch stability after pruning
             stability *= 0.8  # Temporary penalty for being overwhelmed
         

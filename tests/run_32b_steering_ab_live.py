@@ -112,7 +112,7 @@ def _load_preregistration():
         try:
             plan = load_preregistration(path)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
-            print(f"⚠️  Unreadable preregistration {path.name}: {exc}")
+            print(f" Unreadable preregistration {path.name}: {exc}")
             continue
         if plan.campaign == PREREGISTERED_CAMPAIGN:
             return plan
@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
             args.model_descriptor,
         )
     except (OSError, RuntimeError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        print(f"❌ Exact model identity unavailable: {type(exc).__name__}: {exc}")
+        print(f"Exact model identity unavailable: {type(exc).__name__}: {exc}")
         return 2
     model_descriptor_sha256 = str(model_identity["descriptor_sha256"])
     try:
@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
             model_descriptor_sha256=model_descriptor_sha256,
         )
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
-        print(f"❌ Steering generation unavailable: {type(exc).__name__}: {exc}")
+        print(f"Steering generation unavailable: {type(exc).__name__}: {exc}")
         return 2
 
     print("=" * 72)
@@ -269,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         model_descriptor_sha256=model_descriptor_sha256,
     )
     if not vectors:
-        print(f"❌ No extracted production vectors in {vectors_dir}; "
+        print(f"No extracted production vectors in {vectors_dir}; "
               "run training/extract_steering_vectors.py first.")
         return 2
     print(f"Production vectors: {len(vectors)} layers {sorted(vectors)} "
@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     exit_stack = contextlib.ExitStack()
     exit_stack.callback(lane.__exit__, None, None, None)
     if not lane_lease.active:
-        print("❌ Model-lane lease was not active before model load.")
+        print("Model-lane lease was not active before model load.")
         exit_stack.close()
         return 2
     try:
@@ -446,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
     print()
 
     if injector.injection_count <= 0:
-        print("❌ Injection never fired — refusing to report a steered condition "
+        print("Injection never fired — refusing to report a steered condition "
               "that was not steered.")
         exit_stack.close()
         return 3
@@ -507,11 +507,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  affect[{cond}]: +{stats['positive']} -{stats['negative']} ratio={stats['ratio']}")
     print()
     if report.passes_adversarial_control:
-        print("VERDICT: ✅ PASS — effect exceeds sampling noise, is specific to "
+        print("VERDICT: PASS — effect exceeds sampling noise, is specific to "
               "these vectors and layers, beats the text controls, and moves the "
               "intended direction.")
     else:
-        print("VERDICT: ❌ NOT ESTABLISHED — unmet: "
+        print("VERDICT: NOT ESTABLISHED — unmet: "
               + ", ".join(report.unmet_requirements()))
     print("=" * 72)
 
@@ -593,10 +593,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         drift = results_data["verdict"]["parameter_drift"]
         if drift:
-            print(f"  ⚠️  ran at unregistered parameters: {drift}")
+            print(f"   ran at unregistered parameters: {drift}")
     else:
         print(
-            "⚠️  No preregistration found — this run is EXPLORATORY by "
+            " No preregistration found — this run is EXPLORATORY by "
             "construction, whatever its numbers say."
         )
         results_data["verdict"] = {"confirms_hypothesis": False,

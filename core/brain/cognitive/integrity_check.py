@@ -96,7 +96,7 @@ class IntegrityGuard:
         """Run a full integrity sweep on the belief graph."""
         report = AuditReport()
         t0 = time.monotonic()
-        logger.info("🛡️  Integrity audit starting...")
+        logger.info(" Integrity audit starting...")
 
         if not self.belief_graph:
             logger.warning("No belief graph available — skipping audit.")
@@ -134,12 +134,12 @@ class IntegrityGuard:
 
         report.duration_s = time.monotonic() - t0
         await off_the_loop(self._write_audit_log, report)
-        logger.info("🛡️  %s", report)
+        logger.info(" %s", report)
 
         try:
             from core.thought_stream import get_emitter
             get_emitter().emit(
-                "Integrity Audit 🛡️", str(report),
+                "Integrity Audit", str(report),
                 level="info" if not report.quarantined else "warning",
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
@@ -167,7 +167,7 @@ class IntegrityGuard:
     async def _quarantine(self, belief: Dict, report: AuditReport) -> None:
         belief_id = belief.get("id", "unknown")
         logger.info(
-            "🚨 Quarantining belief %s (conf=%.3f): %s...",
+            "Quarantining belief %s (conf=%.3f): %s...",
             belief_id, belief.get("confidence", 0),
             str(belief.get("content", ""))[:80],
         )
@@ -228,7 +228,7 @@ class IntegrityGuard:
                 if pair not in seen:
                     seen.add(pair)
                     report.contradictions_found += 1
-                    logger.warning("⚠️  Contradiction: [%s] vs [%s]", bid, negated[text])
+                    logger.warning(" Contradiction: [%s] vs [%s]", bid, negated[text])
                 if report.contradictions_found >= MAX_CONTRADICTIONS:
                     report.contradiction_reporting_capped = True
                     logger.warning(

@@ -58,7 +58,7 @@ class MessagePipelineMixin:
         # 1. Simulation / Safety Check
         hook_results = await self.hooks.trigger("pre_action", tool_name=tool_name, params=params)
         if False in hook_results:
-            logger.warning("🛑 Veto block via hook system: %s", tool_name)
+            logger.warning("Veto block via hook system: %s", tool_name)
             return {
                 "break": True,
                 "response": f"Veto Block: An internal safety hook blocked {tool_name}.",
@@ -83,7 +83,7 @@ class MessagePipelineMixin:
                 )
                 if not check_result:
                     logger.warning(
-                        "🛑 Constitutional Block: %s vetoed by alignment layer.", tool_name
+                        "Constitutional Block: %s vetoed by alignment layer.", tool_name
                     )
                     return {
                         "break": True,
@@ -98,7 +98,7 @@ class MessagePipelineMixin:
             logger.debug("Constitutional check failed: %s", e)
 
         # 2. Execution
-        self._emit_telemetry(f"Skill: {tool_name} 🔧", f"Executing: {str(params)[:80]}")
+        self._emit_telemetry(f"Skill: {tool_name}", f"Executing: {str(params)[:80]}")
 
         try:
             result = await self.execute_tool(tool_name, params)
@@ -144,7 +144,7 @@ class MessagePipelineMixin:
             is_safe = await self.simulator.evaluate_risk(sim)
             reason = sim.get("risk_reason", "Action determined to be too risky.")
             if not is_safe:
-                logger.warning("🛑 Simulation block: %s", reason)
+                logger.warning("Simulation block: %s", reason)
             return {"allowed": is_safe, "reason": reason}
         except _MESSAGE_PIPELINE_ERRORS as e:
             _record_pipeline_degradation(
@@ -214,7 +214,7 @@ class MessagePipelineMixin:
                 )
 
             if surprise > 0.7:
-                logger.info("😲 HIGH SURPRISE: Triggering re-think.")
+                logger.info("HIGH SURPRISE: Triggering re-think.")
                 async with self._history_lock:
                     self.conversation_history.append(
                         {
@@ -325,7 +325,7 @@ class MessagePipelineMixin:
 
             # Skip high-frequency internal signals or thought traces
             if not content or content.startswith(
-                ("⚡", "[INTERNAL", "[System", "Impulse: ", "Thought:", "Observation: ")
+                ("AUTONOMOUS GOAL: ", "[INTERNAL", "[System", "Impulse: ", "Thought:", "Observation: ")
             ):
                 continue
 

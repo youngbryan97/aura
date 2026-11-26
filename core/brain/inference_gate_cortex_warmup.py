@@ -348,7 +348,7 @@ class _WatchesTheCortexComeUp:
             return False
         if held_by:
             logger.warning(
-                "🔍 Lane-transition lease from %s expired after %.0fs; %s is taking it.",
+                "Lane-transition lease from %s expired after %.0fs; %s is taking it.",
                 held_by,
                 now - held_at,
                 owner,
@@ -479,7 +479,7 @@ class _WatchesTheCortexComeUp:
         cooldown = min(cap, base * self._cortex_warmup_backoff_streak)
         self._cortex_warmup_backoff_until = now + cooldown
         logger.warning(
-            "🧊 [CORTEX BACKOFF] %d load setbacks in %.0fs — deferring warmup %.0fs so the "
+            "[CORTEX BACKOFF] %d load setbacks in %.0fs — deferring warmup %.0fs so the "
             "resident fallback carries and thermal recovers before the next reload shot.",
             len(recent),
             window,
@@ -577,7 +577,7 @@ class _WatchesTheCortexComeUp:
         if (now - last_log) > 60.0:
             self._last_forced_warmup_override_log_at = now
             logger.warning(
-                "⚠️ %s active — bypassing %s warmup admission "
+                "%s active — bypassing %s warmup admission "
                 "(available=%.1fGB, survival floor %.1fGB, %s).",
                 self._FORCE_WARMUP_FLAG,
                 context,
@@ -615,7 +615,7 @@ class _WatchesTheCortexComeUp:
             return
         self._last_cortex_warmup_deferral_log_at = now
         logger.warning(
-            "⏸️ Cortex %s warmup deferred to protect RAM: %s (%d so far)",
+            "Cortex %s warmup deferred to protect RAM: %s (%d so far)",
             context,
             reason,
             entry["count"],
@@ -644,7 +644,7 @@ class _WatchesTheCortexComeUp:
         """
         if "foreground_warmup_deferred" in str(warmup_exc):
             logger.info(
-                "🧠 Foreground warmup deferred by RAM admission; rerouting this turn: %s",
+                "Foreground warmup deferred by RAM admission; rerouting this turn: %s",
                 warmup_exc,
             )
             return True
@@ -657,7 +657,7 @@ class _WatchesTheCortexComeUp:
         from core.runtime.errors import describe_error
 
         logger.warning(
-            "🧠 Foreground preflight warmup did not complete cleanly: %s",
+            "Foreground preflight warmup did not complete cleanly: %s",
             describe_error(warmup_exc),
         )
         return False
@@ -695,7 +695,7 @@ class _WatchesTheCortexComeUp:
             return True
         if InferenceGate._desktop_resource_guard_enabled():
             logger.info(
-                "🛡️ Desktop resource guard active — skipping eager %s warmup during launch.",
+                "Desktop resource guard active — skipping eager %s warmup during launch.",
                 _primary_lane_label(),
             )
             return False
@@ -706,7 +706,7 @@ class _WatchesTheCortexComeUp:
                 _FLAG_FORCE_CORTEX_WARMUP_UNDER_PRESSURE.value()
             ).strip().lower() not in {"1", "true", "yes", "on"}:
                 logger.warning(
-                    "⏸️ Explicit eager Cortex warmup deferred to protect RAM: %s", snapshot["reason"]
+                    "Explicit eager Cortex warmup deferred to protect RAM: %s", snapshot["reason"]
                 )
                 return False
             return True
@@ -719,7 +719,7 @@ class _WatchesTheCortexComeUp:
             min_total_gb = float(_FLAG_BOOT_WARMUP_MIN_TOTAL_GB.value())
             if (vm.total / float(1024**3)) < min_total_gb or not snapshot["can_admit"]:
                 logger.warning(
-                    "⏸️ Deferring eager %s warmup at boot "
+                    "Deferring eager %s warmup at boot "
                     "(total=%.1fGB pressure=%.1f%% available=%.1fGB).",
                     _primary_lane_label(),
                     snapshot["total_gb"],
@@ -766,7 +766,7 @@ class _WatchesTheCortexComeUp:
                     _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT = now
                     _LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON = reason
                     logger.warning(
-                        "⏸️ Explicit deferred Cortex prewarm refused to protect RAM: %s",
+                        "Explicit deferred Cortex prewarm refused to protect RAM: %s",
                         reason,
                     )
                 else:
@@ -781,7 +781,7 @@ class _WatchesTheCortexComeUp:
         if InferenceGate._desktop_safe_boot_enabled():
             if explicit_setting is None:
                 logger.info(
-                    "🛡️ Recovery safe boot active — skipping implicit deferred %s "
+                    "Recovery safe boot active — skipping implicit deferred %s "
                     "prewarm during launch.",
                     _primary_lane_label(),
                 )
@@ -789,7 +789,7 @@ class _WatchesTheCortexComeUp:
             snapshot = InferenceGate._cortex_warmup_admission_snapshot("background")
             if not snapshot["can_admit"]:
                 logger.warning(
-                    "⏸️ Recovery safe-boot deferred Cortex prewarm deferred to protect RAM: %s",
+                    "Recovery safe-boot deferred Cortex prewarm deferred to protect RAM: %s",
                     snapshot["reason"],
                 )
                 return False
@@ -916,7 +916,7 @@ class _WatchesTheCortexComeUp:
                 return reason
             if not announced:
                 logger.info(
-                    "⏳ Cortex warmup deferred (%s); holding the turn for up to "
+                    "Cortex warmup deferred (%s); holding the turn for up to "
                     "%.0fs rather than answering with a failure.",
                     reason,
                     max(0.0, deadline - time.monotonic()),
@@ -928,7 +928,7 @@ class _WatchesTheCortexComeUp:
                 return ""
             reason = str(self._cortex_warmup_deferral_reason(context) or "")
         if not reason and announced:
-            logger.info("✅ Cortex warmup deferral cleared; the turn proceeds.")
+            logger.info("Cortex warmup deferral cleared; the turn proceeds.")
         return reason
 
     def _confirmed_cortex_warmup(

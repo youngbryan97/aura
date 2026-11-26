@@ -301,7 +301,7 @@ class RestartProtection:
             if len(self._alarms) > 128:
                 del self._alarms[:-128]
         logger.warning(
-            "🚨 ALARM %d: %s — shed %s, kept %s",
+            "ALARM %d: %s — shed %s, kept %s",
             alarm.code,
             alarm.detail,
             list(alarm.shed) or "nothing",
@@ -404,7 +404,7 @@ class RestartProtection:
             "restart_loop": looping,
         }
         logger.warning(
-            "🔄 restart (%s): discarded %d, resumed %d, lost %d",
+            "restart (%s): discarded %d, resumed %d, lost %d",
             reason or "unspecified",
             len(discarded),
             len(resumed),

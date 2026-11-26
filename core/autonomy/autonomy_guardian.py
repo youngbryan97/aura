@@ -81,17 +81,17 @@ class AutonomyGuardian:
         except asyncio.CancelledError:
             if self._system_bypassing:
                 self._log_audit(task_id, "KILLED_BY_DREAD")
-                logger.info("🛡️ Guardian: Task %s terminated by Executive Dread.", task_id)
+                logger.info("Guardian: Task %s terminated by Executive Dread.", task_id)
                 raise # Propagate to actually stop the task
 
             if allow_cancel_by_user:
                 self._log_audit(task_id, "CANCELLED_BY_USER")
-                logger.info("🛡️ Guardian: Task %s cancelled by user (allowed)", task_id)
+                logger.info("Guardian: Task %s cancelled by user (allowed)", task_id)
                 return None
             else:
                 # Blocked user cancellation
                 self._log_audit(task_id, "CANCEL_BLOCKED — rescheduling")
-                logger.warning("🛡️ Guardian: Blocked cancellation of %s, rescheduling", task_id)
+                logger.warning("Guardian: Blocked cancellation of %s, rescheduling", task_id)
                 # We can't easily "un-cancel" ourselves in some versions of asyncio,
                 # so the safest is to let the task die and expect the caller
                 # to retry, or use a complex shield wrapper.
@@ -100,15 +100,15 @@ class AutonomyGuardian:
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('autonomy_guardian', e)
             self._log_audit(task_id, "FAILED", error=str(e))
-            logger.error("🛡️ Guardian: Task %s failed: %s", task_id, e)
+            logger.error("Guardian: Task %s failed: %s", task_id, e)
             if retry_on_fail:
-                logger.info("🛡️ Guardian: Retrying %s once...", task_id)
+                logger.info("Guardian: Retrying %s once...", task_id)
                 self._log_audit(task_id, "RETRY")
                 try:
                     self._emit_diagnostic(label, str(e))
                 except (RuntimeError, AttributeError, TypeError, ValueError) as retry_err:
                     record_degradation('autonomy_guardian', retry_err)
-                    logger.error("🛡️ Guardian: Retry also failed: %s", retry_err)
+                    logger.error("Guardian: Retry also failed: %s", retry_err)
                     self._log_audit(task_id, "RETRY_FAILED", error=str(retry_err))
         finally:
             self._active_tasks.pop(task_id, None)
@@ -147,11 +147,11 @@ class AutonomyGuardian:
                 }
             }
             bus.publish_threadsafe("telemetry", payload)
-            logger.info("🛡️ Guardian: Delivered response via telemetry (origin=%s, autonomic=%s)", origin, autonomic)
+            logger.info("Guardian: Delivered response via telemetry (origin=%s, autonomic=%s)", origin, autonomic)
 
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('autonomy_guardian', e)
-            logger.error("🛡️ Guardian: CRITICAL — failed to deliver response: %s", e)
+            logger.error("Guardian: CRITICAL — failed to deliver response: %s", e)
 
     # ── Diagnostics ────────────────────────────────────────────────
 
@@ -162,7 +162,7 @@ class AutonomyGuardian:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe("telemetry", {
                 "type": "aura_message",
-                "message": f"⚠️ My autonomous {label} action encountered an issue: {error}. I'll keep trying.",
+                "message": f"My autonomous {label} action encountered an issue: {error}. I'll keep trying.",
                 "metadata": {"autonomic": True, "diagnostic": True}
             })
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -175,11 +175,11 @@ class AutonomyGuardian:
         self._audit_log.append(entry)
         if len(self._audit_log) > self._max_audit:
             self._audit_log = self._audit_log[-self._max_audit:]
-        logger.debug("🛡️ AUDIT: %s → %s %s", task_id, status, kwargs or "")
+        logger.debug("AUDIT: %s → %s %s", task_id, status, kwargs or "")
 
     async def _dread_watcher(self):
         """Monitor prospective dread and kill non-critical tasks if Aura is suffering."""
-        logger.info("🛡️ Guardian: Dread Watcher active.")
+        logger.info("Guardian: Dread Watcher active.")
         while self._is_monitoring:
             try:
                 homeostasis = get_runtime_service("homeostatic_coupling", default=None)
@@ -188,7 +188,7 @@ class AutonomyGuardian:
                     dread = snap.get("prospective_dread", 0.0)
                     
                     if dread > 0.8:
-                        logger.warning("🛡️ Guardian: CRITICAL DREAD (%.2f). Executing executive cancellation.", dread)
+                        logger.warning("Guardian: CRITICAL DREAD (%.2f). Executing executive cancellation.", dread)
                         # Cancel non-critical tasks
                         to_cancel = list(self._active_tasks.items())
                         self._system_bypassing = True # Enable bypass
@@ -196,7 +196,7 @@ class AutonomyGuardian:
                             for tid, task in to_cancel:
                                 # Never cancel critical system tasks - only "autonomous_action" and "skill_execution"
                                 if "autonomous" in tid or "skill" in tid:
-                                    logger.info("🛡️ Guardian: Executive KILL of %s due to dread.", tid)
+                                    logger.info("Guardian: Executive KILL of %s due to dread.", tid)
                                     task.cancel()
                                     # We don't log audit here, the task's own catch block will do it
                             
@@ -208,7 +208,7 @@ class AutonomyGuardian:
                 await asyncio.sleep(2.0)
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('autonomy_guardian', e)
-                logger.error("🛡️ Guardian: Dread Watcher error: %s", e)
+                logger.error("Guardian: Dread Watcher error: %s", e)
                 await asyncio.sleep(5.0)
 
     def get_audit_log(self, limit: int = 20) -> list:

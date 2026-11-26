@@ -135,7 +135,7 @@ class LatencyProbe(LiveProof):
             }
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
-                ("✅ LATENCY PROBE: SLO MET" if verdict["passed"] else "⚠️  LATENCY PROBE: SLO NOT MET (profile recorded)")
+                ("LATENCY PROBE: SLO MET" if verdict["passed"] else " LATENCY PROBE: SLO NOT MET (profile recorded)")
                 + f" → {self.verdict_path}"
             )
             return 0 if verdict["passed"] else 1

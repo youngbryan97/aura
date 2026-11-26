@@ -298,7 +298,7 @@ def sealed_artifact_admission_report() -> dict[str, Any]:
     if refused and signature != _ANNOUNCED_REFUSALS:
         _ANNOUNCED_REFUSALS = signature
         logger.warning(
-            "🔒 Sealed artifact refused: %s",
+            "Sealed artifact refused: %s",
             "; ".join(
                 f"{a['artifact']} ({a['reason']}"
                 + (f"; drifted: {', '.join(a['drifted_sources'])}" if a["drifted_sources"] else "")

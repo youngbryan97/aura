@@ -49,7 +49,7 @@ def sanitize_tool_result(result: Any) -> tuple[Any, bool]:
 
     if injections_found:
         logger.warning(
-            "🛡️ Prompt injection detected in tool result. Patterns: %s",
+            "Prompt injection detected in tool result. Patterns: %s",
             injections_found,
         )
         # Return a sanitized summary instead of the raw result

@@ -9,7 +9,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
 
 def build_app():
-    print("🚀 Building Aura.app with PyInstaller...")
+    print("Building Aura.app with PyInstaller...")
     
     # Clean previous builds
     dist_dir = PROJECT_ROOT / "dist"
@@ -67,7 +67,7 @@ def build_app():
     # Check for icon
     icon_path = PROJECT_ROOT / "aura_icon.icns"
     if not icon_path.exists():
-        print("⚠️ Icon not found, skipping icon flag.")
+        print("Icon not found, skipping icon flag.")
         cmd = [c for c in cmd if not c.startswith("--icon")]
 
     print(f"Running: {' '.join(cmd)}")
@@ -78,7 +78,7 @@ def build_app():
     
     try:
         subprocess.check_call(cmd, cwd=PROJECT_ROOT, env=env)
-        print("\n✅ Build Complete!")
+        print("\nBuild Complete!")
         print(f"App Bundle: {PROJECT_ROOT}/dist/Aura.app")
         
         # Move to Desktop for convenience
@@ -104,7 +104,7 @@ def build_app():
 
                  plist_path = source_app / "Contents" / "Info.plist"
                  if plist_path.exists():
-                     print("🔐 Injecting TCC Privacy Permissions into Info.plist...")
+                     print("Injecting TCC Privacy Permissions into Info.plist...")
                      for key, reason in info_plist_overrides().items():
                          subprocess.run(
                              ["plutil", "-replace", key, "-string", reason, str(plist_path)],
@@ -117,11 +117,11 @@ def build_app():
                  entitlements_path = write_entitlements_plist(
                      source_app.parent / "aura.entitlements"
                  )
-                 print(f"🔏 Wrote hardened-runtime entitlements: {entitlements_path}")
+                 print(f"Wrote hardened-runtime entitlements: {entitlements_path}")
 
                  # 1. Desktop
                  shutil.copytree(source_app, target)
-                 print(f"📦 Copied to Desktop: {target}")
+                 print(f"Copied to Desktop: {target}")
                  
                  # 2. Applications (The Sovereign Throne)
                  apps_path = Path.home() / "Applications" / "Aura.app"
@@ -130,15 +130,15 @@ def build_app():
                  if apps_path.exists():
                      shutil.rmtree(apps_path)
                  shutil.copytree(source_app, apps_path)
-                 print(f"📦 Force-Updated in User Applications: {apps_path}")
+                 print(f"Force-Updated in User Applications: {apps_path}")
              else:
                  # It might be just a binary if something went wrong or config diff
-                 print(f"⚠️ .app bundle not found in {dist_dir}, check raw binary.")
+                 print(f".app bundle not found in {dist_dir}, check raw binary.")
         except (OSError, shutil.Error) as e:
-            print(f"⚠️ Failed to copy to targets: {e}")
+            print(f"Failed to copy to targets: {e}")
 
     except subprocess.CalledProcessError as e:
-        print(f"❌ Build Failed: {e}")
+        print(f"Build Failed: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":

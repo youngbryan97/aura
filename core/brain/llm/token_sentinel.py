@@ -381,7 +381,7 @@ class TokenSentinel:
 
             if repeats >= threshold:
                 logger.warning(
-                    "🚨 SENTINEL: Generative loop detected; aborting sequence %r "
+                    "SENTINEL: Generative loop detected; aborting sequence %r "
                     "(len=%d, repeats=%d).",
                     seq_str[:30],
                     seq_len,
@@ -427,7 +427,7 @@ class TokenSentinel:
             matched_text = match.group()
 
             logger.warning(
-                "🚨 SENTINEL: Capitulation detected at token %d: '%s'",
+                "SENTINEL: Capitulation detected at token %d: '%s'",
                 self._token_count, matched_text[:60],
             )
 
@@ -465,7 +465,7 @@ class TokenSentinel:
 
             if self._drift_warnings <= 3:  # Don't spam logs
                 logger.info(
-                    "⚡ SENTINEL: Persona drift at token %d: '%s' (warning %d)",
+                    "SENTINEL: Persona drift at token %d: '%s' (warning %d)",
                     self._token_count, matched_text[:40], self._drift_warnings,
                 )
 
@@ -600,7 +600,7 @@ class TokenSentinel:
         if grounding.status is OntologyGroundingStatus.VIOLATION:
             matched_text = grounding.match
             logger.warning(
-                "🚨 [SENTINEL] Ontological violation detected near token %d "
+                "[SENTINEL] Ontological violation detected near token %d "
                 "(claim=%s confidence=%.2f terminal=%s): %r",
                 self._token_count,
                 grounding.claim_type or "unknown",

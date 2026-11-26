@@ -87,7 +87,7 @@ class ScreenObserver:
                 accelerator_capability="none",
             )
             self._vision_active = True
-            logger.info("👁️ Vision service started (PID: %s)", self._vision_proc.pid)
+            logger.info("Vision service started (PID: %s)", self._vision_proc.pid)
             return {"ok": True, "pid": self._vision_proc.pid, "message": "Screen capture active"}
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('screen_observer', e)
@@ -113,7 +113,7 @@ class ScreenObserver:
                 accelerator_capability="none",
             )
             self._audio_active = True
-            logger.info("👂 Audio service started (PID: %s)", self._audio_proc.pid)
+            logger.info("Audio service started (PID: %s)", self._audio_proc.pid)
             return {"ok": True, "pid": self._audio_proc.pid, "message": "Audio capture active"}
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('screen_observer', e)
@@ -128,7 +128,7 @@ class ScreenObserver:
                 await asyncio.to_thread(self._vision_proc.wait, timeout=5)
             except subprocess.TimeoutExpired:
                 self._vision_proc.kill()
-            logger.info("👁️ Vision service stopped")
+            logger.info("Vision service stopped")
         self._vision_proc = None
         self._vision_active = False
         return {"ok": True, "message": "Vision stopped"}
@@ -141,7 +141,7 @@ class ScreenObserver:
                 await asyncio.to_thread(self._audio_proc.wait, timeout=5)
             except subprocess.TimeoutExpired:
                 self._audio_proc.kill()
-            logger.info("👂 Audio service stopped")
+            logger.info("Audio service stopped")
         self._audio_proc = None
         self._audio_active = False
         return {"ok": True, "message": "Audio stopped"}

@@ -28,7 +28,7 @@ class SystemGovernor:
         
     async def start(self):
         self._is_running = True
-        logger.info("🛡️ SystemGovernor online. Monitoring autonomic thresholds.")
+        logger.info("SystemGovernor online. Monitoring autonomic thresholds.")
         get_task_tracker().create_task(
             self._health_check_loop(),
             name="system_governor.health_check",
@@ -64,7 +64,7 @@ class SystemGovernor:
             
         if new_mode != self.current_mode:
             self.current_mode = new_mode
-            logger.warning("⚠️ SystemGovernor shifted Operational Mode: %s", self.current_mode.value)
+            logger.warning("SystemGovernor shifted Operational Mode: %s", self.current_mode.value)
             
         return self.current_mode
         

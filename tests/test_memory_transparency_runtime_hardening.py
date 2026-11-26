@@ -69,7 +69,7 @@ async def test_dev_mode_represents_policy_deferral_without_failure_marker(caplog
     assert trace.error is None
     messages = [record.getMessage() for record in caplog.records]
     assert any("Tool Deferred: auto_refactor" in message for message in messages)
-    assert not any("❌ Tool Result: auto_refactor" in message for message in messages)
+    assert not any("Tool Result: auto_refactor" in message for message in messages)
 
 
 def test_vector_memory_chroma_writer_stops_and_rejects_after_close(monkeypatch, tmp_path):

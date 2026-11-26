@@ -309,7 +309,7 @@ class ManagedOrgan:
         target = State.UNCONFIGURED if recovered else State.FINALIZED
         self._set_state(target)
         logger.warning(
-            "🔄 %s error during %s: %s → %s",
+            "%s error during %s: %s → %s",
             self.name,
             transition,
             self.last_error,
@@ -369,7 +369,7 @@ class ManagedOrgan:
         logger.log(
             logging.INFO if ok else logging.WARNING,
             "%s %s: %s --%s--> %s (%.3fs)%s",
-            "🟢" if ok else "🔴",
+            "ok" if ok else "failed",
             self.name,
             from_state,
             transition,

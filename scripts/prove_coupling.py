@@ -11,10 +11,10 @@ def analyze_coupling():
     log_path = config.paths.data_dir / "telemetry" / "causal_behavior.jsonl"
     
     if not log_path.exists():
-        print(f"❌ No telemetry found at {log_path}.")
+        print(f"No telemetry found at {log_path}.")
         return
 
-    print(f"📊 ANALYZING SUBSTRATE-BEHAVIOR COUPLING AT {log_path}")
+    print(f"ANALYZING SUBSTRATE-BEHAVIOR COUPLING AT {log_path}")
     print("="*60)
     
     analysis = defaultdict(list)
@@ -70,7 +70,7 @@ def analyze_coupling():
         print(f"  Causal Correlation: {causality_score:.1f}%")
         print("-" * 60)
 
-    print("\n✅ PROOF OF COUPLING: COMPLETED")
+    print("\nPROOF OF COUPLING: COMPLETED")
     print(f"Median causal correlation across all impulses: {sum(1 for v in analysis.values()) / max(1, len(analysis)) * 100:.1f}%")
 
 if __name__ == "__main__":

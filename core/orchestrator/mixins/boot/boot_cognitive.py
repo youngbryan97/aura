@@ -42,14 +42,14 @@ class BootCognitiveMixin:
 
     async def _init_cognitive_core(self):
         """Initialize cognitive components — wire the CognitiveEngine to the LLM."""
-        logger.info("🧠 Initializing Cognitive Core...")
+        logger.info("Initializing Cognitive Core...")
         from core.brain.cognitive_engine import CognitiveEngine
 
         try:
             # 1. Resolve or Create CognitiveEngine
             ce = ServiceContainer.get("cognitive_engine", default=None)
             if not ce:
-                logger.info("🧠 Creating fresh CognitiveEngine...")
+                logger.info("Creating fresh CognitiveEngine...")
                 ce = CognitiveEngine()
                 ServiceContainer.register_instance("cognitive_engine", ce)
                 self.cognition = ce  # Use the setter
@@ -68,9 +68,9 @@ class BootCognitiveMixin:
                     setup_result = ce.wire(engine, engine)
                 if inspect.isawaitable(setup_result):
                     await setup_result
-                logger.info("🧠 Cognitive Engine wired successfully.")
+                logger.info("Cognitive Engine wired successfully.")
             else:
-                logger.warning("⚠️  CognitiveEngine missing or incompatible.")
+                logger.warning(" CognitiveEngine missing or incompatible.")
 
             # 3. Bring the recursive scratchpad online with the same engine the
             # live runtime uses. Several higher-order loops can consult it, and
@@ -103,11 +103,11 @@ class BootCognitiveMixin:
             # 4. Start API Adapter (LLM Clients)
             api_adapter = ServiceContainer.get("api_adapter", default=None)
             if api_adapter:
-                logger.info("🧠 Starting API Adapter (LLM Infrastructure)...")
+                logger.info("Starting API Adapter (LLM Infrastructure)...")
                 await api_adapter.start()
-                logger.info("🧠 API Adapter online.")
+                logger.info("API Adapter online.")
             else:
-                logger.warning("⚠️  APIAdapter not found in ServiceContainer.")
+                logger.warning(" APIAdapter not found in ServiceContainer.")
 
             # Unified services are now handled in _async_init_subsystems
             pass  # no-op: intentional
@@ -125,13 +125,13 @@ class BootCognitiveMixin:
             from research.meta_learning_loop import register_rsi_lab
 
             self.rsi_lab = register_rsi_lab(self)
-            logger.info("🔬 RSI Lab online")
+            logger.info("RSI Lab online")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_cognitive_degradation(
                 e,
                 action="continued boot without RSI lab meta-learning",
             )
-            logger.debug("🔬 RSI Lab skipped: %s", e)
+            logger.debug("RSI Lab skipped: %s", e)
 
     async def _init_concept_bridge(self):
         """Initialize Concept Vector Bridge & Cryptolalia."""
@@ -146,13 +146,13 @@ class BootCognitiveMixin:
             if hasattr(decoder, "init_routes"):
                 decoder.init_routes()
 
-            logger.info("🛰️  Cryptolalia Decoder online")
+            logger.info(" Cryptolalia Decoder online")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_cognitive_degradation(
                 e,
                 action="continued boot without concept bridge and cryptolalia decoder",
             )
-            logger.warning("🛰️  Cryptolalia Decoder failed: %s", e)
+            logger.warning(" Cryptolalia Decoder failed: %s", e)
 
     async def _init_advanced_ontology(self):
         """Initialize Advanced Ontology & Morphic Forking."""
@@ -164,13 +164,13 @@ class BootCognitiveMixin:
             from core.brain.morphic_forking import register_morphic_forking
 
             self.morphic_forking = register_morphic_forking(self)
-            logger.info("🌑 Ontology & Morphic Forking online")
+            logger.info("Ontology & Morphic Forking online")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_cognitive_degradation(
                 e,
                 action="continued boot without ontology genesis or morphic forking",
             )
-            logger.warning("🌑 Ontology/Forking failed: %s", e)
+            logger.warning("Ontology/Forking failed: %s", e)
 
     async def _init_belief_sync_subsystem(self):
         """Initialize the Belief Sync system."""
@@ -403,11 +403,11 @@ class BootCognitiveMixin:
                 action="continued boot without live learner subsystem",
                 severity="error",
             )
-            logger.error("🛑 Live Learner init failed: %s", e)
+            logger.error("Live Learner init failed: %s", e)
 
     async def _initialize_advanced_cognition(self):
         """Initialize Advanced Cognitive Architecture (Async)."""
-        logger.info("🧠 Initializing Advanced Cognitive Integration...")
+        logger.info("Initializing Advanced Cognitive Integration...")
 
         max_attempts = 2
         for attempt in range(1, max_attempts + 1):
@@ -431,10 +431,10 @@ class BootCognitiveMixin:
                         ServiceContainer.register_instance("cognitive_integration", cil)
                     else:
                         logger.warning(
-                            "⚠️  ServiceContainer locked — skipping cognitive_integration re-registration (already set)"
+                            " ServiceContainer locked — skipping cognitive_integration re-registration (already set)"
                         )
                     logger.info(
-                        "✅ Advanced Cognition active (attempt %d/%d)",
+                        "Advanced Cognition active (attempt %d/%d)",
                         attempt,
                         max_attempts,
                     )
@@ -443,9 +443,9 @@ class BootCognitiveMixin:
                     status = cil.get_status()
                     logger.info(
                         "   Kernel: %s | Monologue: %s | LanguageCenter: %s",
-                        "✅" if status.get("kernel_ready") else "❌",
-                        "✅" if status.get("monologue_ready") else "⚠️",
-                        "✅" if status.get("language_center_ready") else "⚠️",
+                        "ok" if status.get("kernel_ready") else "failed",
+                        "ok" if status.get("monologue_ready") else "warning",
+                        "ok" if status.get("language_center_ready") else "warning",
                     )
                     # Register server for Skynet health monitoring
                     try:
@@ -453,16 +453,16 @@ class BootCognitiveMixin:
 
                         if not getattr(ServiceContainer, "_registration_locked", False):
                             ServiceContainer.register_instance("server", server_app)
-                        logger.info("📡 API Server registered in ServiceContainer.")
+                        logger.info("API Server registered in ServiceContainer.")
                     except ImportError:
                         logger.warning(
-                            "📡 API Server (interface.server) not found for registration."
+                            "API Server (interface.server) not found for registration."
                         )
 
                     return  # Success — exit
                 else:
                     logger.warning(
-                        "⚠️  CIL.initialize() returned success=%s, is_active=%s (attempt %d/%d)",
+                        " CIL.initialize() returned success=%s, is_active=%s (attempt %d/%d)",
                         success,
                         cil.is_active,
                         attempt,
@@ -472,7 +472,7 @@ class BootCognitiveMixin:
                     status = cil.get_status()
                     for key, ready in status.items():
                         if not ready:
-                            logger.error("   ❌ CIL component not ready: %s", key)
+                            logger.error("   CIL component not ready: %s", key)
 
             except (ImportError, AttributeError, RuntimeError) as e:
                 _record_boot_cognitive_degradation(
@@ -490,11 +490,11 @@ class BootCognitiveMixin:
 
             # Wait before retry (only if not last attempt)
             if attempt < max_attempts:
-                logger.info("🔄 Retrying CIL initialization in 2s...")
+                logger.info("Retrying CIL initialization in 2s...")
                 await asyncio.sleep(2)
 
         logger.error(
-            "🚨 Advanced Cognition OFFLINE after %d attempts. "
+            "Advanced Cognition OFFLINE after %d attempts. "
             "Legacy fallback will be used for text responses.",
             max_attempts,
         )
@@ -697,14 +697,14 @@ class BootCognitiveMixin:
             async def _start_consciousness():
                 try:
                     await consciousness.start()
-                    logger.info("🧠 Consciousness System started in background")
+                    logger.info("Consciousness System started in background")
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     _record_boot_cognitive_degradation(
                         e,
                         action="left consciousness system registered but marked background start failed",
                         severity="error",
                     )
-                    logger.error("🛑 Consciousness System background start failed: %s", e)
+                    logger.error("Consciousness System background start failed: %s", e)
 
             from core.utils.task_tracker import fire_and_track
 
@@ -716,7 +716,7 @@ class BootCognitiveMixin:
             integration = get_consciousness_integration(self)
             await integration.initialize()
             ServiceContainer.register_instance("consciousness_integration", integration)
-            logger.info("🌟 Layer 8: Phenomenological Experiencer active")
+            logger.info("Layer 8: Phenomenological Experiencer active")
 
             from core.initializers.self_knowing import initialize_self_knowing
 
@@ -735,7 +735,7 @@ class BootCognitiveMixin:
             )
             logger.error("Failed to initialize Unified Consciousness/Affect: %s", e)
 
-        # 🟢 Additional Cognitive Models
+        # Additional Cognitive Models
         from core.consciousness.mind_model import MindModel
 
         ServiceContainer.register_instance("mind_model", MindModel())
@@ -786,7 +786,7 @@ class BootCognitiveMixin:
             self.strategic_planner = planner
             self.project_store = store
             ServiceContainer.register_instance("strategic_planner", planner)
-            logger.info("🎯 Strategic Planner & Neural Feed online")
+            logger.info("Strategic Planner & Neural Feed online")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_cognitive_degradation(
                 e,

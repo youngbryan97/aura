@@ -605,7 +605,7 @@ class AffectEngineV2(_AppraisesWhatHappened):
         self._last_lock_timeout_reason = reason
         self._last_lock_timeout_at = time.time()
         record_degradation("damasio_v2", exc)
-        logger.warning("⚠️ %s.", reason)
+        logger.warning("%s.", reason)
 
     def _prune_background_tasks(self) -> None:
         self._background_tasks = {task for task in self._background_tasks if not task.done()}
@@ -659,7 +659,7 @@ class AffectEngineV2(_AppraisesWhatHappened):
         # Do not hold the affect lock across LLM appraisal. Slow appraisals were
         # starving pulse()/echo paths and causing avoidable lock watchdog trips.
         if (not self._llm_available) and time.time() >= self._llm_backoff_until:
-            logger.info("♻️ LLM Affective appraisal reset (cooldown expired)")
+            logger.info("LLM Affective appraisal reset (cooldown expired)")
             self._llm_available = True
 
         supplied_appraisal = (context or {}).get("appraisal") if isinstance(context, dict) else None
@@ -733,7 +733,7 @@ class AffectEngineV2(_AppraisesWhatHappened):
                         )
                         logger.log(
                             log_level,
-                            "⚠️ LLM Appraisal failed (%s:%s)",
+                            "LLM Appraisal failed (%s:%s)",
                             failure_reason,
                             type(e).__name__,
                         )

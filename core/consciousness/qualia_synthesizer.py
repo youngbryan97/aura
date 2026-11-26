@@ -346,7 +346,7 @@ class QualiaSynthesizer:
                 if not self._in_attractor:
                     self._attractor_center = np.mean(stacked, axis=0)
                     logger.debug(
-                        "🌀 Qualia attractor detected (var=%.4f, center=%s)",
+                        "Qualia attractor detected (var=%.4f, center=%s)",
                         mean_var, self._attractor_center.round(3)
                     )
                 self._in_attractor = True
@@ -354,7 +354,7 @@ class QualiaSynthesizer:
             else:
                 if self._in_attractor:
                     logger.debug(
-                        "⚡ Qualia attractor broken after %d ticks (var=%.4f)",
+                        "Qualia attractor broken after %d ticks (var=%.4f)",
                         self._attractor_ticks, mean_var
                     )
                 self._in_attractor = False
@@ -404,7 +404,7 @@ class QualiaSynthesizer:
         if best_similarity > 0.95 and best_age > 10:
             if self._tick % 20 == 0:
                 logger.debug(
-                    "🔮 Structural qualia resonance: current state resembles %d ticks ago (sim=%.3f)",
+                    "Structural qualia resonance: current state resembles %d ticks ago (sim=%.3f)",
                     best_age, best_similarity,
                 )
 

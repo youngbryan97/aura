@@ -178,7 +178,7 @@ class VerifiablePreferenceHarness:
             with self._lock:
                 self._pending.extend(new_pairs)
             logger.info(
-                "🎯 [VerifiablePreference] +%d DPO pair(s) from %d candidates (domain=%s)",
+                "[VerifiablePreference] +%d DPO pair(s) from %d candidates (domain=%s)",
                 len(new_pairs), len(attempts), domain or "?",
             )
         return produced

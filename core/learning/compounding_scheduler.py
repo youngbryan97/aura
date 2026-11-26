@@ -179,7 +179,7 @@ class CompoundingScheduler:
         self._running_cycle = True
         try:
             logger.info(
-                "🧬 Weight-compounding cycle starting (trigger=%s, readiness=%s).",
+                "Weight-compounding cycle starting (trigger=%s, readiness=%s).",
                 reason, readiness,
             )
             from core.governance_context import local_internal_governed_scope
@@ -204,7 +204,7 @@ class CompoundingScheduler:
                 }
             )
             logger.info(
-                "🧬 Compounding cycle %s: %s %s",
+                "Compounding cycle %s: %s %s",
                 receipt.generation_id, receipt.status, receipt.reasons or "",
             )
             return self._last_receipt
@@ -268,7 +268,7 @@ class CompoundingScheduler:
             if domain is None:
                 domain = min(eligible, key=lambda d: float(trained.get(d, 0.0)))
             logger.info(
-                "🧩 Domain-specialist cycle starting for '%s' (chosen by %s).",
+                "Domain-specialist cycle starting for '%s' (chosen by %s).",
                 domain, chosen_by,
             )
             from core.governance_context import local_internal_governed_scope
@@ -287,7 +287,7 @@ class CompoundingScheduler:
                 }
             )
             logger.info(
-                "🧩 Specialist '%s': %s %s",
+                "Specialist '%s': %s %s",
                 domain, receipt.status, receipt.reasons or "",
             )
         except _RECOVERABLE as exc:

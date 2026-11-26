@@ -609,7 +609,7 @@ class OntologyDiscovery:
                 observation_count=len(episodes),
             )
             logger.info(
-                "🔬 OntologyGenesis discovered: %s (held-out lift %.2f, p=%.3f, "
+                "OntologyGenesis discovered: %s (held-out lift %.2f, p=%.3f, "
                 "transfer lift %.2f)",
                 pruned.describe(),
                 heldout_lift,

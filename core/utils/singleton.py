@@ -274,7 +274,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     _publish_boot_blocked(lock_name, pid)
                     holder = read_instance_lock_metadata(lock_name)
                     message = (
-                        f"⚠️  Aura ({lock_name}) is already running (PID: {pid})"
+                        f" Aura ({lock_name}) is already running (PID: {pid})"
                         + (f" — {' '.join(holder.get('cmdline') or [])}" if holder.get("cmdline") else "")
                         + f". Stop it first: kill {pid}"
                     )
@@ -291,7 +291,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                 except OSError:
                     # Process is dead. Reclaim the stale lock.
                     logger.warning(
-                        "🔓 Stale lock found for dead PID %d. Reclaiming lock for %s.",
+                        "Stale lock found for dead PID %d. Reclaiming lock for %s.",
                         pid, lock_name,
                     )
                     # Close and reopen to get a fresh FD
@@ -313,15 +313,15 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                             os.close(_LOCK_FD)
                             _LOCK_FD = os.open(str(lock_file), flags, 0o600)
                             fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                            logger.info("🔓 Stale lock reclaimed via unlink+recreate.")
+                            logger.info("Stale lock reclaimed via unlink+recreate.")
                         except OSError as reclaim_exc:
-                            message = f"⚠️  Failed to reclaim stale lock for {lock_name}: {reclaim_exc}"
+                            message = f" Failed to reclaim stale lock for {lock_name}: {reclaim_exc}"
                             logger.error(message)
                             print(message)
                             raise SystemExit(1) from None
             except (ValueError, UnicodeDecodeError):
                 # PID file is corrupt. Reclaim unconditionally.
-                logger.warning("🔓 Corrupt lock file for %s. Reclaiming.", lock_name)
+                logger.warning("Corrupt lock file for %s. Reclaiming.", lock_name)
                 try:
                     os.close(_LOCK_FD)
                     lock_file.unlink(missing_ok=True)
@@ -331,7 +331,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     _LOCK_FD = os.open(str(lock_file), flags, 0o600)
                     fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 except OSError:
-                    message = f"⚠️  Aura ({lock_name}) is already running in another window."
+                    message = f" Aura ({lock_name}) is already running in another window."
                     logger.error(message)
                     print(message)
                     raise SystemExit(0) from None
@@ -346,7 +346,7 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
         # launcher never shows a stale blocker.
         clear_boot_blocked()
 
-        logger.info("🔒 Instance lock acquired: %s (PID: %d)", lock_name, os.getpid())
+        logger.info("Instance lock acquired: %s (PID: %d)", lock_name, os.getpid())
         
     except OSError as e:
         record_degradation('singleton', e)

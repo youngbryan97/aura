@@ -111,7 +111,7 @@ class ManifestToDeviceSkill(BaseSkill):
         except (TypeError, ValueError) as exc:
             return {"ok": False, "error": f"Invalid manifest request: {exc}"}
 
-        logger.info("💾 Downloading asset from %s", url)
+        logger.info("Downloading asset from %s", url)
 
         try:
             response = await get_network_gateway().request_async(

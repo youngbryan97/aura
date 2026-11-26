@@ -78,7 +78,7 @@ def guard_growth(
     rising = {**grew, **{k: (0, v) for k, v in appeared.items()}}
 
     if rising and not accept:
-        print(f"❌ refusing to record growth in {len(rising)} entr(ies):")
+        print(f"refusing to record growth in {len(rising)} entr(ies):")
         for name, (was, is_now) in sorted(
             rising.items(), key=lambda kv: kv[1][0] - kv[1][1]
         )[:limit]:
@@ -89,7 +89,7 @@ def guard_growth(
         )
         return 1
     if rising and accept and not reason:
-        print("❌ --accept-growth needs --reason; an unexplained reset is a reset")
+        print("--accept-growth needs --reason; an unexplained reset is a reset")
         return 1
 
     payload = dict(current)

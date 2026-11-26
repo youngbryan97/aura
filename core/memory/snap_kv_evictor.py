@@ -32,7 +32,7 @@ class SnapKVEvictor:
         self.limit = memory_limit_gb
         self.token_importance_map: Dict[int, float] = {}
         self._immutable_indices: set = set()  # Core Memory Lock — never evicted
-        logger.info("🧠 SnapKVEvictor initialized. Limit: %.1f GB", self.limit)
+        logger.info("SnapKVEvictor initialized. Limit: %.1f GB", self.limit)
 
     def mark_immutable(self, token_indices: List[int]) -> None:
         """Lock token indices against eviction.
@@ -50,7 +50,7 @@ class SnapKVEvictor:
         self._immutable_indices.update(token_indices)
         added = len(self._immutable_indices) - before
         if added:
-            logger.info("🔒 SnapKV: Locked %d token(s) as Core Memory (total locked: %d).",
+            logger.info("SnapKV: Locked %d token(s) as Core Memory (total locked: %d).",
                         added, len(self._immutable_indices))
 
     def unmark_immutable(self, token_indices: List[int]) -> None:
@@ -89,11 +89,11 @@ class SnapKVEvictor:
         protected_skipped = num_to_evict - len(evict_indices)
         if protected_skipped:
             logger.info(
-                "🔒 SnapKV: Skipped %d protected Core Memory token(s) during eviction pass.",
+                "SnapKV: Skipped %d protected Core Memory token(s) during eviction pass.",
                 protected_skipped,
             )
 
-        logger.info("🧠 Cortana: Evicting %d tokens from cache to maintain health", len(evict_indices))
+        logger.info("Cortana: Evicting %d tokens from cache to maintain health", len(evict_indices))
         return evict_indices
 
     def check_memory_pressure(self, current_gb: float) -> bool:

@@ -289,7 +289,7 @@ class StateMachine:
             # Pre-check: If the user is clearly requesting an action, escalate to SKILL
             # This catches cases where the intent classifier says CHAT but the user wants a tool
             if self._should_escalate_to_skill(user_input):
-                logger.info("🔄 Escalating CHAT→SKILL: user input implies action request")
+                logger.info("Escalating CHAT→SKILL: user input implies action request")
                 response, tools = await self._handle_skill(
                     user_input, context, priority=priority, origin=origin
                 )
@@ -803,7 +803,7 @@ class StateMachine:
                         p in response_preamble for p in banned_phrases
                     ):
                         logger.warning(
-                            "🚫 Identity Regression Detected (Attempt %d). Re-aligning...",
+                            "Identity Regression Detected (Attempt %d). Re-aligning...",
                             attempt + 1,
                         )
                         attempt += 1
@@ -816,7 +816,7 @@ class StateMachine:
 
                 except self._GenericStreamPreambleError:
                     logger.warning(
-                        "🚫 Generic stream preamble detected (Attempt %d). Re-aligning...",
+                        "Generic stream preamble detected (Attempt %d). Re-aligning...",
                         attempt + 1,
                     )
                     if attempt < max_retries:
@@ -855,7 +855,7 @@ class StateMachine:
             # after all retries, use a natural fallback instead of sending silence.
             if not response or not response.strip():
                 logger.warning(
-                    "⚠️ _handle_chat: All LLM attempts produced empty response — using fallback"
+                    "_handle_chat: All LLM attempts produced empty response — using fallback"
                 )
                 response = "The live chat path returned an empty answer after all attempts; I logged the degraded turn."
 
@@ -936,7 +936,7 @@ class StateMachine:
             tool_name = intent_hint["tool"]
             validated_params = intent_hint.get("params", {})
             if allow_intent_hint_bypass(context, origin):
-                logger.info("⚡ Sovereign Scanner Bypass: Directly executing %s", tool_name)
+                logger.info("Sovereign Scanner Bypass: Directly executing %s", tool_name)
 
                 # v34 FIX: Directly execute the skill logic without requiring it to be in `active_names`
                 # The orchestrator will dynamically load it if necessary
@@ -949,7 +949,7 @@ class StateMachine:
                     origin=origin,
                 )
             logger.info(
-                "🧭 StateMachine: Ignoring unsanctioned intent_hint for %s and falling back to governed tool selection.",
+                "StateMachine: Ignoring unsanctioned intent_hint for %s and falling back to governed tool selection.",
                 tool_name,
             )
 

@@ -689,7 +689,7 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
             return receipt
         if resolved_name != app_name:
             logger.info(
-                "🖥️ Resolved requested app %r to %r (%s).",
+                "Resolved requested app %r to %r (%s).",
                 app_name,
                 resolved_name,
                 resolution.basis,

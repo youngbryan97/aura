@@ -210,7 +210,7 @@ def _lift_for_this_turn() -> float:
         if not reading.measured or not reading.withdraws:
             return 1.0
         logger.info(
-            "🫱 [Presence] answer budget lifted x%.2f: %s", reading.lift, reading.why
+            "[Presence] answer budget lifted x%.2f: %s", reading.lift, reading.why
         )
         return max(1.0, reading.lift)
     except (ImportError, AttributeError, TypeError, ValueError):
@@ -1999,7 +1999,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             return
         if planted is not None:
             modifiers["kept_procedure"] = planted
-            logger.info("🧠 [UnitaryResponse] kept procedure for %s answered before the draft (%s).",
+            logger.info("[UnitaryResponse] kept procedure for %s answered before the draft (%s).",
                         planted["family"], planted["form"])
 
     @staticmethod
@@ -2012,7 +2012,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             return None
         lines = [
             "[ACTIVE GROUNDING EVIDENCE]",
-            f"[SKILL RESULT: kept_procedure] \u2705 Answer: {planted['answer']}",
+            f"[SKILL RESULT: kept_procedure] ok Answer: {planted['answer']}",
             f"Summary: {planted['summary']}",
         ]
         return {"role": "system", "content": "\n".join(lines)}
@@ -2048,12 +2048,12 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             built = _build_file_grounding_message(objective)
             if built is not None:
                 logger.info(
-                    "📄 [GROUNDING] read a named file for this turn (%d chars).",
+                    "[GROUNDING] read a named file for this turn (%d chars).",
                     len(built.get("content", "")),
                 )
                 return built
             logger.debug(
-                "📄 [GROUNDING] no named file in objective=%r", str(objective)[:120]
+                "[GROUNDING] no named file in objective=%r", str(objective)[:120]
             )
             return cls._build_corpus_grounding_message(objective, state)
 
@@ -2637,7 +2637,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 continue
             content = cls._normalize_text(msg.get("content", ""), 600)
             stripped = re.sub(
-                rf"^\[SKILL RESULT:\s*{re.escape(skill_name)}\]\s*[✅⚠️]?\s*",
+                rf"^\[SKILL RESULT:\s*{re.escape(skill_name)}\]\s*(?:(?:ok|warning)\b)?\s*",
                 "",
                 content,
                 flags=re.IGNORECASE,
@@ -3733,7 +3733,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             # the way any other turn would, which for a request to build
             # something means building it here.
             logger.info(
-                "🎯 Background planning was deferred; answering inline rather than "
+                "Background planning was deferred; answering inline rather than "
                 "promising work that has not started."
             )
         if last_task_outcome == "started":
@@ -3762,7 +3762,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     ack_response = said
                     new_state.cognition.last_response = ack_response
                     logger.info(
-                        "🎯 Background task already started (outcome=started). "
+                        "Background task already started (outcome=started). "
                         "Returning evidence-bounded acknowledgment instead of LLM-generated response."
                     )
                     return new_state
@@ -3772,7 +3772,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 "verifiable status."
             )
             logger.info(
-                "🎯 Background task dispatched (outcome=started). "
+                "Background task dispatched (outcome=started). "
                 "Returning fail-closed missing-payload acknowledgment."
             )
             return new_state
@@ -3785,7 +3785,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             )
             if identity_violation or substrate_violation:
                 violation = identity_violation or substrate_violation
-                logger.info("🛡️ Pre-generation refusal triggered: %s", violation)
+                logger.info("Pre-generation refusal triggered: %s", violation)
                 refusal_text = await self._refusal._build_refusal(objective, violation, new_state)
                 new_state.cognition.last_response = refusal_text
                 return new_state
@@ -3844,7 +3844,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         "evidence": list(synthesized.evidence),
                     }
                     logger.info(
-                        "🧩 Benchmark artifact synthesized from visible prompt data "
+                        "Benchmark artifact synthesized from visible prompt data "
                         "(kind=%s reason=%s confidence=%.2f).",
                         synthesized.kind,
                         reason,
@@ -3883,7 +3883,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 deep_handoff = False
                 new_state.response_modifiers["proof_model_tier"] = model_tier
             logger.info(
-                "🧠 UnitaryResponse: Using tier=%s for response generation. (priority=%s)",
+                "UnitaryResponse: Using tier=%s for response generation. (priority=%s)",
                 model_tier,
                 priority,
             )
@@ -3945,7 +3945,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             )
                             if not (await asyncio.to_thread(assess_user_facing_reply, objective, direct_self_report)).retryable:
                                 logger.info(
-                                    "🗣️ UnitaryResponse: answered live self-reflection directly from grounded state."
+                                    "UnitaryResponse: answered live self-reflection directly from grounded state."
                                 )
                                 return self._commit_response(new_state, direct_self_report)
                     except (ImportError, AttributeError, TypeError, ValueError) as self_report_exc:
@@ -3969,7 +3969,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             "confidence": proof_answer.confidence,
                         }
                         logger.info(
-                            "🧠 UnitaryResponse: strict proof answered by %s solver.",
+                            "UnitaryResponse: strict proof answered by %s solver.",
                             proof_answer.solver,
                         )
                         return self._commit_response(
@@ -3989,7 +3989,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 600,
             )
             if precomputed_reply:
-                logger.info("🧰 UnitaryResponse: answered directly from precomputed tool reply.")
+                logger.info("UnitaryResponse: answered directly from precomputed tool reply.")
                 return self._commit_response(new_state, precomputed_reply)
 
             if routing_origin == "benchmark":
@@ -4033,11 +4033,11 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 elif self._build_deterministic_task_reply(new_state, objective, contract):
                     new_state.response_modifiers["pre_model_deterministic_task_reply_skipped"] = True
             if deterministic_task_reply:
-                logger.info("🧰 UnitaryResponse: answered directly from task state.")
+                logger.info("UnitaryResponse: answered directly from task state.")
                 return self._commit_response(new_state, deterministic_task_reply, fixed=True)
             if deterministic_tool_reply:
                 logger.info(
-                    "🧰 UnitaryResponse: answered directly from deterministic tool result (%s).",
+                    "UnitaryResponse: answered directly from deterministic tool result (%s).",
                     new_state.response_modifiers.get("last_skill_run", "tool"),
                 )
                 return self._commit_response(new_state, deterministic_tool_reply)
@@ -4048,7 +4048,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 )
                 if synthesized_response:
                     logger.info(
-                        "🧩 UnitaryResponse: benchmark artifact satisfied before model inference."
+                        "UnitaryResponse: benchmark artifact satisfied before model inference."
                     )
                     return self._commit_response(new_state, synthesized_response)
 
@@ -4056,7 +4056,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 floor_reply = self._simple_foreground_floor_reply(objective)
                 if floor_reply:
                     logger.info(
-                        "🗣️ UnitaryResponse: answered simple foreground request without TaskEngine."
+                        "UnitaryResponse: answered simple foreground request without TaskEngine."
                     )
                     return self._commit_response(new_state, floor_reply, fixed=True)
 
@@ -4071,7 +4071,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             auto_browse_urls = auto_browse_urls[:_AUTO_BROWSE_MAX_URLS]
             if auto_browse_urls and is_user_facing:
                 logger.info(
-                    "🌐 UnitaryResponse: Auto-browsing %d URL(s) from user input.",
+                    "UnitaryResponse: Auto-browsing %d URL(s) from user input.",
                     len(auto_browse_urls),
                 )
                 fetched_content_parts = []
@@ -4098,13 +4098,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                             f"[PAGE: {page_title}]\n{page_content}"
                                         )
                                         logger.info(
-                                            "🌐 Fetched URL content: %s (%d chars)",
+                                            "Fetched URL content: %s (%d chars)",
                                             page_title[:60],
                                             len(page_content),
                                         )
                                     else:
                                         logger.warning(
-                                            "🌐 URL returned ok but empty content: %s",
+                                            "URL returned ok but empty content: %s",
                                             str(url)[:80],
                                         )
                                 else:
@@ -4114,13 +4114,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                         else "no result"
                                     )
                                     logger.warning(
-                                        "🌐 URL fetch failed: %s → %s",
+                                        "URL fetch failed: %s → %s",
                                         str(url)[:80],
                                         str(error)[:200],
                                     )
                             except TimeoutError:
                                 logger.warning(
-                                    "🌐 URL fetch timed out after %.0fs: %s",
+                                    "URL fetch timed out after %.0fs: %s",
                                     _AUTO_BROWSE_TIMEOUT_SECONDS,
                                     str(url)[:80],
                                 )
@@ -4133,7 +4133,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                     severity="error",
                                 )
                                 logger.warning(
-                                    "🌐 URL fetch error: %s → %s", str(url)[:80], url_exc
+                                    "URL fetch error: %s → %s", str(url)[:80], url_exc
                                 )
 
                     # ── Lightweight HTTP fallback for URLs that the browser couldn't read ──
@@ -4142,7 +4142,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     # try a simple httpx GET with a real User-Agent.
                     if not fetched_content_parts:
                         logger.info(
-                            "🌐 Browser returned no content. Trying lightweight HTTP fallback..."
+                            "Browser returned no content. Trying lightweight HTTP fallback..."
                         )
                         try:
                             import html
@@ -4299,13 +4299,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                                             f"[PAGE: {page_title}]\n{page_text[:60000]}"
                                                         )
                                                         logger.info(
-                                                            "🌐 HTTP fallback fetched Reddit JSON: %s (%d chars)",
+                                                            "HTTP fallback fetched Reddit JSON: %s (%d chars)",
                                                             page_title[:60],
                                                             len(page_text),
                                                         )
                                                     else:
                                                         logger.warning(
-                                                            "🌐 HTTP fallback returned empty Reddit JSON for: %s",
+                                                            "HTTP fallback returned empty Reddit JSON for: %s",
                                                             str(url)[:80],
                                                         )
                                                 except _RESPONSE_RECOVERABLE_ERRORS as e:
@@ -4316,7 +4316,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                                         severity="error",
                                                     )
                                                     logger.warning(
-                                                        "🌐 Failed to parse Reddit JSON: %s", e
+                                                        "Failed to parse Reddit JSON: %s", e
                                                     )
 
                                             else:
@@ -4338,13 +4338,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                                         f"[PAGE: {page_title}]\n{page_text[:60000]}"
                                                     )
                                                     logger.info(
-                                                        "🌐 HTTP fallback (Jina Proxy) fetched: %s (%d chars)",
+                                                        "HTTP fallback (Jina Proxy) fetched: %s (%d chars)",
                                                         page_title[:60],
                                                         len(page_text),
                                                     )
                                                 else:
                                                     logger.warning(
-                                                        "🌐 Jina Proxy failed or blocked. Trying native HTML fallback..."
+                                                        "Jina Proxy failed or blocked. Trying native HTML fallback..."
                                                     )
                                                     # Ultimate Native Fallback
                                                     native_resp = get_network_gateway().request(
@@ -4389,18 +4389,18 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                                                 f"[PAGE: {native_title}]\n{native_text[:60000]}"
                                                             )
                                                             logger.info(
-                                                                "🌐 HTTP fallback (Native HTML) fetched: %s (%d chars)",
+                                                                "HTTP fallback (Native HTML) fetched: %s (%d chars)",
                                                                 native_title[:60],
                                                                 len(native_text),
                                                             )
                                                     else:
                                                         logger.warning(
-                                                            "🌐 HTTP fallback (Native HTML) got status %d",
+                                                            "HTTP fallback (Native HTML) got status %d",
                                                             native_status,
                                                         )
                                     else:
                                         logger.warning(
-                                            "🌐 HTTP fallback got status %d for: %s",
+                                            "HTTP fallback got status %d for: %s",
                                             resp_status,
                                             fetch_url[:80],
                                         )
@@ -4415,7 +4415,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                         severity="error",
                                     )
                                     logger.warning(
-                                        "🌐 HTTP fallback error for %s: %s", str(url)[:80], http_exc
+                                        "HTTP fallback error for %s: %s", str(url)[:80], http_exc
                                     )
                         except GovernanceViolation:
                             raise
@@ -4426,7 +4426,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 action="continued response generation without lightweight HTTP fallback content",
                                 severity="error",
                             )
-                            logger.warning("🌐 HTTP fallback failed: %s", fallback_exc)
+                            logger.warning("HTTP fallback failed: %s", fallback_exc)
                 except GovernanceViolation:
                     raise
                 except _RESPONSE_RECOVERABLE_ERRORS as browse_exc:
@@ -4436,7 +4436,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         action="continued response generation without auto-browsed page content",
                         severity="error",
                     )
-                    logger.warning("🌐 Auto-browse orchestrator error: %s", browse_exc)
+                    logger.warning("Auto-browse orchestrator error: %s", browse_exc)
 
                 contract = _bind_fetched_content_to_the_contract(
                     auto_browse_urls=auto_browse_urls,
@@ -4456,7 +4456,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 )
                 if cached_search_reply:
                     logger.info(
-                        "🔎 UnitaryResponse: answered explicit search from grounded tool evidence."
+                        "UnitaryResponse: answered explicit search from grounded tool evidence."
                     )
                     return self._commit_response(new_state, cached_search_reply)
                 if not contract.tool_evidence_available:
@@ -4482,12 +4482,12 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         new_state.response_modifiers["response_contract"] = contract.to_dict()
                     if grounded_search_reply:
                         logger.info(
-                            "🔎 UnitaryResponse: satisfied explicit search request through grounded tool execution."
+                            "UnitaryResponse: satisfied explicit search request through grounded tool execution."
                         )
                         return self._commit_response(new_state, grounded_search_reply)
                     if grounded_payload:
                         logger.info(
-                            "🔎 UnitaryResponse: collected grounded search evidence and will synthesize from it."
+                            "UnitaryResponse: collected grounded search evidence and will synthesize from it."
                         )
                     else:
                         attempted_skill = str(
@@ -4539,13 +4539,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         direct_validation.to_dict()
                     )
                     logger.info(
-                        "🗣️ UnitaryResponse: answered from direct live Aura voice lane (%s)",
+                        "UnitaryResponse: answered from direct live Aura voice lane (%s)",
                         direct_contract.reason or "live_voice",
                     )
                     return self._commit_response(new_state, direct_reply, fixed=True)
             elif is_user_facing:
                 logger.debug(
-                    "🗣️ UnitaryResponse: live-voice direct lane not taken (priority=%s reason=%s contract_live=%s)",
+                    "UnitaryResponse: live-voice direct lane not taken (priority=%s reason=%s contract_live=%s)",
                     priority,
                     getattr(contract, "reason", ""),
                     contract.requires_live_aura_voice(),
@@ -4564,7 +4564,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 )
                 if direct_memory_answer:
                     logger.info(
-                        "🧠 UnitaryResponse: answered explicit recall from episodic evidence."
+                        "UnitaryResponse: answered explicit recall from episodic evidence."
                     )
                     return self._commit_response(new_state, direct_memory_answer)
 
@@ -4572,7 +4572,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 idle_trace_answer = self._build_idle_trace_text(new_state)
                 if idle_trace_answer:
                     logger.info(
-                        "🧠 UnitaryResponse: answered idle introspection from stream trace."
+                        "UnitaryResponse: answered idle introspection from stream trace."
                     )
                     return self._commit_response(new_state, idle_trace_answer)
 
@@ -4587,7 +4587,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             "confidence": proof_answer.confidence,
                         }
                         logger.info(
-                            "🧠 UnitaryResponse: strict proof answered by %s solver.",
+                            "UnitaryResponse: strict proof answered by %s solver.",
                             proof_answer.solver,
                         )
                         return self._commit_response(
@@ -4630,7 +4630,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 )
                 if background_reason:
                     logger.info(
-                        "🛡️ UnitaryResponse: suppressing background response generation for origin=%s (%s).",
+                        "UnitaryResponse: suppressing background response generation for origin=%s (%s).",
                         routing_origin,
                         background_reason,
                     )
@@ -4638,7 +4638,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     return new_state
                 if self._background_response_should_defer(routing_origin):
                     logger.info(
-                        "🛡️ UnitaryResponse: deferring background response generation for origin=%s.",
+                        "UnitaryResponse: deferring background response generation for origin=%s.",
                         routing_origin,
                     )
                     response_policy.clear_background_generation(new_state, objective)
@@ -4709,7 +4709,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     {"role": "user", "content": objective},
                 ]
                 logger.info(
-                    "🧠 [ZENITH] CORE DIRECTIVE fast-path: directive-only prompt (len=%d)",
+                    "[ZENITH] CORE DIRECTIVE fast-path: directive-only prompt (len=%d)",
                     len(system_prompt),
                 )
             elif routing_origin == "benchmark":
@@ -4718,7 +4718,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": objective},
                 ]
-                logger.info("🧠 [ZENITH] Benchmark fast-path: minimal isolated prompt.")
+                logger.info("[ZENITH] Benchmark fast-path: minimal isolated prompt.")
             elif strict_proof_answer_request:
                 strict_user_objective = (
                     objective
@@ -4746,21 +4746,21 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": strict_user_objective},
                 ]
-                logger.info("🧠 [ZENITH] Strict proof fast-path: minimal live-path prompt.")
+                logger.info("[ZENITH] Strict proof fast-path: minimal live-path prompt.")
             elif proof_evaluation_turn:
                 system_prompt = self._build_proof_evaluation_system_prompt(new_state, contract)
                 messages = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": objective},
                 ]
-                logger.info("🧠 [ZENITH] Proof evaluation fast-path: isolated live-path prompt.")
+                logger.info("[ZENITH] Proof evaluation fast-path: isolated live-path prompt.")
             elif operator_evidence_turn:
                 system_prompt = self._build_operator_evidence_system_prompt()
                 messages = [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": objective},
                 ]
-                logger.info("🧠 [ZENITH] Operator-evidence fast-path: isolated foreground prompt.")
+                logger.info("[ZENITH] Operator-evidence fast-path: isolated foreground prompt.")
             elif exact_format_required:
                 system_prompt = (
                     "You are Aura's governed user-facing response lane. The latest user message "
@@ -4773,7 +4773,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": objective},
                 ]
-                logger.info("🧠 [ZENITH] Exact-format fast-path: isolated foreground prompt.")
+                logger.info("[ZENITH] Exact-format fast-path: isolated foreground prompt.")
             elif not is_user_facing:
                 system_prompt = self._build_background_router_system_prompt(new_state)
                 messages = self._build_router_messages(
@@ -4901,7 +4901,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             "paste the artifact's content into chat."
                         )
                         logger.info(
-                            "🖥️ [UNITARY] Desktop execution planning contract injected "
+                            "[UNITARY] Desktop execution planning contract injected "
                             "(matched_skills=%s).",
                             _matched_now[:3] or "objective-detected",
                         )
@@ -4957,7 +4957,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 )
                 if is_banter:
                     logger.debug(
-                        "🛡️ Banter Shield: suppressing RUBICON and architectural metrics for persona purity."
+                        "Banter Shield: suppressing RUBICON and architectural metrics for persona purity."
                     )
                 else:
                     try:
@@ -5009,7 +5009,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     6  # [STABILITY] Increased from 2 to 6. 2 turns causes total context collapse.
                 )
                 logger.info(
-                    "🛡️ UnitaryResponse: Using minimal history (6) for Embodied Challenge priority."
+                    "UnitaryResponse: Using minimal history (6) for Embodied Challenge priority."
                 )
 
             if not messages:
@@ -5054,7 +5054,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         # Re-sync if needed
                         _sync_first_system_message(messages, system_prompt)
                         logger.warning(
-                            "🚨 Anti-repetition instruction injected into system prompt."
+                            "Anti-repetition instruction injected into system prompt."
                         )
             except _RESPONSE_RECOVERABLE_ERRORS as exc:
                 _record_response_degradation(
@@ -5348,7 +5348,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         ) from timeout_exc
                     if is_user_facing:
                         logger.warning(
-                            "🚨 [STABILITY] LLM generation hard-timed-out. Using operational failure floor."
+                            "[STABILITY] LLM generation hard-timed-out. Using operational failure floor."
                         )
                         raw = self._build_minimal_live_voice_reply(new_state, objective)
                     else:
@@ -5391,7 +5391,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         raw = rescued
                     else:
                         logger.warning(
-                            "🚨 [STABILITY] Foreground conversation lane returned no valid text. Using operational failure floor."
+                            "[STABILITY] Foreground conversation lane returned no valid text. Using operational failure floor."
                         )
                         raw = self._build_minimal_live_voice_reply(new_state, objective)
                 else:
@@ -5886,7 +5886,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     )
                     if not strict_envelope:
                         raise RuntimeError("strict_proof_answer_contract_unmet")
-                    logger.info("🧠 UnitaryResponse: strict proof answered through exact envelope lane.")
+                    logger.info("UnitaryResponse: strict proof answered through exact envelope lane.")
                     return self._commit_response(new_state, strict_envelope)
 
             response_text = await _repair_an_incomplete_proof_evaluation(
@@ -5918,10 +5918,10 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     and not model_retry_suppressed
                     and strategies._is_logical_check(objective)
                 ):
-                    logger.info("⚡ [Critique] Running System 2 self-critique on response...")
+                    logger.info("[Critique] Running System 2 self-critique on response...")
                     critique_response = await strategies._self_critique(objective, response_text, origin=routing_origin)
                     if critique_response and critique_response != response_text:
-                        logger.info("⚡ [Critique] Self-critique corrected the generated response!")
+                        logger.info("[Critique] Self-critique corrected the generated response!")
                         response_text = critique_response
             except (ImportError, AttributeError, TypeError, ValueError, LookupError, RuntimeError, NameError, SyntaxError, TimeoutError) as critique_exc:
                 logger.warning("Failed to run System 2 self-critique: %s", critique_exc)
@@ -5962,7 +5962,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     extracted_ans = extracted_ans.rstrip(".,;:!?* ")
                     # Wrap and append
                     response_text += f"\n\n<answer>{extracted_ans}</answer>"
-                    logger.info("🛡️ [HARDENING] Auto-corrected and wrapped extracted answer '%s' in XML tags.", extracted_ans)
+                    logger.info("[HARDENING] Auto-corrected and wrapped extracted answer '%s' in XML tags.", extracted_ans)
             if self._guard and not benchmark_turn:
                 response_text, _, _ = self._guard.align(response_text)
             if (
@@ -5977,7 +5977,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             async def _retry_dialogue(repair_block: str) -> str:
                 if desktop_cognitive_engine_required:
                     logger.warning(
-                        "🛡️ UnitaryResponse skipped a second heavyweight desktop generation; "
+                        "UnitaryResponse skipped a second heavyweight desktop generation; "
                         "deterministic dialogue repair remains authoritative for this turn."
                     )
                     return ""
@@ -6072,7 +6072,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 operator_retry = await _retry_dialogue(operator_retry_block)
                 if self._operator_evidence_reply_is_substantive(operator_retry):
                     logger.warning(
-                        "🛡️ UnitaryResponse regenerated operator-evidence draft through primary lane."
+                        "UnitaryResponse regenerated operator-evidence draft through primary lane."
                     )
                     response_text = operator_retry
 
@@ -6150,7 +6150,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         )
                         if pre_is_real_answer and retry_is_worse:
                             logger.warning(
-                                "🗣️ UnitaryResponse preserved substantive first draft over weaker dialogue retry "
+                                "UnitaryResponse preserved substantive first draft over weaker dialogue retry "
                                 "(pre_violations=%s post_violations=%s pre_len=%d post_len=%d).",
                                 ",".join(pre_dialogue_validation.violations) or "none",
                                 ",".join(dialogue_validation.violations) or "none",
@@ -6178,13 +6178,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             contract,
                         )
                         logger.info(
-                            "🗣️ UnitaryResponse: replaced failed subjective draft with grounded recovery reply (%s)",
+                            "UnitaryResponse: replaced failed subjective draft with grounded recovery reply (%s)",
                             ", ".join(dialogue_validation.violations) or "recovered",
                         )
                 new_state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
                 if dialogue_retried:
                     logger.info(
-                        "🗣️ UnitaryResponse: retried draft to satisfy dialogue contract (%s)",
+                        "UnitaryResponse: retried draft to satisfy dialogue contract (%s)",
                         ", ".join(dialogue_validation.violations) or "recovered",
                     )
 
@@ -6208,7 +6208,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         )
                         if candidate_validation.ok:
                             logger.info(
-                                "🗣️ UnitaryResponse: final governed recovery replaced invalid post-processed reply (%s)",
+                                "UnitaryResponse: final governed recovery replaced invalid post-processed reply (%s)",
                                 ", ".join(final_validation.violations) or "post_process_invalid",
                             )
                             response_text = candidate
@@ -6239,7 +6239,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                     )
                     if only_grounding_complaints and len(stripped_response) >= 50:
                         logger.info(
-                            "🗣️ UnitaryResponse: keeping cortex reply despite grounding-only violation (%s, len=%d)",
+                            "UnitaryResponse: keeping cortex reply despite grounding-only violation (%s, len=%d)",
                             ", ".join(final_validation.violations) or "ungrounded_only",
                             len(stripped_response),
                         )
@@ -6249,7 +6249,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             contract,
                         )
                         logger.info(
-                            "🗣️ UnitaryResponse: forcing minimal live-voice fallback (%s)",
+                            "UnitaryResponse: forcing minimal live-voice fallback (%s)",
                             ", ".join(final_validation.violations) or "post_process_invalid",
                         )
                         response_text = minimal
@@ -6291,7 +6291,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                             repair_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, shaped_repair))
                             if not repair_quality.retryable:
                                 logger.warning(
-                                    "🛡️ UnitaryResponse replaced repairable live self-reflection draft "
+                                    "UnitaryResponse replaced repairable live self-reflection draft "
                                     "(%s, len=%d) without another long Cortex retry.",
                                     ",".join(quality.reasons) or "unknown",
                                     len(str(response_text or "")),
@@ -6309,7 +6309,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 completed_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, completed_response))
                                 if "truncated_tail" not in set(completed_quality.reasons or ()):
                                     logger.warning(
-                                        "🛡️ UnitaryResponse completed clipped foreground draft without another 32B retry (len=%d -> %d).",
+                                        "UnitaryResponse completed clipped foreground draft without another 32B retry (len=%d -> %d).",
                                         len(response_text_s),
                                         len(completed_response),
                                     )
@@ -6324,7 +6324,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         )
                         if keep_substantive_soft_failure:
                             logger.warning(
-                                "🛡️ UnitaryResponse kept substantive foreground draft despite soft reliability notes (%s, len=%d).",
+                                "UnitaryResponse kept substantive foreground draft despite soft reliability notes (%s, len=%d).",
                                 ",".join(quality.reasons) or "soft_quality_note",
                                 len(response_text_s),
                             )
@@ -6346,7 +6346,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                                 retried_quality = (await asyncio.to_thread(assess_user_facing_reply, objective, retried_text))
                                 if not retried_quality.retryable:
                                     logger.warning(
-                                        "🛡️ UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
+                                        "UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
                                         ",".join(quality.reasons) or "unknown",
                                         len(str(response_text or "")),
                                     )
@@ -6542,7 +6542,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             )
             if is_overflow and not kwargs.get("_retry_after_compact"):
                 logger.warning(
-                    "🗜️ Context overflow detected — triggering reactive compaction and retry."
+                    "Context overflow detected — triggering reactive compaction and retry."
                 )
                 try:
                     if hasattr(new_state, "compact"):

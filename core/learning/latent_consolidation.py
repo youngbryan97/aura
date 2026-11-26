@@ -238,7 +238,7 @@ def run_consolidation_cycle(
         "ran_at": time.time(),
     }
     logger.info(
-        "🧬 Latent consolidation cycle: %d scanned, %d valid, %d proposals",
+        "Latent consolidation cycle: %d scanned, %d valid, %d proposals",
         receipt["scanned"],
         receipt["valid"],
         len(proposals),

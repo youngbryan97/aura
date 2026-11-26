@@ -120,14 +120,14 @@ class MotivationEngine:
             self._motivation_loop(), 
             name="MotivationEngine.will_loop"
         )
-        logger.info("🔥 Motivation Engine ONLINE — autonomous intentions enabled.")
+        logger.info("Motivation Engine ONLINE — autonomous intentions enabled.")
 
     async def stop(self):
         """Dormancy."""
         self.running = False
         if self._task:
             self._task.cancel()
-        logger.info("💤 Motivation Engine DORMANT.")
+        logger.info("Motivation Engine DORMANT.")
 
     def is_alive(self) -> bool:
         """Synchronous liveness probe for the runtime health contract."""
@@ -158,7 +158,7 @@ class MotivationEngine:
                 intention = await self._assess_needs()
                 
                 if intention:
-                    logger.info("✨ AURA GENERATED INTENTION: %s", intention.goal)
+                    logger.info("AURA GENERATED INTENTION: %s", intention.goal)
                     await self._dispatch_intention(intention)
                 
                 # 3. Spontaneity Check (Random curiosity spikes)
@@ -251,10 +251,10 @@ class MotivationEngine:
     async def _trigger_spontaneous_curiosity(self):
         """A quick spike in curiosity leading to a sudden action."""
         if not _background_autonomy_allowed(self.orchestrator):
-            logger.debug("❄️ [MOTIVATION] Background autonomy guard active. Suppressing spontaneous curiosity.")
+            logger.debug("[MOTIVATION] Background autonomy guard active. Suppressing spontaneous curiosity.")
             return
 
-        logger.debug("💡 Spontaneous curiosity spike triggered.")
+        logger.debug("Spontaneous curiosity spike triggered.")
         if self.orchestrator:
             # [CONSTITUTIONAL] Route through ExecutiveAuthority
             try:
@@ -287,7 +287,7 @@ class MotivationEngine:
         is_critical = energy_level < 10.0 or intention.urgency > 0.95
         
         if is_critical and self.orchestrator:
-            logger.warning("⚡ [INSTINCT] Critical state detected (Energy: %.1f%%). Triggering direct reflex bypass.", energy_level)
+            logger.warning("[INSTINCT] Critical state detected (Energy: %.1f%%). Triggering direct reflex bypass.", energy_level)
             try:
                 # [CONSTITUTIONAL] Route through ExecutiveAuthority even for reflexes
                 from core.consciousness.executive_authority import get_executive_authority
@@ -310,7 +310,7 @@ class MotivationEngine:
 
         try:
             from core.thought_stream import get_emitter
-            get_emitter().emit("Inner Drive 🧠", intention.goal, level="info", category="Motivation", source="drive_engine")
+            get_emitter().emit("Inner Drive", intention.goal, level="info", category="Motivation", source="drive_engine")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('engine', exc)
             logger.debug("ThoughtStream emit failed in motivation engine: %s", exc)
@@ -374,7 +374,7 @@ class MotivationEngine:
                     b.tick()
                     # Positive amount satisfies, negative punishes
                     b.level = max(0.0, min(b.capacity, b.level + amount))
-                    logger.debug("⚙️ [MOTIVATION] Updated %s by %.1f (New level: %.1f)", drive, amount, b.level)
+                    logger.debug("[MOTIVATION] Updated %s by %.1f (New level: %.1f)", drive, amount, b.level)
 
     # --- External Interface ---
 
@@ -385,7 +385,7 @@ class MotivationEngine:
             if b:
                 b.tick()
                 b.level = min(b.capacity, b.level + amount)
-                logger.debug("❤️ Satisfied %s (+%.1f)", drive, amount)
+                logger.debug("Satisfied %s (+%.1f)", drive, amount)
 
     async def punish(self, drive: str, amount: float):
         """Reduced a drive level."""
@@ -394,7 +394,7 @@ class MotivationEngine:
             if b:
                 b.tick()
                 b.level = max(0.0, b.level - amount)
-                logger.debug("💔 Damaged %s (-%.1f)", drive, amount)
+                logger.debug("Damaged %s (-%.1f)", drive, amount)
 
     def get_drive_vector(self) -> Dict[str, float]:
         """Return normalized budget levels for synchronous cognition loops."""

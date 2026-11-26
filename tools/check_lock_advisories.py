@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         # A scan that cannot reach the database has not cleared anything, and
         # saying so is the difference between "no advisories" and "no answer".
-        print(f"❌ could not reach OSV: {exc}", file=sys.stderr)
+        print(f"could not reach OSV: {exc}", file=sys.stderr)
         return 2
 
     if args.json:
@@ -94,14 +94,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if findings:
         total = sum(len(v) for v in findings.values())
-        print(f"❌ {total} advisory/advisories against {len(findings)} pinned package(s)")
+        print(f"{total} advisory/advisories against {len(findings)} pinned package(s)")
         for name, ids in sorted(findings.items()):
             print(f"   • {name}=={packages[name]}: {', '.join(ids[:6])}")
             print(
                 f"     python tools/bump_locked_package.py --package {name} --latest"
             )
         return 1
-    print(f"✅ no advisories against {len(packages)} pinned versions")
+    print(f"no advisories against {len(packages)} pinned versions")
     return 0
 
 

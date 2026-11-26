@@ -44,7 +44,7 @@ class TestV30Opinions(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(found_fuzzy)
         self.assertEqual(found_fuzzy.topic, "ai_ethics")
         
-        print("✅ Opinion normalization and query verified.")
+        print("Opinion normalization and query verified.")
 
 if __name__ == "__main__":
     unittest.main()

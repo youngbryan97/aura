@@ -44,7 +44,7 @@ async def _shutdown_harness_runtime() -> list[str]:
 async def main():
     exit_code = 1
     try:
-        print("🚀 Initializing Aura Tool Audit...")
+        print("Initializing Aura Tool Audit...")
 
         # Setup
         brain = CognitiveEngine()
@@ -53,26 +53,26 @@ async def main():
 
         auditor = ToolAuditor(brain, capability_engine=capability_engine)
     
-        print("\n🔍 Running Tool Selection Suite...")
+        print("\nRunning Tool Selection Suite...")
         # Add suite run to ToolAuditor
         results = await auditor.run_suite()
     
-        print("\n📊 Audit Results:")
+        print("\nAudit Results:")
         print(f"Score: {results['score']}/{results['total']}")
         for r in results['details']:
-            status = "✅ PASS" if r['success'] else "❌ FAIL"
+            status = "PASS" if r['success'] else "FAIL"
             print(f"{status} | Q: {r['query'][:30]}... -> Tool: {r['selected_tool']} (Exp: {r['expected']})")
         
         if results['score'] == results['total']:
-            print("\n🎉 ALL TESTS PASSED.")
+            print("\nALL TESTS PASSED.")
             exit_code = 0
         else:
-            print("\n⚠️ SOME TESTS FAILED.")
+            print("\nSOME TESTS FAILED.")
             exit_code = 1
     finally:
         shutdown_errors = await _shutdown_harness_runtime()
         if shutdown_errors:
-            print("\n❌ HARNESS SHUTDOWN ERRORS:")
+            print("\nHARNESS SHUTDOWN ERRORS:")
             for err in shutdown_errors:
                 print(f"  - {err}")
             if exit_code == 0:

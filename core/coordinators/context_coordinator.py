@@ -33,7 +33,7 @@ class ContextCoordinator:
             content = msg.get("content", "")
             role = msg.get("role", "unknown")
             if not content or content.startswith(
-                ("⚡", "[INTERNAL", "[System", "Impulse: ", "Thought:", "Observation: ")
+                ("AUTONOMOUS GOAL: ", "[INTERNAL", "[System", "Impulse: ", "Thought:", "Observation: ")
             ):
                 continue
             if role == "function" and len(content) > 300:

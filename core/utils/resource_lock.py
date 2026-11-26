@@ -45,7 +45,7 @@ class ResourceLock:
         self._total_browser_sessions += 1
         if self._browser_idle is not None:
             self._browser_idle.clear()
-            logger.debug("🌐 Browser session started (%d active)", self._browser_sessions)
+            logger.debug("Browser session started (%d active)", self._browser_sessions)
             return True
         logger.debug("Browser resource lock has no loop primitives; counters updated only.")
         return False
@@ -58,7 +58,7 @@ class ResourceLock:
             self._browser_sessions = 0
             if self._browser_idle is not None:
                 self._browser_idle.set()
-            logger.debug("🌐 Browser session ended — background tasks resumed")
+            logger.debug("Browser session ended — background tasks resumed")
 
     @asynccontextmanager
     async def browser_session(self):
@@ -81,7 +81,7 @@ class ResourceLock:
         if not self._browser_idle or self._browser_idle.is_set():
             return True
 
-        logger.debug("⏳ Waiting for browser to finish before heavy task...")
+        logger.debug("Waiting for browser to finish before heavy task...")
         try:
             await asyncio.wait_for(self._browser_idle.wait(), timeout=timeout)
             return True
@@ -102,7 +102,7 @@ class ResourceLock:
                 else:
                     await asyncio.wait_for(self._gpu_semaphore.acquire(), timeout=30.0)
             except (asyncio.TimeoutError, TimeoutError):
-                logger.error("🚨 DEADLOCK DETECTED: Could not acquire GPU semaphore within 30s for %s", owner)
+                logger.error("DEADLOCK DETECTED: Could not acquire GPU semaphore within 30s for %s", owner)
                 raise RuntimeError(f"GPU semaphore deadlock for {owner}")
         
         logger.debug("gpu_session acquired by %s", owner)

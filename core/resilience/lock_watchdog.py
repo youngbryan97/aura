@@ -121,7 +121,7 @@ class LockWatchdog:
             )
             logger.error("LockWatchdog failed to start under tracked task ownership: %s", exc)
             return False
-        logger.info("🛡️ LockWatchdog ACTIVE (Threshold: %ss).", self._threshold)
+        logger.info("LockWatchdog ACTIVE (Threshold: %ss).", self._threshold)
         return True
 
     async def stop(self):
@@ -212,7 +212,7 @@ class LockWatchdog:
                 refreshed.interventions += 1
                 refreshed.last_intervention_at = time.monotonic()
             logger.critical(
-                "🛠️ LockWatchdog intervention executed for '%s' (ID: %s).",
+                "LockWatchdog intervention executed for '%s' (ID: %s).",
                 tracked.name,
                 lock_id,
             )
@@ -247,7 +247,7 @@ class LockWatchdog:
                                     refreshed.last_alert_at = now
                             if due:
                                 logger.info(
-                                    "⏳ LockWatchdog: '%s' has been held %.1fs and the "
+                                    "LockWatchdog: '%s' has been held %.1fs and the "
                                     "turn is still producing; not a deadlock (%d look(s)).",
                                     tracked.name,
                                     held_duration,
@@ -260,7 +260,7 @@ class LockWatchdog:
                                 if refreshed is not None:
                                     refreshed.last_alert_at = now
                             logger.critical(
-                                "🚨 DEADLOCK ALERT: Lock '%s' (ID: %s) held for %.1fs!",
+                                "DEADLOCK ALERT: Lock '%s' (ID: %s) held for %.1fs!",
                                 tracked.name,
                                 lock_id,
                                 held_duration,

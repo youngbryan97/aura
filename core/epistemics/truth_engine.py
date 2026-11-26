@@ -102,7 +102,7 @@ class TruthEngine:
         if supporting_evidence:
             claim.metadata["supporting_evidence"] = list(supporting_evidence)
         self.claims[claim_id] = claim
-        logger.info("📋 TruthEngine: registered claim '%s' [%s] confidence=%.2f", claim_id, status, confidence)
+        logger.info("TruthEngine: registered claim '%s' [%s] confidence=%.2f", claim_id, status, confidence)
         return claim
 
     def get_claim(self, claim_id: str) -> Optional[Claim]:
@@ -161,7 +161,7 @@ class TruthEngine:
         claim.confidence = 0.0
         claim.metadata["falsified_reason"] = reason
         claim.metadata["falsified_at"] = time.time()
-        logger.warning("❌ TruthEngine: claim '%s' marked FALSE: %s", claim_id, reason)
+        logger.warning("TruthEngine: claim '%s' marked FALSE: %s", claim_id, reason)
         return True
 
     def recalibrate(self) -> Dict[str, Any]:
@@ -183,7 +183,7 @@ class TruthEngine:
             claim.confidence = self.calibrator.calibrate(claim)
             self.classify_claim(claim.claim_id)
 
-        logger.info("🔄 TruthEngine recalibrated %d claims, found %d contradictions",
+        logger.info("TruthEngine recalibrated %d claims, found %d contradictions",
                      len(claim_list), contradictions_found)
         return {
             "claims_processed": len(claim_list),

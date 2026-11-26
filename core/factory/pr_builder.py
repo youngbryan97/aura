@@ -16,7 +16,7 @@ class PRBuilder:
 
     def generate_diff_summary(self, patches: List[Dict[str, Any]]) -> str:
         """Create a markdown diff summary of the software factory changes."""
-        logger.info("📝 PRBuilder generating changelog/diff summary for %d patches", len(patches))
+        logger.info("PRBuilder generating changelog/diff summary for %d patches", len(patches))
 
         summary_lines = []
         summary_lines.append("# Aura Autonomous Software Factory Changes")

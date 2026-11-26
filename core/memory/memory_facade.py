@@ -176,7 +176,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
         
     async def on_start_async(self) -> None:
         """Lifecycle hook for async initialization."""
-        logger.info("🧠 MemoryFacade: Initializing memory systems (async)...")
+        logger.info("MemoryFacade: Initializing memory systems (async)...")
         self._refresh_subsystems()
         
         # Verify connectivity (non-blocking)
@@ -990,7 +990,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
             importance = min(1.0, importance * relational_multiplier)
             metadata["relational_bonding"] = True
             metadata["identity_relevant"] = True  # Protect from trimming
-            logger.info(f"🤝 Relational conversation detected (multiplier={relational_multiplier:.2f}, importance={importance:.2f})")
+            logger.info(f"Relational conversation detected (multiplier={relational_multiplier:.2f}, importance={importance:.2f})")
         
         # CRITICAL: Relational conversations bypass deferral to prevent bonding memory loss
         should_skip_deferral = relational_multiplier > 1.0
@@ -1039,7 +1039,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
                 or ServiceContainer.has("kernel_interface")
             )
             if runtime_live:
-                logger.warning("🚫 MemoryFacade interaction commit blocked: constitutional gate unavailable")
+                logger.warning("MemoryFacade interaction commit blocked: constitutional gate unavailable")
                 return None
 
         self._last_commit_time = datetime.now()
@@ -1466,7 +1466,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
             importance = min(1.0, importance * relational_multiplier)
             payload["relational_bonding"] = True
             payload["identity_relevant"] = True  # Protect from trimming
-            logger.info(f"🤝 Relational memory detected (multiplier={relational_multiplier:.2f}, importance={importance:.2f})")
+            logger.info(f"Relational memory detected (multiplier={relational_multiplier:.2f}, importance={importance:.2f})")
         
         # Provenance envelope: every memory write gets stamped with
         # source / confidence / identity_relevant / contested so downstream
@@ -1524,7 +1524,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
                     governance_decision = None
                 else:
                     self._last_add_memory_status = {"ok": False, "reason": str(reason or "write_rejected")}
-                    logger.warning("🚫 MemoryFacade add_memory blocked: %s", reason)
+                    logger.warning("MemoryFacade add_memory blocked: %s", reason)
                     return False
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('memory_facade', exc)
@@ -1541,7 +1541,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
                 source=resolved_source,
             ):
                 self._last_add_memory_status = {"ok": False, "reason": "constitutional_gate_unavailable"}
-                logger.warning("🚫 MemoryFacade add_memory blocked: constitutional gate unavailable")
+                logger.warning("MemoryFacade add_memory blocked: constitutional gate unavailable")
                 return False
 
         async def _perform_add_memory() -> bool:
@@ -1746,7 +1746,7 @@ class MemoryFacade(_NormalisesWhatItReturns, _ChecksMemoriesAboutCode):
         if not verify:
             return False
             
-        logger.warning("☣️ Wiping ALL memories...")
+        logger.warning("Wiping ALL memories...")
         
         tasks = []
         if self._episodic:

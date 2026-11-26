@@ -56,10 +56,10 @@ class VRAMManager:
                     self._pre_purge_hook(),
                     name="vram_manager.pre_purge",
                 )
-                logger.info("🗜️ VRAMManager: pre-purge context summarization hook fired.")
+                logger.info("VRAMManager: pre-purge context summarization hook fired.")
             else:
                 asyncio.run(self._pre_purge_hook())
-                logger.info("🗜️ VRAMManager: pre-purge context summarization hook fired synchronously.")
+                logger.info("VRAMManager: pre-purge context summarization hook fired synchronously.")
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('vram_manager', exc)
             logger.debug("pre-purge hook error (non-fatal): %s", exc)

@@ -339,7 +339,7 @@ class FluidExecutor:
         approved, reason = await self._approved(step)
         context.check()
         if not approved:
-            logger.info("🛡️ [Fluid] step '%s' blocked by governance: %s", step.name, reason)
+            logger.info("[Fluid] step '%s' blocked by governance: %s", step.name, reason)
             return StepResult(
                 step.name, ok=False, blocked=True, detail=f"blocked: {reason}",
                 approach=step.approach, seconds=time.monotonic() - began,
@@ -407,7 +407,7 @@ class FluidExecutor:
                 )
             await self._sleep(step.backoff_base_s * attempt)
 
-        logger.warning("🌀 [Fluid] step '%s' failed after %d attempts: %s",
+        logger.warning("[Fluid] step '%s' failed after %d attempts: %s",
                        step.name, step.max_retries + 1, last_detail)
         return StepResult(
             step.name, ok=False, attempts=step.max_retries + 1, verified=False,
@@ -550,7 +550,7 @@ class FluidExecutor:
                 if result.blocked:
                     receipt.outcome = "blocked_by_governance"
                     logger.info(
-                        "🛡️ [Fluid] pursuit of '%s' halted: step blocked by governance.",
+                        "[Fluid] pursuit of '%s' halted: step blocked by governance.",
                         goal,
                     )
                     break
@@ -559,7 +559,7 @@ class FluidExecutor:
                     receipt.stalled = True
                     receipt.outcome = "stalled"
                     logger.warning(
-                        "🌀 [Fluid] pursuit of '%s' stalled after %d cycles with no "
+                        "[Fluid] pursuit of '%s' stalled after %d cycles with no "
                         "verified progress.",
                         goal,
                         consecutive_no_progress,
@@ -602,13 +602,13 @@ class FluidExecutor:
             consecutive_no_progress += 1
             if result.blocked:
                 receipt.elapsed_s = time.monotonic() - started
-                logger.info("🛡️ [Fluid] run '%s' halted: step blocked by governance.", goal)
+                logger.info("[Fluid] run '%s' halted: step blocked by governance.", goal)
                 return receipt
             if consecutive_no_progress >= self.stall_window:
                 receipt.stalled = True
                 receipt.elapsed_s = time.monotonic() - started
                 logger.warning(
-                    "🌀 [Fluid] run '%s' stalled after %d steps with no verified progress.",
+                    "[Fluid] run '%s' stalled after %d steps with no verified progress.",
                     goal, consecutive_no_progress,
                 )
                 return receipt

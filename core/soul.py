@@ -114,13 +114,13 @@ class Soul:
         
         # Log if urgency is significant (debug level to avoid spam every cycle)
         if dominant.urgency > 0.5:
-            logger.debug("🔥 SOUL: Dominant Drive = %s (%.2f)", dominant.name, dominant.urgency)
+            logger.debug("SOUL: Dominant Drive = %s (%.2f)", dominant.name, dominant.urgency)
             
         return dominant
 
     async def satisfy_drive(self, drive: Drive):
         """Execute logic to satisfy a drive."""
-        logger.info("✨ SOUL: Attempting to satisfy %s...", drive.name)
+        logger.info("SOUL: Attempting to satisfy %s...", drive.name)
         
         if drive.name == "curiosity":
             # Trigger Curiosity Engine
@@ -135,7 +135,7 @@ class Soul:
             try:
                 workspace = get_runtime_service("global_workspace", default=None)
                 if workspace:
-                    logger.info("✨ SOUL: Publishing spatial empathy request to Global Workspace.")
+                    logger.info("SOUL: Publishing spatial empathy request to Global Workspace.")
                     from core.consciousness.workspace_candidate import CognitiveCandidate
                     await workspace.submit(CognitiveCandidate(
                         priority=0.8,
@@ -145,15 +145,15 @@ class Soul:
                 elif hasattr(self.orchestrator, 'volition') and self.orchestrator.volition:
                     # Fallback if Workspace is offline
                     self.orchestrator.volition.last_speak_time = 0
-                    logger.info("✨ SOUL: Signaled Volition to prioritize connection (fallback).")
+                    logger.info("SOUL: Signaled Volition to prioritize connection (fallback).")
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('soul', e)
-                logger.error("✨ SOUL: Error satisfying connection drive: %s", e)
+                logger.error("SOUL: Error satisfying connection drive: %s", e)
             
         elif drive.name == "competence":
             # Run Self-Diagnosis
             if hasattr(self.orchestrator, 'execute_tool'):
-                logger.info("✨ SOUL: Triggering system health check.")
+                logger.info("SOUL: Triggering system health check.")
                 try:
                     # In a real system, this would be a specialized diagnostic skill
                     await self.orchestrator.execute_tool("system_health", {})
@@ -162,4 +162,4 @@ class Soul:
                     # competence signal — surface it instead of swallowing it
                     # (624dadf6).
                     record_degradation("soul", e, action="system-health self-diagnosis failed")
-                    logger.warning("✨ SOUL: competence self-diagnosis failed: %s", e)
+                    logger.warning("SOUL: competence self-diagnosis failed: %s", e)

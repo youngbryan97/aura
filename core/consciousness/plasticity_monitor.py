@@ -178,7 +178,7 @@ class PlasticityMonitor:
         warn = breaches >= self._sustained_for_warn
         if warn and self._last_warning_at != self._measurement_count:
             logger.warning(
-                "🟡 Plasticity floor breached: stable_rank_ratio=%.3f over "
+                "Plasticity floor breached: stable_rank_ratio=%.3f over "
                 "%d/%d recent measurements (floor=%.2f). Continual-learning "
                 "rank collapse may be in progress on the substrate's W matrix.",
                 ratio, breaches, len(self._ratio_history), self._floor,

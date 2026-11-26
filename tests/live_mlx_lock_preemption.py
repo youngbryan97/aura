@@ -198,7 +198,7 @@ async def main() -> int:
         ("E. worker clears prompt_cache_lru on zero-token", scenario_e_worker_cache_clear_on_empty),
     ]
 
-    print("🔬 MLX Lock Preemption Live Verification\n")
+    print("MLX Lock Preemption Live Verification\n")
     failed = 0
     for name, fn in scenarios:
         t0 = time.perf_counter()

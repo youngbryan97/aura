@@ -81,7 +81,7 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
             # Global exception handler to catch silent background task deaths
             def _handle_exception(loop, context):
                 msg = context.get("exception", context["message"])
-                logger.critical("🔥 UNHANDLED ASYNC EXCEPTION: %s", msg)
+                logger.critical("UNHANDLED ASYNC EXCEPTION: %s", msg)
                 if "exception" in context:
                     import traceback
                     traceback.print_exception(type(context["exception"]), context["exception"], context["exception"].__traceback__)

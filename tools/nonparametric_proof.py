@@ -354,12 +354,12 @@ def main() -> int:
         print(json.dumps(report, indent=2))
     else:
         for r in report["facts"]:
-            mark = "✅" if r["recalled"] else "❌"
+            mark = "ok" if r["recalled"] else "failed"
             print(f"{mark} {r['prompt']!r}")
             print(f"     base:   {r['base']!r}")
             print(f"     memory: {r['memory']!r}  (expected lead {r['lead_token_expected']!r})")
         c = report["control"]
-        print(f"{'✅' if c['preserved'] else '❌'} control preserved: {c['base']!r} → {c['with_memory']!r}")
+        print(f"{'ok' if c['preserved'] else 'failed'} control preserved: {c['base']!r} → {c['with_memory']!r}")
         if report.get("paired_trial"):
             t = report["paired_trial"]
             print(f"\npaired: {t['right_with_store']}/{t['facts']} right with the store, "

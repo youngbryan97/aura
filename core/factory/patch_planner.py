@@ -19,7 +19,7 @@ class PatchPlanner:
         self, objective: str, repo_map: dict[str, Any]
     ) -> dict[str, Any]:
         """Produce a structured change plan targeting the objective."""
-        logger.info("📋 PatchPlanner: creating plan for '%s'", objective[:60])
+        logger.info("PatchPlanner: creating plan for '%s'", objective[:60])
 
         changes: list[dict[str, Any]] = []
         files = repo_map.get("files", [])

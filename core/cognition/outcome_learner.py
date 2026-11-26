@@ -134,7 +134,7 @@ class OutcomeLearner:
             self._session_failures += 1
 
         logger.debug(
-            "📊 Outcome: %s/%s → %s (%.0fms)",
+            "Outcome: %s/%s → %s (%.0fms)",
             category, action, "✓" if success else "✗", duration_ms or 0
         )
 

@@ -25,7 +25,7 @@ def run_audit():
         if file.name == "__init__.py": continue
         stem = file.stem
         if stem not in skill_registry.get_available_skills():
-            print(f"⚠ GHOST/UNREGISTERED: {file.name}")
+            print(f"GHOST/UNREGISTERED: {file.name}")
 
 if __name__ == "__main__":
     run_audit()

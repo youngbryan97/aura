@@ -188,7 +188,7 @@ class SocialContextPhase(Phase):
                 modifiers["flagged_false_claim"] = assessment.rationale
             if not assessment.take_literally:
                 logger.info(
-                    "🎭 SocialContext: user message read as %s (conf %.2f): %s",
+                    "SocialContext: user message read as %s (conf %.2f): %s",
                     assessment.primary.value, assessment.confidence, assessment.rationale,
                 )
         except _SOCIAL_RECOVERABLE_ERRORS as exc:

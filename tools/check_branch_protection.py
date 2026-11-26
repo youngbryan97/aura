@@ -314,7 +314,7 @@ def apply(policy: dict, repo: str) -> int:
     if result.returncode != 0:
         print(result.stderr.strip(), file=sys.stderr)
         return 1
-    print(f"✅ applied branch protection to {repo}@{policy['branch']}")
+    print(f"applied branch protection to {repo}@{policy['branch']}")
     print(
         "   Now set \"enforced\": true in config/branch_protection_policy.json "
         "so the gate holds it there."
@@ -333,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
 
     problems = check_offline(policy)
     if problems:
-        print(f"❌ branch protection policy: {len(problems)} problem(s)")
+        print(f"branch protection policy: {len(problems)} problem(s)")
         for problem in problems:
             print(f"   • {problem}")
         return 1
@@ -341,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.offline:
         state = "enforced" if policy.get("enforced") else "declared, not yet enforced"
         print(
-            f"✅ branch protection policy is coherent "
+            f"branch protection policy is coherent "
             f"({len(policy['required_checks'])} checks, {state})"
         )
         if not policy.get("enforced"):
@@ -356,17 +356,17 @@ def main(argv: list[str] | None = None) -> int:
     live = live_protection(repo, policy["branch"])
     differences = compare_live(policy, live)
     if not differences:
-        print(f"✅ {repo}@{policy['branch']} matches the policy")
+        print(f"ok {repo}@{policy['branch']} matches the policy")
         return 0
     if not policy.get("enforced"):
-        print(f"⚠️  {repo}@{policy['branch']} does not match the policy, which is "
+        print(f" {repo}@{policy['branch']} does not match the policy, which is "
               "recorded as not yet enforced:")
         for difference in differences:
             print(f"   • {difference}")
         print(f"   reason: {policy['not_enforced_reason']}")
         print(f"   enable: {policy['apply_with']}")
         return 0
-    print(f"❌ {repo}@{policy['branch']} does not match the enforced policy")
+    print(f"failed {repo}@{policy['branch']} does not match the enforced policy")
     for difference in differences:
         print(f"   • {difference}")
     return 1

@@ -56,7 +56,7 @@ async def run_certification():
     out_dir = PROJECT_ROOT / "artifacts" / "certification" / "latest"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    print("🚀 Booting headless Aura runtime...")
+    print("Booting headless Aura runtime...")
     start_time = time.monotonic()
     
     try:
@@ -67,11 +67,11 @@ async def run_certification():
             artifact_root=out_dir
         )
     except CERTIFY_BOOT_RECOVERABLE_ERRORS as exc:
-        print(f"❌ CRITICAL: Aura failed to boot: {exc}")
+        print(f"CRITICAL: Aura failed to boot: {exc}")
         return False
 
     uptime = time.monotonic() - start_time
-    print(f"✅ Aura booted successfully in {uptime:.2f}s.")
+    print(f"Aura booted successfully in {uptime:.2f}s.")
 
     # 1. Collect Registry & Services Status
     statuses = ServiceContainer.get_all_subsystem_statuses()
@@ -117,11 +117,11 @@ async def run_certification():
     tracker = get_degradation_tracker()
     critical_degradations = tracker.count("container", "critical") + tracker.count("container", "degraded")
     
-    print("\n🔍 Checking Pass Criteria:")
+    print("\nChecking Pass Criteria:")
     passed_gateways = []
     failed_gateways = []
     for g, online in gateways.items():
-        symbol = "🟢" if online else "🔴"
+        symbol = "ok" if online else "failed"
         status_str = "online" if online else "offline"
         print(f"  {symbol} {g}: {status_str}")
         if online or g in ("Substrate", "Workspace"):  # Substrate and Workspace are allowed to be disabled
@@ -131,11 +131,11 @@ async def run_certification():
 
     # Unknown mode check
     unknown_mode = mode.value == "unknown"
-    print(f"  🟢 Mode: {mode.value} (unknown: {unknown_mode})")
+    print(f"  Mode: {mode.value} (unknown: {unknown_mode})")
 
     # Critical degradation check
-    print(f"  🟢 Critical Degradations: {critical_degradations}")
-    print(f"  🟢 Unowned Services: {unowned_count}")
+    print(f"  Critical Degradations: {critical_degradations}")
+    print(f"  Unowned Services: {unowned_count}")
 
     cert_passed = (
         len(failed_gateways) == 0
@@ -145,7 +145,7 @@ async def run_certification():
     )
 
     verdict = "PASS" if cert_passed else "FAIL"
-    symbol = "✨ SUCCESS ✨" if cert_passed else "🛑 FAILURE 🛑"
+    symbol = "SUCCESS" if cert_passed else "FAILURE"
     print(f"\n{symbol} Certification Verdict: {verdict}")
 
     # Build files
@@ -227,7 +227,7 @@ async def run_certification():
             f.write(json.dumps({"timestamp": start_time + 0.2, "event": "service_woken", "service": s["service"], "status": s["status"]}) + "\n")
         f.write(json.dumps({"timestamp": time.time(), "event": "kernel_boot_completed", "verdict": verdict}) + "\n")
 
-    print(f"\n📑 All six certification files written to {out_dir}:")
+    print(f"\nAll six certification files written to {out_dir}:")
     print("  - BOOT_CERTIFICATE.json (BOOT_RECEIPT.json)")
     print("  - SERVICE_MANIFEST.json")
     print("  - CAPABILITY_MANIFEST.json")

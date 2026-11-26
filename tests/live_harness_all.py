@@ -69,7 +69,7 @@ def run_harness(label: str, script: str) -> HarnessResult:
 
 
 def main() -> int:
-    print("🔬 Aura Live Harness Consolidator")
+    print("Aura Live Harness Consolidator")
     print(f"   project_root: {PROJECT_ROOT}")
     results: list[HarnessResult] = []
     for label, script in HARNESSES:

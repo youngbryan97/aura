@@ -85,7 +85,7 @@ class TokenGovernor:
                 allocated.append(block)
                 total_tokens += block.tokens
             else:
-                logger.debug("⚠️ ContextAllocator: Pruning block '%s' (Priority: %s)", block.id, block.priority.name)
+                logger.debug("ContextAllocator: Pruning block '%s' (Priority: %s)", block.id, block.priority.name)
         
         # Sort allocated blocks back to original chronological order (if timestamps exist)
         return sorted(allocated, key=lambda x: x.metadata.get("timestamp", 0))

@@ -910,7 +910,7 @@ def _report_an_empty_answer_as_one(response: Any, payload: Any) -> Any:
         return response
 
     logger.warning(
-        "⚠️ An empty reply was about to be served as %r; reporting it as a turn "
+        "An empty reply was about to be served as %r; reporting it as a turn "
         "that produced no answer instead.",
         status,
     )

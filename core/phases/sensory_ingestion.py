@@ -36,7 +36,7 @@ class SensoryIngestionPhase(BasePhase):
             if raw_msg is None:
                 return state
                 
-            logger.info("📥 SensoryIngestion: Ingested stimulus: %s...", str(raw_msg)[:100])
+            logger.info("SensoryIngestion: Ingested stimulus: %s...", str(raw_msg)[:100])
             
             # Normalize message into working memory format
             new_entry = {
@@ -60,7 +60,7 @@ class SensoryIngestionPhase(BasePhase):
                 and m.get("origin") == new_entry.get("origin")
                 for m in recent
             ):
-                logger.debug("⏭️ SensoryIngestion: Duplicate stimulus ignored: %s...", new_entry['content'][:50])
+                logger.debug("SensoryIngestion: Duplicate stimulus ignored: %s...", new_entry['content'][:50])
                 return state
                 
             # Derive new state with the added message
@@ -108,5 +108,5 @@ class SensoryIngestionPhase(BasePhase):
             return state
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('sensory_ingestion', e)
-            logger.error("❌ SensoryIngestion: Error pulling from queue: %s", e)
+            logger.error("SensoryIngestion: Error pulling from queue: %s", e)
             return state

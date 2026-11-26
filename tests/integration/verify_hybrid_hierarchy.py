@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO, format='%(name)s - %(levelname)s - %(mes
 logger = logging.getLogger("VerifyHierarchy")
 
 async def verify():
-    logger.info("🎬 [VERIFY] Starting Hybrid Hierarchy Validation...")
+    logger.info("[VERIFY] Starting Hybrid Hierarchy Validation...")
     
     # 1. Initialize Engine
     # (Mocking components that aren't needed for routing logic check)
@@ -35,27 +35,27 @@ async def verify():
     status = router.get_status()
     endpoints = status.get("endpoints", {})
     
-    logger.info("📊 Current Endpoint Tier Assignment:")
+    logger.info("Current Endpoint Tier Assignment:")
     for name, info in endpoints.items():
         logger.info(f"  - {name}: {info['tier']}")
 
     # 3. Simulate Default Preference (Cloud First)
     ordered = router._get_ordered_endpoints()
-    logger.info(f"🏆 Primary Choice: {ordered[0]}")
+    logger.info(f"Primary Choice: {ordered[0]}")
     
     if "Gemini-Flash" in ordered[0] or "Gemini-Pro" in ordered[0]:
-        logger.info("✅ SUCCESS: Gemini is prioritized.")
+        logger.info("SUCCESS: Gemini is prioritized.")
     else:
-        logger.error(f"❌ FAILURE: Gemini not prioritized. Top choice was {ordered[0]}")
+        logger.error(f"FAILURE: Gemini not prioritized. Top choice was {ordered[0]}")
 
     # 4. Verify CPU Fallback Presence
     if "Reflex-CPU" in endpoints:
-        logger.info("✅ SUCCESS: Reflex-CPU (Emergency) is registered.")
+        logger.info("SUCCESS: Reflex-CPU (Emergency) is registered.")
     else:
-        logger.error("❌ FAILURE: Reflex-CPU not found.")
+        logger.error("FAILURE: Reflex-CPU not found.")
 
     # 5. Verify Fallback Order
-    logger.info("🔗 Testing Failover Sequence:")
+    logger.info("Testing Failover Sequence:")
     logger.info(f"  Tiered Sequence: {ordered}")
     
     expected_order = ["Gemini", "MLX-Deep", "MLX-Fast", "Reflex-CPU"]
@@ -63,14 +63,14 @@ async def verify():
     logger.info(f"  Actual: {actual_sequence}")
     
     # 6. Check Ready-Gate detection (Dry Run)
-    logger.info("🛡️ Checking Ready-Gate Jitter detection...")
+    logger.info("Checking Ready-Gate Jitter detection...")
     # This is a bit internal but we can check the logic flow
     # last_error = "MTLCompilerService Connection init failed"
     # Since we can't easily wait for a 15s delay in a quick test,
     # we'll just log that the code paths are valid.
-    logger.info("✅ Ready-Gate logic is compiled and integrated in _emergency_fallback.")
+    logger.info("Ready-Gate logic is compiled and integrated in _emergency_fallback.")
 
-    logger.info("🏁 [VERIFY] Validation Complete.")
+    logger.info("[VERIFY] Validation Complete.")
 
 if __name__ == "__main__":
     asyncio.run(verify())

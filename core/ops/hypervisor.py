@@ -85,13 +85,13 @@ class Hypervisor:
         self._start_time = time.time()
         self._task = get_task_tracker().create_task(self._watchdog_loop())
         mark_task_protected(self._task, owner="hypervisor")
-        logger.info("👁️ Hypervisor Watchdog active (Threshold: %.2fs)", self._lag_threshold)
+        logger.info("Hypervisor Watchdog active (Threshold: %.2fs)", self._lag_threshold)
 
     async def stop(self):
         self._running = False
         if self._task:
             await cancel_and_join(self._task, owner="core.ops.hypervisor")
-        logger.info("👁️ Hypervisor Watchdog shutdown.")
+        logger.info("Hypervisor Watchdog shutdown.")
 
     def is_running(self) -> bool:
         """Task liveness for lifecycle ownership, independent of lag health."""
@@ -321,7 +321,7 @@ class Hypervisor:
                     )
                 else:
                     logger.warning(
-                        "🚨 HIGH EVENT LOOP LAG detected: %.3fs (context=%s threshold=%.3fs)",
+                        "HIGH EVENT LOOP LAG detected: %.3fs (context=%s threshold=%.3fs)",
                         lag,
                         lag_context,
                         lag_threshold,
@@ -350,11 +350,11 @@ class Hypervisor:
                             enforce_failure_policy=False,
                         )
                         logger.critical(
-                            "🚨 SEVERE FREEZE: Loop lag > 5s. System stability compromised."
+                            "SEVERE FREEZE: Loop lag > 5s. System stability compromised."
                         )
                     else:
                         logger.warning(
-                            "🚨 Severe lag candidate %.3fs observed (%d/%d samples); waiting for confirmation before failing health.",
+                            "Severe lag candidate %.3fs observed (%d/%d samples); waiting for confirmation before failing health.",
                             lag,
                             self._severe_lag_streak,
                             self._required_severe_lag_samples,
@@ -405,7 +405,7 @@ class Hypervisor:
             # Dynamic warning threshold: 85% of total RAM, or at least 12GB to avoid false alarms on M-series Macs running local models.
             warning_threshold = max(12288.0, total_ram_mb * 0.85)
             if mem > warning_threshold:
-                logger.warning("🚨 HIGH MEMORY USAGE: %.1f MB (threshold: %.1f MB)", mem, warning_threshold)
+                logger.warning("HIGH MEMORY USAGE: %.1f MB (threshold: %.1f MB)", mem, warning_threshold)
 
 
 _hypervisor: Hypervisor | None = None

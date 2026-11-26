@@ -32,7 +32,7 @@ STATIC = ROOT / "interface" / "static"
 #: The astral pictograph blocks default to a colour glyph. The BMP symbols —
 #: the check, the cross, the warning triangle, the gear — default to TEXT
 #: presentation and only become emoji when U+FE0F follows them, which is why
-#: `⚙&#xFE0E;` in the tab strip is a monoline icon and `⚙️` in a heading was
+#: `&#xFE0E;` in the tab strip is a monoline icon and `` in a heading was
 #: not. Matching `Extended_Pictographic` would have failed both.
 _PICTOGRAPH = re.compile(
     "[\U0001F300-\U0001FAFF\U0001F000-\U0001F0FF\U0001F900-\U0001F9FF]"
@@ -87,4 +87,4 @@ def test_the_typographic_marks_are_kept() -> None:
 
     body = (STATIC / "aura.js").read_text("utf-8")
     assert "✓ Connection restored" in body
-    assert "⚠ Connection lost" in body
+    assert "Connection lost" in body

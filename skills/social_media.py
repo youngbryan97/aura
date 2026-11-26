@@ -304,7 +304,7 @@ class TwitterAdapter(PlatformAdapter):
                 self._connected = True
                 self._rw_capable = oauth_ready
                 mode = "read-write" if self._rw_capable else "read-only"
-                logger.info("✅ TwitterAdapter: connected as @%s (%s)", self._me.username, mode)
+                logger.info("TwitterAdapter: connected as @%s (%s)", self._me.username, mode)
         except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.warning("TwitterAdapter: connection disabled — %s", exc)
 
@@ -331,7 +331,7 @@ class TwitterAdapter(PlatformAdapter):
             resp = await loop.run_in_executor(None, lambda: self._client.create_tweet(**kwargs))
             if resp and resp.data:
                 tweet_id = str(resp.data["id"])
-                logger.info("🐦 Tweet sent: %.60s… (id=%s)", content, tweet_id)
+                logger.info("Tweet sent: %.60s… (id=%s)", content, tweet_id)
                 return tweet_id
         except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.error("TwitterAdapter.post error: %s", exc)
@@ -347,7 +347,7 @@ class TwitterAdapter(PlatformAdapter):
             )
             liked = bool(resp and resp.data and resp.data.get("liked"))
             if liked:
-                logger.debug("🐦 Liked tweet %s", post_id)
+                logger.debug("Liked tweet %s", post_id)
                 return liked
         except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("TwitterAdapter.like: %s", exc)
@@ -468,7 +468,7 @@ class RedditAdapter(PlatformAdapter):
             if me:
                 self._me_name = me.name
                 self._connected = True
-                logger.info("✅ RedditAdapter: connected as u/%s", self._me_name)
+                logger.info("RedditAdapter: connected as u/%s", self._me_name)
         except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.warning("RedditAdapter: connection disabled — %s", exc)
 
@@ -495,7 +495,7 @@ class RedditAdapter(PlatformAdapter):
 
             rid = str(result.id) if result else None
             if rid:
-                logger.info("🔴 Reddit post sent (id=%s): %.60s", rid, content)
+                logger.info("Reddit post sent (id=%s): %.60s", rid, content)
                 return rid
         except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.error("RedditAdapter.post: %s", exc)
@@ -796,7 +796,7 @@ class SocialMediaEngine:
 
         self._load_state()
         self._init_adapters()
-        logger.info("📱 SocialMediaEngine ready — platforms: %s", list(self._adapters))
+        logger.info("SocialMediaEngine ready — platforms: %s", list(self._adapters))
 
     # ── Initialization ───────────────────────────────────────────────────────
 
@@ -808,7 +808,7 @@ class SocialMediaEngine:
     def add_platform(self, platform: Platform, adapter: PlatformAdapter) -> None:
         """Register a custom adapter (e.g. Mastodon, BlueSky)."""
         self._adapters[platform] = adapter
-        logger.info("📱 Platform added: %s", platform)
+        logger.info("Platform added: %s", platform)
 
     # ── State Persistence ────────────────────────────────────────────────────
 
@@ -821,7 +821,7 @@ class SocialMediaEngine:
                 valid = {f: v[f] for f in SocialRelationship.__dataclass_fields__ if f in v}
                 self._relationships[k] = SocialRelationship(**valid)
             self._last_post_time = raw.get("last_post_time", {})
-            logger.debug("📱 Loaded social state from disk")
+            logger.debug("Loaded social state from disk")
         except (json.JSONDecodeError, OSError, TypeError, KeyError, ValueError) as exc:
             logger.warning("SocialMediaEngine: state load failed — %s", exc)
 
@@ -855,7 +855,7 @@ class SocialMediaEngine:
         """
         platform = coerce_platform(platform)
         if platform is None:
-            logger.warning("📱 Unknown platform requested for post")
+            logger.warning("Unknown platform requested for post")
             return None
 
         async with self._lock:
@@ -864,7 +864,7 @@ class SocialMediaEngine:
 
             adapter = self._adapters.get(platform)
             if not adapter:
-                logger.warning("📱 No adapter for %s", platform)
+                logger.warning("No adapter for %s", platform)
                 return None
 
             # Generate content if not supplied
@@ -875,7 +875,7 @@ class SocialMediaEngine:
 
             content = (content or "").strip()
             if len(content) < 4:
-                logger.warning("📱 Content too short — post skipped")
+                logger.warning("Content too short — post skipped")
                 return None
 
             # Execute
@@ -1089,13 +1089,13 @@ class SocialMediaEngine:
 
         if now - last < min_interval:
             remaining = int((last + min_interval - now) / 60)
-            logger.debug("📱 [%s] Rate-limited: %d min remaining", platform, remaining)
+            logger.debug("[%s] Rate-limited: %d min remaining", platform, remaining)
             return False
 
         daily_cap = self.MAX_POSTS_PER_DAY.get(platform, 8)
         today_count = self._today_count(pk)
         if today_count >= daily_cap:
-            logger.info("📱 [%s] Daily cap reached (%d/%d)", platform, today_count, daily_cap)
+            logger.info("[%s] Daily cap reached (%d/%d)", platform, today_count, daily_cap)
             return False
 
         return True

@@ -218,7 +218,6 @@ class KnowledgeLedger:
                     "timestamp": created_at or 0,
                     "time_ago": _format_time_ago(created_at),
                     "access_count": access_count or 0,
-                    "icon": "📚",
                 })
         except (sqlite3.Error, OSError) as e:
             record_degradation('knowledge_ledger', e)
@@ -264,7 +263,6 @@ class KnowledgeLedger:
                     "confidence": round(prof, 2),
                     "timestamp": acquired or 0,
                     "time_ago": _format_time_ago(acquired),
-                    "icon": "🎓",
                 })
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('knowledge_ledger', e)
@@ -291,7 +289,6 @@ class KnowledgeLedger:
                         "confidence": min(1.0, count / 50),
                         "timestamp": first_met or 0,
                         "time_ago": _format_time_ago(first_met),
-                        "icon": "👤",
                     })
         except (sqlite3.Error, OSError) as e:
             record_degradation('knowledge_ledger', e)
@@ -315,7 +312,6 @@ class KnowledgeLedger:
                     "confidence": q.get("importance", 0.5),
                     "timestamp": q.get("created_at", 0),
                     "time_ago": _format_time_ago(q.get("created_at", 0)),
-                    "icon": "❓",
                 })
             
             # Answered
@@ -341,7 +337,6 @@ class KnowledgeLedger:
                         "confidence": importance or 0.7,
                         "timestamp": answered_at or 0,
                         "time_ago": _format_time_ago(answered_at),
-                        "icon": "💡",
                     })
         except (sqlite3.Error, OSError) as e:
             record_degradation('knowledge_ledger', e)
@@ -366,7 +361,6 @@ class KnowledgeLedger:
                     "confidence": g.get("priority", 0.5),
                     "timestamp": g.get("created_at", 0),
                     "time_ago": _format_time_ago(g.get("created_at", 0)),
-                    "icon": "🎯",
                 })
         except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('knowledge_ledger', e)
@@ -392,7 +386,6 @@ class KnowledgeLedger:
                     "confidence": 0.6,
                     "timestamp": ts,
                     "time_ago": _format_time_ago(ts),
-                    "icon": "🪞",
                 })
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('knowledge_ledger', exc)
@@ -420,7 +413,6 @@ class KnowledgeLedger:
                         "confidence": item.priority,
                         "timestamp": item.timestamp,
                         "time_ago": _format_time_ago(item.timestamp),
-                        "icon": "🔍",
                     })
         except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('knowledge_ledger', exc)

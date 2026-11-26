@@ -264,7 +264,7 @@ class ViabilityEngine:
         old = self.state
         self.state = new
         self.last_transition_at = time.time()
-        logger.info("🩸 viability %s → %s (%s)", old.value, new.value, reason)
+        logger.info("viability %s → %s (%s)", old.value, new.value, reason)
         for cb in list(self._on_transition):
             try:
                 cb(old, new)

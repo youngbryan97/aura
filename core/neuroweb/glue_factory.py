@@ -128,5 +128,5 @@ class GlueFactory:
                 }
             )
         
-        logger.info("✨ Synapse Forged: '%s' <==> %s", intent_text, neuron_id)
+        logger.info("Synapse Forged: '%s' <==> %s", intent_text, neuron_id)
         return synapse

@@ -40,7 +40,7 @@ class UserAdvocateWatchdog:
     def __init__(self):
         self._reviews = 0
         self._flagged = 0
-        logger.info("🟦 UserAdvocateWatchdog initialized (Tron lineage)")
+        logger.info("UserAdvocateWatchdog initialized (Tron lineage)")
 
     def review_action(self, action: dict[str, Any]) -> AdvocateReview:
         self._reviews += 1

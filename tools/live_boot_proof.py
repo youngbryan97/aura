@@ -407,7 +407,7 @@ class LiveProof:
         self.steps.append(entry)
         with open(self.transcript_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, default=str) + "\n")
-        marker = "✅" if ok else "❌"
+        marker = "ok" if ok else "failed"
         print(f"{marker} [{entry['elapsed_s']:>7.1f}s] {step}: "
               f"{detail.get('summary', '')}", flush=True)
         return ok
@@ -1417,7 +1417,7 @@ class LiveProof:
         verdict_json = json.dumps(verdict, indent=2, default=str)
         self.verdict_path.write_text(verdict_json)
         self.latest_verdict_path.write_text(verdict_json)
-        print(f"\n{'✅ LIVE PROOF PASSED' if passed else '❌ LIVE PROOF FAILED'}")
+        print(f"\n{'LIVE PROOF PASSED' if passed else 'LIVE PROOF FAILED'}")
         print(f"verdict: {artifact_display_path(self.verdict_path)}")
         return 0 if passed else 1
 

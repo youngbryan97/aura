@@ -227,7 +227,7 @@ def as_measured(messages: list[Any]) -> list[Any]:
 
     for message in framing:
         logging.getLogger("Aura.Persona").info(
-            "🔬 measurement turn framing (%d chars): %s",
+            "measurement turn framing (%d chars): %s",
             len(str(message.get("content") or "")),
             " ⏎ ".join(str(message.get("content") or "").splitlines())[:2400],
         )

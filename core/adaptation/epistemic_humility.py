@@ -79,7 +79,7 @@ class EpistemicHumility:
             return
         self.running = True
         self._task = get_task_tracker().create_task(self._critic_loop(), name="EpistemicHumility.critic_loop")
-        logger.info("🙇 Epistemic Humility ONLINE — ready to learn from mistakes.")
+        logger.info("Epistemic Humility ONLINE — ready to learn from mistakes.")
 
     async def stop(self):
         self.running = False
@@ -89,7 +89,7 @@ class EpistemicHumility:
                 task, owner="core.adaptation.epistemic_humility", timeout=1.0
             )
         await off_the_loop(self._save)
-        logger.info("🙇 Epistemic Humility DORMANT.")
+        logger.info("Epistemic Humility DORMANT.")
 
     def record_failure(self, source: str, error: Exception, context: str = ""):
         """Called by any subsystem when something goes wrong."""
@@ -213,7 +213,7 @@ class EpistemicHumility:
 
                 heuristic = LearnedHeuristic(domain=domain, rule=rule)
                 self.heuristics[domain] = heuristic
-                logger.info("✨ Synthesized new heuristic for %s: %s", domain, rule)
+                logger.info("Synthesized new heuristic for %s: %s", domain, rule)
 
                 # AUDIT-FIX: Dedup with HeuristicSynthesizer — push to shared pool
                 # so both systems don't inject the same rule twice into the prompt.

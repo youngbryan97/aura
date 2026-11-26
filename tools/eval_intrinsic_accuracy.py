@@ -369,7 +369,7 @@ def main() -> int:
     report["finished_at"] = time.time()
     write_report()
     print(f"verdict: {json.dumps(verdict)}", flush=True)
-    print(f"📄 {out_path}", flush=True)
+    print(f"{out_path}", flush=True)
     return 0
 
 

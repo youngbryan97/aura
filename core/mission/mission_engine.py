@@ -86,7 +86,7 @@ class MissionEngine:
                     setattr(mc, k, v)
         campaign = Campaign(campaign_id=cid, objective=objective, constraints=mc)
         self.campaigns[cid] = campaign
-        logger.info("🎯 Created campaign '%s': %s", cid, objective[:60])
+        logger.info("Created campaign '%s': %s", cid, objective[:60])
         return campaign
 
     async def run_mission(
@@ -109,21 +109,21 @@ class MissionEngine:
             if elapsed > campaign.constraints.max_duration_seconds:
                 campaign.status = MissionStatus.ABORTED
                 campaign.error = f"deadline_exceeded:{elapsed:.0f}s"
-                logger.warning("⏰ Campaign aborted: deadline exceeded (%.0fs)", elapsed)
+                logger.warning("Campaign aborted: deadline exceeded (%.0fs)", elapsed)
                 break
 
             # Check tool call budget
             if campaign.tool_calls_used >= campaign.constraints.max_tool_calls:
                 campaign.status = MissionStatus.ABORTED
                 campaign.error = "tool_call_budget_exhausted"
-                logger.warning("💰 Campaign aborted: tool call budget exhausted")
+                logger.warning("Campaign aborted: tool call budget exhausted")
                 break
 
             # Check blockers
             if self.graph.is_blocked(step_id):
                 campaign.blockers.append(step_id)
                 campaign.status = MissionStatus.BLOCKED
-                logger.warning("🎯 Step %s is BLOCKED. Halting campaign.", step_id)
+                logger.warning("Step %s is BLOCKED. Halting campaign.", step_id)
                 break
 
             self.graph.set_status(step_id, "in_progress")
@@ -193,7 +193,7 @@ class MissionEngine:
             "error": campaign.error,
         }
 
-        logger.info("📊 Campaign %s finished: %s (%d/%d milestones, %.1fs)",
+        logger.info("Campaign %s finished: %s (%d/%d milestones, %.1fs)",
                      campaign.campaign_id, campaign.status,
                      campaign.milestones_completed, campaign.milestones_total,
                      campaign.completed_at - campaign.started_at)

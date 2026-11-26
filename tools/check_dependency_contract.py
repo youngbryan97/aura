@@ -320,14 +320,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if findings else 0
 
     if findings:
-        print(f"❌ dependency contract: {len(findings)} problem(s)")
+        print(f"dependency contract: {len(findings)} problem(s)")
         for finding in findings:
             print(f"   • {finding}")
         return 1
     pending = [
         name for name, t in contract["targets"].items() if t.get("lock_status") == "pending"
     ]
-    print(f"✅ dependency contract holds ({len(contract['targets'])} targets)")
+    print(f"dependency contract holds ({len(contract['targets'])} targets)")
     if pending:
         print(f"   pending locks (may only shrink): {', '.join(sorted(pending))}")
     return 0

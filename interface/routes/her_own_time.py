@@ -94,7 +94,7 @@ async def _asks(goal: str) -> str:
         if asked is None:
             return ""
         _READ[goal] = asked.effect
-        logger.info("🧭 Her goal asks for %s (%.2f): %s", asked.effect, asked.sure, goal[:120])
+        logger.info("Her goal asks for %s (%.2f): %s", asked.effect, asked.sure, goal[:120])
     return _READ[goal]
 
 
@@ -128,7 +128,7 @@ async def _tell(find: dict[str, Any]) -> bool:
         return False
     decision = await orchestrator.emit_spontaneous_message(words, origin=ORIGIN, urgency=0.6)
     if not isinstance(decision, dict) or not decision.get("ok"):
-        logger.info("🧭 What she found was not said: %s", (decision or {}).get("reason") if isinstance(decision, dict) else decision)
+        logger.info("What she found was not said: %s", (decision or {}).get("reason") if isinstance(decision, dict) else decision)
         return False
     await she_said_unasked(words, origin=ORIGIN)
     return True
@@ -145,7 +145,7 @@ async def _her_will_says(option: Any) -> bool:
         record_degradation(ORIGIN, exc, severity="warning", action="what she chose was not done, for it could not be asked whether it may be")
         return False
     if not allowed:
-        logger.info("🧭 Not let: %s (%s)", str(option.what)[:120], reason)
+        logger.info("Not let: %s (%s)", str(option.what)[:120], reason)
     return bool(allowed)
 
 
@@ -179,7 +179,7 @@ def begin_what_she_does_unasked() -> None:
     async def go_on() -> None:
         taken = await take_up_what_was_left(tell=tell_them, told=tell_what_it_came_to, asks=ask_them, ready=lambda: her_client() is not None)
         if taken:
-            logger.info("🧰 Taken up again after a restart: %s", "; ".join(r.said[:80] for r in taken))
+            logger.info("Taken up again after a restart: %s", "; ".join(r.said[:80] for r in taken))
 
     get_task_tracker().create_task(go_on(), name="requests.left_off")
 

@@ -517,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{started_at_revision} — observations tested different code"
                 )
                 note_progress(args.progress_file, message)
-                print(f"\n⚠️  {message}\n", flush=True)
+                print(f"\n {message}\n", flush=True)
         return revision
 
     results: list[tuple[bool | None, str, list[str]]] = []
@@ -658,17 +658,17 @@ def main(argv: list[str] | None = None) -> int:
                     reg_path, json.dumps(register, indent=2) + "\n",
                     source="test_runner.defect_register",
                 )
-            print(f"🗂  defect register → {reg_path}", flush=True)
+            print(f" defect register → {reg_path}", flush=True)
         except (OSError, StateOwnershipViolation) as _reg_exc:
             register_error = str(_reg_exc)
-            print(f"⚠️  defect register write failed: {_reg_exc}", file=sys.stderr, flush=True)
+            print(f" defect register write failed: {_reg_exc}", file=sys.stderr, flush=True)
 
     print("\n━━ chunk summary ━━")
     if moved_at:
         # Said here as well as when it happened, because a summary read
         # hours later is where the mixture would otherwise be invisible.
         print(
-            f"\n⚠️  THE TREE MOVED {len(moved_at)} time(s) during this run: began on "
+            f"\n THE TREE MOVED {len(moved_at)} time(s) during this run: began on "
             f"{started_at_revision}, "
             + ", ".join(f"{phase} on {rev}" for phase, rev in moved_at)
         )
@@ -677,51 +677,51 @@ def main(argv: list[str] | None = None) -> int:
             "not one register. Re-run in a worktree pinned to a revision."
         )
     elif source_errors:
-        print("\n❌ source revision became unreadable; this run has no source identity verdict")
+        print("\nsource revision became unreadable; this run has no source identity verdict")
     elif started_at_revision:
         print(f"revision {started_at_revision}, unchanged at every source check")
     for ok, line, _ in results:
-        print(("⚪ " if ok is None else "✅ " if ok else "❌ ") + line)
+        print(("not run " if ok is None else "ok " if ok else "failed ") + line)
     if order_dependent:
-        print(f"\n⚠️  ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
+        print(f"\n ORDER-DEPENDENCE register ({len(order_dependent)}) — fail in-chunk, pass alone:")
         for fid in order_dependent:
-            print(f"  ⚠️  {fid}")
+            print(f"  warning  {fid}")
     if timed_out_alone:
-        print(f"\n⏱  timed out alone ({len(timed_out_alone)}) — no verdict either way:")
+        print(f"\n timed out alone ({len(timed_out_alone)}) — no verdict either way:")
         for fid in timed_out_alone:
-            print(f"  ⏱  {fid}")
+            print(f"   {fid}")
     if retry_refusals:
-        print(f"\n❌ {len(retry_refusals)} retry/retries refused by the memory floor; unmeasured")
+        print(f"\n{len(retry_refusals)} retry/retries refused by the memory floor; unmeasured")
         for refusal in retry_refusals.values():
-            print(f"  ❌ {refusal}")
+            print(f"  {refusal}")
     if retry_errors:
-        print(f"\n❌ {len(retry_errors)} retry/retries produced no isolated verdict:")
+        print(f"\n{len(retry_errors)} retry/retries produced no isolated verdict:")
         for fid, error in retry_errors.items():
-            print(f"  ❌ {fid}: {error}")
+            print(f"  {fid}: {error}")
     if register_error is not None:
-        print("\n❌ the requested defect register could not be written")
+        print("\nthe requested defect register could not be written")
         return 1
     if moved_at or source_errors:
-        print("\n❌ source identity did not hold; re-run in a worktree pinned to a revision")
+        print("\nsource identity did not hold; re-run in a worktree pinned to a revision")
         return 1
     if real_failures:
-        print(f"\n❌ real failures ({len(real_failures)}) — fail in-chunk AND alone:")
+        print(f"\nreal failures ({len(real_failures)}) — fail in-chunk AND alone:")
         for fid in real_failures:
-            print(f"  ❌ {fid}")
+            print(f"  {fid}")
         return 1
     if timed_out_alone or retry_refusals or retry_errors:
-        print(f"\n❌ {len(timed_out_alone) + len(retry_refusals) + len(retry_errors)} test(s) could not be judged alone")
+        print(f"\n{len(timed_out_alone) + len(retry_refusals) + len(retry_errors)} test(s) could not be judged alone")
         return 1
     if unisolated_chunks:
-        print(f"\n❌ {len(unisolated_chunks)} chunk(s) failed without isolatable test ids")
+        print(f"\n{len(unisolated_chunks)} chunk(s) failed without isolatable test ids")
         return 1
     if order_dependent:
-        print(f"\n❌ {len(order_dependent)} order-dependence defect(s) still fail the run")
+        print(f"\n{len(order_dependent)} order-dependence defect(s) still fail the run")
         return 1
     if not chunk_outcomes["passed"]:
-        print("\n❌ no selected tests ran; this run has no passing verdict")
+        print("\nno selected tests ran; this run has no passing verdict")
         return 1
-    print(f"\n✅ all {chunk_outcomes['passed']} chunks passed")
+    print(f"\nall {chunk_outcomes['passed']} chunks passed")
     if chunk_outcomes["empty"]:
         print(f"    {chunk_outcomes['empty']} empty chunk(s) excluded from the passing count")
     return 0

@@ -52,7 +52,7 @@ class DesktopAdapter:
         try:
             skill = get_runtime_service("skill:computer_use", default=None)
             if skill is None or not hasattr(skill, "safe_execute"):
-                logger.debug("🖥️ [Desktop] computer_use unavailable; '%s' is a no-op edge.", action)
+                logger.debug("[Desktop] computer_use unavailable; '%s' is a no-op edge.", action)
                 return
             await skill.safe_execute({"action": action, **params}, {})
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

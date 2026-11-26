@@ -95,7 +95,7 @@ def main() -> int:
 
     now = measure()
     print(
-        f"🔧 {now['tools']} tools: "
+        f"{now['tools']} tools: "
         f"{now['without_arguments']} do not say what they take, "
         f"{now['without_a_result']} do not say what they give back, "
         f"{now['without_an_effect_class']} do not say what they do outside, "
@@ -111,7 +111,7 @@ def main() -> int:
         BASELINE.write_text(
             json.dumps({key: now[key] for key in THE_COUNTS}, indent=2) + "\n"
         )
-        print(f"✍️  wrote {BASELINE}")
+        print(f" wrote {BASELINE}")
         return 0
 
     if not BASELINE.exists():
@@ -123,7 +123,7 @@ def main() -> int:
     }
     if rose:
         for key, (before, after) in sorted(rose.items()):
-            print(f"❌ {key} rose from {before} to {after}")
+            print(f"failed {key} rose from {before} to {after}")
         print("\nA tool that does not say what it takes or gives back cannot be")
         print("checked before it runs, and a caller finds out by running it.")
         return 1
@@ -131,8 +131,8 @@ def main() -> int:
         key: (was.get(key, 0), now[key]) for key in THE_COUNTS if now[key] < was.get(key, 0)
     }
     for key, (before, after) in sorted(fell.items()):
-        print(f"✅ {key} fell from {before} to {after} (the baseline should shrink)")
-    print("✅ no tool contract regressed")
+        print(f"ok {key} fell from {before} to {after} (the baseline should shrink)")
+    print("no tool contract regressed")
     return 0
 
 

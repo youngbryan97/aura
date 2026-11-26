@@ -34,7 +34,7 @@ class AuditLogger:
         # than always reading the environment (05fd4428).
         raw_secret = hmac_secret if hmac_secret else os.environ.get("AURA_AUDIT_HMAC_SECRET")
         if not raw_secret:
-            logger.error("❌ CRITICAL: no audit HMAC secret provided (arg or AURA_AUDIT_HMAC_SECRET).")
+            logger.error("CRITICAL: no audit HMAC secret provided (arg or AURA_AUDIT_HMAC_SECRET).")
             raise RuntimeError("CRITICAL: audit HMAC secret is not set. Halting boot.")
         self.hmac_secret = raw_secret.encode("utf-8")
         self._lock = threading.Lock()

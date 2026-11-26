@@ -1024,7 +1024,7 @@ class ContextAssembler(_BuildsThePromptBlocks):
         elasticity = ContextAssembler._elasticity_level(state)
         if elasticity > 0:
             logger.info(
-                "🧠 Context elasticity=%d (pressure=%.2f of window, depth=%d turns) — trimming system prompt.",
+                "Context elasticity=%d (pressure=%.2f of window, depth=%d turns) — trimming system prompt.",
                 elasticity,
                 ContextAssembler._transcript_pressure(state),
                 depth,
@@ -1583,12 +1583,12 @@ class ContextAssembler(_BuildsThePromptBlocks):
                 # constraint survives, never the first cap characters.
                 base = base[-cap:]
             logger.debug(
-                "🧠 [BRAIN-PROMPT] System prompt exceeded %d-char budget — "
+                "[BRAIN-PROMPT] System prompt exceeded %d-char budget — "
                 "trimmed to %d chars (casual=%s, depth=%d).",
                 cap, len(base), is_casual, depth,
             )
 
-        logger.debug("🧠 [BRAIN-PROMPT] Assembled System Prompt (len=%d)", len(base))
+        logger.debug("[BRAIN-PROMPT] Assembled System Prompt (len=%d)", len(base))
         return ContextAssembler._less_what_is_left_out(base)
 
     @staticmethod
@@ -2146,7 +2146,7 @@ class ContextAssembler(_BuildsThePromptBlocks):
             return history, 0
         kept = [message for pair in pairs[reach.boundary :] for message in pair]
         logger.info(
-            "📐 ContextAssembler: delivered conversation %d → %d message(s): %s",
+            "ContextAssembler: delivered conversation %d → %d message(s): %s",
             len(history),
             len(kept),
             reach.reason,

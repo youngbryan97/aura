@@ -22,7 +22,7 @@ class DatabaseCoordinator:
         self._worker_task = None
         self._connections: Dict[str, sqlite3.Connection] = {}
         self._running = False
-        logger.info("🗄️ DatabaseCoordinator initialized.")
+        logger.info("DatabaseCoordinator initialized.")
 
     async def start(self):
         """Start the background write worker."""
@@ -38,7 +38,7 @@ class DatabaseCoordinator:
             )
         except (ImportError, AttributeError, RuntimeError):
             self._worker_task = get_task_tracker().create_task(self._process_writes(), name="aura.database_coordinator")
-        logger.info("🗄️ DatabaseCoordinator worker started.")
+        logger.info("DatabaseCoordinator worker started.")
 
     async def stop(self):
         """Stop the background worker gracefully."""
@@ -49,7 +49,7 @@ class DatabaseCoordinator:
         for conn in self._connections.values():
             conn.close()
         self._connections.clear()
-        logger.info("🗄️ DatabaseCoordinator stopped.")
+        logger.info("DatabaseCoordinator stopped.")
 
     def is_alive(self) -> bool:
         """Synchronous liveness probe for the runtime health contract."""
@@ -110,25 +110,25 @@ class DatabaseCoordinator:
 
     def checkpoint_wal(self):
         """Checkpoint all WAL files to prevent unbounded WAL growth."""
-        logger.info("🗄️ [DB] Starting WAL checkpoint on all active databases...")
+        logger.info("[DB] Starting WAL checkpoint on all active databases...")
         for path, conn in self._connections.items():
             try:
                 conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
                 logger.info("✓ [DB] WAL checkpoint: %s", path)
             except (sqlite3.Error, OSError) as e:
                 record_degradation('database_coordinator', e)
-                logger.error("❌ [DB] WAL checkpoint failed for %s: %s", path, e)
+                logger.error("[DB] WAL checkpoint failed for %s: %s", path, e)
 
     def vacuum_all_databases(self):
         """Perform VACUUM on all active connections to prevent file bloat."""
-        logger.info("🧹 [DB] Starting VACUUM on all active databases...")
+        logger.info("[DB] Starting VACUUM on all active databases...")
         for path, conn in self._connections.items():
             try:
                 conn.execute("VACUUM")
                 logger.info("✓ [DB] Vacuumed: %s", path)
             except (sqlite3.Error, OSError) as e:
                 record_degradation('database_coordinator', e)
-                logger.error("❌ [DB] Vacuum failed for %s: %s", path, e)
+                logger.error("[DB] Vacuum failed for %s: %s", path, e)
 
 # Global singleton
 _coordinator = DatabaseCoordinator()

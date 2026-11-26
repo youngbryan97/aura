@@ -121,7 +121,7 @@ class _RunsOneShard:
             if not reply:
                 logger.info("Swarm: shard %s had no reply (%s).", shard_id, (result or {}).get("error") or "empty")
                 return
-            logger.info("🧠 Shard %s reply: %s", shard_id, reply[:200])
+            logger.info("Shard %s reply: %s", shard_id, reply[:200])
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 mycelium.pulse_hypha("collective", "distributed_agency", success=True)

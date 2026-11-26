@@ -387,7 +387,7 @@ def maybe_build_foreground(
             if condition not in _REPORTED_REFUSALS:
                 _REPORTED_REFUSALS.add(condition)
                 logger.warning(
-                    "🧠 [WORKER] Foreground non-parametric memory REFUSED: %s. "
+                    "[WORKER] Foreground non-parametric memory REFUSED: %s. "
                     "Generating from the model alone. Said once; the recall "
                     "outcome carries it on every turn.",
                     unusable,
@@ -408,7 +408,7 @@ def maybe_build_foreground(
         tap = HiddenStateTap(model)
         proc = _recall_where_the_model_runs(tap, memory, binding) or make_tapped_nonparametric_processor(
             tap, memory, binding=binding)
-        logger.info("🧠 [WORKER] Foreground non-parametric memory ACTIVE (%d entries, dim=%d).",
+        logger.info("[WORKER] Foreground non-parametric memory ACTIVE (%d entries, dim=%d).",
                     len(memory), dim)
         _set_recall_outcome("installed", f"{len(memory)} entries at dim {dim}")
         return tap, proc

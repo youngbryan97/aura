@@ -291,7 +291,7 @@ class ContextGuard:
 
         if detections:
             logger.warning(
-                "🛡️ Prompt injection signals in %s content: %s",
+                "Prompt injection signals in %s content: %s",
                 receipt.role,
                 sorted({d.category for d in detections}),
             )

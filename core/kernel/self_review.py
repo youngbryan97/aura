@@ -40,7 +40,7 @@ class SelfReviewPhase(Phase):
             return state
 
         # [TUNNELING] Analyze code debt & logic bottlenecks
-        logger.info("🧠 [SELF-REVIEW] Initiating bounded self-review.")
+        logger.info("[SELF-REVIEW] Initiating bounded self-review.")
         
         # Guard against kernel not having loop_state() yet (early boot calls)
         loop_state_fn = getattr(self.kernel, "loop_state", None)
@@ -78,11 +78,11 @@ class SelfReviewPhase(Phase):
         flagged = entropy > 0.7 or phi < 0.2
         was_flagged = getattr(self, "_flagged", False)
         if flagged and not was_flagged:
-            logger.warning("📉 [SELF-REVIEW] High entropy or low phi (phi=%.3f, entropy=%.3f).", phi, entropy)
+            logger.warning("[SELF-REVIEW] High entropy or low phi (phi=%.3f, entropy=%.3f).", phi, entropy)
         elif flagged:
             logger.debug("SelfReview: still high entropy or low phi (phi=%.3f, entropy=%.3f).", phi, entropy)
         elif was_flagged:
-            logger.info("🧠 [SELF-REVIEW] Phi and entropy are back in range (phi=%.3f, entropy=%.3f).", phi, entropy)
+            logger.info("[SELF-REVIEW] Phi and entropy are back in range (phi=%.3f, entropy=%.3f).", phi, entropy)
         self._flagged = flagged
 
         self._last_review_ts = now

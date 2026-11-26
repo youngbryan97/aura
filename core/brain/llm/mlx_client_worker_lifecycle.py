@@ -138,7 +138,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             )
         except TimeoutError:
             logger.warning(
-                "⏱️ [MLX] Lane lease renewal timed out; re-asking once before "
+                "[MLX] Lane lease renewal timed out; re-asking once before "
                 "treating the lane as lost (a blocked event loop cannot "
                 "distinguish a dead lease from an unasked question)."
             )
@@ -177,7 +177,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             raise
         if alive:
             logger.info(
-                "⏱️ [MLX] Lane lease renewal recovered after one timeout; "
+                "[MLX] Lane lease renewal recovered after one timeout; "
                 "the re-ask found the lease intact and the worker stayed live."
             )
         return alive
@@ -305,7 +305,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                         ancestor_pids = set(observed_process.ancestor_pids)
                         if observed_process.pid != os.getpid() and os.getpid() in ancestor_pids:
                             logger.warning(
-                                "🧹 [STABILITY] Killing orphan MLXWorker pid=%d for %s",
+                                "[STABILITY] Killing orphan MLXWorker pid=%d for %s",
                                 observed_process.pid,
                                 model_basename,
                             )
@@ -363,7 +363,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                     severity="critical",
                 )
                 logger.critical(
-                    "🚨 [MLX] Refusing to spawn a replacement worker for %s: the "
+                    "[MLX] Refusing to spawn a replacement worker for %s: the "
                     "orphan scan could not run and the previous process is not "
                     "proven dead. Spawning would risk two resident copies.",
                     os.path.basename(self.model_path),
@@ -401,7 +401,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                     and int(getattr(self, "_active_generations", 0) or 0) == 0
                 ):
                     logger.warning(
-                        "🧹 [MLX] Reclaiming our own never-initialized worker pid=%s "
+                        "[MLX] Reclaiming our own never-initialized worker pid=%s "
                         "before refusing a spawn for headroom (%s) — it is holding "
                         "the memory the replacement needs and serving no one.",
                         getattr(stale, "pid", "unknown"),
@@ -456,13 +456,13 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 memory_block = _memory_pressure_blocks_worker_spawn(self.model_path)
             if waited and not memory_block:
                 logger.info(
-                    "🟢 [MLX] Headroom recovered after worker reclaim; proceeding with spawn."
+                    "[MLX] Headroom recovered after worker reclaim; proceeding with spawn."
                 )
         if memory_block:
             error = ModelLoadAdmissionRefused(memory_block)
             if self._is_deep_solver_lane():
                 logger.warning(
-                    "🛡️ [MLX] Refusing optional deep Solver spawn before model load: %s",
+                    "[MLX] Refusing optional deep Solver spawn before model load: %s",
                     memory_block,
                 )
                 raise error
@@ -489,7 +489,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         lock_file = _open_spawn_lock_file(lock_file_path)
         with lock_file:
             try:
-                logger.info("🔒 [MLX] Acquiring process-level spawn lock...")
+                logger.info("[MLX] Acquiring process-level spawn lock...")
                 _acquire_spawn_file_lock(lock_file, model_path=self.model_path)
                 if _shutdown_blocks_model_work(self.model_path, action="locked worker spawn"):
                     raise RuntimeError("runtime_shutdown")
@@ -551,7 +551,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
 
             finally:
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
-                logger.info("🔓 [MLX] Released process-level spawn lock.")
+                logger.info("[MLX] Released process-level spawn lock.")
 
     async def _spawn_worker(self) -> mp.Process:
         from .mlx_client import (
@@ -599,7 +599,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             # its own fallback was answering for it. The primary lane's
             # recovery is exempt; other background lanes still yield.
             logger.info(
-                "⏸️ [MLX] Deferring background worker activity for %s while foreground lane is owned by %s.",
+                "[MLX] Deferring background worker activity for %s while foreground lane is owned by %s.",
                 os.path.basename(self.model_path),
                 _FOREGROUND_OWNER_NAME or "foreground",
             )
@@ -614,7 +614,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             background_deferral = _background_deferral_active(os.path.basename(self.model_path))
             if background_deferral:
                 logger.info(
-                    "⏸️ [MLX] Deferring background worker activity for %s (%s).",
+                    "[MLX] Deferring background worker activity for %s (%s).",
                     os.path.basename(self.model_path),
                     background_deferral,
                 )
@@ -651,7 +651,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             if a_voice_session_is_open():
                 # A background model loaded while a person is in her voice mode takes memory her cortex is then shed
                 # for (core/brain/llm_health_router_gate_owners.py, a_voice_session). It loads when the session ends.
-                logger.info("⏸️ [MLX] Not loading %s for background work while her voice mode is open.",
+                logger.info("[MLX] Not loading %s for background work while her voice mode is open.",
                             os.path.basename(self.model_path))
                 return False
         if int(self._model_lane_fencing_token or 0) > 0:
@@ -737,7 +737,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 )
             admission_logger = logger.warning if foreground_request else logger.info
             admission_logger(
-                "⏸️ [MLX] Model-load admission deferred for %s: %s (receipt=%s, recheck_in=%.1fs)",
+                "[MLX] Model-load admission deferred for %s: %s (receipt=%s, recheck_in=%.1fs)",
                 os.path.basename(self.model_path),
                 admission_exc.reason,
                 admission_exc.receipt_id or "none",
@@ -757,7 +757,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 foreground_request=foreground_request,
             )
             logger.warning(
-                "⏸️ [MLX] Spawn gate held too long by another lane; deferring %s spawn (%s).",
+                "[MLX] Spawn gate held too long by another lane; deferring %s spawn (%s).",
                 os.path.basename(self.model_path),
                 gate_exc,
             )
@@ -785,7 +785,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             severity="error",
         )
         logger.warning(
-            "♻️ [MLX] %s is alive and initialised but silent for %.1fs; "
+            "[MLX] %s is alive and initialised but silent for %.1fs; "
             "recycling instead of admitting it as ready.",
             os.path.basename(self.model_path),
             silence,
@@ -826,7 +826,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         )
 
         logger.warning(
-            "♻️ [MLX] Worker handshake stuck for %.0fs (>%.0fs budget) on %s — recycling.",
+            "[MLX] Worker handshake stuck for %.0fs (>%.0fs budget) on %s — recycling.",
             handshake_age,
             handshake_budget,
             os.path.basename(self.model_path),
@@ -867,7 +867,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         )
 
         logger.warning(
-            "♻️ [MLX] Worker alive but init lifecycle is missing. Recycling %s.",
+            "[MLX] Worker alive but init lifecycle is missing. Recycling %s.",
             os.path.basename(self.model_path),
         )
         self._set_lane_state("recovering", "missing_init_lifecycle")
@@ -892,7 +892,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         self._init_future = init_future
         self._set_lane_state("spawning")
         logger.info(
-            "📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path)
+            "[MLX] Respawning worker for %s...", os.path.basename(self.model_path)
         )
         return init_future
 
@@ -941,7 +941,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             foreground_request=foreground_request,
         )
         logger.error(
-            "🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)",
+            "[MLX] Worker respawn aborted for %s: %s (backoff %.0fs)",
             os.path.basename(self.model_path),
             detail,
             min(300.0, 10.0 * (2 ** min(_sf - 1, 5))),
@@ -989,7 +989,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             foreground_request=foreground_request,
         )
         logger.error(
-            "🛑 [MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
+            "[MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
             os.path.basename(self.model_path),
             detail,
             self._consecutive_spawn_failures,
@@ -1197,7 +1197,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                     foreground_request=foreground_request,
                 )
                 logger.warning(
-                    "⛔ [MLX] Respawn refused for %s: %s",
+                    "[MLX] Respawn refused for %s: %s",
                     os.path.basename(self.model_path),
                     crash_blocked,
                 )
@@ -1219,7 +1219,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             # it while the Reflex fallback owns the foreground kept the
             # cortex dead exactly while users waited on it.
             logger.info(
-                "⏸️ [MLX] Background spawn blocked for %s while foreground lane is reserved.",
+                "[MLX] Background spawn blocked for %s while foreground lane is reserved.",
                 os.path.basename(self.model_path),
             )
             return False
@@ -1227,7 +1227,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             background_deferral = _background_deferral_active(os.path.basename(self.model_path))
             if background_deferral:
                 logger.info(
-                    "⏸️ [MLX] Background spawn blocked for %s (%s).",
+                    "[MLX] Background spawn blocked for %s (%s).",
                     os.path.basename(self.model_path),
                     background_deferral,
                 )
@@ -1240,7 +1240,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
         acquired = await asyncio.to_thread(self._lock.acquire, True, 15.0)
         if not acquired:
             logger.error(
-                "🚨 [MLX] DEADLOCK DETECTED: Could not acquire _lock within 15s for %s",
+                "[MLX] DEADLOCK DETECTED: Could not acquire _lock within 15s for %s",
                 os.path.basename(self.model_path),
             )
             return False
@@ -1288,7 +1288,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
 
                 if self._init_future is not None:
                     logger.info(
-                        "⏳ [MLX] Worker alive but still handshaking: %s",
+                        "[MLX] Worker alive but still handshaking: %s",
                         os.path.basename(self.model_path),
                     )
                     self._set_lane_state("handshaking")
@@ -1344,7 +1344,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 self._set_lane_state("spawning")
                 # A new worker is cold, whatever the last one had done.
                 self._tokens_since_spawn = 0
-                logger.info("📡 [MLX] Spawning worker for %s...", os.path.basename(self.model_path))
+                logger.info("[MLX] Spawning worker for %s...", os.path.basename(self.model_path))
                 try:
                     self._process = await self._spawn_worker()
                     self._process_started_at = time.time()
@@ -1434,13 +1434,13 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                             _record_heavy_model_swap(target_path)
                         # A new worker has started nothing yet, so nothing it could not start.
                         self._unstartable_from_chars = 0
-                        logger.info("✅ [MLX] Worker ready: %s", os.path.basename(self.model_path))
+                        logger.info("[MLX] Worker ready: %s", os.path.basename(self.model_path))
                         return True
                     else:
                         msg = res.get("message", "Init failed")
                         if handshake_attempt == 0:
                             logger.warning(
-                                "🔄 [MLX] Worker init failed: %s. Retrying spawn...", msg
+                                "[MLX] Worker init failed: %s. Retrying spawn...", msg
                             )
                             # Reboot and try again once
                             await self.reboot_worker(reason="init_failed_retry", mark_failed=False)
@@ -1468,7 +1468,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 except TimeoutError as init_ended:
                     if soft_timeout and self._process and self._process.is_alive():
                         logger.warning(
-                            "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
+                            "[MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
                             handshake_timeout,
                             os.path.basename(self.model_path),
                         )
@@ -1481,7 +1481,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                         )
                         raise
                     if handshake_attempt == 0:
-                        logger.warning("⏳ [MLX] Init on attempt 1 ended without a ready worker (%s). Retrying spawn...",
+                        logger.warning("[MLX] Init on attempt 1 ended without a ready worker (%s). Retrying spawn...",
                                        init_ended or "timed out")
                         await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
                         fut = self._init_future
@@ -1504,7 +1504,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                                 )
                             break
                         continue
-                    logger.error("🛑 [MLX] Init handshake TIMED OUT. Force killing process.")
+                    logger.error("[MLX] Init handshake TIMED OUT. Force killing process.")
                     self._set_lane_state("failed", "init_timeout")
                     if self._process:
                         _doomed, self._process = self._process, None
@@ -1568,7 +1568,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                     severity="error",
                 )
                 logger.error(
-                    "🚨 [MLX] Could not acquire _lock for reboot on %s after %.0fs "
+                    "[MLX] Could not acquire _lock for reboot on %s after %.0fs "
                     "(attempt %d/%d). DEFERRING — another lifecycle operation owns "
                     "this lane.",
                     os.path.basename(self.model_path),
@@ -1587,7 +1587,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
                 severity="critical",
             )
             logger.critical(
-                "🚨 [MLX] Lock holder for %s presumed WEDGED after %d failed reboot "
+                "[MLX] Lock holder for %s presumed WEDGED after %d failed reboot "
                 "acquisitions. Forcing unsynchronized reboot as a last resort.",
                 os.path.basename(self.model_path),
                 self._reboot_lock_failures,
@@ -1675,7 +1675,7 @@ class _KeepsTheWorkerAlive(OwnsDescriptors):
             )
             if cleared_owner:
                 logger.warning(
-                    "♻️ [MLX] Cleared stale foreground owner %s while rebooting %s.",
+                    "[MLX] Cleared stale foreground owner %s while rebooting %s.",
                     cleared_owner,
                     os.path.basename(self.model_path),
                 )

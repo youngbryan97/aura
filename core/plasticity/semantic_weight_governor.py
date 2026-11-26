@@ -113,7 +113,7 @@ class SemanticWeightGovernor:
             new_level = self.LEVEL_0
 
         if new_level != self.trust_level:
-            logger.info("⚡ [PLASTICITY] Trust Level modulated: Level %d -> Level %d (Trust Score: %.2f)", self.trust_level, new_level, score)
+            logger.info("[PLASTICITY] Trust Level modulated: Level %d -> Level %d (Trust Score: %.2f)", self.trust_level, new_level, score)
             self.trust_level = new_level
 
     def validate_plasticity_request(self, requested_level: int) -> bool:
@@ -154,7 +154,7 @@ class SemanticWeightGovernor:
             extra={"pending_rollback": dict(self.pending_rollback)},
         )
         logger.critical(
-            "🚨 [PLASTICITY] Degradation detected; plasticity frozen and governed rollback staged: %s",
+            "[PLASTICITY] Degradation detected; plasticity frozen and governed rollback staged: %s",
             self.pending_rollback,
         )
         return True

@@ -2,7 +2,7 @@
 
 Live on the desktop surface 2026-07-26, in this order:
 
-    ✅ Cortex response received (len=366)
+    Cortex response received (len=366)
     FAULT ... RuntimeError: desktop_quick_reply_midsentence_cutoff
     CognitiveEngine desktop chat reply failed reliability gate (truncated_tail)
     Skipping CognitiveEngine desktop repair retry; the foreground model owner

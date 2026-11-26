@@ -391,7 +391,7 @@ class IncomingLogicMixin:
 
         for pattern, response in patterns.items():
             if re.search(pattern, content, re.IGNORECASE):
-                logger.info("⚡ [REFLEX] Somatic match: '%s' → %s", pattern, response)
+                logger.info("[REFLEX] Somatic match: '%s' → %s", pattern, response)
                 return response
 
         logger.debug("No somatic reflex match for: %s", repr(message[:100]))
@@ -429,7 +429,7 @@ class IncomingLogicMixin:
         if origin not in ("user", "voice", "admin"):
             if internal_signal.startswith("volition_trigger"):
                 logger.info(
-                    "⚡ Routing internal volition trigger from %s into autonomous thought.",
+                    "Routing internal volition trigger from %s into autonomous thought.",
                     origin,
                 )
                 trigger = getattr(self, "_trigger_autonomous_thought", None)
@@ -451,7 +451,7 @@ class IncomingLogicMixin:
                     )
                 )[:160]
                 logger.warning(
-                    "⚠️ Suppressing internal volition error signal from %s (%s).",
+                    "Suppressing internal volition error signal from %s (%s).",
                     origin,
                     detail,
                 )
@@ -473,7 +473,7 @@ class IncomingLogicMixin:
         _last_user = getattr(self, "_last_user_interaction_time", 0)
         if origin == "voice" and (now - _last_user) < 30.0:
             # If user just typed something, ignore background audio for 30s
-            logger.info("🛡️ IGNORE: Skipping [VOICE] input during active user session.")
+            logger.info("IGNORE: Skipping [VOICE] input during active user session.")
             return None
 
         # Publish status with interim=True (per audit)
@@ -503,7 +503,7 @@ class IncomingLogicMixin:
             reflex_response = await self._check_social_reflexes(safe_msg)
             if reflex_response:
                 logger.info(
-                    "⚡ [REFLEX] Social ritual matched: '%s' -> '%s'...",
+                    "[REFLEX] Social ritual matched: '%s' -> '%s'...",
                     safe_msg[:20],
                     reflex_response[:30],
                 )
@@ -616,7 +616,7 @@ class IncomingLogicMixin:
                     success = mgr.freeze()
                     await self._emit_user_response(
                         payload_context,
-                        f"✅ Cognitive State Snapshot {'successful' if success else 'failed'}.",
+                        f"Cognitive State Snapshot {'successful' if success else 'failed'}.",
                         origin="admin",
                     )
                 except (ImportError, RuntimeError, OSError) as e:
@@ -635,7 +635,7 @@ class IncomingLogicMixin:
                     success = mgr.thaw()
                     await self._emit_user_response(
                         payload_context,
-                        f"🔥 Cognitive State Thaw {'successful' if success else 'failed'}.",
+                        f"Cognitive State Thaw {'successful' if success else 'failed'}.",
                         origin="admin",
                     )
                 except (ImportError, RuntimeError, OSError) as e:
@@ -843,7 +843,7 @@ class IncomingLogicMixin:
                 if is_user_origin and current_is_replaceable:
                     # Cancel autonomous/dream OR VOICE task to make way for user
                     logger.info(
-                        "🛑 Cancelling stale %s task for direct user input...",
+                        "Cancelling stale %s task for direct user input...",
                         getattr(self, "_current_origin", "background"),
                     )
                     task.cancel()
@@ -864,7 +864,7 @@ class IncomingLogicMixin:
 
                     if grace_wait_s > 0.0:
                         logger.info(
-                            "⏳ Previous user response in flight — giving it %.0fs to finish (age %.1fs)...",
+                            "Previous user response in flight — giving it %.0fs to finish (age %.1fs)...",
                             grace_wait_s,
                             in_flight_age_s,
                         )
@@ -890,7 +890,7 @@ class IncomingLogicMixin:
                             )
                     else:
                         logger.warning(
-                            "🛑 Superseding stalled user response after %.1fs to honor the latest user turn.",
+                            "Superseding stalled user response after %.1fs to honor the latest user turn.",
                             max(
                                 in_flight_age_s,
                                 time.monotonic()
@@ -912,7 +912,7 @@ class IncomingLogicMixin:
                             )
                 else:
                     logger.info(
-                        "🛡️ Guardian: Preserving in-flight task (origin=%s is not user)", origin
+                        "Guardian: Preserving in-flight task (origin=%s is not user)", origin
                     )
                     try:
                         # Increase to 60s for background tasks
@@ -921,11 +921,11 @@ class IncomingLogicMixin:
                         if _current_task_cancellation_pending():
                             raise
                         logger.warning(
-                            "🛡️ Guardian: Previous background task was cancelled; proceeding"
+                            "Guardian: Previous background task was cancelled; proceeding"
                         )
                     except (TimeoutError, asyncio.exceptions.TimeoutError):
                         logger.warning(
-                            "🛡️ Guardian: Previous task timed out (60s), proceeding anyway"
+                            "Guardian: Previous task timed out (60s), proceeding anyway"
                         )
 
             # 3. Commit current origin and message state
@@ -971,7 +971,7 @@ class IncomingLogicMixin:
                     for s in unapplied_shards:
                         s["applied"] = True
                     logger.info(
-                        "🎯 [META] Injected %d correction shards into context.", len(shards_content)
+                        "[META] Injected %d correction shards into context.", len(shards_content)
                     )
 
             # 4. Deterministic Execution
@@ -1087,14 +1087,14 @@ class IncomingLogicMixin:
                             pathway, extracted_params = hardwired_result
 
                             logger.info(
-                                "🍄 [MYCELIUM] ⚡ HARDWIRED MATCH: '%s' → %s",
+                                "[MYCELIUM] HARDWIRED MATCH: '%s' → %s",
                                 pathway.pathway_id,
                                 pathway.skill_name,
                             )
 
                             if not allow_direct_user_shortcut(origin):
                                 logger.info(
-                                    "🧭 [MYCELIUM] Yielding hardwired user-facing pathway '%s' to the governed runtime path",
+                                    "[MYCELIUM] Yielding hardwired user-facing pathway '%s' to the governed runtime path",
                                     pathway.pathway_id,
                                 )
                                 hardwired_result = None
@@ -1113,7 +1113,7 @@ class IncomingLogicMixin:
                                     )
                                     if not _emit_ok:
                                         logger.info(
-                                            "🛡️ [AUTHORITY] Hardwired direct response '%s' blocked: %s",
+                                            "[AUTHORITY] Hardwired direct response '%s' blocked: %s",
                                             pathway.pathway_id,
                                             _emit_reason,
                                         )
@@ -1163,7 +1163,7 @@ class IncomingLogicMixin:
                                 # Phase 5.1: Zero-Latency Direct Response Bypass
                                 if pathway.direct_response:
                                     logger.info(
-                                        "⚡ [REFLEX] Direct response triggered for '%s'",
+                                        "[REFLEX] Direct response triggered for '%s'",
                                         pathway.pathway_id,
                                     )
                                     try:
@@ -1430,7 +1430,7 @@ class IncomingLogicMixin:
                                 or names_any(message, _factual_triggers)
                             )
                             if is_complex:
-                                self._emit_thought_stream("🧠 Engaging ReAct reasoning loop...")
+                                self._emit_thought_stream("Engaging ReAct reasoning loop...")
 
                                 # H-52: "Cognitive Bridge" — log to thought stream only.
                                 # STABILITY v56: Do NOT emit to output_gate — that feeds
@@ -1440,7 +1440,7 @@ class IncomingLogicMixin:
                                     self, "_reflex_sent_for_current", False
                                 ):
                                     self._emit_thought_stream(
-                                        "💭 Complex query detected — engaging reasoning loop."
+                                        "Complex query detected — engaging reasoning loop."
                                     )
                                     self._reflex_sent_for_current = True
 
@@ -1455,7 +1455,7 @@ class IncomingLogicMixin:
                                                 # STABILITY v56: Thought stream only — never emit
                                                 # to output_gate during reasoning (poisons reply_queue).
                                                 self._emit_thought_stream(
-                                                    "⏳ Still thinking... exploring deep neural pathways."
+                                                    "Still thinking... exploring deep neural pathways."
                                                 )
 
                                     from core.utils.task_tracker import (
@@ -1472,10 +1472,10 @@ class IncomingLogicMixin:
                                             message, priority=priority
                                         ):
                                             if event["type"] == "thought":
-                                                self._emit_thought_stream(f"💭 {event['content']}")
+                                                self._emit_thought_stream(f"{event['content']}")
                                             elif event["type"] == "action":
                                                 self._emit_thought_stream(
-                                                    f"🛠️ Executing: {event['action']}"
+                                                    f"Executing: {event['action']}"
                                                 )
                                             elif event["type"] == "observation":
                                                 logger.debug(
@@ -1485,10 +1485,10 @@ class IncomingLogicMixin:
                                             elif event["type"] == "final":
                                                 final_response = event["content"]
                                                 successful_tools = []
-                                                logger.info("✅ ReActLoop reasoning completed.")
+                                                logger.info("ReActLoop reasoning completed.")
                                             elif event["type"] == "error":
                                                 self._emit_thought_stream(
-                                                    f"⚠️ Reasoning friction: {event['content']}"
+                                                    f"Reasoning friction: {event['content']}"
                                                 )
                                                 # Zenith-H52: If severe friction, break loop to trigger immediate fallback
                                                 if any(
@@ -1535,7 +1535,7 @@ class IncomingLogicMixin:
                             and origin != "kernel"
                         ):
                             self._emit_thought_stream(
-                                "🧠 [ZENITH] Unitary Kernel Pipeline engaged..."
+                                "[ZENITH] Unitary Kernel Pipeline engaged..."
                             )
                             # ══════════════════════════════════════════════════════
                             # UNITARY KERNEL BYPASS (Phase 10 Hardening)
@@ -1549,13 +1549,13 @@ class IncomingLogicMixin:
                             successful_tools = []
                         elif origin == "kernel":
                             logger.debug(
-                                "🧠 Legacy bridge request detected; bypassing KernelInterface to avoid recursive re-entry."
+                                "Legacy bridge request detected; bypassing KernelInterface to avoid recursive re-entry."
                             )
                             if (
                                 cog := optional_service("cognitive_integration")
                             ) and cog.is_active:
                                 self._emit_thought_stream(
-                                    "🧠 Phase 7: Cognitive Inversion Pipeline engaged..."
+                                    "Phase 7: Cognitive Inversion Pipeline engaged..."
                                 )
                                 final_response = await cog.process_turn(message, payload_context)
                                 successful_tools = []
@@ -1568,7 +1568,7 @@ class IncomingLogicMixin:
                             cog := optional_service("cognitive_integration")
                         ) and cog.is_active:
                             self._emit_thought_stream(
-                                "🧠 Phase 7: Cognitive Inversion Pipeline engaged..."
+                                "Phase 7: Cognitive Inversion Pipeline engaged..."
                             )
                             # The new pipeline handles classification, strategy, reasoning, and drafting
                             final_response = await cog.process_turn(message, payload_context)
@@ -1597,7 +1597,7 @@ class IncomingLogicMixin:
                                 try:
                                     await cog.initialize()
                                     if cog.is_active:
-                                        logger.info("✅ CIL recovered via lazy re-init!")
+                                        logger.info("CIL recovered via lazy re-init!")
                                         final_response = await cog.process_turn(
                                             message, payload_context
                                         )
@@ -1725,7 +1725,7 @@ class IncomingLogicMixin:
                             _has_gap = any(m in _resp_lower for m in _gap_markers)
                             if _has_gap and hasattr(self, "agency") and self.agency:
                                 logger.info(
-                                    "🔍 [KNOWLEDGE GAP] Uncertainty in response — auto-searching: %s",
+                                    "[KNOWLEDGE GAP] Uncertainty in response — auto-searching: %s",
                                     message[:80],
                                 )
                                 try:
@@ -1753,14 +1753,14 @@ class IncomingLogicMixin:
                                             f"{_snippet}\n\n*(sourced from web: {_src})*"
                                         )
                                         logger.info(
-                                            "✅ [KNOWLEDGE GAP] Response grounded via web search."
+                                            "[KNOWLEDGE GAP] Response grounded via web search."
                                         )
                                     else:
                                         logger.warning(
-                                            "🔍 [KNOWLEDGE GAP] Web search returned no usable result."
+                                            "[KNOWLEDGE GAP] Web search returned no usable result."
                                         )
                                 except TimeoutError:
-                                    logger.warning("🔍 [KNOWLEDGE GAP] Web search timed out (25s).")
+                                    logger.warning("[KNOWLEDGE GAP] Web search timed out (25s).")
                                 except asyncio.CancelledError:
                                     raise
                                 except (
@@ -1772,7 +1772,7 @@ class IncomingLogicMixin:
                                         action="kept finalized response after knowledge-gap auto-search failed",
                                     )
                                     logger.error(
-                                        "🔍 [KNOWLEDGE GAP] Web search failed: %s", _gap_err
+                                        "[KNOWLEDGE GAP] Web search failed: %s", _gap_err
                                     )
 
                         if origin in ("user", "voice", "admin"):
@@ -1836,7 +1836,7 @@ class IncomingLogicMixin:
                     )
                 except TimeoutError:
                     logger.error(
-                        "🛑 [WATCHDOG] Thinking task exceeded %.0fs limit. Force terminating.",
+                        "[WATCHDOG] Thinking task exceeded %.0fs limit. Force terminating.",
                         THINKING_WATCHDOG_TIMEOUT_S,
                     )
                     await self._handle_thinking_timeout(origin)
@@ -1850,7 +1850,7 @@ class IncomingLogicMixin:
                         severity="error",
                     )
                     logger.error(
-                        "❌ [WATCHDOG] Thinking task failed: %r", e, exc_info=True,
+                        "[WATCHDOG] Thinking task failed: %r", e, exc_info=True,
                     )
                     # GROK ZENITH HARDENING: Ensure the user is notified if cognition fails entirely.
                     if origin in ("user", "voice", "admin"):
@@ -1880,7 +1880,7 @@ class IncomingLogicMixin:
             except RuntimeError as _loop_err:
                 if "attached to a different loop" in str(_loop_err):
                     logger.warning(
-                        "⚠️ [Watchdog] Cross-loop Future detected (Starlette/uvicorn isolation). "
+                        "[Watchdog] Cross-loop Future detected (Starlette/uvicorn isolation). "
                         "Task still scheduled — result: %s",
                         "done" if task.done() else "pending",
                     )

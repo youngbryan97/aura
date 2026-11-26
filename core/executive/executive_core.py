@@ -467,7 +467,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         #: consequence is observed later by whoever held the work: the
         #: deferred-write queue lands it or sheds it. Bounded like that queue.
         self._deferred_intents: "OrderedDict[str, Intent]" = OrderedDict()
-        logger.info("🏛️ ExecutiveCore initialized — sovereign control plane active.")
+        logger.info("ExecutiveCore initialized — sovereign control plane active.")
 
     # ── Core Approval API ────────────────────────────────────────────────
 
@@ -542,7 +542,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         for iid in stale:
             self._active_intents.pop(iid, None)
         if stale:
-            logger.info("♻️ Executive: swept %d stale intents (TTL 90s)", len(stale))
+            logger.info("Executive: swept %d stale intents (TTL 90s)", len(stale))
 
     def _sweep_stale_intents_sync(self) -> None:
         now = time.time()
@@ -553,7 +553,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         for iid in stale:
             self._active_intents.pop(iid, None)
         if stale:
-            logger.info("♻️ Executive: swept %d stale intents (TTL 90s, sync)", len(stale))
+            logger.info("Executive: swept %d stale intents (TTL 90s, sync)", len(stale))
 
     @staticmethod
     def _temporal_safe_autonomous_tool_constraints(
@@ -1160,7 +1160,7 @@ class ExecutiveCore(_ApprovesWhatItIsAsked):
         if final in (DecisionOutcome.REJECTED, DecisionOutcome.DEFERRED):
             self._record_failure_obligation(reason, intent)
         if final is DecisionOutcome.REJECTED:
-            logger.warning("🚫 Executive REJECTED: %s (reason: %s, coherence: %.2f)",
+            logger.warning("Executive REJECTED: %s (reason: %s, coherence: %.2f)",
                            intent.goal[:50], record.reason, coherence)
         elif final is DecisionOutcome.DEGRADED:
             logger.info("Executive constrained %s (constraints: %s)",

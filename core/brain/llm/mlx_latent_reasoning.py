@@ -581,7 +581,7 @@ class _ReasonsInLatentSpace:
             getattr(self, "max_tokens", 0) or 0
         ):
             logger.info(
-                "🔧 Decode budget on the wire: %d, against a client ceiling "
+                "Decode budget on the wire: %d, against a client ceiling "
                 "of %d — something between them reduced it.",
                 int(requested_tokens),
                 int(getattr(self, "max_tokens", 0) or 0),
@@ -612,7 +612,7 @@ class _ReasonsInLatentSpace:
                 if prompt:
                     parts.insert(0, f"prompt={len(str(prompt))}")
                 logger.info(
-                    "📏 [MLX] %d-char prompt: %s",
+                    "[MLX] %d-char prompt: %s",
                     prompt_chars,
                     "; ".join(parts)[:900],
                 )
@@ -651,7 +651,7 @@ class _ReasonsInLatentSpace:
                             reverse=True,
                         )
                         logger.info(
-                            "📏 [MLX] largest message %d chars, biggest "
+                            "[MLX] largest message %d chars, biggest "
                             "sections: %s",
                             len(biggest),
                             "; ".join(
@@ -1418,7 +1418,7 @@ class _ReasonsInLatentSpace:
         if refusal:
             # Naming the refusal, because "returned nothing" is the one
             # description that sends the next investigation somewhere else.
-            logger.info("🔤 [ENCODE] declined: %s", refusal)
+            logger.info("[ENCODE] declined: %s", refusal)
             return []
 
         # The checks above are observations, not ownership.  Before this lock,
@@ -1433,7 +1433,7 @@ class _ReasonsInLatentSpace:
             owner_label=owner_label,
             owner_token=request_id,
         ):
-            logger.info("🔤 [ENCODE] declined: request_lane_busy")
+            logger.info("[ENCODE] declined: request_lane_busy")
             return []
 
         future: SharedFuture | None = None
@@ -1446,7 +1446,7 @@ class _ReasonsInLatentSpace:
             # and the non-blocking lock acquisition.
             process = getattr(self, "_process", None)
             if _foreground_owner_active():
-                logger.info("🔤 [ENCODE] declined: foreground_active_after_lane")
+                logger.info("[ENCODE] declined: foreground_active_after_lane")
                 return []
             if (
                 getattr(self, "_shutting_down", False)
@@ -1456,14 +1456,14 @@ class _ReasonsInLatentSpace:
                 or int(getattr(self, "_active_generations", 0) or 0) > 0
                 or getattr(self, "_warmup_in_flight", False)
             ):
-                logger.info("🔤 [ENCODE] declined: worker_changed_after_lane")
+                logger.info("[ENCODE] declined: worker_changed_after_lane")
                 return []
             if not await self._set_durable_lane_preemptible(False):
-                logger.info("🔤 [ENCODE] declined: model_lane_fence_lost")
+                logger.info("[ENCODE] declined: model_lane_fence_lost")
                 return []
             lane_protected = True
             if _foreground_owner_active():
-                logger.info("🔤 [ENCODE] declined: foreground_active_after_fence")
+                logger.info("[ENCODE] declined: foreground_active_after_fence")
                 return []
 
             self._job_seq_counter += 1
@@ -1486,7 +1486,7 @@ class _ReasonsInLatentSpace:
             )
             response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
         except (TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            logger.info("🔤 [ENCODE] failed: %s: %s", type(exc).__name__, str(exc)[:160])
+            logger.info("[ENCODE] failed: %s: %s", type(exc).__name__, str(exc)[:160])
             if isinstance(exc, TimeoutError) and future is not None:
                 # The caller's patience is not evidence that the worker failed.
                 # Keep ownership with the request until the persistent listener
@@ -1499,7 +1499,7 @@ class _ReasonsInLatentSpace:
                 )
                 if detached:
                     logger.info(
-                        "🔤 [ENCODE] caller detached from request %s; worker ownership remains fenced.",
+                        "[ENCODE] caller detached from request %s; worker ownership remains fenced.",
                         request_id[:12],
                     )
                     return []
@@ -1537,7 +1537,7 @@ class _ReasonsInLatentSpace:
                     )
         if not isinstance(response, dict) or response.get("status") != "ok":
             logger.info(
-                "🔤 [ENCODE] worker said: %s",
+                "[ENCODE] worker said: %s",
                 str(response)[:200] if response is not None else "nothing",
             )
             return []

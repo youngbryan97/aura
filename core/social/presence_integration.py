@@ -51,32 +51,32 @@ def apply_presence_patch(orchestrator):
     into a running RobustOrchestrator.
     Called during _init_proactive_systems in boot.py.
     """
-    logger.info("🔧 [PresencePatch] Applying Phase 30 communication hierarchy...")
+    logger.info("[PresencePatch] Applying Phase 30 communication hierarchy...")
 
     # 1. Initialize & Register OpinionEngine
     from core.epistemics.opinion_engine import OpinionEngine
     opinion_engine = OpinionEngine(orchestrator)
     register_runtime_service("opinion_engine", opinion_engine)
     orchestrator.opinion_engine = opinion_engine
-    logger.info("✅ OpinionEngine registered.")
+    logger.info("OpinionEngine registered.")
 
     # 2. Initialize & Register ProactivePresence
     from core.autonomy.proactive_presence import ProactivePresence
     presence = ProactivePresence(orchestrator)
     register_runtime_service("proactive_presence", presence)
     orchestrator.proactive_presence = presence
-    logger.info("✅ ProactivePresence registered.")
+    logger.info("ProactivePresence registered.")
 
     # 3. Start ProactivePresence background task
     get_task_tracker().create_task(presence.start())
-    logger.info("🚀 ProactivePresence loop started.")
+    logger.info("ProactivePresence loop started.")
 
     # 4. Hook VAD to prevent interruption
     try:
         from core.senses.voice_engine import get_voice_engine
         voice_engine = get_voice_engine()
         voice_engine._on_vad_change = presence.mark_user_speaking
-        logger.info("🎤 VAD pinned to ProactivePresence.")
+        logger.info("VAD pinned to ProactivePresence.")
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('presence_integration', e)
         logger.warning("Failed to hook VAD: %s", e)
@@ -96,7 +96,7 @@ def apply_presence_patch(orchestrator):
                 failure_policy="degrade",
             )
         logger.info(
-            "✅ RelationalMemoryAuthority registered (persistence=%s).",
+            "RelationalMemoryAuthority registered (persistence=%s).",
             relational_memory.persistence_available,
         )
     except (ImportError, AttributeError, RuntimeError) as e:
@@ -112,7 +112,7 @@ def apply_presence_patch(orchestrator):
             raise RuntimeError("relational memory authority is unavailable")
         sg = get_shared_ground(authority=relational_memory)
         register_runtime_service("shared_ground", sg, required=False)
-        logger.info("✅ SharedGround adapter registered (%d consented entries).", len(sg.entries))
+        logger.info("SharedGround adapter registered (%d consented entries).", len(sg.entries))
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('presence_integration', e)
         logger.warning("SharedGround adapter init failed: %s", e)
@@ -120,7 +120,7 @@ def apply_presence_patch(orchestrator):
     # 7. Canonical relationship topology (legacy entity_graph is an alias)
     try:
         _register_relationship_graph(relational_memory)
-        logger.info("✅ RelationshipGraph registered under canonical and legacy aliases.")
+        logger.info("RelationshipGraph registered under canonical and legacy aliases.")
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation("presence_integration", e)
         logger.warning("RelationshipGraph adapter init failed: %s", e)
@@ -135,7 +135,7 @@ def apply_presence_patch(orchestrator):
                 raise RuntimeError("relational memory authority is unavailable")
             social_mem = SocialMemory(authority=relational_memory)
             register_runtime_service("social_memory", social_mem, required=False)
-            logger.info("✅ SocialMemory adapter registered.")
+            logger.info("SocialMemory adapter registered.")
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('presence_integration', e)
         logger.warning("SocialMemory init failed: %s", e)
@@ -147,7 +147,7 @@ def apply_presence_patch(orchestrator):
             ce = getattr(orchestrator, "cognitive_engine", None)
             tom = get_theory_of_mind(ce)
             register_runtime_service("theory_of_mind", tom)
-            logger.info("✅ TheoryOfMind registered.")
+            logger.info("TheoryOfMind registered.")
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('presence_integration', e)
         logger.warning("TheoryOfMind init failed: %s", e)
@@ -158,7 +158,7 @@ def apply_presence_patch(orchestrator):
         ce = getattr(orchestrator, "cognitive_engine", None)
         discourse_tracker = DiscourseTracker(ce)
         register_runtime_service("discourse_tracker", discourse_tracker)
-        logger.info("✅ DiscourseTracker registered.")
+        logger.info("DiscourseTracker registered.")
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('presence_integration', e)
         logger.warning("DiscourseTracker init failed: %s", e)

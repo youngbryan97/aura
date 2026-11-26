@@ -236,7 +236,7 @@ class QosBus:
                 if len(self._mismatches) > 64:
                     del self._mismatches[:-64]
             logger.warning(
-                "📡 QoS mismatch on %r: %s", topic, "; ".join(problems)
+                "QoS mismatch on %r: %s", topic, "; ".join(problems)
             )
         return problems
 
@@ -290,7 +290,7 @@ class QosBus:
             with self._lock:
                 state.dropped += 1
             if state.profile.reliability is Reliability.RELIABLE:
-                logger.error("📡 reliable publish to %r failed: %s", topic, exc)
+                logger.error("reliable publish to %r failed: %s", topic, exc)
                 from core.runtime.errors import record_degradation
 
                 with contextlib.suppress(Exception):
@@ -387,7 +387,7 @@ class QosBus:
         with self._lock:
             callbacks = list(self._deadline_callbacks.get(topic, ()))
         logger.warning(
-            "📡 deadline missed on %r: %.2fs since the previous sample", topic, gap_s
+            "deadline missed on %r: %.2fs since the previous sample", topic, gap_s
         )
         for callback in callbacks:
             with contextlib.suppress(Exception):
@@ -410,7 +410,7 @@ class QosBus:
                     callbacks = list(self._liveliness_callbacks.get(topic, ()))
                 lost.append(topic)
                 logger.warning(
-                    "📡 liveliness lost on %r: no assertion for %.1fs (lease %.1fs)",
+                    "liveliness lost on %r: no assertion for %.1fs (lease %.1fs)",
                     topic,
                     now - state.last_assert_at,
                     lease,

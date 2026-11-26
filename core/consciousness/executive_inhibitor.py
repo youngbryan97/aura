@@ -107,7 +107,7 @@ class ExecutiveInhibitor:
             if len(self._audit_trail) > self.MAX_VETO_LOG:
                 self._audit_trail.pop(0)
                 
-            logger.warning("🛡️ Executive BYPASS [Critical]: %s/%s", audit_entry["source"], audit_entry["action"])
+            logger.warning("Executive BYPASS [Critical]: %s/%s", audit_entry["source"], audit_entry["action"])
             return True
 
         # ── UNIFIED FIELD COHERENCE GATE (mandatory) ────────────────
@@ -133,7 +133,7 @@ class ExecutiveInhibitor:
                     if len(self._veto_log) > self.MAX_VETO_LOG:
                         self._veto_log = self._veto_log[-self.MAX_VETO_LOG:]
                     logger.info(
-                        "🛑 Executive VETO [Field Crisis]: [%s/%s] (coherence=%.3f < %.3f)",
+                        "Executive VETO [Field Crisis]: [%s/%s] (coherence=%.3f < %.3f)",
                         veto_entry["source"], veto_entry["action"],
                         field_coherence, self.FIELD_COHERENCE_CRISIS,
                     )

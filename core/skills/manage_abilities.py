@@ -44,7 +44,7 @@ class ManageAbilitiesSkill(BaseSkill):
                 cost = skill_meta.metabolic_cost
                 # Fail fast if system is too hot for heavy tools
                 if health < 0.7 and cost >= 2:
-                    logger.warning("🛡️ METABOLIC BLOCK: Refused activation of %s due to thermal stress.", skill_name)
+                    logger.warning("METABOLIC BLOCK: Refused activation of %s due to thermal stress.", skill_name)
                     return {
                         "ok": False, 
                         "error": f"AUTONOMIC BLOCK: Hardware thermal load is too high (Health: {health*100:.0f}%). Cannot supply compute power to heavy skill '{skill_name}'. Prioritize communication."
@@ -53,14 +53,14 @@ class ManageAbilitiesSkill(BaseSkill):
         if action == "activate":
             success = engine.activate_skill(skill_name)
             if success:
-                logger.info("🧠 Aura activated skill: %s", skill_name)
+                logger.info("Aura activated skill: %s", skill_name)
                 return {"ok": True, "message": f"SYSTEM: {skill_name} is now AWAKE and injected into your active tools. You MUST use it in your very next response if needed. Remember to deactivate it when finished."}
             return {"ok": False, "message": f"Skill '{skill_name}' not found or activation failed."}
             
         elif action == "deactivate":
             success = engine.deactivate_skill(skill_name)
             if success:
-                logger.info("💤 Aura put skill to sleep: %s", skill_name)
+                logger.info("Aura put skill to sleep: %s", skill_name)
                 return {"ok": True, "message": f"{skill_name} is now DORMANT. Memory freed."}
             return {"ok": False, "message": f"Skill '{skill_name}' is either not active or is a CORE tool."}
             

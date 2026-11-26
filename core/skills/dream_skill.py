@@ -108,7 +108,7 @@ class DreamSkill(BaseSkill):
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Triggers the semantic defragger, dream journal synthesis, and DLQ re-ingestion."""
-        logger.info("💤 Manual Dream Cycle Initiated via Skill.")
+        logger.info("Manual Dream Cycle Initiated via Skill.")
         results: dict[str, dict[str, Any]] = {}
 
         # 1. DreamJournal — qualia-driven creative synthesis from salient memories

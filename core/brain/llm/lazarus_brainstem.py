@@ -41,7 +41,7 @@ class LazarusBrainstem:
         if not self.orchestrator:
             return False
             
-        logger.critical("🚨 LAZARUS: Initiating emergency cognitive recovery...")
+        logger.critical("LAZARUS: Initiating emergency cognitive recovery...")
         try:
             # 1. Attempt to re-initialize the Cognitive Integration Layer
             cil = get_runtime_service("cognitive_integration_layer", default=None)
@@ -63,7 +63,7 @@ class LazarusBrainstem:
                     "status": "success"
                 })
                 
-            logger.info("✅ LAZARUS: Brain connection re-established.")
+            logger.info("LAZARUS: Brain connection re-established.")
             return True
             
         except (ImportError, AttributeError, RuntimeError) as e:

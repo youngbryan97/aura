@@ -47,7 +47,7 @@ def main() -> int:
     if result["reviewed_gone"]:
         print("\n   A reason survives its finding. Remove the stale entries.")
         return 1
-    print("   ✅ nothing new can be switched off from a call site")
+    print("   nothing new can be switched off from a call site")
     return 0
 
 

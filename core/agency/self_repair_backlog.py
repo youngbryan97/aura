@@ -372,7 +372,7 @@ class SelfRepairBacklog:
                 )
                 self._annotate_persistence(results, accepted_ids, persisted)
                 logger.info(
-                    "🔧 [SELF-REPAIR] Accepted %d/%d defect(s) for autonomous repair "
+                    "[SELF-REPAIR] Accepted %d/%d defect(s) for autonomous repair "
                     "(seen_persisted=%s).",
                     len(accepted),
                     len(results),
@@ -464,7 +464,7 @@ class SelfRepairBacklog:
         )
         self._annotate_persistence(results, accepted_ids, persisted)
         logger.info(
-            "🔧 [SELF-REPAIR] Accepted %d/%d defect(s) into repair goals "
+            "[SELF-REPAIR] Accepted %d/%d defect(s) into repair goals "
             "(seen_persisted=%s).",
             len(accepted),
             len(results),

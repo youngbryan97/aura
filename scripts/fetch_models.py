@@ -44,10 +44,10 @@ def _plan_with_reasoning_solver(alias: str | None) -> dict[str, str] | None:
 
 
 def _print_inventory(manager: ModelLifecycleManager) -> None:
-    print("🧠 Aura model inventory")
+    print("Aura model inventory")
     print("=" * 60)
     for status in manager.inventory():
-        mark = "✅" if status.present else "⬇️ "
+        mark = "ok" if status.present else "missing"
         where = (
             status.location
             if status.present
@@ -65,15 +65,15 @@ def _progress(event: dict) -> None:
     name = event.get("name", "")
     kind = event.get("event", "")
     if kind == "download_start":
-        print(f"  ⬇️  {name}: downloading {event.get('repo')} (attempt {event.get('attempt')})...")
+        print(f"   {name}: downloading {event.get('repo')} (attempt {event.get('attempt')})...")
     elif kind == "download_ok":
-        print(f"     ✅ {name} ready.")
+        print(f"     ok {name} ready.")
     elif kind == "download_failed":
-        print(f"     ❌ {name} failed: {event.get('error')}")
+        print(f"     failed {name} failed: {event.get('error')}")
     elif kind == "disk_insufficient":
-        print(f"  ⚠️  Not enough disk: need ~{event.get('required_gb')}GB, free {event.get('free_gb')}GB")
+        print(f"   Not enough disk: need ~{event.get('required_gb')}GB, free {event.get('free_gb')}GB")
     elif kind == "all_present":
-        print("  ✅ All models already present.")
+        print("  All models already present.")
 
 
 def _print_env(manager: ModelLifecycleManager) -> None:
@@ -116,20 +116,20 @@ def main(argv: list[str] | None = None) -> int:
 
     pf = manager.disk_preflight()
     print(
-        f"\n💽 Disk at {pf.target}: free {pf.free_bytes / _GB:.1f}GB, "
+        f"\nDisk at {pf.target}: free {pf.free_bytes / _GB:.1f}GB, "
         f"need ~{pf.required_bytes / _GB:.1f}GB → {'OK' if pf.ok else 'INSUFFICIENT'}"
     )
 
-    print("\n⬇️  Fetching missing models...")
+    print("\n Fetching missing models...")
     report = manager.ensure_present(progress=_progress, check_disk=not args.no_disk_check)
 
     if report.get("failed"):
-        print(f"\n❌ Some downloads failed: {[f['name'] for f in report['failed']]}")
+        print(f"\nSome downloads failed: {[f['name'] for f in report['failed']]}")
         return 1
     if report.get("skipped_disk"):
-        print("\n⚠️  Skipped: insufficient disk space.")
+        print("\n Skipped: insufficient disk space.")
         return 1
-    print("\n✅ Model fetch complete.")
+    print("\nModel fetch complete.")
     return 0
 
 

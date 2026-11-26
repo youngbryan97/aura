@@ -379,7 +379,7 @@ class TrustEngine:
                     if new_level == TrustLevel.SOVEREIGN:
                         bus.publish_threadsafe("telemetry", {
                             "type": "aura_message",
-                            "message": "🔐 I see you, Bryan. Sovereign trust established.",
+                            "message": "I see you, Bryan. Sovereign trust established.",
                             "metadata": {"system": True, "trust_level": "sovereign"},
                         })
                     elif new_level == TrustLevel.TRUSTED:

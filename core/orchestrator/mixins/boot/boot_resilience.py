@@ -155,7 +155,7 @@ class BootResilienceMixin:
         existing_mind_tick = ServiceContainer.get("mind_tick", default=None)
         if _is_live_mind_tick(existing_mind_tick):
             self.mind_tick = existing_mind_tick
-            logger.info("💓 MindTick: Reusing existing live cognitive rhythm.")
+            logger.info("MindTick: Reusing existing live cognitive rhythm.")
         else:
             self.mind_tick = MindTick(self)
             ServiceContainer.register_instance(
@@ -310,7 +310,7 @@ class BootResilienceMixin:
             self.watchdog = SovereignWatchdog(self)
             await self.watchdog.start()
             ServiceContainer.register_instance("sovereign_watchdog", self.watchdog)
-            logger.info("🛡️  Sovereign Watchdog ACTIVE")
+            logger.info(" Sovereign Watchdog ACTIVE")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_resilience_degradation(
                 e,
@@ -406,7 +406,7 @@ class BootResilienceMixin:
                 failure_policy="degrade_with_receipt",
             )
             logger.info(
-                "🔁 Lane reconciler managed and online (interval %.0fs, %s)",
+                "Lane reconciler managed and online (interval %.0fs, %s)",
                 reconciler.interval_s(),
                 "enabled" if reconciler.enabled() else "DISABLED via AURA_LANE_RECONCILER",
             )
@@ -418,7 +418,7 @@ class BootResilienceMixin:
             )
             logger.error("Failed to initialize lane reconciler: %s", e)
 
-        logger.info("🛡️  Resilience Foundation mapped (Integrations deferred to _integrate_systems)")
+        logger.info(" Resilience Foundation mapped (Integrations deferred to _integrate_systems)")
 
     async def _init_meta_optimization(self):
         """Bridge 1: Meta-Optimization Loop."""
@@ -427,7 +427,7 @@ class BootResilienceMixin:
             if modifier and hasattr(modifier, "optimizer"):
                 opt = getattr(modifier, "optimizer", None)
                 if opt:
-                    logger.info("🚀 Meta-Optimization Loop registered in Self-Modification Engine")
+                    logger.info("Meta-Optimization Loop registered in Self-Modification Engine")
         except (RuntimeError, AttributeError, TypeError) as e:
             _record_boot_resilience_degradation(
                 e,
@@ -494,12 +494,12 @@ class BootResilienceMixin:
                         getattr(bus, "is_actor_usable", lambda *_: True)("state_vault")
                     )
                     logger.info(
-                        "🛡️  StateVaultActor transport rebound from existing supervisor actor."
+                        " StateVaultActor transport rebound from existing supervisor actor."
                     )
-                logger.info("🛡️  StateVaultActor already active. Skipping redundant start.")
+                logger.info(" StateVaultActor already active. Skipping redundant start.")
                 return
             if bus_vault_usable:
-                logger.info("🛡️  StateVaultActor already active. Skipping redundant start.")
+                logger.info(" StateVaultActor already active. Skipping redundant start.")
                 return
 
             # 1. Register with Supervisor, on the contract the resilient stage
@@ -507,7 +507,7 @@ class BootResilienceMixin:
             spec = state_vault_actor_spec(ActorSpec, str(self.state_repo.db_path))
 
             if not sup:
-                logger.error("❌ Cannot start StateVaultActor: Supervisor Tree not available.")
+                logger.error("Cannot start StateVaultActor: Supervisor Tree not available.")
                 return
 
             sup.add_actor(spec)
@@ -522,13 +522,13 @@ class BootResilienceMixin:
                 if getattr(bus, "has_actor", lambda *_: False)("state_vault"):
                     if hasattr(bus, "update_actor"):
                         await bus.update_actor("state_vault", parent_pipe)
-                        logger.info("🛡️  StateVaultActor transport replaced in ActorBus")
+                        logger.info(" StateVaultActor transport replaced in ActorBus")
                 else:
                     bus.add_actor("state_vault", parent_pipe)
-                    logger.info("🛡️  StateVaultActor transport registered with ActorBus")
+                    logger.info(" StateVaultActor transport registered with ActorBus")
 
             # 3. Wait for readiness using the same request protocol as runtime IPC.
-            logger.info("⏳ Waiting for StateVaultActor to be ready...")
+            logger.info("Waiting for StateVaultActor to be ready...")
             import uuid
 
             ready = False
@@ -544,7 +544,7 @@ class BootResilienceMixin:
                         if isinstance(resp, dict) and resp.get("type") == "pong":
                             ready = True
                             logger.info(
-                                "📡 StateVaultActor responded to handshake (Attempt %d)",
+                                "StateVaultActor responded to handshake (Attempt %d)",
                                 attempt + 1,
                             )
                             break
@@ -571,7 +571,7 @@ class BootResilienceMixin:
                             ):
                                 ready = True
                                 logger.info(
-                                    "📡 StateVaultActor responded to fallback handshake (Attempt %d)",
+                                    "StateVaultActor responded to fallback handshake (Attempt %d)",
                                     attempt + 1,
                                 )
                                 break
@@ -588,9 +588,9 @@ class BootResilienceMixin:
             if not ready:
                 message = "StateVaultActor failed to respond to ping."
                 if _strict_runtime_requested():
-                    logger.error("❌ %s Strict runtime active; aborting boot.", message)
+                    logger.error("%s Strict runtime active; aborting boot.", message)
                     raise RuntimeError(message)
-                logger.error("❌ %s Boot proceeding in degraded mode.", message)
+                logger.error("%s Boot proceeding in degraded mode.", message)
 
             # 4. Register pipe with Actor Bus for Orchestrator communication
             if not bus:
@@ -598,7 +598,7 @@ class BootResilienceMixin:
                 bus = getattr(self, "_actor_bus", None) or getattr(self, "actor_bus", None)
                 if bus and not getattr(bus, "has_actor", lambda *_: False)("state_vault"):
                     bus.add_actor("state_vault", parent_pipe)
-                    logger.info("🛡️  StateVaultActor transport registered with ActorBus (fallback)")
+                    logger.info(" StateVaultActor transport registered with ActorBus (fallback)")
 
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_resilience_degradation(
@@ -628,7 +628,7 @@ class BootResilienceMixin:
             core = AutonomicCore(self)
             ServiceContainer.register_instance("autonomic_core", core)
 
-            logger.info("🛡️  Resilience & Autonomic Core active")
+            logger.info(" Resilience & Autonomic Core active")
 
             # Final fallback registration for HUD and dependency resolution
             if not ServiceContainer.has("episodic_memory"):
@@ -651,7 +651,7 @@ class BootResilienceMixin:
                     ServiceContainer.register_instance("liquid_state", affect)
 
             logger.info(
-                "🛡️ [BOOT] Resilience foundation established. healthy=%s running=%s",
+                "[BOOT] Resilience foundation established. healthy=%s running=%s",
                 self.status.healthy,
                 self.status.running,
             )
@@ -686,7 +686,7 @@ class BootResilienceMixin:
             from core.safety.self_preservation_safe import integrate_safe_backup
 
             integrate_safe_backup(self)
-            logger.info("🛡️  Self-Preservation Instincts Enabled (Survival Protocol Active)")
+            logger.info(" Self-Preservation Instincts Enabled (Survival Protocol Active)")
 
             # Connect Unity Embodiment
             try:
@@ -700,11 +700,11 @@ class BootResilienceMixin:
                                 embodiment.connect_unity(),
                                 name="boot_resilience.connect_unity",
                             )
-                            logger.info("🎨 Unity Embodiment connection initiated")
+                            logger.info("Unity Embodiment connection initiated")
                         except RuntimeError:
                             logger.debug("No running loop; Unity Embodiment deferred.")
                 else:
-                    logger.info("🎨 Embodiment: Headless mode active (Unity bridge disabled)")
+                    logger.info("Embodiment: Headless mode active (Unity bridge disabled)")
 
                 # 2. Embodiment System (The 'Body')
                 if getattr(self, "embodied", False):
@@ -845,7 +845,7 @@ class BootResilienceMixin:
         ServiceContainer.register_instance("stability_guardian", self.stability_guardian)
 
         logger.info(
-            "🛡️  MemoryGuard, SystemGovernor, StabilityGuardian and Resilience Engines active"
+            " MemoryGuard, SystemGovernor, StabilityGuardian and Resilience Engines active"
         )
 
     def _initialize_logging(self):
@@ -918,7 +918,7 @@ class BootResilienceMixin:
         missing = [pkg for pkg in core_pkgs if not ServiceContainer.check_package(pkg)]
 
         if missing:
-            logger.warning("⚠️  Missing optional/utility packages: %s", ", ".join(missing))
+            logger.warning(" Missing optional/utility packages: %s", ", ".join(missing))
             self.status.dependencies_ok = False
         else:
             logger.info("✓ Core Dependencies verified.")
@@ -934,7 +934,7 @@ class BootResilienceMixin:
                 drift = time.time() - last_heartbeat
                 if drift > 3600:  # If more than 1 hour has passed
                     logger.info(
-                        "⏳ TEMPORAL DRIFT: Recovered from %.2f hours of downtime.",
+                        "TEMPORAL DRIFT: Recovered from %.2f hours of downtime.",
                         drift / 3600,
                     )
                     self.status.temporal_drift_s = drift
@@ -1063,7 +1063,7 @@ class BootResilienceMixin:
 
             pending = cognitive_wal.recover_state()
             if pending:
-                logger.info("💾 WAL: Found %s interrupted thoughts. Resuming...", len(pending))
+                logger.info("WAL: Found %s interrupted thoughts. Resuming...", len(pending))
                 for intent in pending:
                     msg = f"[RECOVERY] Resuming interrupted thought: {intent.get('action')} -> {intent.get('target')}"
                     logger.info(msg)

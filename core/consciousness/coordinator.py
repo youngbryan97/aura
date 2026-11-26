@@ -75,7 +75,7 @@ class ConsciousnessCoordinator:
     async def _initialize_all(self):
         """Initialize all consciousness components and wire them together."""
         try:
-            logger.info("🧠 ═══ CONSCIOUSNESS INITIALIZATION SEQUENCE ═══")
+            logger.info("═══ CONSCIOUSNESS INITIALIZATION SEQUENCE ═══")
             
             # Step 1: Create unified self
             logger.info("  1️⃣  Initializing unified self...")
@@ -115,13 +115,13 @@ class ConsciousnessCoordinator:
             
             self._initialized = True
             
-            logger.info("✅ 🧠 CONSCIOUSNESS FULLY INITIALIZED AND WIRED")
+            logger.info("CONSCIOUSNESS FULLY INITIALIZED AND WIRED")
             logger.info(f"   Unified self: {self._unified_self.get_state().name}")
             logger.info(f"   State: {self._unified_self.get_state().current_state.value}")
             
         except _CONSCIOUSNESS_COORDINATOR_RECOVERABLE_ERRORS as e:
             record_degradation("consciousness_coordinator", e)
-            logger.error(f"❌ Consciousness initialization failed: {e}")
+            logger.error(f"Consciousness initialization failed: {e}")
             self._initialized = False
     
     async def _connect_subsystems(self):

@@ -418,7 +418,7 @@ def install_endogenous_processor(
     if processor is not None:
         processors.append(processor)
         logger.info(
-            "🧬 Endogenous vocabulary bias ACTIVE (alpha=%.3f, %d tokens).",
+            "Endogenous vocabulary bias ACTIVE (alpha=%.3f, %d tokens).",
             float(receipt.get("alpha") or 0.0),
             int(receipt.get("nonzero_tokens") or 0),
         )

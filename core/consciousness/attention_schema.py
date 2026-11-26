@@ -254,7 +254,7 @@ class AttentionSchema:
                     required_priority = 0.3 + fe * 0.4
                     if priority < required_priority:
                         logger.info(
-                            "🔒 [ATTENTION GATING] Focus shift blocked due to high Free Energy (F=%.3f). "
+                            "[ATTENTION GATING] Focus shift blocked due to high Free Energy (F=%.3f). "
                             "Priority %.2f < %.2f required. Retaining focus source '%s'.",
                             fe, priority, required_priority, current.source,
                         )

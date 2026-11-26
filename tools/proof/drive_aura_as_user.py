@@ -90,7 +90,7 @@ def main() -> int:
 
     health = _health()
     if not health:
-        print(f"⚠️  No instance answering at {BASE}. Restart Aura onto the current code first.")
+        print(f" No instance answering at {BASE}. Restart Aura onto the current code first.")
         return 2
     print(f"● Live Aura: {health.get('version')} uptime={health.get('uptime', 0):.0f}s "
           f"cycles={health.get('cycle_count')}\n")

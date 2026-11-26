@@ -194,7 +194,7 @@ def test_a_phase_with_no_declared_contract_is_marked_in_the_drawing():
     undeclared = [one.phase for one in plan.phases if one.runs and one.undeclared]
     drawn = as_a_drawing(plan)
     for phase in undeclared:
-        assert f'"{phase} ⚠"' in drawn
+        assert f'"{phase} (no declared contract)"' in drawn
 
 
 def test_the_drawing_needs_no_library_to_look_at():

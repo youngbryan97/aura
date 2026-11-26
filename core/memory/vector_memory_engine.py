@@ -314,7 +314,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                     time.sleep(min(0.05, max(0.0, deadline - monotonic_time())))
                 oldest = self._oldest_checkout
                 logger.warning(
-                    "🧠 EmbeddingEngine: refused to yield its lane for %s: %d encode(s) still in flight "
+                    "EmbeddingEngine: refused to yield its lane for %s: %d encode(s) still in flight "
                     "after %.1fs, the oldest for %s.",
                     reason,
                     self._inflight,
@@ -426,7 +426,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
 
                 if torch.backends.mps.is_available():
                     self._model = self._model.to("mps")
-                    logger.info("🧠 EmbeddingEngine: Using Apple Silicon GPU (MPS)")
+                    logger.info("EmbeddingEngine: Using Apple Silicon GPU (MPS)")
             except (ImportError, AttributeError, RuntimeError) as _e:
                 record_degradation("vector_memory_engine", _e)
                 logger.debug("Ignored Exception in vector_memory_engine.py: %s", _e)
@@ -437,11 +437,11 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
             self._lane_lease = lane_lease
             self.load_seconds = time.monotonic() - began
             logger.info(
-                "✅ EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL
+                "EmbeddingEngine: sentence-transformers loaded (%s)", self.PREFERRED_MODEL
             )
         except ImportError:
             logger.warning(
-                "⚠️ sentence-transformers not installed. "
+                "sentence-transformers not installed. "
                 "Install with: pip install sentence-transformers\n"
                 "Falling back to TF-IDF (lower quality recall)"
             )
@@ -496,7 +496,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
             if not self._said_loading:
                 self._said_loading = True
                 logger.info(
-                    "🧠 EmbeddingEngine: the encoder is still loading (%s); "
+                    "EmbeddingEngine: the encoder is still loading (%s); "
                     "answering nothing rather than waiting on it.",
                     _first_frame_outside(__file__),
                 )
@@ -522,7 +522,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                 return
             caller = _first_frame_outside(__file__)
             logger.info(
-                "🧠 EmbeddingEngine: first use came from the loop thread (%s); "
+                "EmbeddingEngine: first use came from the loop thread (%s); "
                 "loading the encoder on a thread and answering nothing this once.",
                 caller,
             )
@@ -583,7 +583,7 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                 return False
             self._refused_under = None
             self._initialized = False
-        logger.info("🧠 EmbeddingEngine: the model lane has changed since it refused the encoder; asking again.")
+        logger.info("EmbeddingEngine: the model lane has changed since it refused the encoder; asking again.")
         return True
 
     def _return_model(self) -> None:
@@ -1013,10 +1013,10 @@ class MemoryVault:
                 name=self.collection_name, metadata={"hnsw:space": "cosine"}
             )
             count = self._collection.count()
-            logger.info("✅ MemoryVault: ChromaDB initialized with %d memories", count)
+            logger.info("MemoryVault: ChromaDB initialized with %d memories", count)
         except ImportError:
             logger.warning(
-                "⚠️ chromadb not installed. Install with: pip install chromadb\n"
+                "chromadb not installed. Install with: pip install chromadb\n"
                 "Using local SQLite vector fallback"
             )
         except (AttributeError, RuntimeError) as e:
@@ -1035,7 +1035,7 @@ class MemoryVault:
                     metadata = self._metadata_from_memory(mem)
                     self._fallback_store[mem.id] = {"memory": asdict(mem), "metadata": metadata}
                 logger.info(
-                    "✅ MemoryVault: SQLite vector fallback initialized with %d memories",
+                    "MemoryVault: SQLite vector fallback initialized with %d memories",
                     len(self._fallback_store),
                 )
             except _VECTOR_SQLITE_ERRORS as exc:
@@ -1316,7 +1316,7 @@ class ConsolidationEngine:
         if self.vault.count() < 10:
             return 0  # Not enough memories to consolidate
 
-        logger.info("🌙 ConsolidationEngine: Starting memory consolidation pass")
+        logger.info("ConsolidationEngine: Starting memory consolidation pass")
         consolidated = 0
 
         # We can't easily get all memories for comparison without ChromaDB iteration
@@ -1357,7 +1357,7 @@ class ConsolidationEngine:
                 record_degradation("vector_memory_engine", e)
                 logger.error("Consolidation failed: %s", e)
 
-        logger.info("🌙 Consolidation complete: %d memories merged", consolidated)
+        logger.info("Consolidation complete: %d memories merged", consolidated)
         return consolidated
 
     async def _merge_memories(self, content_a: str, content_b: str, brain) -> str | None:
@@ -1423,7 +1423,7 @@ class VectorMemoryEngine:
         # Map: (level, x, y) -> list of feature descriptions
         self._spatial_registry: dict[tuple[int, int, int], list[str]] = {}
 
-        logger.info("✅ VectorMemoryEngine initialized. Memories: %d", self.vault.count())
+        logger.info("VectorMemoryEngine initialized. Memories: %d", self.vault.count())
 
     def __enter__(self) -> "VectorMemoryEngine":
         return self
@@ -1757,5 +1757,5 @@ def register_vector_memory(orchestrator=None) -> VectorMemoryEngine:
     ServiceContainer.register_instance("semantic_memory", engine)
     ServiceContainer.register_instance("vector_memory", engine)
 
-    logger.info("🧠 VectorMemoryEngine registered as primary memory system")
+    logger.info("VectorMemoryEngine registered as primary memory system")
     return engine

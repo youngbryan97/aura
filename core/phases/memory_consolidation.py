@@ -107,12 +107,12 @@ class MemoryConsolidationPhase(BasePhase):
                 gw = ServiceContainer.get("global_workspace", default=None)
                 if gw and hasattr(gw, "is_ignited") and gw.is_ignited():
                     force_consolidation = True  # GWT ignition = significant cognitive event
-                    logger.debug("💾 Force consolidation: GWT ignition detected")
+                    logger.debug("Force consolidation: GWT ignition detected")
                 fe = ServiceContainer.get("free_energy_engine", default=None)
                 if fe and fe.current:
                     if fe.current.surprise > 0.7:
                         force_consolidation = True  # High surprise = memorable event
-                        logger.debug("💾 Force consolidation: high surprise (%.2f)", fe.current.surprise)
+                        logger.debug("Force consolidation: high surprise (%.2f)", fe.current.surprise)
             except _MEMORY_CONSOLIDATION_ERRORS as exc:
                 self._mark_consolidation_status(
                     new_state,
@@ -150,7 +150,7 @@ class MemoryConsolidationPhase(BasePhase):
                 prev = assistant_msgs[i]
                 if latest == str(prev.get("content", "")).strip() and len(latest) > 20:
                     duplicate_assistant_ids.add(id(prev))
-                    logger.warning("🔄 [LOOP DETECTED] Assistant repeated content: '%s...'", latest[:30])
+                    logger.warning("[LOOP DETECTED] Assistant repeated content: '%s...'", latest[:30])
                     new_state.identity.stability = max(
                         0.1, new_state.identity.stability - _LOOP_STABILITY_STEP
                     )
@@ -158,7 +158,7 @@ class MemoryConsolidationPhase(BasePhase):
                     # Without this, the same objective re-queues indefinitely.
                     stuck_count = len(new_state.cognition.pending_initiatives)
                     if stuck_count > 0:
-                        logger.warning("🔄 [LOOP BREAK] Suppressing %d stuck pending_initiatives to escape loop.", stuck_count)
+                        logger.warning("[LOOP BREAK] Suppressing %d stuck pending_initiatives to escape loop.", stuck_count)
                         new_state, _ = await get_executive_authority().suppress_initiatives(
                             new_state,
                             predicate=lambda _item: True,
@@ -256,7 +256,7 @@ class MemoryConsolidationPhase(BasePhase):
                 trimmed.append(msg)
 
             if dropped_tools > 0:
-                logger.info("🧹 Context trim pass 1: dropped %d tool results (%d→%d)", dropped_tools, len(wm), len(trimmed))
+                logger.info("Context trim pass 1: dropped %d tool results (%d→%d)", dropped_tools, len(wm), len(trimmed))
                 wm = trimmed
 
             # Pass 2: If still over, keep most recent messages with bias toward user turns
@@ -340,7 +340,7 @@ class MemoryConsolidationPhase(BasePhase):
                     ]
                     keep_indices.update(fill[-remaining:])
                 wm = [older[index] for index in sorted(keep_indices)] + tail
-                logger.info("🧹 Context trim pass 2: %d messages retained", len(wm))
+                logger.info("Context trim pass 2: %d messages retained", len(wm))
 
             new_state.cognition.working_memory = wm
 
@@ -361,7 +361,7 @@ class MemoryConsolidationPhase(BasePhase):
         # This prevents AttributeError if objects (like the Orchestrator) leak in.
         clean_memory = [m for m in new_state.cognition.working_memory if isinstance(m, dict)]
         if len(clean_memory) != len(new_state.cognition.working_memory):
-            logger.warning("💾 MemoryConsolidation: Dropped %d non-dict items from working memory.", len(new_state.cognition.working_memory) - len(clean_memory))
+            logger.warning("MemoryConsolidation: Dropped %d non-dict items from working memory.", len(new_state.cognition.working_memory) - len(clean_memory))
             new_state.cognition.working_memory = clean_memory
 
         try:
@@ -425,7 +425,7 @@ class MemoryConsolidationPhase(BasePhase):
             # If forced, consolidate the last message, especially if it's an action
             last_message = new_state.cognition.working_memory[-1]
             if last_message.get("ephemeral") and not last_message.get("action"):
-                logger.debug("💾 MemoryConsolidation: Skipping ephemeral fallback message.")
+                logger.debug("MemoryConsolidation: Skipping ephemeral fallback message.")
                 return new_state
             if last_message.get("role") == "assistant" and last_message.get("action"):
                 content = f"Aura Action: {last_message['action']}"
@@ -468,7 +468,7 @@ class MemoryConsolidationPhase(BasePhase):
                 if not m.get("ephemeral")
             ]
             if not records:
-                logger.debug("💾 MemoryConsolidation: No durable messages qualified for sovereign pruning.")
+                logger.debug("MemoryConsolidation: No durable messages qualified for sovereign pruning.")
                 return new_state
             
             # v40: Pull importance weights from state
@@ -483,7 +483,7 @@ class MemoryConsolidationPhase(BasePhase):
             
             surviving, pruner_log = await pruner.prune(records, values)
             for entry in pruner_log:
-                logger.debug("💾 [SovereignPruner] %s", entry)
+                logger.debug("[SovereignPruner] %s", entry)
             
             # Use distilled content for consolidation
             if surviving:

@@ -107,7 +107,7 @@ def _raw_execute_refusal(skill: "BaseSkill") -> dict[str, Any] | None:
         )
     except GovernanceViolation as exc:
         logger.warning(
-            "🛡️ Ungoverned direct execute() on skill '%s' refused: %s", skill.name, exc
+            "Ungoverned direct execute() on skill '%s' refused: %s", skill.name, exc
         )
         return {
             "ok": False,
@@ -491,7 +491,7 @@ class BaseSkill(ABC):
                 mine = bool(getattr(own_budget, "expired", lambda: False)())
                 if mine:
                     logger.warning(
-                        "⏱️ Skill '%s' ran out its own %.1fs budget (attempt %d/%d)",
+                        "Skill '%s' ran out its own %.1fs budget (attempt %d/%d)",
                         self.name,
                         effective_timeout,
                         attempt + 1,
@@ -501,7 +501,7 @@ class BaseSkill(ABC):
                     from core.runtime.errors import _raise_site
 
                     logger.warning(
-                        "⏱️ Skill '%s' stopped on a timeout INSIDE it after %.1fs "
+                        "Skill '%s' stopped on a timeout INSIDE it after %.1fs "
                         "of its %.1fs budget, raised at %s (attempt %d/%d)",
                         self.name,
                         time.monotonic() - start,
@@ -514,16 +514,16 @@ class BaseSkill(ABC):
             except PermissionError as e:
                 error_class = "permanent"
                 last_err = e
-                logger.warning("🔒 Skill '%s' permission denied: %s", self.name, e)
+                logger.warning("Skill '%s' permission denied: %s", self.name, e)
 
             except _SKILL_RECOVERABLE_ERRORS as e:
                 _record_skill_degradation(e, action="retried or failed skill execution after database/os/runtime error")
                 error_class = self._classify_error(e)
                 last_err = e
                 if error_class == "permanent":
-                    logger.error("💥 Skill '%s' crashed with permanent error (attempt %d/%d): %s", self.name, attempt + 1, max_attempts, e, exc_info=attempt==max_attempts-1)
+                    logger.error("Skill '%s' crashed with permanent error (attempt %d/%d): %s", self.name, attempt + 1, max_attempts, e, exc_info=attempt==max_attempts-1)
                 else:
-                    logger.warning("⚠️ Skill '%s' encountered transient error (attempt %d/%d): %s", self.name, attempt + 1, max_attempts, e)
+                    logger.warning("Skill '%s' encountered transient error (attempt %d/%d): %s", self.name, attempt + 1, max_attempts, e)
 
             finally:
                 _INSIDE_SAFE_EXECUTE.reset(inside_token)
@@ -578,7 +578,7 @@ class BaseSkill(ABC):
             )
         elif normalized_result.get("ok"):
             logger.info(
-                "✅ Skill '%s' completed in %.0fms",
+                "Skill '%s' completed in %.0fms",
                 self.name, duration_ms
             )
         elif str(normalized_result.get("status", "")) in _NOT_SET_UP:
@@ -592,7 +592,7 @@ class BaseSkill(ABC):
         else:
             self._total_failures += 1
             logger.warning(
-                "⚠️ Skill '%s' returned error in %.0fms: %s",
+                "Skill '%s' returned error in %.0fms: %s",
                 self.name, duration_ms, normalized_result.get("error", "unknown")
             )
 

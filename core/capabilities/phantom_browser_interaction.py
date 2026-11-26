@@ -67,7 +67,7 @@ class _ActsOnThePage:
         )
         self._last_verdict = verdict.to_dict()
         if not verdict.allowed:
-            logger.warning("🖱️ Click refused: %s", verdict.reason)
+            logger.warning("Click refused: %s", verdict.reason)
             return False
         before_url = str(getattr(self.page, "url", "") or "")
         try:
@@ -169,7 +169,7 @@ class _ActsOnThePage:
                     # control, because it bypasses hit-testing rather than
                     # ignoring it.
                     logger.info(
-                        "🖱️ Ordinary click did not land on %s (%s); "
+                        "Ordinary click did not land on %s (%s); "
                         "dispatching to the element itself.",
                         selector or text_match,
                         type(click_exc).__name__,
@@ -177,7 +177,7 @@ class _ActsOnThePage:
                     await element.dispatch_event("click")
                 await show_activity(self, "clicking", stage="completed",
                                     box=box if str(getattr(self.page, "url", "")) == before_url else None)
-                logger.info("🖱️ Clicked: %s", selector or text_match)
+                logger.info("Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
                 if context is not None:
                     context.remove_listener("page", a_tab_opened)
@@ -231,7 +231,7 @@ class _ActsOnThePage:
         except (PlaywrightError, RuntimeError, AttributeError) as exc:
             logger.debug("The new tab could not be closed: %s", exc)
         if url.startswith(("http://", "https://")):
-            logger.info("🖱️ The link opened a new tab; following it here to %s", url)
+            logger.info("The link opened a new tab; following it here to %s", url)
             await self.browse(url, principal=principal)
 
     async def _go_where_the_link_points(self, href: str, before_url: str, principal: str) -> None:
@@ -259,7 +259,7 @@ class _ActsOnThePage:
         now = str(getattr(self.page, "url", "") or "")
         if the_page(now) != the_page(before_url) or now == before_url:
             return
-        logger.info("🖱️ The link stayed where it was when clicked; following it to %s", href)
+        logger.info("The link stayed where it was when clicked; following it to %s", href)
         await self.browse(href, principal=principal)
 
     async def type(
@@ -282,7 +282,7 @@ class _ActsOnThePage:
         )
         self._last_verdict = verdict.to_dict()
         if not verdict.allowed:
-            logger.warning("⌨️ Typing refused: %s", verdict.reason)
+            logger.warning("Typing refused: %s", verdict.reason)
             return False
         before_url = str(getattr(self.page, "url", "") or "")
         try:

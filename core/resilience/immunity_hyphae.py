@@ -32,7 +32,7 @@ class CircuitBreaker:
         self.failure_counts[component] = self.failure_counts.get(component, 0) + 1
         
         if self.failure_counts[component] >= self.threshold:
-            logger.warning("🚨 [CIRCUIT] Component '%s' triggered circuit breaker. Quarantining for %ds.", component, self.recovery_time)
+            logger.warning("[CIRCUIT] Component '%s' triggered circuit breaker. Quarantining for %ds.", component, self.recovery_time)
             self.quarantined_until[component] = now + self.recovery_time
             self.blacklisted.add(component)
 
@@ -44,7 +44,7 @@ class CircuitBreaker:
         now = time.time()
         if now > self.quarantined_until.get(component, 0):
             # Recovery
-            logger.info("🛡️ [CIRCUIT] Component '%s' recovered from quarantine.", component)
+            logger.info("[CIRCUIT] Component '%s' recovered from quarantine.", component)
             self.blacklisted.remove(component)
             self.failure_counts[component] = 0
             return False
@@ -116,14 +116,14 @@ class SignatureRepairRegistry:
         """Attempt to match the error against known signatures and apply the repair."""
         for sig in self.signatures:
             if any(p in error_msg for p in sig["patterns"]):
-                logger.info("💉 [IMMUNE] Signature match: %s. Initiating repair...", sig["name"])
+                logger.info("[IMMUNE] Signature match: %s. Initiating repair...", sig["name"])
                 try:
                     sig["fn"]()
-                    logger.info("✅ [IMMUNE] Deterministic repair successful: %s", sig["name"])
+                    logger.info("[IMMUNE] Deterministic repair successful: %s", sig["name"])
                     return True
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     record_degradation('immunity_hyphae', e)
-                    logger.error("❌ [IMMUNE] Repair failed for %s: %s", sig["name"], e)
+                    logger.error("[IMMUNE] Repair failed for %s: %s", sig["name"], e)
         return False
 
     # --- Deterministic Repair Realizations ---
@@ -136,7 +136,7 @@ class SignatureRepairRegistry:
 
         pid_file = get_config().paths.pid_file
         if pid_file.exists():
-            logger.warning("💉 Removing stale PID file: %s", pid_file)
+            logger.warning("Removing stale PID file: %s", pid_file)
             # An immune repair that removes a file is still a consequential
             # mutation, and a bare unlink here bypassed the one lane that
             # records who removed what. Self-healing is exactly the code that
@@ -164,14 +164,14 @@ class SignatureRepairRegistry:
             ]
             for p in paths:
                 if not p.exists():
-                    logger.warning("💉 Restoring missing system directory: %s", p)
+                    logger.warning("Restoring missing system directory: %s", p)
                     p.mkdir(parents=True, exist_ok=True)
         except ImportError:
-            logger.error("💉 Could not import config for data dir repair")
+            logger.error("Could not import config for data dir repair")
 
     def _repair_port_conflict(self):
         """Generic logic for port conflicts is usually to wait or kill the zombie."""
-        logger.warning("💉 Port conflict detected. Recommend process cleanup.")
+        logger.warning("Port conflict detected. Recommend process cleanup.")
         # Attempt to find the PID using this port (Mac specific lsof)
         try:
             from core.config import config
@@ -187,7 +187,7 @@ class SignatureRepairRegistry:
             )
             if res.stdout.strip():
                 zombie_pid = res.stdout.strip().split('\n')[0]
-                logger.warning("💉 [IMMUNE] Found zombie process %s on port %s. Cleaning up...", zombie_pid, port)
+                logger.warning("[IMMUNE] Found zombie process %s on port %s. Cleaning up...", zombie_pid, port)
                 get_subprocess_gateway().run(
                     ["kill", "-TERM", zombie_pid],
                     timeout=5.0,
@@ -201,18 +201,18 @@ class SignatureRepairRegistry:
 
     def _repair_lock_cleanup(self):
         """Cleans up stale WAL/SHM files for SQLite if a lock is detected."""
-        logger.warning("💉 [IMMUNE] Database lock detected. Checking for stale WAL files...")
+        logger.warning("[IMMUNE] Database lock detected. Checking for stale WAL files...")
         try:
             from core.config import config
             db_path = config.paths.data_dir / "aura.db"
             for suffix in ["-wal", "-shm"]:
                 ext_path = db_path.with_name(db_path.name + suffix)
                 if ext_path.exists():
-                    logger.info("💉 Removing stale SQLite file: %s", ext_path)
+                    logger.info("Removing stale SQLite file: %s", ext_path)
                     ext_path.unlink()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('immunity_hyphae', e)
-            logger.error("💉 Lock cleanup failed: %s", e)
+            logger.error("Lock cleanup failed: %s", e)
 
     def log_sieve(self, log_files: List[Path]) -> List[str]:
         """Scan logs for common 'hidden' errors that often get masked by '0 bugs' reports."""
@@ -239,10 +239,10 @@ class SignatureRepairRegistry:
                             hidden_bugs.append(f"[{log_path.name}] {line.strip()}")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('immunity_hyphae', e)
-                logger.error("💉 Log Sieve failed for %s: %s", log_path, e)
+                logger.error("Log Sieve failed for %s: %s", log_path, e)
         
         if hidden_bugs:
-             logger.warning("💉 [IMMUNE] Log Sieve detected %d hidden issues!", len(hidden_bugs))
+             logger.warning("[IMMUNE] Log Sieve detected %d hidden issues!", len(hidden_bugs))
         return hidden_bugs
 
 class ImmunityHyphae:
@@ -284,7 +284,7 @@ class ImmunityHyphae:
             
         sys.excepthook = immune_excepthook
         self._hooked = True
-        logger.info("💉 ImmunityHyphae: Global exception hook installed.")
+        logger.info("ImmunityHyphae: Global exception hook installed.")
 
     def audit_error(self, error: Exception, context: Optional[Dict[str, Any]] = None):
         """Manual entry point for caught exceptions to be matched against signatures."""
@@ -292,7 +292,7 @@ class ImmunityHyphae:
         component = context.get("component", "unknown") if context else "unknown"
         
         if self.circuit_breaker.is_quarantined(component):
-            logger.debug("🛡️ [CIRCUIT] Silent suppression for quarantined component: %s", component)
+            logger.debug("[CIRCUIT] Silent suppression for quarantined component: %s", component)
             return True # Pretend handled
 
         try:

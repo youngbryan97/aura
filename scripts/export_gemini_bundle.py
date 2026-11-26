@@ -97,8 +97,8 @@ def build_gemini_bundle():
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(bundle_content)
 
-    print(f"✅ Generated {output_file.name} successfully.")
-    print(f"📊 Final size: {len(bundle_content):,} characters / {char_limit:,} max limit.")
+    print(f"Generated {output_file.name} successfully.")
+    print(f"Final size: {len(bundle_content):,} characters / {char_limit:,} max limit.")
 
 if __name__ == '__main__':
     build_gemini_bundle()

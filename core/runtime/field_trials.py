@@ -198,7 +198,7 @@ class FieldTrials:
             if trial.assigned_group is None:
                 trial.assigned_group = self._assign(trial)
                 logger.info(
-                    "🧪 field trial %r → group %r (%s)",
+                    "field trial %r → group %r (%s)",
                     name,
                     trial.assigned_group,
                     trial.spec.hypothesis,

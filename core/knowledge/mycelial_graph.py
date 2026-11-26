@@ -25,11 +25,11 @@ class MycelialNetwork:
                 self.G.add_edge(memory_node, skill_node)
                 # Cycle check: if skill points back to memory, it's a hallucination loop risk
                 if nx.has_path(self.G, skill_node, memory_node):
-                    logger.warning("🕸️ Mycelial cycle detected: %s -> %s. Rejecting edge.", memory_node, skill_node)
+                    logger.warning("Mycelial cycle detected: %s -> %s. Rejecting edge.", memory_node, skill_node)
                     self.G.remove_edge(memory_node, skill_node)
                     return False
                 
-                logger.info("🕸️ Mycelial edge added: %s -> %s", memory_node, skill_node)
+                logger.info("Mycelial edge added: %s -> %s", memory_node, skill_node)
                 return True
             except _MYCELIAL_GRAPH_ERRORS as e:
                 record_degradation("mycelial_network", e)

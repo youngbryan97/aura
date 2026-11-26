@@ -266,13 +266,13 @@ class KnowledgeEnricher:
 
                 if total > 0:
                     logger.info(
-                        "📚 Knowledge enrichment: +%d facts, +%d entities, +%d preferences",
+                        "Knowledge enrichment: +%d facts, +%d entities, +%d preferences",
                         result["facts"], result["entities"], result["preferences"]
                     )
                     try:
                         from core.thought_stream import get_emitter
                         get_emitter().emit(
-                            "Knowledge Enrichment 📚",
+                            "Knowledge Enrichment",
                             f"Extracted {total} items from conversation",
                             level="info",
                             category="Memory"

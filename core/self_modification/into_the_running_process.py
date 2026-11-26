@@ -242,7 +242,7 @@ def load_into_this_process(module_name: str, before: str, after: str, *, goal: s
     if planned:
         with _LOCK:
             _LOADS.append(loaded)
-        logger.info("🩹 Loaded into her running process: %s", ", ".join(f"{module_name}.{s.qualname}" for s in planned))
+        logger.info("Loaded into her running process: %s", ", ".join(f"{module_name}.{s.qualname}" for s in planned))
     return loaded
 
 
@@ -287,7 +287,7 @@ def undo_if_it_faulted(raised_in: tuple[str, str] | None, error_type: str, call:
     if name in swap.raises and not again:
         return None
     loaded.undo()
-    logger.warning("🩹 Undone in her running process: %s.%s raised %s after its mend was loaded%s.", module_name,
+    logger.warning("Undone in her running process: %s.%s raised %s after its mend was loaded%s.", module_name,
                    qualname, name, f" ({loaded.goal})" if loaded.goal else "")
     return loaded
 

@@ -71,7 +71,7 @@ def _write(out_dir: Path, name: str, payload: dict) -> Path:
         json.dumps(payload, indent=1, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(f"📄 {path}")
+    print(f"{path}")
     return path
 
 
@@ -437,7 +437,7 @@ def cmd_evaluate(args) -> int:
     admission = guard.admit(args.candidate)
     _write(out_dir, "admission.json", admission)
     if not admission["admitted"]:
-        print(f"🚫 refused: {admission.get('refusal_reason')}")
+        print(f"refused: {admission.get('refusal_reason')}")
         return 2
 
     receipts = {}
@@ -587,7 +587,7 @@ def cmd_qualify_serving(args) -> int:
     admission["artifact_seal_sha256"] = before_seal["seal_sha256"]
     if not admission["admitted"]:
         _write(out_dir, "serving_admission.json", admission)
-        print(f"🚫 refused: {admission.get('refusal_reason')}")
+        print(f"refused: {admission.get('refusal_reason')}")
         return 2
 
     (
@@ -650,8 +650,8 @@ def cmd_qualify_serving(args) -> int:
 
     if measurement["verdict"] != "PASS":
         (out_dir / "serving_in_progress.json").unlink(missing_ok=True)
-        print(f"📄 {run_dir / 'serving_measurement.json'}")
-        print(f"📄 {run_dir / 'critical_gates.json'}")
+        print(f"{run_dir / 'serving_measurement.json'}")
+        print(f"{run_dir / 'critical_gates.json'}")
         print("VERDICT: FAIL (only failed cells will rerun)")
         return 1
 
@@ -780,7 +780,7 @@ def cmd_activate(args) -> int:
         authorized_by=args.authorized_by, evaluation=evaluation
     )
     _write(Path(args.out), "activation.json", receipt)
-    print("⚠️  effective at NEXT BOOT — restart Aura to think on the new cortex")
+    print(" effective at NEXT BOOT — restart Aura to think on the new cortex")
     return 0
 
 
@@ -794,7 +794,7 @@ def cmd_requalify_active(args) -> int:
     )
     _write(Path(args.out), "serving_requalification.json", receipt)
     if receipt["changed"]:
-        print("⚠️  effective at NEXT BOOT — restart Aura to serve the requalified window")
+        print(" effective at NEXT BOOT — restart Aura to serve the requalified window")
     return 0
 
 
@@ -808,7 +808,7 @@ def cmd_requalify_steering(args) -> int:
     )
     _write(Path(args.out), "steering_requalification.json", receipt)
     if receipt["changed"]:
-        print("⚠️  effective at NEXT BOOT — restart Aura to steer by the new generation")
+        print(" effective at NEXT BOOT — restart Aura to steer by the new generation")
     return 0
 
 

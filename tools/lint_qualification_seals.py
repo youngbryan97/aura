@@ -61,7 +61,7 @@ def main() -> int:
     args = parser.parse_args()
     findings = _drifted(Path(args.root).resolve())
     if not findings:
-        print("✅ every qualified symbol still hashes to what was measured")
+        print("every qualified symbol still hashes to what was measured")
         return 0
     print(f"{len(findings)} qualified symbol(s) no longer match the envelope:")
     for one in findings:

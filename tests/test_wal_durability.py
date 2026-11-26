@@ -38,7 +38,7 @@ def test_wal_durability():
     assert recovered[0]["id"] == "crash_turn_1"
     assert recovered[0]["context"]["hp"] == 20
     
-    print("   ✅ WAL durability test passed!")
+    print("   WAL durability test passed!")
 
 if __name__ == "__main__":
     test_wal_durability()

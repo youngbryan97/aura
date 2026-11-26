@@ -106,7 +106,7 @@ class EpistemicState:
                 if new_conf > adjusted_old_conf:
                     # New belief wins — update graph
                     logger.info(
-                        f"🧠 Dissonance RESOLVED: Replacing '{data.get('predicate')}' "
+                        f"Dissonance RESOLVED: Replacing '{data.get('predicate')}' "
                         f"(conf={old_conf:.2f}, decay={adjusted_old_conf:.2f}) "
                         f"with '{p}' (conf={new_conf:.2f}) for {s}->{o}"
                     )
@@ -116,7 +116,7 @@ class EpistemicState:
                 else:
                     # Old belief holds — reject new data
                     logger.info(
-                        f"🧠 Dissonance REJECTED: Keeping '{data.get('predicate')}' "
+                        f"Dissonance REJECTED: Keeping '{data.get('predicate')}' "
                         f"(adj_conf={adjusted_old_conf:.2f}) over '{p}' "
                         f"(conf={new_conf:.2f}) for {s}->{o}"
                     )

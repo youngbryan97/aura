@@ -601,7 +601,7 @@ async def _repair_final_degraded_reply_assessment_reasons(
             )
             if not _reply_assessment_requires_repair(self_process_assessment):
                 logger.warning(
-                    "🛡️ Final reply quality gate repaired self-process coverage from live context."
+                    "Final reply quality gate repaired self-process coverage from live context."
                 )
                 return self_process_repair, False, False, False, "", True
 
@@ -619,7 +619,7 @@ def _repair_final_degraded_reply_part_2(
     user_message: str,
 ) -> Any:
     logger.warning(
-        "🛡️ Final reply quality gate repairing degraded output "
+        "Final reply quality gate repairing degraded output "
         "(stale=%s same_diff=%s off_topic=%s assessment=%s).",
         stale,
         same_diff,
@@ -653,7 +653,7 @@ def _repair_final_degraded_reply_part_2(
             or _reply_assessment_requires_repair(completed_assessment)
         ):
             logger.warning(
-                "🛡️ Final reply quality gate completed clipped Cortex draft without a second model call."
+                "Final reply quality gate completed clipped Cortex draft without a second model call."
             )
             return (
                 completed_tail,
@@ -686,7 +686,7 @@ def _repair_final_degraded_reply_part_2(
                 or _reply_assessment_requires_repair(shaped_assessment)
             ):
                 logger.warning(
-                    "🛡️ Final reply quality gate repaired explicit response shape "
+                    "Final reply quality gate repaired explicit response shape "
                     "deterministically (%s -> clean, len=%d).",
                     ",".join(getattr(assessment, "reasons", ()) or ()) or "unknown",
                     len(shaped),
@@ -763,7 +763,7 @@ def _repair_final_degraded_reply_repaired_stale(
 
     if desktop_cognitive_engine_required:
         logger.warning(
-            "🛡️ Final reply quality gate refused freeform reflex fallback for desktop-required CognitiveEngine turn."
+            "Final reply quality gate refused freeform reflex fallback for desktop-required CognitiveEngine turn."
         )
         return (
             repaired,

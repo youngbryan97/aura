@@ -41,7 +41,7 @@ class MetaEvolutionEngine(AuraBaseModule):
         self._pending_curiosity: Deque[Dict[str, Any]] = deque(maxlen=PENDING_CURIOSITY_LIMIT)
         self._pending_lock = checked_lock("meta_evolution.pending_curiosity", rank=LockRank.LEAF)
         self._dropped_curiosity = 0
-        logger.info("⚡ Meta-Evolution Engine Online (Recursive Self-Improvement Active)")
+        logger.info("Meta-Evolution Engine Online (Recursive Self-Improvement Active)")
 
     async def evolve(self, target_area: str = None) -> Dict[str, Any]:
         """Alias for run_optimization_cycle — called by orchestrator scheduler."""
@@ -75,7 +75,7 @@ class MetaEvolutionEngine(AuraBaseModule):
                 )
             self._pending_curiosity.append(record)
 
-        logger.info("📋 Queued autonomous optimization: %s", (context or "No context")[:100])
+        logger.info("Queued autonomous optimization: %s", (context or "No context")[:100])
 
     def take_pending_optimization(self) -> Optional[Dict[str, Any]]:
         """Pop the oldest queued request, or None. The only supported way out."""
@@ -114,7 +114,7 @@ class MetaEvolutionEngine(AuraBaseModule):
                 timeout=120.0,
                 priority=1.0
             ) as hypha:
-                self.logger.info("🌀 Initiating Meta-Evolution Cycle...")
+                self.logger.info("Initiating Meta-Evolution Cycle...")
                 start_time = time.time()
                 
                 # Subsystem Resolution
@@ -132,7 +132,7 @@ class MetaEvolutionEngine(AuraBaseModule):
                 if curiosity:
                     gap = await curiosity.identify_knowledge_gap()
                     if gap:
-                        self.logger.info("🔍 Transcendence: Identifying knowledge gap: %s", gap)
+                        self.logger.info("Transcendence: Identifying knowledge gap: %s", gap)
                         mycelium.route_signal("curiosity", "meta_cognition", {"gap": gap})
                         target_area = target_area or f"Integrate knowledge of {gap}"
 
@@ -164,7 +164,7 @@ class MetaEvolutionEngine(AuraBaseModule):
 
                 # 2. Targeted Diagnosis - Skip if too recent
                 if time.time() - self.last_optimization_time < 600:
-                    self.logger.info("⚡ MetacognitiveReview: Skipping full diagnosis (too recent).")
+                    self.logger.info("MetacognitiveReview: Skipping full diagnosis (too recent).")
                     diagnoses = []
                 else:
                     diagnoses = await sme.diagnose_current_bugs()
@@ -190,7 +190,7 @@ class MetaEvolutionEngine(AuraBaseModule):
                     )
                     
                     if forge_result.get("ok"):
-                        self.logger.info("🔨 Hephaestus produced a proactive patch.")
+                        self.logger.info("Hephaestus produced a proactive patch.")
                         hypha.log("Proactive patch generated")
                         elapsed = time.time() - start_time
                         return {
@@ -214,7 +214,7 @@ class MetaEvolutionEngine(AuraBaseModule):
                     success = await sme.apply_fix(proposal, force=False)
                     self.last_optimization_time = time.time()
                     elapsed = self.last_optimization_time - start_time
-                    self.logger.info("✅ Optimization Applied in %.2fs: %s", elapsed, proposal.get('id'))
+                    self.logger.info("Optimization Applied in %.2fs: %s", elapsed, proposal.get('id'))
                     hypha.log(f"Optimization Applied: {proposal.get('id')}")
                     return {"ok": success, "applied": True, "proposal_id": proposal.get("id"), "latency": elapsed}
                     
@@ -258,12 +258,12 @@ class MetaEvolutionEngine(AuraBaseModule):
             underperformers = [s for s in stats if s["success_rate"] < 0.8 and s["calls"] >= 3]
             
             if not underperformers:
-                self.logger.info("✨ All skills performing optimally.")
+                self.logger.info("All skills performing optimally.")
                 return {"ok": True, "message": "No underperforming skills found."}
             
             target = underperformers[0]
             skill_name = target["skill_name"]
-            self.logger.warning("📉 Underperforming skill detected: %s (SR: %.1f%%). Triggering refinement...", 
+            self.logger.warning("Underperforming skill detected: %s (SR: %.1f%%). Triggering refinement...", 
                                skill_name, target['success_rate']*100)
             
             # 3. Trigger Refinement

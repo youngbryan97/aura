@@ -232,7 +232,7 @@ class WhatSheDoesNext:
             if chosen.reward is not None and chosen.kind != REST and chosen.features:
                 same = self._ways.get(chosen.kind, chosen.way) == chosen.way
                 self._weigh(chosen.features, chosen.reward, 1.0 if same else DONE_ANOTHER_WAY)
-        logger.info("🧭 Done another way than when she last chose: %s; what came of it before counts for less.", ", ".join(changed))
+        logger.info("Done another way than when she last chose: %s; what came of it before counts for less.", ", ".join(changed))
 
     # ── choosing ─────────────────────────────────────────────────────
 
@@ -263,11 +263,11 @@ class WhatSheDoesNext:
                         counted=[(name, round(value, 3)) for name, value in counted], features=best.features(), way=best.way)
         # What has never been done is expected to come to nothing in particular, and is found out by doing it.
         if drawn <= 0.0 and expected < 0.0 and not best.owed:
-            logger.info("🧭 She rests: the best of %d things to do, %s, would come to %+.2f.", len(held), best.what[:80], drawn)
+            logger.info("She rests: the best of %d things to do, %s, would come to %+.2f.", len(held), best.what[:80], drawn)
             return None
         with self._lock:
             self._choices.append(chosen)
-        logger.info("🧭 She chose, of %d: %s", len(held), chosen.says()[:400])
+        logger.info("She chose, of %d: %s", len(held), chosen.says()[:400])
         return best, chosen
 
     # ── told, and kept ───────────────────────────────────────────────

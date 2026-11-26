@@ -207,7 +207,7 @@ async def test_persistence():
         print(f"  Interactions: {data.get('interaction_count')}")
         print(f"  Continuity: {data.get('continuity'):.0%}")
     else:
-        print(f"⚠ Persistence file not yet created: {storage_path}")
+        print(f"Persistence file not yet created: {storage_path}")
     
     return True
 
@@ -235,13 +235,13 @@ async def main():
             result = await test_fn()
             if result:
                 passed += 1
-                print(f"\n✅ {name} test PASSED")
+                print(f"\nok {name} test PASSED")
             else:
                 failed += 1
-                print(f"\n❌ {name} test FAILED")
+                print(f"\nfailed {name} test FAILED")
         except CONSCIOUSNESS_TEST_ERRORS as e:
             failed += 1
-            print(f"\n❌ {name} test FAILED with exception:")
+            print(f"\nfailed {name} test FAILED with exception:")
             print(f"   {e}")
             import traceback
             traceback.print_exc()

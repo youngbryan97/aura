@@ -142,11 +142,11 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"ok": not problems, "problems": problems}, indent=2))
         return 1 if problems else 0
     if problems:
-        print(f"❌ product facts: {len(problems)} disagreement(s)")
+        print(f"product facts: {len(problems)} disagreement(s)")
         for problem in problems:
             print(f"   • {problem}")
         return 1
-    print(f"✅ {len(payload['facts'])} product facts agree everywhere they are stated")
+    print(f"{len(payload['facts'])} product facts agree everywhere they are stated")
     return 0
 
 

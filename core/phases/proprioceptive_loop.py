@@ -132,7 +132,7 @@ def _detect_action_stagnation_into_soma(
                     },
                 })
                 logger.warning(
-                    "🦴 Proprioceptive stagnation percept injected into working memory "
+                    "Proprioceptive stagnation percept injected into working memory "
                     "(failure_rate=%.0f%%, loop=%s)",
                     fr * 100,
                     stagnation.get("loop_detected"),
@@ -680,7 +680,7 @@ async def _execute_new_state_new_state(self, state):
     )
 
     logger.debug(
-        "🦴 Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
+        "Proprioception: CPU=%.1f%%, VRAM=%.1f%%, Expression=%s, ThoughtLag=%.0fms",
         soma.hardware.get("cpu_usage", 0),
         soma.hardware.get("vram_usage", 0),
         soma.expressive.get("current_expression", "?"),
@@ -1142,7 +1142,7 @@ class ProprioceptiveLoop(BasePhase):
             if qualia is not None and hasattr(qualia, "q_vector") and len(qualia.q_vector) > 5:
                 tension = qualia.q_vector[5]  # Proprioception dimension
                 if tension > 0.8:
-                    logger.warning("🧠 [REFLEX] High Neural Tension (%.2f). Inhibiting non-essential background cycles.", tension)
+                    logger.warning("[REFLEX] High Neural Tension (%.2f). Inhibiting non-essential background cycles.", tension)
                     await self._inhibit(
                         inhibition,
                         "world_decay",
@@ -1172,7 +1172,7 @@ class ProprioceptiveLoop(BasePhase):
         holding = cpu > 90
         was_holding = getattr(self, "_cpu_reflex_holding", False)
         if holding and not was_holding:
-            logger.warning("🔥 [REFLEX] Critical CPU Stress (%.1f%%). Dropping background metabolic load.", cpu)
+            logger.warning("[REFLEX] Critical CPU Stress (%.1f%%). Dropping background metabolic load.", cpu)
         elif was_holding and not holding:
             logger.info("[REFLEX] CPU stress is over (%.1f%%); background metabolic load resumes.", cpu)
         self._cpu_reflex_holding = holding
@@ -1203,7 +1203,7 @@ class ProprioceptiveLoop(BasePhase):
         integrity = getattr(homeostasis, "integrity", 1.0) if homeostasis else 1.0
         
         if integrity < 0.2:
-            logger.critical("💔 [REFLEX] Integrity Collapse (%.2f). Entering survival inhibition mode.", integrity)
+            logger.critical("[REFLEX] Integrity Collapse (%.2f). Entering survival inhibition mode.", integrity)
             await self._inhibit(
                 inhibition,
                 "creative_expansion",

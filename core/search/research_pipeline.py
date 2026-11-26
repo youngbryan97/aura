@@ -472,13 +472,13 @@ class ResearchSearchPipeline:
         freshness_seconds = _freshness_window(cleaned_query)
         cached = self.artifact_store.find_best(cleaned_query, freshness_seconds=freshness_seconds, force_refresh=force_refresh)
         if cached is not None:
-            emitter.emit("✅ Knowledge Retrieved", f"Found verified answers for '{cleaned_query}' in persistent memory.", level="success", category="Research")
+            emitter.emit("Knowledge Retrieved", f"Found verified answers for '{cleaned_query}' in persistent memory.", level="success", category="Research")
             result = self._artifact_to_result(cached, cached=True)
             if retain:
                 result["retained"] = True
             return result
 
-        emitter.emit("🔍 Searching...", f"Gathering sources for: {cleaned_query}", category="Research")
+        emitter.emit("Searching...", f"Gathering sources for: {cleaned_query}", category="Research")
         stage_started = time.perf_counter()
         expanded_queries = await self._expand_queries(cleaned_query, ctx)
         recent_days = max(0, int(ctx.get("recent_days") or 0))  # a turn about the world now asks for this week's pages
@@ -504,7 +504,7 @@ class ResearchSearchPipeline:
         )
         hits = self._rerank_hits(cleaned_query, hits)
         if not hits:
-            emitter.emit("⚠️ Search Failed", f"No results found for '{cleaned_query}'.", level="warning", category="Research")
+            emitter.emit("Search Failed", f"No results found for '{cleaned_query}'.", level="warning", category="Research")
             return {
                 "ok": False,
                 "error": f"No results found for '{cleaned_query}'.",
@@ -522,7 +522,7 @@ class ResearchSearchPipeline:
             max_pages = max(1, min(len(hits), num_results))
         else:
             max_pages = min(len(hits), 6 if deep else 3)
-        emitter.emit("📖 Reading Sources", f"Fetching top {max_pages} pages...", category="Research")
+        emitter.emit("Reading Sources", f"Fetching top {max_pages} pages...", category="Research")
         
         stage_started = time.perf_counter()
         pages = await self._fetch_pages(hits[:max_pages], deep=deep, current=_query_is_current(query))
@@ -549,9 +549,9 @@ class ResearchSearchPipeline:
             logger.warning("Gathered sources were not recorded: %s", exc)
 
         if pages:
-            emitter.emit("🧠 Synthesizing", f"Cross-referencing {len(pages)} sources to synthesize an accurate answer...", category="Research")
+            emitter.emit("Synthesizing", f"Cross-referencing {len(pages)} sources to synthesize an accurate answer...", category="Research")
         else:
-            emitter.emit("⚠️ Fallback Synthesis", "No full pages could be extracted. Attempting synthesis from search snippets...", level="warning", category="Research")
+            emitter.emit("Fallback Synthesis", "No full pages could be extracted. Attempting synthesis from search snippets...", level="warning", category="Research")
 
         chunks = self._rerank_chunks(cleaned_query, expanded_queries, pages, hits)
         stage_started = time.perf_counter()
@@ -568,9 +568,9 @@ class ResearchSearchPipeline:
 
         # Component A2: Cross-validation warning for low confidence
         if deep and synthesized["confidence"] < 0.5:
-            emitter.emit("⚠️ Low Confidence", "Synthesized answer has low confidence. Discrepancies exist across sources.", level="warning", category="Research")
+            emitter.emit("Low Confidence", "Synthesized answer has low confidence. Discrepancies exist across sources.", level="warning", category="Research")
         else:
-            emitter.emit("✅ Research Complete", f"Compiled concise answer with {len(synthesized['citations'])} citations.", level="success", category="Research")
+            emitter.emit("Research Complete", f"Compiled concise answer with {len(synthesized['citations'])} citations.", level="success", category="Research")
 
         result = {
             "ok": True,
@@ -810,7 +810,7 @@ class ResearchSearchPipeline:
             from core.search.engines_in_her_browser import are_decoys
 
             if are_decoys(query, results, _tokenize):
-                logger.info("🔎 %s gave results about one word of the query, and none of them is taken.", source_engine)
+                logger.info("%s gave results about one word of the query, and none of them is taken.", source_engine)
                 continue
             for hit in results:
                 normalized_url = hit.url.rstrip("/")

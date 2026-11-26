@@ -759,7 +759,7 @@ class FlagshipDoctorDaemon:
             )
             if should_heal:
                 logger.warning(
-                    "⚠️ [HEALTH DEGRADED] FlagshipDoctorDaemon triggered self-healing. "
+                    "[HEALTH DEGRADED] FlagshipDoctorDaemon triggered self-healing. "
                     "Lag: %.2fs (context=%s), RAM: %.1f%%",
                     lag,
                     lag_context,

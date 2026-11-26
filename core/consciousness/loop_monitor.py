@@ -148,14 +148,14 @@ class ConsciousnessLoopMonitor:
             )
             logger.warning("LoopMonitor could not start: %s", exc)
             return
-        logger.info("🔍 ConsciousnessLoopMonitor started (interval=%.0fs)", HEALTH_CHECK_INTERVAL)
+        logger.info("ConsciousnessLoopMonitor started (interval=%.0fs)", HEALTH_CHECK_INTERVAL)
 
     def stop(self) -> None:
         """Cancel the monitoring task gracefully."""
         self._running = False
         if self._task and not self._task.done():
             self._task.cancel()
-        logger.info("🔍 ConsciousnessLoopMonitor stopped")
+        logger.info("ConsciousnessLoopMonitor stopped")
 
     # ─────────────────────────────────────────────────────────────────────────
     # Main loop
@@ -180,15 +180,15 @@ class ConsciousnessLoopMonitor:
                     self._consecutive_healthy = 0
                     for issue in issues:
                         self._issue_log.append(issue)
-                        logger.warning("⚠️  LoopMonitor: %s", issue["message"])
+                        logger.warning(" LoopMonitor: %s", issue["message"])
                         if issue.get("fix_attempted"):
-                            logger.info("🔧 LoopMonitor: self-heal attempted — %s", issue["fix"])
+                            logger.info("LoopMonitor: self-heal attempted — %s", issue["fix"])
                 else:
                     self._consecutive_healthy += 1
                     self._last_healthy_at = time.time()
                     if self._consecutive_healthy == _CONFIRM_AFTER:
                         logger.info(
-                            "✅ LoopMonitor: consciousness loop healthy "
+                            "LoopMonitor: consciousness loop healthy "
                             "(%d consecutive clean checks)",
                             _CONFIRM_AFTER,
                         )

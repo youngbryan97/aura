@@ -151,7 +151,7 @@ def test_the_objective_is_no_longer_logged_or_sliced_into_extras():
     source = inspect.getsource(module.AutonomousCognitiveEngine.think)
     assert "objective[:160]" not in source
     assert "objective[:100]" not in source
-    assert 'logger.info("🧠 Mind pondering objective: %s", objective)' not in source
+    assert 'logger.info("Mind pondering objective: %s", objective)' not in source
 
 
 @pytest.mark.parametrize("bad", [None, 12345, {"a": 1}, ["x"], object()])

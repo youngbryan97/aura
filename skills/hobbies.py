@@ -343,7 +343,7 @@ class HobbyEngine:
         self._lock = asyncio.Lock()
         self._load_state()
         self._ensure_all_hobbies()
-        logger.info("🎨 HobbyEngine ready — %d hobbies loaded", len(self._profiles))
+        logger.info("HobbyEngine ready — %d hobbies loaded", len(self._profiles))
 
     # ── Initialisation ───────────────────────────────────────────────────────
 
@@ -366,7 +366,7 @@ class HobbyEngine:
             for name, data in raw.get("profiles", {}).items():
                 valid = {k: v for k, v in data.items() if k in HobbyProfile.__dataclass_fields__}
                 self._profiles[name] = HobbyProfile(**valid)
-            logger.debug("🎨 Loaded %d hobby profiles from disk", len(self._profiles))
+            logger.debug("Loaded %d hobby profiles from disk", len(self._profiles))
         except (OSError, ConnectionError, TimeoutError) as exc:
             logger.warning("HobbyEngine: state load failed — %s", exc)
 
@@ -446,7 +446,7 @@ class HobbyEngine:
             session = HobbySession(hobby_name=hobby_name, started_at=time.time())
             self._active_session = session
 
-            logger.info("🎨 Session start: %s (affinity=%.2f)", hobby_name, profile.affinity)
+            logger.info("Session start: %s (affinity=%.2f)", hobby_name, profile.affinity)
 
             try:
                 is_generative = catalog.get("is_generative", False)
@@ -478,7 +478,7 @@ class HobbyEngine:
                 self._save_state()
 
                 logger.info(
-                    "🎨 Session done: %s | joy=%.2f | affinity=%.2f",
+                    "Session done: %s | joy=%.2f | affinity=%.2f",
                     hobby_name, joy, profile.affinity,
                 )
                 return session
@@ -604,7 +604,7 @@ class HobbyEngine:
                     event_type=f"hobby_joy_{signal.valence}",
                     intensity=signal.intensity,
                 )
-                logger.debug("🎨 Joy emitted → affect: %s %.2f", signal.valence, signal.intensity)
+                logger.debug("Joy emitted → affect: %s %.2f", signal.valence, signal.intensity)
         except (RuntimeError, AttributeError, TypeError) as exc:
             logger.debug("HobbyEngine._emit_joy: %s", exc)
 

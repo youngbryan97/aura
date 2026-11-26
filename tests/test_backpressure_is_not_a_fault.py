@@ -124,7 +124,7 @@ def test_a_signed_steering_detachment_is_not_a_fault() -> None:
 
     body = inspect.getsource(mc)
     # The log line itself, not the comment above it that quotes it.
-    marker = body.index('"⚠️ [STEERING] Liveness flag CLEAR for this worker')
+    marker = body.index('"[STEERING] Liveness flag CLEAR for this worker')
     branch = body[marker - 1800 : marker]
     # The disposition decides which of the two lines is taken, and both are
     # here: an expected detachment reports at info, an unexplained one warns.

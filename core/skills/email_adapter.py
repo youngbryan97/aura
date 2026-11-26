@@ -511,7 +511,7 @@ class EmailAdapterSkill(BaseSkill):
         await asyncio.to_thread(_smtp_send)
         _record_send()
 
-        logger.info("✅ Email sent to %s (subject: %s)", params.to, subject[:50])
+        logger.info("Email sent to %s (subject: %s)", params.to, subject[:50])
         return {
             "ok": True,
             "message": f"Email sent to {recipient}",
@@ -564,7 +564,7 @@ class EmailAdapterSkill(BaseSkill):
                 return {"unread": total_unread, "messages": messages}
 
         result = await asyncio.to_thread(_imap_check)
-        logger.info("📬 Inbox check: %d unread", result["unread"])
+        logger.info("Inbox check: %d unread", result["unread"])
         return {"ok": True, **result}
 
     async def _handle_read(self, params: EmailInput) -> dict[str, Any]:
@@ -653,15 +653,15 @@ class EmailAdapterSkill(BaseSkill):
         # Process images through visual cortex
         images = result.pop("images", [])
         if images:
-            logger.info("👁️ Routing %d image attachment(s) to Aura's visual cortex...", len(images))
+            logger.info("Routing %d image attachment(s) to Aura's visual cortex...", len(images))
             visual_descriptions = await self._describe_images(images)
             if visual_descriptions:
                 result["body"] += "\n\n" + visual_descriptions
 
         if result.get("is_auto_reply"):
-            logger.info("🤖 Detected auto-reply UID %s from %s", params.uid, result["from"])
+            logger.info("Detected auto-reply UID %s from %s", params.uid, result["from"])
         else:
-            logger.info("📧 Read email UID %s from %s", params.uid, result["from"])
+            logger.info("Read email UID %s from %s", params.uid, result["from"])
         response = {"ok": True, **result}
         try:
             from core.advanced_cognition import ExternalEvidenceDeliberator
@@ -706,7 +706,7 @@ class EmailAdapterSkill(BaseSkill):
                     "Be highly descriptive but concise."
                 )
 
-                logger.info("👁️ Processing %s via local MLX Vision...", img["filename"])
+                logger.info("Processing %s via local MLX Vision...", img["filename"])
                 desc = await mlx_vision.see_async(
                     prompt=prompt,
                     image_base64=img["data"],
@@ -859,7 +859,7 @@ class EmailAdapterSkill(BaseSkill):
                 return {"results": messages, "query": query, "total": len(uids)}
 
         result = await asyncio.to_thread(_imap_search)
-        logger.info("🔍 Email search '%s': %d results", query[:30], len(result.get("results", [])))
+        logger.info("Email search '%s': %d results", query[:30], len(result.get("results", [])))
         return {"ok": True, **result}
 
 

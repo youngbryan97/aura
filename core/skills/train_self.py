@@ -119,7 +119,7 @@ class TrainSelfSkill(BaseSkill):
         into a 'Self-Learned Knowledge' file that is injected into context.
         """
         try:
-            logger.info("🧠 Consolidating short-term memories into long-term knowledge...")
+            logger.info("Consolidating short-term memories into long-term knowledge...")
             
             # 1. Read dataset
             if not self.dataset_path.exists():
@@ -161,7 +161,7 @@ class TrainSelfSkill(BaseSkill):
                         f"Memories:\n{nl.join(raw_memories)}"
                     )
                     
-                    logger.info("🧠 Requesting LLM Neuroplastic Distillation...")
+                    logger.info("Requesting LLM Neuroplastic Distillation...")
                     result = await brain.think(objective=prompt, mode=ThinkingMode.SLOW)
                     
                     if result and hasattr(result, 'content') and result.content:

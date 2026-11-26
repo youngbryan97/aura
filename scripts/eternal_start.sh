@@ -6,11 +6,11 @@
 # The server lifespan defers orchestrator boot to aura_main.
 # Launching uvicorn directly gives you a web server with NO cognitive engine.
 
-echo "🚀 Launching Aura Zenith Infinite Runtime..."
+echo "Launching Aura Zenith Infinite Runtime..."
 
 # Check for Apple Silicon
 if [[ $(sysctl -n hw.optional.arm64) -ne 1 ]]; then
-    echo "⚠️ Warning: Apple Silicon not detected. MLX performance will be degraded."
+    echo "Warning: Apple Silicon not detected. MLX performance will be degraded."
 fi
 
 # Activate Venv
@@ -19,7 +19,7 @@ if [ -d "venv" ]; then
 elif [ -d ".venv" ]; then
     source .venv/bin/activate
 else
-    echo "❌ venv or .venv not found. Run scripts/setup_arm64.sh first."
+    echo "venv or .venv not found. Run scripts/setup_arm64.sh first."
     exit 1
 fi
 

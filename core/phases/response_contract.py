@@ -874,7 +874,7 @@ def has_tool_evidence(state: AuraState) -> bool:
         if meta.get("type") == "skill_result" and meta.get("ok") is True:
             return True
         content = str(msg.get("content", "") or "")
-        if "[SKILL RESULT:" in content and "✅" in content:
+        if re.search(r"\[SKILL RESULT:[^\]]*\]\s*ok\b", content):
             return True
     return False
 

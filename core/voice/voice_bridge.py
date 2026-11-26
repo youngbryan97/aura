@@ -201,7 +201,7 @@ class VoiceConversationBridge:
         Routes transcribed voice input into the cognitive engine.
         Supports real-time interruption of current speaking tasks.
         """
-        logger.info("🎙️ Voice Bridge: Routing utterance -> %s...", f"{text[:50]}")
+        logger.info("Voice Bridge: Routing utterance -> %s...", f"{text[:50]}")
         
         # 1. Interrupt any current TTS or thinking
         if self._active_utterance_task and not self._active_utterance_task.done():
@@ -241,7 +241,7 @@ class VoiceConversationBridge:
         # Delimiters that constitute a "speakable clause"
         delimiters = re.compile(r'([.!?\n]+|,\s)')
         
-        logger.info("🎙️ Voice Bridge: Streaming response chunks to voice engine...")
+        logger.info("Voice Bridge: Streaming response chunks to voice engine...")
         try:
             async for token in stream:
                 if self._active_utterance_task and self._active_utterance_task.cancelled():

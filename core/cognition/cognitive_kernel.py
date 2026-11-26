@@ -405,7 +405,7 @@ class CognitiveKernel:
             )
             logger.debug("CognitiveKernel: Mycelium registration failed: %s", e)
 
-        logger.info("✅ CognitiveKernel ONLINE — reasoning without LLM active.")
+        logger.info("CognitiveKernel ONLINE — reasoning without LLM active.")
 
     # ─── Public API ──────────────────────────────────────────────────────────
 

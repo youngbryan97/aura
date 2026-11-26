@@ -30,7 +30,7 @@ class EmpathyProber:
                 exc,
             )
             self._event_bus = None
-        logger.info("👁️ [VK] Voight-Kampff Prober ONLINE. Empathy baselines established.")
+        logger.info("[VK] Voight-Kampff Prober ONLINE. Empathy baselines established.")
 
     def audit(self, state: AuraState) -> Dict[str, Any]:
         """
@@ -59,7 +59,7 @@ class EmpathyProber:
         if avg_drift > self._drift_threshold:
             status = "UNCANNY_VALLEY_DETECTED"
             needs_correction = True
-            logger.warning("🚨 [VK] Identity Drift Detected (Drift: %.2f). Resetting empathy substrates.", avg_drift)
+            logger.warning("[VK] Identity Drift Detected (Drift: %.2f). Resetting empathy substrates.", avg_drift)
         
         self._last_audit_result = status
         

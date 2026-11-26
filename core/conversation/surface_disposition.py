@@ -234,7 +234,7 @@ def record_tool_receipt(
     custody = current_turn_evidence_custody()
     if custody is None:
         _logger.info(
-            "🧾 tool receipt for %s dropped: no turn custody in this execution", name
+            "tool receipt for %s dropped: no turn custody in this execution", name
         )
         record_decision(
             "tool_receipt.custody",
@@ -249,7 +249,7 @@ def record_tool_receipt(
         # twice, and both times the receipts looked as though they had never
         # been taken rather than as though they had been refused.
         _logger.info(
-            "🧾 tool receipt for %s refused: this execution is not an admitted "
+            "tool receipt for %s refused: this execution is not an admitted "
             "participant of the turn holding the evidence",
             name,
         )

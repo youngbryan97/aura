@@ -251,7 +251,7 @@ class TerminalFallbackChat(OwnsDescriptors):
         self._chat_task = get_task_tracker().create_task(
             self._chat_loop(), name="TerminalFallback.chat"
         )
-        logger.warning("📟 TerminalFallback ACTIVE — communicating via terminal stdin/stdout.")
+        logger.warning("TerminalFallback ACTIVE — communicating via terminal stdin/stdout.")
         return True
 
     async def deactivate(self, reason: str = ""):
@@ -708,7 +708,7 @@ class TerminalWatchdog:
             return
         self._running = True
         self._task = get_task_tracker().create_task(self._watch_loop(), name="TerminalWatchdog")
-        logger.info("📟 TerminalWatchdog monitoring UI presence.")
+        logger.info("TerminalWatchdog monitoring UI presence.")
 
     async def stop(self):
         self._running = False
@@ -770,7 +770,7 @@ class TerminalWatchdog:
         # All conditions met — autonomously open terminal
         if not self._chat.is_active:
             logger.warning(
-                "📟 TerminalWatchdog: UI gone %.0fs, %d pending messages — opening terminal.",
+                "TerminalWatchdog: UI gone %.0fs, %d pending messages — opening terminal.",
                 gone_for,
                 len(self._chat._pending),
             )

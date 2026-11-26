@@ -61,14 +61,14 @@ def main() -> int:
 
     counts = {s.value: len(registry.by_status(s)) for s in AssumptionStatus}
     print(
-        f"📜 {len(registry)} assumptions — "
+        f"{len(registry)} assumptions — "
         f"{counts['discharged']} discharged, "
         f"{counts['undischarged']} undischarged, "
         f"{counts['outside_the_system']} outside the system"
     )
 
     if failures:
-        print("\n❌ assumptions naming a checker that does not exist:")
+        print("\nassumptions naming a checker that does not exist:")
         for failure in failures:
             print(f"   {failure}")
         print(
@@ -77,7 +77,7 @@ def main() -> int:
         )
         return 1
 
-    print("✅ every discharged assumption names a checker that exists")
+    print("every discharged assumption names a checker that exists")
     return 0
 
 

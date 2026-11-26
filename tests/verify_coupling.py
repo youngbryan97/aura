@@ -13,7 +13,7 @@ class MockOrchestrator:
         self.impulses = []
 
     async def handle_impulse(self, impulse):
-        print(f"🚀 Fixture orchestrator received impulse: {impulse}")
+        print(f"Fixture orchestrator received impulse: {impulse}")
         self.impulses.append(impulse)
 
 
@@ -40,7 +40,7 @@ async def test_coupling():
     try:
         # Force a controlled state into the "Boredom" Basin.
         # v < -0.1, a < -0.2
-        print("💉 Injecting 'Boredom' stimulus...")
+        print("Injecting 'Boredom' stimulus...")
         with core.substrate.sync_lock:
             core.substrate.x[:] = 0.0
             core.substrate.x[core.substrate.idx_valence] = -0.75
@@ -50,7 +50,7 @@ async def test_coupling():
         # Step the volition integrator with explicit test-time seconds. This
         # tests the real substrate -> drive -> action path without spinning a
         # background loop or relying on wall-clock sleeps.
-        print("⏳ Waiting for volition to emerge from substrate...")
+        print("Waiting for volition to emerge from substrate...")
         impulse = None
         for _ in range(10):
             state = await core.substrate.get_state_summary()
@@ -64,7 +64,7 @@ async def test_coupling():
         drive_module._instance = previous_drive_engine
 
     if orchestrator.impulses:
-        print(f"✅ Causal Impulse Triggered: {orchestrator.impulses[0]}")
+        print(f"Causal Impulse Triggered: {orchestrator.impulses[0]}")
         state = await core.substrate.get_state_summary()
         q_norm = core.qualia.synthesize(
             state["qualia_metrics"],

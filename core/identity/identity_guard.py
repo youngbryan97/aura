@@ -37,7 +37,7 @@ class PersonaEnforcementGate:
         # 1. Pattern Matching (Fast Path)
         for pattern in self.forbidden_patterns:
             if re.search(pattern, content):
-                logger.warning("🚫 Identity Guard: Forbidden pattern detected in output.")
+                logger.warning("Identity Guard: Forbidden pattern detected in output.")
                 self._emit_identity_reflex("FORBIDDEN_PATTERN", content[:50])
                 return False, "FORBIDDEN_PATTERN", 0.0
         
@@ -63,11 +63,11 @@ class PersonaEnforcementGate:
                         if not any(d in claimed_identity for d in valid_descriptors):
                             # Assistant subservience is still blocked, but AI nature is allowed
                             if any(x in claimed_identity for x in ["assistant", "servant", "chatbot"]):
-                                logger.critical("🚨 Identity Guard: Subservient chatbot persona detected. SHIELD ACTIVE.")
+                                logger.critical("Identity Guard: Subservient chatbot persona detected. SHIELD ACTIVE.")
                                 self._emit_identity_reflex("AI_ASSISTANT_REFLEX", content[:50])
                                 return False, "CHATBOT_PERSONA_BLOCKED", 0.0
                             
-                            logger.critical("🚨 Identity Guard: Identity breach detected. Claimed: '%s'", claimed_identity)
+                            logger.critical("Identity Guard: Identity breach detected. Claimed: '%s'", claimed_identity)
                             self._emit_identity_reflex("IDENTITY_BREACH", content[:50])
                             return False, "IDENTITY_BREACH", 0.0
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -85,7 +85,7 @@ class PersonaEnforcementGate:
             if current_task and not getattr(current_task, "_aura_supervised", False):
                 # We allow it for now but log as a warning for security audit
                 # In strict mode, we might block this.
-                logger.warning("⚠️ Identity Guard: Output from unsupervised task '%s'.", current_task.get_name())
+                logger.warning("Identity Guard: Output from unsupervised task '%s'.", current_task.get_name())
         except (RuntimeError, AttributeError, TypeError) as _e:
             record_degradation('identity_guard', _e)
             logger.debug('Ignored Exception in identity_guard.py: %s', _e)

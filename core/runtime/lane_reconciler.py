@@ -293,7 +293,7 @@ class CrashLoopBreaker:
         state.half_open = False
         state.young_deaths.clear()
         logger.warning(
-            "⛔ Crash-loop breaker tripped (trip %d): lane backing off %.0fs (last death: %s)",
+            "Crash-loop breaker tripped (trip %d): lane backing off %.0fs (last death: %s)",
             state.trips,
             backoff,
             state.last_reason or "unknown",

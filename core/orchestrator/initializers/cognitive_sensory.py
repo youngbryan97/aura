@@ -483,7 +483,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
         orchestrator.personality_engine.setup_hooks(orchestrator)
         _register(report, "personality_engine", orchestrator.personality_engine)
         _register(report, "personality", orchestrator.personality_engine)
-        logger.info("🆔 Identity, Soul, Personality, and Fictional Engines registered.")
+        logger.info("Identity, Soul, Personality, and Fictional Engines registered.")
 
     await _run_phase(
         orchestrator,
@@ -506,7 +506,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
             orchestrator.drive_controller = controller
             _register(report, "drive_engine", controller)
             _register(report, "drives", controller)
-            logger.info("🚗 Drive Engine registered via AffectCoordinator")
+            logger.info("Drive Engine registered via AffectCoordinator")
             return
         raise RuntimeError("affect system unavailable; drive controller deferred")
 
@@ -941,7 +941,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
         _register(report, "will_engine", orchestrator.will_engine)
         _register(report, "metabolic_coordinator", orchestrator.will_engine)
         orchestrator.metabolic_coordinator = orchestrator.will_engine
-        logger.info("☘️ WillEngine (Metabolic Evolution) registered.")
+        logger.info("WillEngine (Metabolic Evolution) registered.")
 
     await _run_phase(
         orchestrator,
@@ -971,7 +971,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
     report["learned_services"] = {"registered": registered_count, "expected": len(all_services)}
     if registered_count:
         logger.info(
-            "🧠 Registered %d/%d learned cognitive + ALife systems.",
+            "Registered %d/%d learned cognitive + ALife systems.",
             registered_count,
             len(all_services),
         )
@@ -982,7 +982,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
         orchestrator.cellular_substrate = CellularSubstrate()
         await _maybe_await(orchestrator.cellular_substrate.initialize())
         _register(report, "cellular_substrate", orchestrator.cellular_substrate)
-        logger.info("♾️ CellularSubstrate (Unified Mutation) registered.")
+        logger.info("CellularSubstrate (Unified Mutation) registered.")
 
     await _run_phase(
         orchestrator,
@@ -1045,7 +1045,7 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
                 failure_policy="degrade_without_dream_research",
             )
             report["registered"][name] = instance.__class__.__name__
-        logger.info("🧠 Registered %d research cognition services.", len(services))
+        logger.info("Registered %d research cognition services.", len(services))
 
     await _run_phase(
         orchestrator,
@@ -1054,5 +1054,5 @@ async def init_cognitive_sensory_layer(orchestrator: Any) -> dict[str, Any]:
         _research_cognition,
     )
 
-    logger.info("🧬 [BOOT] Cognitive & Sensory Layer initialized.")
+    logger.info("[BOOT] Cognitive & Sensory Layer initialized.")
     return report

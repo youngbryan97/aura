@@ -49,7 +49,7 @@ class SimulationRunner:
                 "evidence": "no checkable claim supplied",
             }
 
-        logger.info("🔬 SimulationRunner: falsifying claim '%s'", claim[:80])
+        logger.info("SimulationRunner: falsifying claim '%s'", claim[:80])
         try:
             from core.discovery.frontier_discovery_engine import (
                 get_frontier_discovery_engine,

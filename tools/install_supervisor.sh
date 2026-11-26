@@ -31,12 +31,12 @@ LOG_DIR="$HOME/Library/Logs"
 if [[ "${1:-}" == "--remove" ]]; then
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     rm -f "$PLIST"
-    echo "✅ Aura supervisor removed."
+    echo "Aura supervisor removed."
     exit 0
 fi
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
-    echo "❌ ${PYTHON_BIN} not found — run make setup first." >&2
+    echo "${PYTHON_BIN} not found — run make setup first." >&2
     exit 1
 fi
 
@@ -82,7 +82,7 @@ PLIST_EOF
 
 launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "✅ Aura supervisor installed and loaded (${LABEL})."
+echo "Aura supervisor installed and loaded (${LABEL})."
 echo "   Crash recovery: any non-zero exit restarts her within ~15s."
 echo "   Clean stop: 'python aura_main.py --stop' exits 0 → no restart."
 echo "   Remove:     bash tools/install_supervisor.sh --remove"

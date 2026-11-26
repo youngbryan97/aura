@@ -376,7 +376,7 @@ def validate_mode_at_startup() -> None:
     """Log the current mode and validate configuration consistency."""
     mode = get_mode()
     ctx = mode_context()
-    logger.info("🔧 Runtime mode: %s", mode.value)
+    logger.info("Runtime mode: %s", mode.value)
     for key, value in ctx.items():
         if key != "mode":
             logger.debug("  %s: %s", key, value)
@@ -401,7 +401,7 @@ def validate_mode_at_startup() -> None:
     # so I must be hardened" trap by surfacing the disagreement loudly.
     strictness = governance_strictness()
     if not strictness.consistent:
-        logger.warning("⚠️  GOVERNANCE NOT HARDENED: %s", strictness.advisory)
+        logger.warning(" GOVERNANCE NOT HARDENED: %s", strictness.advisory)
         # In a headless proof/offline run the split is intentional: the suite
         # exercises production capabilities at the production default and must
         # NOT become fail-closed implicitly (see governance_strictness above).
@@ -440,4 +440,4 @@ def validate_mode_at_startup() -> None:
         )
 
     if mode == AuraMode.SAFE:
-        logger.warning("🔒 SAFE MODE ACTIVE: All autonomous behavior disabled.")
+        logger.warning("SAFE MODE ACTIVE: All autonomous behavior disabled.")

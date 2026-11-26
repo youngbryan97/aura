@@ -37,7 +37,7 @@ async def test_governance_absence_blocks_impulse():
 
     new_state = await phase.execute(state)
     assert len(new_state.cognition.pending_initiatives) == 0
-    print("✅ Missing governance blocks autonomous initiative.")
+    print("Missing governance blocks autonomous initiative.")
 
 async def test_impulse_throttling():
     print("Testing InitiativeGeneration throttle...")
@@ -60,12 +60,12 @@ async def test_impulse_throttling():
     try:
         new_state = await phase.execute(state)
         assert len(new_state.cognition.pending_initiatives) == 1
-        print("✅ First impulse generated.")
+        print("First impulse generated.")
 
         new_state.cognition.pending_initiatives = []
         new_state = await phase.execute(state)
         assert len(new_state.cognition.pending_initiatives) == 0
-        print("✅ Throttling active (0 impulses on second attempt).")
+        print("Throttling active (0 impulses on second attempt).")
     finally:
         initiative_module.propose_governed_initiative_to_state = original_proposal
 
@@ -80,7 +80,7 @@ async def test_regex_lookahead():
     
     assert not re.match(pattern, internal_msg)
     assert re.match(pattern, user_msg)
-    print("✅ Regex lookahead successfully ignores INTERNAL_IMPULSE.")
+    print("Regex lookahead successfully ignores INTERNAL_IMPULSE.")
 
 async def test_mind_tick_timeouts():
     print("Testing MindTick per-phase timeouts...")
@@ -89,7 +89,7 @@ async def test_mind_tick_timeouts():
     assert tick.phase_timeouts["memory_retrieval"] == 30.0
     assert tick.phase_timeouts["cognitive_routing"] == 120.0
     assert tick.phase_timeouts["memory_consolidation"] == 20.0
-    print("✅ MindTick phase timeouts verified.")
+    print("MindTick phase timeouts verified.")
 
 if __name__ == "__main__":
     asyncio.run(test_governance_absence_blocks_impulse())

@@ -427,7 +427,7 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     state.cognition.working_memory = [
         {
             "role": "system",
-            "content": "[SKILL RESULT: web_search] ✅ grounded result",
+            "content": "[SKILL RESULT: web_search] grounded result",
             "metadata": {"type": "skill_result", "skill": "web_search", "ok": True},
         },
         {"role": "user", "content": "Earlier context"},

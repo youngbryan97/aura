@@ -146,7 +146,7 @@ class HerEchoCanceller:
         reaches = level_playing > 0.0 and level_playing >= 2.0 * level_quiet
         if reaches != self.reaches_microphone:
             self.reaches_microphone = reaches
-            logger.info("🔇 her voice %s the microphone (%.1f dB over the room while she plays): %s",
+            logger.info("her voice %s the microphone (%.1f dB over the room while she plays): %s",
                         "reaches" if reaches else "does not reach",
                         20.0 * np.log10((level_playing + 1e-9) / (level_quiet + 1e-9)),
                         "her echo is cancelled" if reaches else "words over her pass without echo suppression")

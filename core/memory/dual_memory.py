@@ -484,7 +484,7 @@ class DualMemorySystem:
              self._lock = RobustLock("Memory.DualMemory")
 
         if not await self._lock.acquire_robust(timeout=5.0):
-            logger.warning("⚠️ Memory retrieval lock timeout. Returning partial context.")
+            logger.warning("Memory retrieval lock timeout. Returning partial context.")
             return "Memory system busy."
 
         try:

@@ -27,7 +27,7 @@ class DreamProcessor:
         4. Store in Vector DB.
         5. Archive raw episodes.
         """
-        logger.info("🌙 Entering Dream State...")
+        logger.info("Entering Dream State...")
 
         episodes = await self._load_recent_episodes(limit=self.fragment_threshold)
         if not episodes:
@@ -229,7 +229,7 @@ class DreamProcessor:
                     parts = [p.strip() for p in line.split("|")]
                     if len(parts) == 3:
                         e1, rel, e2 = parts
-                        logger.info("🕸️ Upserting relationship: %s -[%s]-> %s", e1, rel, e2)
+                        logger.info("Upserting relationship: %s -[%s]-> %s", e1, rel, e2)
                         if kg.upsert_relationship(e1, rel, e2, weight=1.5):
                             committed += 1
             return committed

@@ -97,11 +97,11 @@ class AlignmentAuditor:
                     logger.debug("Suppressed alignment JSON parse error: %s", _exc)
 
             if retry:
-                logger.warning("⚠️ AlignmentAuditor: Invalid JSON for goal audit. Retrying once...")
+                logger.warning("AlignmentAuditor: Invalid JSON for goal audit. Retrying once...")
                 return await self.check_alignment(goal_description, directives, retry=False)
 
             # Fail closed: an unparseable audit is NOT an aligned goal.
-            logger.error("🛑 AlignmentAuditor: Systemic failure to parse alignment JSON.")
+            logger.error("AlignmentAuditor: Systemic failure to parse alignment JSON.")
             return {"score": 0.0, "aligned": False, "reason": "Systemic parsing failure", "conflicts": []}
 
         except asyncio.CancelledError:

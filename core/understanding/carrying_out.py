@@ -110,7 +110,7 @@ async def carry_out(request: Request, carrier: Carrier, *, tell: Tell, ledger: R
                 await ledger.changed(request, stands=CUT_SHORT)
                 return request
             away += 1
-            logger.info("🧰 Request %s waits for her model (%s).", request.id, exc)
+            logger.info("Request %s waits for her model (%s).", request.id, exc)
             await asyncio.sleep(AWAY_S * away)
             continue
         except PutDown:
@@ -127,7 +127,7 @@ async def carry_out(request: Request, carrier: Carrier, *, tell: Tell, ledger: R
         missing = request.missing()
         request.tries.append(Try(at=began, how=came.how, came_to=came.came_to, missing=[part.what for part in missing]))
         stands = stands_by(request.parts)
-        logger.info("🧰 Request %s (%s): %s; %d of %d parts are so.%s", request.id, request.effect, stands,
+        logger.info("Request %s (%s): %s; %d of %d parts are so.%s", request.id, request.effect, stands,
                     len(request.parts) - len(missing), len(request.parts), f" {came.came_to}" if came.came_to else "")
         gained = missing_before is None or len(missing) < missing_before
         if not missing or not came.again or not gained:

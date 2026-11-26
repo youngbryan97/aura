@@ -120,7 +120,7 @@ def watched_first(observation: dict[str, Any], goal: str, *, take: bool = True) 
         return None
     if take:
         _WATCHED_FOR[goal] = time.time()
-        logger.info("🌐 Watched first on %s: %s", str(observation.get("url") or "")[:80],
+        logger.info("Watched first on %s: %s", str(observation.get("url") or "")[:80],
                     "handed over" if handed else "chosen" if any(e.get("chosen") for e in plays)
                     else f"its own video at {max(float(e.get('share_of_view') or 0) for e in plays):.3f} of the view")
     why = "this page plays what I was asked to watch"

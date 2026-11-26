@@ -305,7 +305,7 @@ def phenomenal(*, log_traceback: bool = True):
                 envelope = build_envelope(exc, correlation_id=kwargs.get("_correlation_id"))
                 if log_traceback:
                     logger.warning(
-                        "🌫️ phenomenal[%s] %s in %s — user sees: %s",
+                        "phenomenal[%s] %s in %s — user sees: %s",
                         envelope.phenomenal_state,
                         envelope.technical_summary,
                         fn.__qualname__,
@@ -342,7 +342,7 @@ class PhenomenalContext:
         envelope = build_envelope(exc)
         self.envelope = envelope
         if self.log_traceback:
-            logger.warning("🌫️ phenomenal[%s] %s in %s", envelope.phenomenal_state, envelope.technical_summary, self.scope)
+            logger.warning("phenomenal[%s] %s in %s", envelope.phenomenal_state, envelope.technical_summary, self.scope)
         _notify_substrate(PHENOMENAL_STATES[envelope.phenomenal_state], source=self.scope)
         raise PhenomenalRaise(envelope, original=exc) from exc
 

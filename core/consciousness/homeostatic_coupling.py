@@ -315,7 +315,7 @@ class HomeostaticCoupling:
             # Log if critically low
             if mods.urgency_flag:
                 logger.debug(
-                    f"⚠ HOMEOSTASIS CRITICAL: drive={mods.dominant_drive_alert}, "
+                    f"HOMEOSTASIS CRITICAL: drive={mods.dominant_drive_alert}, "
                     f"vitality={mods.overall_vitality:.2f}"
                 )
                 self._pulse_root("urgency_alert", success=True)
@@ -380,8 +380,8 @@ class HomeostaticCoupling:
 
     #: What each strain is called when it starts.
     _STRAIN_STARTS = {
-        "thermal": "🔥 THERMAL RESONANCE: Hardware is overheating. Emergency throttling.",
-        "load": "📉 HARDWARE RESONANCE: High host load. Throttling cognitive depth.",
+        "thermal": "THERMAL RESONANCE: Hardware is overheating. Emergency throttling.",
+        "load": "HARDWARE RESONANCE: High host load. Throttling cognitive depth.",
     }
 
     def _report_strain(self, strain: frozenset[str]) -> None:

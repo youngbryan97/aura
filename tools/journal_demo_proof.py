@@ -215,7 +215,7 @@ class JournalDemoProof(LiveProof):
 
             self.verdict_path.write_text(json.dumps(verdict, indent=2, default=str))
             print(
-                ("✅ JOURNAL DEMO PROOF PASSED" if verdict["passed"] else "❌ JOURNAL DEMO PROOF FAILED")
+                ("JOURNAL DEMO PROOF PASSED" if verdict["passed"] else "JOURNAL DEMO PROOF FAILED")
                 + f" → {self.verdict_path}"
             )
             return 0 if verdict["passed"] else 1

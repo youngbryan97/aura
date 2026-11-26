@@ -27,11 +27,11 @@ async def main():
     if res1.get("ok"):
         stdout = res1.get("stdout", "")
         if "TRUNCATED" in stdout:
-            print("✅ Smart Truncation Success.")
+            print("Smart Truncation Success.")
         else:
-            print("❌ Smart Truncation Failed (Output length:", len(stdout), ")")
+            print("Smart Truncation Failed (Output length:", len(stdout), ")")
     else:
-        print("❌ Terminal failed:", res1.get("error"))
+        print("Terminal failed:", res1.get("error"))
 
     # 2. Test Semantic File Read
     print("\n--- Test 2: Semantic File Editor (Read) ---")
@@ -41,9 +41,9 @@ async def main():
     
     read_res = await f_op.safe_execute({"action": "read", "path": test_file}, context)
     if read_res.get("ok") and "0001:" in read_res.get("content", ""):
-         print("✅ Line-Indexed Read Success.")
+         print("Line-Indexed Read Success.")
     else:
-         print("❌ Line-Indexed Read Failed.")
+         print("Line-Indexed Read Failed.")
 
     # 3. Test File Syntax Patching
     print("\n--- Test 3: Semantic Patch & Syntax Validation ---")
@@ -60,9 +60,9 @@ async def main():
     }, context)
     
     if patch_res.get("ok") == False and "Syntax Error introduced" in patch_res.get("error", ""):
-        print("✅ Pre-Commit Syntax Validation Success (Blocked bad save).")
+        print("Pre-Commit Syntax Validation Success (Blocked bad save).")
     else:
-        print("❌ Syntax Validation Failed:", patch_res)
+        print("Syntax Validation Failed:", patch_res)
         
     # Clean up
     os.remove(test_file)
@@ -76,11 +76,11 @@ async def main():
     comp_res = await comp.safe_execute({"action": "read_screen_text", "target": ""}, context)
     if comp_res.get("ok"):
         text = comp_res.get("text", "")
-        print(f"✅ State Verification OK: {text[:50]}...")
+        print(f"State Verification OK: {text[:50]}...")
     else:
         # Might fail gracefully if accessibility permissions are denied
         if "permission" in comp_res:
-            print("✅ State Verification Handled via Permission Error (Normal for non-root headless).")
+            print("State Verification Handled via Permission Error (Normal for non-root headless).")
     
     print("\n--- Test 5: Stateful Active Coding Sandbox ---")
     from core.skills.active_coding import RunCodeSkill
@@ -90,9 +90,9 @@ async def main():
     res_code_2 = await active_code.safe_execute({"code": "print(x)", "stateful": True}, context)
     
     if res_code_2.get("ok") and "55" in res_code_2.get("stdout", ""):
-        print("✅ Stateful Execution Intact (Variables Resisted Wipe).")
+        print("Stateful Execution Intact (Variables Resisted Wipe).")
     else:
-        print("❌ Stateful Execution Failed:", res_code_2)
+        print("Stateful Execution Failed:", res_code_2)
 
     print("\n--- Test 6: MemoryOps Letta Architecture (MemFS) ---")
     from core.skills.memory_ops import MemoryOpsSkill
@@ -106,9 +106,9 @@ async def main():
     # Read manually to verify
     mem_path = mem_ops.mem_fs_dir / "user.txt"
     if mem_path.exists() and "light mode" in mem_path.read_text():
-        print("✅ Letta Core Memory Block Edited Successfully in MemFS.")
+        print("Letta Core Memory Block Edited Successfully in MemFS.")
     else:
-        print("❌ MemFS Editing Failed.")
+        print("MemFS Editing Failed.")
         
     print("\n--- Test 7: Belief Ops MemFS Integration ---")
     from core.skills.belief_ops import AddBeliefSkill, QueryBeliefsSkill
@@ -118,9 +118,9 @@ async def main():
     await add_belief.safe_execute({"source": "Tester", "relation": "loves", "target": "robustness"}, context)
     q_res = await q_belief.safe_execute({"subject": "Tester", "limit": 10}, context)
     if q_res.get("ok") and "robustness" in q_res.get("summary", ""):
-         print("✅ Beliefs successfully stored and retrieved from MemFS.")
+         print("Beliefs successfully stored and retrieved from MemFS.")
     else:
-         print("❌ BeliefOps Integration Failed:", q_res)
+         print("BeliefOps Integration Failed:", q_res)
 
     print("\n--- Test 8: Web Search Deep Crawl Verification ---")
     from core.skills.web_search import EnhancedWebSearchSkill
@@ -128,9 +128,9 @@ async def main():
     # Keep network local to avoid external latency, but call safely to see tool binds.
     search_res = await search_skill.safe_execute({"query": "What is Python?", "deep": True, "num_results": 2}, context)
     if search_res.get("ok") or "error" in search_res:
-         print("✅ Web Search Deep Execution Path Handled.")
+         print("Web Search Deep Execution Path Handled.")
     else:
-         print("❌ Web Search Deep Failed.")
+         print("Web Search Deep Failed.")
          
     print("\n=== All Primary Autonomous Architectures Verified ===")
 
@@ -138,8 +138,8 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 
-# `main()` above carries four real checks that print ✅/❌ and assert nothing,
-# so a regression would have printed ❌ into a log nobody reads. It was also
+# `main()` above carries four real checks that print/and assert nothing,
+# so a regression would have printed into a log nobody reads. It was also
 # never collected. These are the same properties as pytest tests, against a
 # tmp path rather than the repo root — the original wrote test_semantic.txt
 # into the working directory and never removed it.

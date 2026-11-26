@@ -333,7 +333,7 @@ async def _judge(record: Any, now: float) -> dict[str, Any] | None:
     kept, said = judged(before, after, before_s=before_s, after_s=after_s)
     goals.note_on_offer(record.slug, judged={"at": now, "kept": kept, "why": said, "measured_after": after})
     if kept:
-        logger.info("🩹 Her change at %s is kept: %s", offer.get("site"), said)
+        logger.info("Her change at %s is kept: %s", offer.get("site"), said)
         return {"slug": record.slug, "status": "kept", "why": said}
     from core.self_modification.into_the_running_process import loads
 
@@ -341,7 +341,7 @@ async def _judge(record: Any, now: float) -> dict[str, Any] | None:
         if loaded.goal == record.slug:
             loaded.undo()
     taken_back = await asyncio.to_thread(goals.take_it_back, record.slug, f"it did not measure better: {said}")
-    logger.warning("🩹 Her change at %s did not measure better and was taken back: %s", offer.get("site"), said)
+    logger.warning("Her change at %s did not measure better and was taken back: %s", offer.get("site"), said)
     return {"slug": record.slug, "status": "taken back" if taken_back.get("ok") else "not taken back", "why": said}
 
 

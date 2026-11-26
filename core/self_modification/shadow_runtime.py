@@ -102,7 +102,7 @@ class ShadowRuntime:
         # cognition produces unreliable patches even if syntax is valid.
         if self._current_phi < self.MIN_PHI_FOR_SELF_MOD:
             logger.warning(
-                "🧠 ShadowRuntime: Phi=%.3f is below self-mod threshold (%.2f). "
+                "ShadowRuntime: Phi=%.3f is below self-mod threshold (%.2f). "
                 "Deferring mutation of '%s' until coherence recovers.",
                 self._current_phi, self.MIN_PHI_FOR_SELF_MOD, Path(file_path).name,
             )
@@ -121,7 +121,7 @@ class ShadowRuntime:
         target_filename = Path(file_path).name
         if target_filename in _PROTECTED_SAFETY_MODULES:
             logger.critical(
-                "🛡️ ShadowRuntime: BLOCKED attempt to mutate protected safety module '%s'. "
+                "ShadowRuntime: BLOCKED attempt to mutate protected safety module '%s'. "
                 "Self-modification of constitutional/moral modules is prohibited.",
                 target_filename,
             )
@@ -143,7 +143,7 @@ class ShadowRuntime:
                 # 1. Create shadow copy
                 shadow_dir = await self._create_shadow_copy()
                 self._active_shadow = shadow_dir
-                logger.info("🔮 Shadow copy created at %s", shadow_dir)
+                logger.info("Shadow copy created at %s", shadow_dir)
 
                 # 2. Verify original content matches
                 shadow_file = shadow_dir / file_path
@@ -159,7 +159,7 @@ class ShadowRuntime:
                     encoding="utf-8",
                     source="core.self_modification.shadow_runtime.shadow_patch",
                 )
-                logger.info("🔮 Mutation applied to shadow: %s", file_path)
+                logger.info("Mutation applied to shadow: %s", file_path)
 
                 # 4. Run validation
                 if boot_script is None:
@@ -203,11 +203,11 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
                     result.errors.append(f"Shadow validation failed: {result.stdout_tail}")
                 else:
                     result.passed = True
-                    logger.info("✅ Shadow runtime test PASSED for %s (%.1fs)", file_path, time.monotonic() - start_time)
+                    logger.info("Shadow runtime test PASSED for %s (%.1fs)", file_path, time.monotonic() - start_time)
 
             except TimeoutError:
                 result.errors.append(f"Shadow runtime timed out after {soak_seconds}s")
-                logger.warning("⏰ Shadow runtime timed out for %s", file_path)
+                logger.warning("Shadow runtime timed out for %s", file_path)
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('shadow_runtime', e)
                 result.errors.append(f"Shadow runtime error: {e}")
@@ -224,7 +224,7 @@ print(f"SHADOW_OK: AST parsed, {{len(tree.body)}} top-level nodes")
                 self._active_shadow = None
 
         if not result.passed:
-            logger.warning("❌ Shadow runtime test FAILED for %s: %s", file_path, result.errors[:2])
+            logger.warning("Shadow runtime test FAILED for %s: %s", file_path, result.errors[:2])
 
         return result
 

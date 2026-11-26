@@ -344,7 +344,7 @@ class ParameterServer:
 
         for name, old, new in applied:
             logger.info(
-                "🎛️ parameter %s: %r → %r (%s%s)",
+                "parameter %s: %r → %r (%s%s)",
                 name,
                 old,
                 new,
@@ -359,7 +359,7 @@ class ParameterServer:
 
     def _reject(self, name: str, reason: str) -> SetResult:
         self.rejections += 1
-        logger.info("🎛️ parameter set rejected for %s: %s", name, reason)
+        logger.info("parameter set rejected for %s: %s", name, reason)
         return SetResult.reject(f"{name}: {reason}")
 
     def reset(self, name: str, *, source: str = "runtime") -> SetResult:

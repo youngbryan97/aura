@@ -49,13 +49,13 @@ from core.runtime.model_lane_control import standalone_model_lane  # noqa: E402
 
 def _patched_load(*args, **kwargs):
     model, tokenizer = _orig_load(*args, **kwargs)
-    print("🧠 [Training] Applying recurrent depth to base model…", flush=True)
+    print("[Training] Applying recurrent depth to base model…", flush=True)
     applied = apply_for_model(model)
     loops = os.environ.get("AURA_RECURRENT_LOOPS", "<unset>")
     if applied:
-        print(f"   ✅ Recurrent depth ACTIVE during training (loops={loops})", flush=True)
+        print(f"   Recurrent depth ACTIVE during training (loops={loops})", flush=True)
     else:
-        print(f"   ⚠️  Recurrent depth NOT applied (loops={loops}). Training will "
+        print(f"    Recurrent depth NOT applied (loops={loops}). Training will "
               "proceed with standard forward pass.", flush=True)
     return model, tokenizer
 

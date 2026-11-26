@@ -41,7 +41,7 @@ jobs:
         assert len(defns) >= 20, f'Expected >=20 fault definitions, got {len(defns)}'
         for d in defns:
             assert d.rpn > 0, f'{d.fault_id} has zero RPN'
-        print(f'✅ Fault taxonomy: {len(defns)} definitions, all valid')
+        print(f'Fault taxonomy: {len(defns)} definitions, all valid')
         "
 
     - name: Phase 1 — FMEA coverage check
@@ -52,7 +52,7 @@ jobs:
         fmea = get_fmea_registry()
         summary = fmea.coverage_summary()
         assert summary['coverage_pct'] >= 95, f'FMEA coverage {summary[\"coverage_pct\"]}% < 95%'
-        print(f'✅ FMEA coverage: {summary[\"coverage_pct\"]}% ({summary[\"mitigated\"]} mitigated)')
+        print(f'FMEA coverage: {summary[\"coverage_pct\"]}% ({summary[\"mitigated\"]} mitigated)')
         "
 
     - name: Phase 5 — State machine verification
@@ -71,7 +71,7 @@ jobs:
         ]:
             sm = factory()
             warnings = sm.verify()
-            print(f'✅ {name}: {len(sm.states)} states, {len(sm._transitions)} transitions, {len(warnings)} warnings')
+            print(f'{name}: {len(sm.states)} states, {len(sm._transitions)} transitions, {len(warnings)} warnings')
         "
 
     - name: Phase 4 — SLO definitions check
@@ -82,7 +82,7 @@ jobs:
         mon = get_slo_monitor()
         status = mon.status()
         assert status['slo_count'] >= 25, f'Expected >=25 SLOs, got {status[\"slo_count\"]}'
-        print(f'✅ SLO monitor: {status[\"slo_count\"]} SLOs defined')
+        print(f'SLO monitor: {status[\"slo_count\"]} SLOs defined')
         "
 
     - name: Compile check

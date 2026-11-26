@@ -51,7 +51,7 @@ def test_vector_memory():
     assert results[0]['text'] == "Apple"
     assert results[0]['similarity'] > 0.99
     
-    print("\n✅ Matrix Search Verified.")
+    print("\nMatrix Search Verified.")
 
 if __name__ == "__main__":
     test_vector_memory()

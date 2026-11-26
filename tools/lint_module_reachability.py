@@ -424,7 +424,7 @@ def main() -> int:
                 was = 0
             if int(report["orphan_count"]) > was:
                 print(
-                    f"❌ refusing to raise the baseline: {was} -> "
+                    f"refusing to raise the baseline: {was} -> "
                     f"{report['orphan_count']}. Wire the new orphans to "
                     "something, or retire them."
                 )
@@ -452,7 +452,7 @@ def main() -> int:
 
     baseline = _load_baseline()
     print(
-        f"🕸  {report['orphan_count']} of {report['core_modules']} core modules are "
+        f" {report['orphan_count']} of {report['core_modules']} core modules are "
         f"reached by nothing ({report['orphan_lines']:,} lines)"
     )
 
@@ -465,10 +465,10 @@ def main() -> int:
     closed = sorted(known - set(orphans))
 
     if closed:
-        print(f"✅ {len(closed)} newly reachable (baseline should shrink): {closed[:8]}")
+        print(f"ok {len(closed)} newly reachable (baseline should shrink): {closed[:8]}")
 
     if new:
-        print(f"\n❌ {len(new)} module(s) became unreachable:")
+        print(f"\n{len(new)} module(s) became unreachable:")
         for name in new:
             print(f"   {name}")
         print(
@@ -479,7 +479,7 @@ def main() -> int:
         return 1
 
     if len(orphans) > int(baseline.get("orphan_count", 0)):
-        print("❌ orphan count rose without a new module name — refresh the baseline")
+        print("orphan count rose without a new module name — refresh the baseline")
         return 1
 
     # Counting them stops the number growing and says nothing about what any
@@ -489,7 +489,7 @@ def main() -> int:
         decided = json.loads(dispositions.read_text(encoding="utf-8")).get("modules", {})
         undecided = sorted(set(orphans) - set(decided))
         if undecided:
-            print(f"\n❌ {len(undecided)} unreachable module(s) with no recorded decision:")
+            print(f"\n{len(undecided)} unreachable module(s) with no recorded decision:")
             for name in undecided[:10]:
                 print(f"   {name}")
             print(
@@ -509,10 +509,10 @@ def main() -> int:
     known_test_only = set(baseline.get("test_only", []))
     new_test_only = sorted(set(test_only) - known_test_only)
     print(
-        f"🧪 {report['test_only_count']} core module(s) are reached only by tests"
+        f"{report['test_only_count']} core module(s) are reached only by tests"
     )
     if new_test_only:
-        print(f"\n❌ {len(new_test_only)} module(s) became test-only:")
+        print(f"\n{len(new_test_only)} module(s) became test-only:")
         for name in new_test_only:
             print(f"   {name}")
         print(
@@ -523,7 +523,7 @@ def main() -> int:
         )
         return 1
 
-    print("✅ no new unreachable modules")
+    print("no new unreachable modules")
     return 0
 
 

@@ -196,7 +196,7 @@ class ToolExecutionMixin:
         """Formalized browser task execution via skill router.
         Browser work goes through the same governed tool path as every other skill.
         """
-        logger.info("🌐 Initiating Browser Task: %s @ %s", task, url)
+        logger.info("Initiating Browser Task: %s @ %s", task, url)
         return await self.execute_tool("browser", {"url": url, "task": task})
 
     async def execute_tool(
@@ -395,7 +395,7 @@ class ToolExecutionMixin:
                 governance_payload=canonical_authority_arguments(tool_name, args),
             )
             if not allowed:
-                logger.warning("🔓 EDI blocked tool '%s' (risk: %s): %s", tool_name, risk_level, reason)
+                logger.warning("EDI blocked tool '%s' (risk: %s): %s", tool_name, risk_level, reason)
                 result = {"ok": False, "error": f"EDI blocked: {reason}"}
                 _record_coding_tool_event(result, success=False, error=reason)
                 return result
@@ -426,18 +426,18 @@ class ToolExecutionMixin:
                 # model-deepened challenge (bounded; falls back to the heuristic on
                 # timeout). The model can only raise concern, never clear a flag.
                 if _verdict.verdict != "block" and _conscience.should_escalate(_verdict):
-                    logger.info("⚖️  Escalating tool '%s' to deep conscience review…", tool_name)
+                    logger.info(" Escalating tool '%s' to deep conscience review…", tool_name)
                     _verdict = await _conscience.challenge(_action_text, context=_ctx, timeout=8.0)
                 if _verdict.verdict == "block":
                     logger.warning(
-                        "⚖️  Adversarial conscience BLOCKED tool '%s': %s",
+                        " Adversarial conscience BLOCKED tool '%s': %s",
                         tool_name, _verdict.reasoning,
                     )
                     result = {"ok": False, "error": f"Conscience blocked: {_verdict.reasoning}"}
                     _record_coding_tool_event(result, success=False, error=_verdict.reasoning)
                     return result
                 if _verdict.verdict == "caution":
-                    logger.info("⚖️  Conscience caution on '%s': %s", tool_name, _verdict.reasoning)
+                    logger.info(" Conscience caution on '%s': %s", tool_name, _verdict.reasoning)
             _minds = (
                 None
                 if _router_owns_governance
@@ -448,7 +448,7 @@ class ToolExecutionMixin:
                 if getattr(_sim, "recommendation", "") == "hold":
                     if _safe_autonomous_web:
                         logger.info(
-                            "🌀 Outcome simulator advisory for autonomous read-only web tool '%s' "
+                            "Outcome simulator advisory for autonomous read-only web tool '%s' "
                             "(worst-case harm %.2f); continuing under bounded research policy.",
                             tool_name,
                             float(getattr(_sim, "worst_case_harm", 0.0) or 0.0),
@@ -458,7 +458,7 @@ class ToolExecutionMixin:
                             "Outcome simulator held action; worst-case harm "
                             f"{float(getattr(_sim, 'worst_case_harm', 0.0) or 0.0):.2f}"
                         )
-                        logger.warning("🌀 Outcome simulator BLOCKED tool '%s': %s", tool_name, reason)
+                        logger.warning("Outcome simulator BLOCKED tool '%s': %s", tool_name, reason)
                         result = {
                             "ok": False,
                             "error": reason,
@@ -516,7 +516,7 @@ class ToolExecutionMixin:
                 if _review.verdict == "against_user":
                     reason = _review.on_behalf_of_user
                     logger.warning(
-                        "🟦 User-advocate BLOCKED tool '%s' on the user's behalf: %s",
+                        "User-advocate BLOCKED tool '%s' on the user's behalf: %s",
                         tool_name, reason,
                     )
                     result = {
@@ -606,7 +606,7 @@ class ToolExecutionMixin:
                 if not _tool_handle.approved:
                     reason = _tool_handle.decision.reason
                     logger.warning(
-                        "🚫 ExecutiveCore blocked tool '%s': %s",
+                        "ExecutiveCore blocked tool '%s': %s",
                         tool_name,
                         reason,
                     )
@@ -683,7 +683,7 @@ class ToolExecutionMixin:
                         )
                         logger.debug("Constitutional gate degraded-event emission failed: %s", _exc)
                     logger.warning(
-                        "🚫 ConstitutionalCore unavailable for tool '%s': %s", tool_name, _exec_err
+                        "ConstitutionalCore unavailable for tool '%s': %s", tool_name, _exec_err
                     )
                     result = {"ok": False, "error": "Constitutional tool gate unavailable"}
                     _record_coding_tool_event(result, success=False, error=str(_exec_err))
@@ -698,7 +698,7 @@ class ToolExecutionMixin:
                 capability_token_id = _tool_handle.capability_token_id
                 if not capability_token_id:
                     logger.warning(
-                        "🚫 Tool '%s' missing capability token under constitutional runtime.",
+                        "Tool '%s' missing capability token under constitutional runtime.",
                         tool_name,
                     )
                     result = {"ok": False, "error": "Capability token missing."}
@@ -712,7 +712,7 @@ class ToolExecutionMixin:
                     )
                     return result
                 if not get_authority_gateway().verify_tool_access(tool_name, capability_token_id):
-                    logger.warning("🚫 Capability token denied tool '%s'.", tool_name)
+                    logger.warning("Capability token denied tool '%s'.", tool_name)
                     result = {"ok": False, "error": "Capability token denied tool execution."}
                     await _finish_constitutional_tool_execution(
                         result,
@@ -758,7 +758,7 @@ class ToolExecutionMixin:
                 return result
             topic = args.get("topic") or args.get("query") or self._current_objective
             roles = args.get("roles", ["architect", "critic"])
-            self._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
+            self._emit_thought_stream(f"Engaging Swarm Debate: {topic[:100]}...")
 
             _finalize_debate_result = functools.partial(
                 _finalize_debate_result_with,
@@ -864,13 +864,13 @@ class ToolExecutionMixin:
                 # 1.5 Autogenesis (Hephaestus Engine)
                 if self.hephaestus:
                     self._emit_thought_stream(
-                        f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge..."
+                        f"Tool '{tool_name}' missing. Initiating Autonomous Forge..."
                     )
                     objective = f"Create a skill '{tool_name}' to handle request within objective: {self._current_objective}"
                     forge_result = await self.hephaestus.synthesize_skill(tool_name, objective)
                     if forge_result.get("ok"):
                         self._emit_thought_stream(
-                            f"✅ Skill '{tool_name}' forged successfully. Retrying..."
+                            f"Skill '{tool_name}' forged successfully. Retrying..."
                         )
                         handoff_result = {
                             "ok": True,

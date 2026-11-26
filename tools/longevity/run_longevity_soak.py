@@ -130,7 +130,7 @@ async def async_main(argv: list[str] | None = None) -> int:
         if args.trace_malloc:
             tracemalloc.start(25)
             leak_baseline = tracemalloc.take_snapshot()
-            print("🔬 [tracemalloc] leak baseline captured after boot+warmup", flush=True)
+            print("[tracemalloc] leak baseline captured after boot+warmup", flush=True)
         duration_s = max(0.0, float(args.duration_s or 0.0))
         tick_s = max(1.0, float(args.tick_s or 30.0))
         soak_started = time.monotonic()
@@ -184,7 +184,7 @@ async def async_main(argv: list[str] | None = None) -> int:
                     top = snap.compare_to(leak_baseline, "lineno")[:12]
                     elapsed = time.monotonic() - soak_started
                     print(
-                        f"🔬 [tracemalloc] top growth @ iter {index} "
+                        f"[tracemalloc] top growth @ iter {index} "
                         f"(elapsed {elapsed:.0f}s, rss {_rss_mb():.0f}MB):",
                         flush=True,
                     )

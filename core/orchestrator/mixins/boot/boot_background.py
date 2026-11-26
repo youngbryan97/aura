@@ -29,7 +29,7 @@ class BootBackgroundMixin:
     async def _cognitive_heartbeat_task(self):
         """A background coroutine that constantly updates the heartbeat file for the Lazarus brainstem."""
         heartbeat_file = state_root() / "run" / "heartbeat.pulse"
-        logger.info("💓 Heartbeat monitor starting (Lazarus Protocol active)")
+        logger.info("Heartbeat monitor starting (Lazarus Protocol active)")
         _last_continuity_save = 0.0
         while getattr(self, "_running", True):
             try:
@@ -78,7 +78,7 @@ class BootBackgroundMixin:
 
             atl = register_abstract_thought_layer(self)
             tracker.create_task(atl.start(), name="abstract_thought_layer")
-            logger.info("🧠 [BOOT] Abstract Thought Layer (pondering engine) initialized and started.")
+            logger.info("[BOOT] Abstract Thought Layer (pondering engine) initialized and started.")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_background_degradation(
                 e,
@@ -96,14 +96,14 @@ class BootBackgroundMixin:
             self.meta_cognition = MetaEvolutionEngine()
             ServiceContainer.register_instance("meta_cognition_shard", self.meta_cognition)
             ServiceContainer.register_instance("meta_evolution", self.meta_cognition)
-            logger.info("🌀 [BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized.")
+            logger.info("[BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized.")
         except (ImportError, AttributeError, RuntimeError) as e:
             _record_boot_background_degradation(
                 e,
                 action="continued boot without meta-evolution engine after initialization failed",
                 severity="error",
             )
-            logger.error("🛑 [BOOT] Failed to initialize Meta-Evolution Engine: %s", e)
+            logger.error("[BOOT] Failed to initialize Meta-Evolution Engine: %s", e)
 
     async def _start_belief_sync_at_boot(self, tracker):
         """Start the Belief Sync loop if available."""
@@ -236,7 +236,7 @@ class BootBackgroundMixin:
                 # H-28 FIX: Restoring original color scheme (Purple/Cyan) as requested by user
                 # Acceleration factor > 1.2 triggers the 'Gold' Zenith theme
                 self.status.acceleration_factor = 1.0
-                logger.info("✨ Singularity Threshold DETECTED. Subsurface Resonance active.")
+                logger.info("Singularity Threshold DETECTED. Subsurface Resonance active.")
 
             # Phase 21: Dream Cycle (DLQ Re-ingestion) migrated to DreamCoordinator
 

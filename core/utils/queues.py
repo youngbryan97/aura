@@ -158,7 +158,7 @@ class BackpressuredQueue:
             await asyncio.wait_for(self._q.put(item), timeout=timeout)
         except TimeoutError:
             self.dropped_count += 1
-            logger.warning("⚠️ Queue Backpressure: Dropped item. Total dropped: %s", self.dropped_count)
+            logger.warning("Queue Backpressure: Dropped item. Total dropped: %s", self.dropped_count)
 
     def put_nowait(self, item):
         """Standard put_nowait with drop tracking."""
@@ -167,7 +167,7 @@ class BackpressuredQueue:
             self._q.put_nowait(item)
         except asyncio.QueueFull:
             self.dropped_count += 1
-            logger.warning("⚠️ Queue Full (nowait): Dropped item %s", type(item).__name__)
+            logger.warning("Queue Full (nowait): Dropped item %s", type(item).__name__)
 
     async def get(self):
         self._ensure_queue()

@@ -57,7 +57,7 @@ class AgencyBus:
             with _instance_lock:
                 if cls._instance is None:
                     cls._instance = cls()
-                    logger.info("🚌 AgencyBus singleton initialized")
+                    logger.info("AgencyBus singleton initialized")
         return cls._instance
 
     def submit(self, proposal: dict[str, object]) -> bool:
@@ -74,7 +74,7 @@ class AgencyBus:
         priority_class = str(proposal.get("priority_class", "impulse"))
         origin = str(proposal.get("origin") or "").strip()
         if not origin or origin.casefold() == "unknown":
-            logger.warning("🚌 AgencyBus REJECTED: autonomous proposal has no attributable origin")
+            logger.warning("AgencyBus REJECTED: autonomous proposal has no attributable origin")
             return False
 
         # Will receipt enforcement: autonomous output must be causally gated.
@@ -104,7 +104,7 @@ class AgencyBus:
                 )
                 if not admission.approved:
                     logger.debug(
-                        "🚌 AgencyBus: Will denied auto-receipt for %s: %s",
+                        "AgencyBus: Will denied auto-receipt for %s: %s",
                         origin,
                         admission.reason,
                     )
@@ -113,7 +113,7 @@ class AgencyBus:
                 issuing_will = admission.authority
                 proposal["will_receipt"] = receipt_id
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _will_err:
-                logger.warning("🚌 AgencyBus REJECTED: Will unavailable for receipt acquisition: %s", _will_err)
+                logger.warning("AgencyBus REJECTED: Will unavailable for receipt acquisition: %s", _will_err)
                 return False
 
         try:
@@ -123,10 +123,10 @@ class AgencyBus:
                 issuing_will = get_will()
 
             if not issuing_will.verify_receipt(str(receipt_id)):
-                logger.warning("🚌 AgencyBus REJECTED: invalid will_receipt %s", receipt_id)
+                logger.warning("AgencyBus REJECTED: invalid will_receipt %s", receipt_id)
                 return False
         except (ImportError, AttributeError, RuntimeError) as _will_err:
-            logger.warning("🚌 AgencyBus REJECTED: Will unavailable for receipt verification: %s", _will_err)
+            logger.warning("AgencyBus REJECTED: Will unavailable for receipt verification: %s", _will_err)
             return False
 
         min_cooldown = self.COOLDOWNS.get(priority_class, self.DEFAULT_COOLDOWN)
@@ -136,7 +136,7 @@ class AgencyBus:
             self._suppressed_count += 1
             if self._suppressed_count % 5 == 0:
                 logger.warning(
-                    "🚌 AgencyBus GATE CLOSED: %s from %s (%.0fs < %ds cooldown, %d suppressed total)",
+                    "AgencyBus GATE CLOSED: %s from %s (%.0fs < %ds cooldown, %d suppressed total)",
                     priority_class, proposal.get('origin', '?'),
                     elapsed, min_cooldown, self._suppressed_count
                 )
@@ -145,7 +145,7 @@ class AgencyBus:
         self._last_output = now
         self._audit.append({'ts': now, **proposal})
         logger.debug(
-            "🚌 AgencyBus GATE OPEN: %s from %s (receipt=%s)",
+            "AgencyBus GATE OPEN: %s from %s (receipt=%s)",
             priority_class, proposal.get('origin', '?'), receipt_id
         )
         return True

@@ -91,7 +91,7 @@ def _render_manim_in_background(response_text: str) -> None:
             loop.close()
         if isinstance(res, dict) and res.get("ok"):
             logger.info(
-                "✅ Autonomous Manim generation complete: %s", res.get("file_path")
+                "Autonomous Manim generation complete: %s", res.get("file_path")
             )
             try:
                 from core.thought_stream import get_emitter

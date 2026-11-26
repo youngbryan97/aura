@@ -145,7 +145,7 @@ class PerformanceGuard:
                         type(exc).__name__,
                         exc,
                     )
-            logger.info("⏱ motion throttle %s (streak=%d)", "ON" if target else "OFF", self._streak)
+            logger.info("motion throttle %s (streak=%d)", "ON" if target else "OFF", self._streak)
 
     def on_motion_change(self, cb) -> None:
         self._on_motion_change.append(cb)
