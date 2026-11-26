@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from core.runtime.what_she_learned_still_holds import replays
@@ -31,6 +32,19 @@ LOOKED_FOR_EVERY_S = 4.0
 LEFT_UNTIL_S = 8.0
 
 
+@dataclass
+class _WindowGame:
+    owner: tuple[int, int]
+    seat: Any
+    session: Any
+    opening_words: str = ""
+
+
+_SUSPENDED_GAMES: dict[str, _WindowGame] = {}
+_ACTIVE_GAMES: set[str] = set()
+MAX_SUSPENDED_GAMES = 8
+
+
 def _fewer_than_it_begins_with(start: dict, learned: Any) -> bool:
     """Whether a board read as two sides at their start holds fewer pieces than her record says this board's game
     begins with."""
@@ -39,10 +53,11 @@ def _fewer_than_it_begins_with(start: dict, learned: Any) -> bool:
 
 
 async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[str, Any],
-                                   seen: dict[str, Any] | None = None) -> dict[str, Any] | None:
+                                   seen: dict[str, Any] | None = None, *, resume: bool = False) -> dict[str, Any] | None:
     """Where ``target_app``'s window shows two sides of pieces at their start, play the game and say what came of it;
     None where it shows none, or it was looked at a moment ago."""
     from core.agency.playing_pieces_by_kind import (
+        BoardSession,
         a_board_of_two_sides_at_its_start,
         play_pieces_by_kind,
     )
@@ -55,7 +70,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     from .screen_pursuit_surface import click_normalized
 
     now = time.monotonic()
-    if not target_app or now < float(keep.get("board_left_until", 0.0)):
+    if not target_app or now >= ends_at or now < float(keep.get("board_left_until", 0.0)):
         return None
     if seen is not None and not seen.get("window_number"):
         # Only behind a look at a window: a reading given any other way is all there is to see, and the desktop is not
@@ -73,15 +88,21 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     window = await asyncio.to_thread(window_server.window_of, target_app)
     if window is None:
         return None
+    owner = (window.pid, window.number)
+    app_key = window.owner.casefold()
+    retained = _SUSPENDED_GAMES.get(app_key) if resume else None
+    if resume and (retained is None or retained.owner != owner or not retained.session.in_progress):
+        return None
     picture = await _the_pixels_of(window)
     if picture is None:
         return None
-    kept = _what_she_kept(target_app)
-    seat = await asyncio.to_thread(a_board_of_two_sides_at_its_start, picture, kept.get("looks"))
+    kept = await asyncio.to_thread(_what_she_kept, target_app)
+    seat = (retained.seat if retained is not None else
+            await asyncio.to_thread(a_board_of_two_sides_at_its_start, picture, kept.get("looks")))
     if seat is None:
         return None
     learned = keep.get("pieces_learned") or kept.get("rules")
-    if _fewer_than_it_begins_with(seat.start, learned):
+    if retained is None and _fewer_than_it_begins_with(seat.start, learned):
         # A game begins with every piece it will have and loses them as it goes: a board of two sides with fewer is a
         # game under way or over. LIVE 25 November 2026 a finished game's board, its sides still apart, was taken for
         # one at its start; read as one, it taught her a look of a glow round a piece, and became her record's start.
@@ -92,25 +113,24 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     # rounds: practice between games (core/agency/practising_between_games.py) keeps its rounds with the record.
     in_hand, recorded = keep.get("pieces_rehearsal"), kept.get("rehearsal")
     rehearsal = max((r for r in (in_hand, recorded) if r is not None), key=lambda r: r.rounds, default=None)
-    if learned is not None:
+    if retained is None and learned is not None:
         learned.start = dict(seat.start)
-    logger.info("two sides of pieces at their start in %r: %dx%d; playing it by search", target_app, seat.rows,
-                seat.columns)
+    playing = retained or _WindowGame(owner, seat, BoardSession())
 
     async def look() -> Any:
         current = await asyncio.to_thread(window_server.window_of, target_app)
-        return None if current is None or current.number != window.number else await _the_pixels_of(current)
+        return None if current is None or (current.pid, current.number) != owner else await _the_pixels_of(current)
 
     async def click(x: float, y: float) -> bool:
         current = await asyncio.to_thread(window_server.window_of, target_app)
-        if current is None or current.number != window.number:
+        if current is None or (current.pid, current.number) != owner:
             return False
         refusal = await get_host_automation()._ensure_input_target(target_app, "click_at")
         if refusal is not None:
             logger.info("could not restore the game window's input focus in %r: %s", target_app, refusal.error)
             return False
         focused = await asyncio.to_thread(window_server.window_of, target_app)
-        if focused is None or focused.number != current.number or focused.bounds[2:] != current.bounds[2:]:
+        if focused is None or (focused.pid, focused.number) != owner or focused.bounds[2:] != current.bounds[2:]:
             return False
         return await click_normalized(x, y, expect_app=target_app, bounds=list(focused.bounds))
 
@@ -127,24 +147,48 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     # What the window says of the game as it begins (who plays, how strong, on what clock), kept with her record of
     # it: what she played against is part of what the game was. Read beside her first moves, not before them.
     async def read_beginning() -> str:
+        if retained is not None:
+            return retained.opening_words
         try:
-            return await the_words_in(target_app)
+            playing.opening_words = await the_words_in(target_app)
+            return playing.opening_words
         except (OSError, RuntimeError, ValueError, TypeError) as why:
             logger.info("the window was not read as the game began (%s)", why)
             return ""
 
+    if app_key in _ACTIVE_GAMES:
+        return {"ended": "the board already has an active session", "moves": 0, "theirs": 0}
+    _ACTIVE_GAMES.add(app_key)
+    moves_before_resume = retained.session.game.made if retained is not None else 0
     began = asyncio.create_task(read_beginning())
 
     async def read_end() -> tuple[str, str]:
         return await what_the_window_says_of_the_end(target_app, before=await began)
 
-    came = await play_pieces_by_kind(seat, look, click, seconds=max(5.0, ends_at - time.monotonic()), say=tell,
-                                     learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
-                                     went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
-                                     they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
-                                     prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"),
-                                     endings=kept.get("endings"), read_end=read_end)
-    came["the_window_when_it_began"] = (await began)[:WORDS_KEPT]
+    came: dict[str, Any] = {}
+    try:
+        came = await play_pieces_by_kind(seat, look, click, seconds=max(0.0, ends_at - time.monotonic()), say=tell,
+                                         learned=learned, rehearsal=rehearsal, clock=clock, borrow=borrow,
+                                         went_wrong=keep.get("pieces_went_wrong") or kept.get("went_wrong"),
+                                         they_answered=keep.get("pieces_they_answered") or kept.get("they_answered"),
+                                         prepared=kept.get("prepared"), held=keep.get("pieces_held") or kept.get("held"),
+                                         endings=kept.get("endings"), read_end=read_end, session=playing.session)
+        if came.get("ended") == "resume unavailable":
+            return came
+        if retained is not None:
+            came["moves_before_resume"] = moves_before_resume
+        came["the_window_when_it_began"] = (await began)[:WORDS_KEPT]
+    finally:
+        began.cancel()
+        _ACTIVE_GAMES.discard(app_key)
+        if came.get("ended") in (*GAME_OVER, "not answered"):
+            if _SUSPENDED_GAMES.get(app_key) is playing:
+                del _SUSPENDED_GAMES[app_key]
+        elif playing.session.in_progress:
+            _SUSPENDED_GAMES.pop(app_key, None)
+            _SUSPENDED_GAMES[app_key] = playing
+            if len(_SUSPENDED_GAMES) > MAX_SUSPENDED_GAMES:
+                del _SUSPENDED_GAMES[next(iter(_SUSPENDED_GAMES))]
     learned_now, rehearsal_now = came.pop("learned", None), came.pop("rehearsal", None)
     went_wrong_now = came.pop("went_wrong", None)
     if went_wrong_now is not None:
@@ -175,6 +219,8 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["board_would_not_take"] = True
         return None
     keep.pop("board_would_not_take", None)
+    if came.get("ended") not in GAME_OVER and playing.session.in_progress:
+        came["resume_target"] = target_app
     if came.get("ended") in GAME_OVER:
         # Finished, she closes what she opened for it, as a person puts a game away.
         from core.capabilities.host_automation import get_host_automation

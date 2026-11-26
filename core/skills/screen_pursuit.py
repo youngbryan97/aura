@@ -306,6 +306,7 @@ class ScreenPursuitInput(BaseModel):
     #: a caller that started counting before this action did.
     deadline_at: float = Field(default=0.0, ge=0.0)
     narrate: bool = Field(default=True)
+    resume: bool = Field(default=False)
 
 
 ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
@@ -519,6 +520,7 @@ class ScreenPursuitSkill(BaseSkill):
             move_keys=tuple(params.move_keys or DEFAULT_MOVES),
             stakes=params.stakes,
             open_page=params.open_page,
+            resume=params.resume,
         )
 
 
@@ -898,6 +900,7 @@ async def pursue_on_screen(
     spine: Any = None,
     graph: Any = None,
     drawn_at: tuple[float, float, float, float] | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
@@ -961,11 +964,13 @@ async def pursue_on_screen(
         logger.info("nothing in front but her own window, and nothing named to act in; not started")
         return {"ok": False, "outcome": "needs_person", "moves": [], "goal": goal,
                 "needs_person": "nothing is in front of me but my own window, so I need to be told where to do it"}
-    _seam_early_response, awake_from_here = await _set_out(
-        goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
-    )
-    if _seam_early_response is not _SEAM_FELL_THROUGH:
-        return _seam_early_response
+    awake_from_here = None
+    if not resume:
+        _seam_early_response, awake_from_here = await _set_out(
+            goal=goal, target_app=target_app, move_keys=move_keys, narrate=narrate, ends_at=ends_at,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     #: Situations she has been in and whether things went well from there,
@@ -1139,6 +1144,13 @@ async def pursue_on_screen(
         """
         from .screen_pursuit_as_it_happens import looked_at_as_it_happens
         from .screen_pursuit_board_of_pieces import played_a_board_of_pieces
+
+        if resume:
+            played = await played_a_board_of_pieces(target_app, ends_at, pending, resume=True)
+            if played is None:
+                played = {"ended": "resume unavailable", "moves": 0, "theirs": 0}
+            drawn["board_of_pieces"] = dict(played)
+            return {"board_of_pieces": played}
 
         seen = await looked_at_as_it_happens(lambda: observe_the_screen(
             SimpleNamespace(

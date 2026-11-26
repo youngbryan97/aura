@@ -11326,6 +11326,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                     "tool": tool_name,
                     "args": tool_args,
                     "result": tool_result,
+                    "effect_observed": _tool_effect_observed(raw_result),
                 }
             )
             if steps is not None:
@@ -12097,7 +12098,7 @@ def _record_tool_receipt_for_this_turn(
             ok=bool(_tool_turn_outcome(raw_result) == "ok"),
             action="execute",
             object_ref=str(tool_args or "")[:200],
-            effect_observed=True,
+            effect_observed=_tool_effect_observed(raw_result),
             verification="the tool returned a result during this turn", observed_content=observed[:2000],
             as_made={"id": str(call_id), "arguments": dict(tool_args or {}), "returned": str(serialized or observed)},
         )
@@ -12105,6 +12106,12 @@ def _record_tool_receipt_for_this_turn(
         logger.debug(
             "[think_and_act] could not record a receipt for %s: %s", tool_name, exc
         )
+
+
+def _tool_effect_observed(raw_result: Any) -> bool:
+    from core.epistemics.turn_effects import receipt_verifies_effect
+
+    return receipt_verifies_effect({"ok": _tool_turn_outcome(raw_result) == "ok", "result": raw_result})
 
 
 def _text_is_a_complete_tool_call(text: Any) -> bool:

@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 #: A literal list of those missed "keep waiting until" and "play 2048 in
 #: Chrome until" on the first try, which is the failure mode of every fixed
 #: phrase list — it recognises the example it was written from.
+_RESUMING = re.compile(r"\b(?:resume|continue|pick\s+up\s+where\s+you\s+left\s+off)\b", re.IGNORECASE)
 CONTINUING: tuple[str, ...] = (
     r"\bkeep\s+(?:\w+ing|at\s+it|going)\b",
     r"\bkeeps?\s+on\b",
@@ -232,6 +233,7 @@ class WatchedGoal:
     max_seconds: float = field(default_factory=time_for)
     max_cycles: int = PURSUIT_CYCLES
     detail: dict[str, Any] = field(default_factory=dict)
+    resume: bool = False
 
     def as_target(self) -> dict[str, Any]:
         """The payload the pursuit action takes."""
@@ -250,6 +252,8 @@ class WatchedGoal:
             payload["unblock_with"] = self.unblock_with
         if self.where:
             payload["open_page"] = self.where
+        if self.resume:
+            payload["resume"] = True
         return payload
 
 
@@ -1069,6 +1073,9 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     named_game = "" if _is_asking(text) else _a_game_here(text)
     if named_game and _the_medium_comes_first(text, named_game):
         named_game = ""
+    resume_requested = any(_RESUMING.search(clause) for clause in mood.actionable_clauses)
+    resume_app = _an_application_here(text, only_chosen=True) if resume_requested else ""
+    resume = resume_requested and bool(named_game or _a_game_here(resume_app) or cue.startswith("play"))
     # Walking to something is kept at until she gets there, like any goal
     # with a condition; where it is going is in the request itself.
     trip = "" if _is_asking(text) else a_trip_asked_for(text)
@@ -1077,7 +1084,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # it would have her acting on a sentence said in conversation.
     if trip and not (named_game or _named_app(text) or _an_application_here(text, only_chosen=True)):
         trip = ""
-    if not cue and not named_game and not trip:
+    if not cue and not named_game and not trip and not resume:
         return None
     if _nothing_to_watch(text):
         return None
@@ -1097,7 +1104,7 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     # pursuit already knows how to run to.
     condition = _best_finishing_test(text)
 
-    app = _named_app(text)
+    app = (resume_app if resume else "") or _named_app(text).rstrip(".")
     where = _where_it_happens(text)
     # Somewhere to go is itself a browser: naming Chrome is how a person
     # mentions it, not a condition on needing one.
@@ -1152,4 +1159,5 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         max_seconds=time_for() if open_ended else time_until_met(),
         max_cycles=PURSUIT_CYCLES if open_ended else UNTIL_IT_IS_MET_CYCLES,
         detail={"continuation": cue, **({"trip": trip} if trip else {})},
+        resume=resume,
     )

@@ -1481,7 +1481,8 @@ async def test_native_hotkey_timeout_recovers_with_pyautogui_fallback(monkeypatc
     )
 
     assert result["ok"] is True
-    assert result["effect_verified"] is True
+    assert result["input_dispatched"] is True
+    assert result["effect_verified"] is False and result["retryable"] is False
     assert result["frontmost_app_before"] == "Notes"
     assert result["write_target_app_verified"] is True
     assert result["dispatch"].startswith("system_events_timeout:")
@@ -1528,7 +1529,8 @@ async def test_native_paste_accepts_prior_verified_frontmost_when_probe_unavaila
     )
 
     assert result["ok"] is True
-    assert result["effect_verified"] is True
+    assert result["input_dispatched"] is True
+    assert result["effect_verified"] is False and result["retryable"] is False
     assert result["frontmost_app_before"] == "Notes"
     assert result["frontmost_app_from_prior_receipt"] is True
     assert result["write_target_app_verified"] is True
@@ -1688,7 +1690,8 @@ async def test_browser_paste_uses_prior_editor_focus_when_ax_unavailable(monkeyp
     )
 
     assert result["ok"] is True
-    assert result["effect_verified"] is True
+    assert result["input_dispatched"] is True
+    assert result["effect_verified"] is False and result["retryable"] is False
     assert result["is_paste"] is True
     assert result["write_target_app_verified"] is True
     assert result["clipboard_payload_verification"]["verified"] is True

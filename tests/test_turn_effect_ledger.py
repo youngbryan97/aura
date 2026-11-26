@@ -11,6 +11,9 @@ guard stops asking, one of them fails.
 
 from __future__ import annotations
 
+import pytest
+
+from core.conversation.effect_claim import render_effect_claims
 from core.epistemics.turn_effects import (
     record_verified_effects,
     turn_effect_evidence,
@@ -80,6 +83,22 @@ def test_failed_receipt_is_recorded_but_never_counts_as_evidence() -> None:
         assert receipt.status is OutcomeStatus.TERMINAL_FAILURE
         assert receipt.rationale == "requested_effect_observed_failed"
         assert receipt.observed_effects == ("denied",)
+
+
+@pytest.mark.parametrize("result", [
+    {"effect_verified": False, "input_dispatched": True},
+    {"input_dispatched": False, "effect_verified": True},
+    {"simulated": True},
+    {"dry_run": True},
+    {"already_true_at_the_start": "document present"},
+])
+def test_a_contradictory_step_cannot_supply_a_completed_effect(result) -> None:
+    receipts = [{"action": "write_text_file", "ok": True, "effect_verified": True,
+                 "result": {"path": "/tmp/document.txt", **result}}]
+    with bind_turn(TurnOutcome("t-not-performed", origin="test")):
+        assert record_verified_effects(receipts) == 0
+        assert not turn_has_verified_effect()
+        assert render_effect_claims(receipts) == ""
 
 
 def test_retryable_failed_receipt_is_known_and_retryable() -> None:

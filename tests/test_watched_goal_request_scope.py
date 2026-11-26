@@ -1,5 +1,7 @@
 """Continuing an action must be requested, not merely mentioned."""
 
+import json
+
 import pytest
 
 from core.conversation.request_mood import assess_request_mood
@@ -58,6 +60,19 @@ def test_an_unrelated_directive_does_not_authorize_a_discussed_continuation():
 def test_a_discussion_does_not_suppress_a_separate_continuation_request():
     message = "Would that let the build keep running? Keep refreshing its page until passed."
     assert read_watched_goal(message) is not None
+
+
+def test_resume_is_carried_by_the_plan_for_a_requested_board_session(monkeypatch):
+    from core.runtime import watched_goal
+
+    monkeypatch.setattr(watched_goal, "_an_application_here", lambda *_args, **_kwargs: "boardroom")
+    planner = DesktopTaskSkill()
+    steps = planner._derive_single_objective_steps("Resume playing the game in Boardroom.", {})
+    target = json.loads(steps[0].target)
+    assert steps[0].action == "pursue_on_screen" and target["resume"] is True and target["target_app"] == "boardroom"
+    fresh = planner._derive_single_objective_steps("Play a fresh game in the Boardroom app.", {})
+    assert "resume" not in json.loads(fresh[0].target)
+    assert read_watched_goal("Can you explain how to resume playing a game?") is None
 
 
 def test_shared_mood_preserves_explanation_and_action_clause_ownership():

@@ -700,6 +700,20 @@ class _Game:
                                  unmoved=self.believed.unmoved, passable=self.believed.passable)
 
 
+@dataclass
+class BoardSession:
+    """A game retained between turns on the same playing surface."""
+
+    game: _Game | None = None
+    rehearsal: Any = None
+    before_input: Any = None
+    confirmed_move: Move | None = None
+
+    @property
+    def in_progress(self) -> bool:
+        return self.game is not None and bool(self.game.made or self.game.theirs)
+
+
 async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: float,
                               say: Callable[[str], None] | None = None, thinks_s: float = THINKS_S,
                               learned: HowThePiecesMove | None = None, rehearsal: Any = None,
@@ -708,7 +722,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                               went_wrong: WhatFailedWhere | None = None,
                               they_answered: WhatTheyAnsweredWhere | None = None,
                               prepared: Any = None, held: Any = None, endings: Any = None,
-                              read_end: EndReading | None = None) -> dict[str, Any]:
+                              read_end: EndReading | None = None,
+                              session: BoardSession | None = None) -> dict[str, Any]:
     """Play the game at ``seat`` for ``seconds`` or until it ends, learning its rules as it goes, and what its pieces
     are worth by rehearsing it in her model while the other side thinks. ``clock`` reads the time she has left, where
     the game shows it. Where she has learned nothing of this board, ``borrow`` is asked, once she knows who moves first,
@@ -720,7 +735,8 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     from core.agency.practising_between_games import at_a_board
     from core.agency.searching_by_kind import search
 
-    rehearsing = _Rehearsing(rehearsal)
+    prior = session.game if session is not None else None
+    rehearsing = _Rehearsing(session.rehearsal if prior is not None and session is not None else rehearsal)
     # What her eyes and hands cost, each look and each click timed: her turn's log says how long moving took, and not
     # which of the two it went on. LIVE 23 November 2026, game 21, moving took 52 s of her 194 and thinking 92.
     timed = _Timed()
@@ -733,7 +749,9 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     from core.agency.what_can_happen_worked_out_apart import worked_out_apart
 
     map_pool = worked_out_apart()
-    the_moves: list[str] = []
+    the_moves: list[str] = prior.played if prior is not None else []
+    if prior is not None:
+        went_wrong, they_answered = prior.went_wrong, prior.they_answered
     went_wrong = went_wrong if went_wrong is not None else WhatFailedWhere()
     they_answered = they_answered if they_answered is not None else WhatTheyAnsweredWhere()
     try:
@@ -742,12 +760,23 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
                                rehearsing=rehearsing, pool=pool, clock=clock, search=search, borrow=borrow,
                                the_moves=the_moves, went_wrong=went_wrong, ponder_pool=ponder_pool,
                                they_answered=they_answered, prepared=prepared, held=held, endings=endings,
-                               map_pool=map_pool, read_end=read_end)
+                               map_pool=map_pool, read_end=read_end, session=session)
     finally:
         # Nothing worked out for this game goes on after it, however it ended.
         map_pool.stop()
         pool.shutdown(wait=False, cancel_futures=True)
         ponder_pool.shutdown(wait=False, cancel_futures=True)
+        if session is not None:
+            session.rehearsal = rehearsing.rehearsal
+            if session.game is not None:
+                if session.confirmed_move is not None:
+                    session.game.follow(session.confirmed_move)
+                    session.confirmed_move = None
+                    session.before_input = None
+                session.game.mapping = None
+                session.game.pondering = Pondering()
+    if came.get("ended") == "resume unavailable":
+        return came
     came["rehearsal"] = rehearsing.rehearsal
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
@@ -872,54 +901,71 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 the_moves: list[str] | None = None, went_wrong: WhatFailedWhere | None = None,
                 ponder_pool: Any = None, they_answered: WhatTheyAnsweredWhere | None = None,
                 prepared: Any = None, held: Any = None, endings: Any = None, map_pool: Any = None,
-                read_end: EndReading | None = None) -> dict[str, Any]:
+                read_end: EndReading | None = None, session: BoardSession | None = None) -> dict[str, Any]:
     from core.agency.searching_by_kind import Found
     from core.cognition.when_the_situation_decides import nothing_to_decide
 
     tell = say or (lambda _line: None)
     began = monotonic_time()
-    # The start is the board as it stood when she sat down: the other side may have moved since.
-    start = dict(seat.start)
-    if not start:
+    game = session.game if session is not None else None
+    if game is not None:
         still = await _seen_still(seat, look)
-        if still is None:
-            return {"ended": "the board went out of sight", "moves": 0, "learned": learned}
-        start = seat.filled(still[1], {})
-    game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
-                 believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)),
-                 played=the_moves if the_moves is not None else [],
-                 went_wrong=went_wrong if went_wrong is not None else WhatFailedWhere(),
-                 they_answered=they_answered if they_answered is not None else WhatTheyAnsweredWhere())
-    tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
-         "picking them up and watching, and search my moves.")
-    # Who goes first: the other side, if it moves while she waits.
-    waited = monotonic_time()
-    while monotonic_time() - waited < WAITS_FOR_THE_FIRST_MOVE_S:
-        now = await _seen_still(seat, look, within_s=2.0)
-        if now is not None and not _agrees(seat.as_rules(now[1]), game.believed.cells) and moves_seen(
-                Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved),
-                seat.as_rules(now[1]), SECOND, game.learned.family()):
-            game.believed = Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved)
-            game.first_is_hers = False
-            break
-        await asyncio.sleep(0.3)
-    tell("They went first." if not game.first_is_hers else "They're waiting on me, so I go first.")
-    if learned is None and borrow is not None:
-        # Which way round she sees the board is which side she sits at, so what a board like it lends waits for that.
-        lent = await asyncio.to_thread(borrow, start, game.first_is_hers)
-        if lent is not None:
-            game.learned, lent_rehearsal, where = lent
-            game.learned.start = dict(start)
-            if lent_rehearsal is not None:
-                rehearsing.rehearsal = lent_rehearsal
-            tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
-    game.learned.first_was_hers = game.first_is_hers
-    if held is not None:
-        game.held = held
-    if game.learned.shown is None:
-        from core.agency.what_the_game_showed import WhatTheGameShowed
+        if still is None or not _matches_the_retained_game(seat, still[1], game):
+            return {"ended": "resume unavailable", "moves": 0, "theirs": 0}
+        before_input = session.before_input
+        if game.believed.turn == FIRST and before_input is not None and (
+                before_input.shape != still[0].shape or _marked(seat, before_input, still[0], None)):
+            return {"ended": "resume unavailable", "moves": 0, "theirs": 0}
+        tell(f"I found the same board. I'll pick up after my {game.made} confirmed moves.")
+        game.stood_still_at = game.waiting_since = monotonic_time()
+        game.count = KeptCount()
+        game.last_share = game.their_move_seen_at = 0.0
+        game.read_this_wait = False
+    else:
+        # The start is the board as it stood when she sat down: the other side may have moved since.
+        start = dict(seat.start)
+        if not start:
+            still = await _seen_still(seat, look)
+            if still is None:
+                return {"ended": "the board went out of sight", "moves": 0, "learned": learned}
+            start = seat.filled(still[1], {})
+        game = _Game(learned=learned or HowThePiecesMove.from_the_start(seat.rows, seat.columns, start),
+                     believed=Position(cells=dict(start), turn=FIRST, unmoved=frozenset(start)),
+                     played=the_moves if the_moves is not None else [],
+                     went_wrong=went_wrong if went_wrong is not None else WhatFailedWhere(),
+                     they_answered=they_answered if they_answered is not None else WhatTheyAnsweredWhere())
+        tell("Two sides facing each other on a board. I'll take the side nearest me, find out how the pieces move by "
+             "picking them up and watching, and search my moves.")
+        # Who goes first: the other side, if it moves while she waits.
+        waited = monotonic_time()
+        while monotonic_time() - waited < WAITS_FOR_THE_FIRST_MOVE_S:
+            now = await _seen_still(seat, look, within_s=2.0)
+            if now is not None and not _agrees(seat.as_rules(now[1]), game.believed.cells) and moves_seen(
+                    Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved),
+                    seat.as_rules(now[1]), SECOND, game.learned.family()):
+                game.believed = Position(cells=game.believed.cells, turn=SECOND, unmoved=game.believed.unmoved)
+                game.first_is_hers = False
+                break
+            await asyncio.sleep(0.3)
+        tell("They went first." if not game.first_is_hers else "They're waiting on me, so I go first.")
+        if learned is None and borrow is not None:
+            # Which way round she sees the board is which side she sits at, so what a board like it lends waits for that.
+            lent = await asyncio.to_thread(borrow, start, game.first_is_hers)
+            if lent is not None:
+                game.learned, lent_rehearsal, where = lent
+                game.learned.start = dict(start)
+                if lent_rehearsal is not None:
+                    rehearsing.rehearsal = lent_rehearsal
+                tell(f"This board begins as the one in {where} does, so I'll start from what I learned there.")
+        game.learned.first_was_hers = game.first_is_hers
+        if held is not None:
+            game.held = held
+        if game.learned.shown is None:
+            from core.agency.what_the_game_showed import WhatTheGameShowed
 
-        game.learned.shown = WhatTheGameShowed()
+            game.learned.shown = WhatTheGameShowed()
+        if session is not None:
+            session.game = game
     misread = 0
     unexplained: dict | None = None
     while monotonic_time() - began < seconds:
@@ -982,6 +1028,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.earlier.append(held)
                     game.believed = Position(cells=cells, turn=turn, unmoved=frozenset(
                         sq for sq in held.unmoved if cells.get(sq) == held.cells.get(sq)))
+                    if session is not None:
+                        session.confirmed_move = None
+                        session.before_input = None
                     game.waiting_since = monotonic_time()
                     misread, unexplained = 0, None
                     continue
@@ -1012,6 +1061,9 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 game.follow(move)
                 game.waiting_since = monotonic_time()
             if seen_moves:
+                if session is not None:
+                    session.before_input = None
+                    session.confirmed_move = None
                 continue
             # Nothing moved: what differed was a mark. The board is as she holds it, and the turn goes on from there.
         if game.believed.turn != FIRST:
@@ -1050,6 +1102,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             # Her clock went on running while it could not be read. LIVE 21 November 2026, game 10, four late turns
             # read no clock and were given four seconds of thought where the last reading left her one or two.
             share, on_her_clock = game.last_share, True
+        if session is not None:
+            session.before_input = picture
         # Learn from a few pieces she has not seen enough of, then think.
         offered: dict[tuple[int, int], set] = {}
         probes = 0
@@ -1106,7 +1160,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             family = game.learned.family(unseen_go_every_way=True)
             legal = moves(family, game.believed)
             if not legal:
-                await _made_as_offered(seat, look, click, picture, game, family, offers_left, tell)
+                await _made_as_offered(seat, look, click, picture, game, family, offers_left, tell, session)
                 continue
         weights = rehearsing.weights_for(family)
         set_aside: list[Move] = []
@@ -1261,7 +1315,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 return await _finish_game("no move", game, tell, read_end)
             logger.info("her rules leave her no move and the game offers %d", sum(len(v) for v in offers_left.values()))
             await _made_as_offered(seat, look, click, picture, game, game.learned.family(unseen_go_every_way=True),
-                                   offers_left, tell)
+                                   offers_left, tell, session)
             continue
         if found.by == "the only move":
             how = "It's the only move I have"
@@ -1357,10 +1411,27 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             tell("I sent a move but couldn't confirm it on the board.")
             continue
         _the_untaken_were_refused(game)
+        if session is not None:
+            session.confirmed_move = move
         game.made += 1
         game.waiting_since = monotonic_time()
     return {"ended": "out of time", "moves": game.made, "theirs": game.theirs, "learned": game.learned,
             "foresaw": (game.foreseen, game.foreseeable), "acts": game.did.as_record()}
+
+
+def _matches_the_retained_game(seat: Seat, seen: PiecesSeen, game: _Game) -> bool:
+    """Check the retained position or one unambiguous reply before sending input."""
+    position = game.believed
+    shown = _read_against(seat.as_rules(seen), position.cells, _only_the_others(game.learned),
+                          _held_by_each(game.learned))
+    if _agrees(_without_marks_where_nothing_stood(shown, position.cells), position.cells):
+        return True
+    if position.turn != SECOND:
+        return False
+    family = game.learned.family()
+    successors = (after(family, position, move) for move in moves(family, position))
+    return sum(_agrees(_without_marks_where_nothing_stood(shown, next_position.cells), next_position.cells)
+               for next_position in successors) == 1
 
 
 def _as_played(game: _Game, move: Move) -> str:
@@ -1881,7 +1952,8 @@ def _read_against(shown: dict, believed: dict, others: dict[int, set[str]] | Non
 
 
 async def _made_as_offered(seat: Seat, look: Look, click: Click, picture: Any, game: _Game, family: Family,
-                           offers: dict[tuple[int, int], set], tell: Callable[[str], None]) -> None:
+                           offers: dict[tuple[int, int], set], tell: Callable[[str], None],
+                           session: BoardSession | None = None) -> None:
     """A move the game offers, made where her rules give her none: what the game offers is what the game allows."""
     start, ends = next(iter(offers.items()))
     end = sorted(ends)[0]
@@ -1899,6 +1971,8 @@ async def _made_as_offered(seat: Seat, look: Look, click: Click, picture: Any, g
         tell(f"I played {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
              "the move the game offers me.")
         _the_untaken_were_refused(game)
+        if session is not None:
+            session.confirmed_move = move
         game.made += 1
         game.waiting_since = monotonic_time()
 

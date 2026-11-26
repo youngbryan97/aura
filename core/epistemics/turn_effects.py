@@ -39,12 +39,29 @@ from core.runtime.turn_outcome import VerificationGrade, current_turn
 
 __all__ = [
     "record_verified_effects",
+    "receipt_verifies_effect",
     "turn_effect_evidence",
     "turn_has_verified_effect",
     "request_expects_action",
 ]
 
 logger = logging.getLogger(__name__)
+
+
+def receipt_verifies_effect(receipt: dict[str, Any]) -> bool:
+    """Check the verified step result against any explicit evidence from its adapter."""
+    if not receipt.get("ok"):
+        return False
+    layer: Any = receipt
+    seen: set[int] = set()
+    while isinstance(layer, dict):
+        if (id(layer) in seen or layer.get("ok") is False or layer.get("effect_verified") is False
+                or layer.get("input_dispatched") is False or layer.get("simulated") is True
+                or layer.get("dry_run") is True or layer.get("already_true_at_the_start")):
+            return False
+        seen.add(id(layer))
+        layer = layer.get("result")
+    return True
 
 
 def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int:
@@ -71,6 +88,7 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
             continue
         name = f"{lane}:{action}:{receipt.get('index', index)}"
         evidence = str(receipt.get("effect_evidence") or "").strip()
+        verified = receipt_verifies_effect(receipt)
         result = receipt.get("result") if isinstance(receipt.get("result"), dict) else {}
         try:
             from core.epistemics.effect_registry import effect_spec
@@ -109,9 +127,9 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
                 lane,
                 action=action,
                 object_ref=object_ref,
-                ok=bool(receipt.get("ok")),
-                effect_observed=bool(receipt.get("ok")),
-                verification="postcondition_verified" if receipt.get("ok") else "failed",
+                ok=verified,
+                effect_observed=verified,
+                verification="postcondition_verified" if verified else "failed",
                 evidence=evidence or failure_detail,
                 observed_content=observed_content,
                 # This function records the effect on the ledger itself, below,
@@ -124,7 +142,7 @@ def record_verified_effects(receipts: Any, *, lane: str = "desktop_task") -> int
         if outcome is None:
             continue
         try:
-            if receipt.get("ok"):
+            if verified:
                 # ok is the conjunction: the tool returned success AND the
                 # effect verified independently. That is what OBSERVED means.
                 outcome.observe_effect(

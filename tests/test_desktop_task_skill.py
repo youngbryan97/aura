@@ -255,6 +255,31 @@ async def test_desktop_task_rejects_child_ok_without_required_effect_evidence(mo
 
 
 @pytest.mark.asyncio
+async def test_retry_continues_the_retained_pursuit(monkeypatch):
+    from core.container import ServiceContainer
+
+    targets = []
+
+    class Engine:
+        async def execute(self, skill_name, params, context=None):
+            assert skill_name == "computer_use" and params["action"] == "pursue_on_screen"
+            targets.append(json.loads(params["target"]))
+            if len(targets) == 1:
+                return {"ok": False, "outcome": "stopped",
+                        "handed_over": {"ended": "result unconfirmed", "moves": 3, "resume_target": "Board"}}
+            return {"ok": True, "outcome": "goal_reached", "handed_over": {"ended": "drawn", "moves": 6}}
+
+    engine = Engine()
+    monkeypatch.setattr(ServiceContainer, "get", lambda name, default=None: engine if name == "capability_engine" else default)
+    initial = {"goal": "Play the game", "target_app": "Board", "deadline_at": 123456.0}
+    result = await DesktopTaskSkill().execute({"objective": "Play the game", "steps": [
+        {"action": "pursue_on_screen", "target": initial},
+    ]}, {"origin": "user"})
+    assert result["ok"] is True
+    assert targets == [initial, {**initial, "resume": True}]
+
+
+@pytest.mark.asyncio
 async def test_desktop_task_stops_on_first_failed_step(monkeypatch):
     from core.container import ServiceContainer
 

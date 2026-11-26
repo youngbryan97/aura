@@ -2514,8 +2514,12 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
 
     @classmethod
     def _verify_step_effect(cls, step: DesktopTaskStep, result: dict[str, Any]) -> tuple[bool, str]:
+        from core.epistemics.turn_effects import receipt_verifies_effect
+
         if not result.get("ok"):
             return False, str(result.get("error") or result.get("status") or "child action reported failure")
+        if not receipt_verifies_effect(result):
+            return False, str(result.get("verification") or "the adapter did not confirm an effect for this action")
 
         action = step.action
         payload = cls._target_payload(step.target)
@@ -5662,6 +5666,11 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 if result.get("retryable") is False:
                     break
                 if attempt < attempt_limit:
+                    game = result.get("handed_over")
+                    resume_target = game.get("resume_target") if isinstance(game, dict) else None
+                    if resolved_step.action == "pursue_on_screen" and isinstance(resume_target, str) and resume_target:
+                        pursuit = self._target_payload(payload["target"])
+                        payload["target"] = json.dumps({**pursuit, "resume": True, "target_app": resume_target})
                     self._emit_progress(
                         index=index,
                         total=len(steps),

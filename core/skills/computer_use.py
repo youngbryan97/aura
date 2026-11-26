@@ -201,7 +201,7 @@ def _verify_the_effect_landed(
                 and inherited_editor_focus
             ):
                 ok = True
-                effect_verified = True
+                effect_verified = False
                 verification = (
                     "Paste dispatched into a previously verified browser editor; "
                     "focused-control read-back was unavailable after dispatch."
@@ -219,11 +219,9 @@ def _verify_the_effect_landed(
             # clean System Events dispatch plus a verified foreground
             # app is the bounded effect evidence.
             ok = True
-            effect_verified = True
+            effect_verified = False
             verification = (
-                "Keystroke dispatched and accepted by the OS; on-screen "
-                "read-back was unavailable, so the effect is inferred from "
-                "the clean dispatch."
+                "Keystroke accepted by the OS. On-screen read-back was unavailable."
             )
     else:
         ok = False
@@ -1783,6 +1781,7 @@ end tell
             open_page=str(payload.get("open_page") or ""),
             unblock_with=str(payload.get("unblock_with") or ""),
             stakes=float(payload.get("stakes") or 0.5),
+            resume=payload.get("resume") is True,
         )
         outcome = str(result.get("outcome") or "")
         moves = result.get("moves") or []
@@ -1826,6 +1825,13 @@ end tell
             # not as a count of the pursuit's steps.
             said = (f"Played a game: {game.get('moves', 0)} move(s) of mine and {game.get('theirs', 0)} of theirs; "
                     f"{_how_a_game_ended(str(game.get('ended') or ''))}.")
+            if game.get("ended") == "resume unavailable":
+                said = "I couldn't match a retained position to the playing surface."
+            elif "moves_before_resume" in game:
+                before = game["moves_before_resume"]
+                after = game.get("moves", 0)
+                said = (f"I resumed after {before} confirmed moves of mine and made {after - before} more. "
+                        f"{_how_a_game_ended(str(game.get('ended') or ''))}.")
             if "closed" in game:
                 said += " I closed the application." if game["closed"] else " I did not manage to close the application."
             else:
@@ -1860,6 +1866,9 @@ end tell
 
         return {
             "ok": bool(result.get("completed")),
+            **({"retryable": False} if game.get("ended") == "resume unavailable" else {}),
+            **({"input_dispatched": int(game.get("moves", 0)) > int(game.get("moves_before_resume", 0))
+                or game.get("closed") is True} if game else {}),
             "error": reason,
             "said": said,
             "summary": said,
@@ -3202,6 +3211,7 @@ end tell
                     "write_target_app_verified": expected_app_verified,
                     "effect_verified": effect_verified,
                     "dispatch": dispatch_receipt,
+                    "input_dispatched": True,
                     "verification": verification,
                     "visible_state_changed": screen_verifiable and post_state != pre_state,
                     "pre_state_hash": hashlib.sha256(pre_state.encode("utf-8")).hexdigest()[:16]
@@ -3212,6 +3222,8 @@ end tell
                     else "",
                     "clipboard_payload_verification": clipboard_verification,
                 }
+                if not effect_verified:
+                    result["retryable"] = False
                 if not ok:
                     result["error"] = verification
                 return result

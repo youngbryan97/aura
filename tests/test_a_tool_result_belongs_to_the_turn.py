@@ -99,6 +99,18 @@ def test_a_refused_tool_is_recorded_as_refused_not_as_done() -> None:
         assert receipt["ok"] is False
 
 
+def test_tool_dispatch_and_its_effect_have_distinct_receipt_fields() -> None:
+    from core.brain.llm.mlx_client import _record_tool_receipt_for_this_turn
+
+    with bind_turn_evidence_custody(session_id="s", turn_id="t"):
+        _record_tool_receipt_for_this_turn(
+            "computer_use", {"action": "hotkey"},
+            {"ok": True, "result": {"input_dispatched": True, "effect_verified": False}}, "Input dispatched",
+        )
+        (receipt,) = turn_tool_receipts()
+        assert receipt["ok"] is True and receipt["effect_observed"] is False
+
+
 def test_recording_never_ends_a_turn() -> None:
     """A receipt is bookkeeping; it must not be able to fail the work."""
 

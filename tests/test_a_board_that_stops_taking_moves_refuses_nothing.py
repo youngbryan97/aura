@@ -11,6 +11,7 @@ import asyncio
 
 import core.agency.playing_pieces_by_kind as playing
 from core.agency.how_the_pieces_move import HowThePiecesMove
+from core.agency.pieces_by_their_kind import FIRST
 from tests.fixtures.a_board_application import BoardApplication
 from tests.fixtures.a_game_of_pieces_to_learn import NOBODYS_GAME
 
@@ -21,9 +22,14 @@ class _StopsTaking(BoardApplication):
     def __init__(self, *args, takes: int, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.takes = takes
+        self.accepted = 0
+
+    def make(self, move) -> None:
+        self.accepted += self.position.turn == FIRST
+        super().make(move)
 
     async def click(self, x_share: float, y_share: float) -> bool:
-        if len([m for m in self.made if self.position.cells.get(m.end, (None,))[0] == 0]) >= self.takes:
+        if self.accepted >= self.takes:
             self.clicks += 1
             return True
         return await super().click(x_share, y_share)
@@ -33,6 +39,8 @@ def test_moves_a_board_did_not_take_before_it_took_nothing_are_not_learned_as_re
     monkeypatch.setattr(playing, "STILL_S", 0.02)
     monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
     monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 0.5)
+    monkeypatch.setattr(playing, "_the_most_a_look_may_take", lambda *_args: 0.25)
+    monkeypatch.setattr(playing, "MOVE_SHOWS_S", 0.2)
     monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
     app = _StopsTaking(NOBODYS_GAME, seed=5, takes=2)
     refused: list = []

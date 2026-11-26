@@ -232,7 +232,10 @@ def _pursue_on_screen_result(
     if played:
         from .screen_pursuit_board_of_pieces import GAME_OVER
 
-        result["handed_over"] = {key: played[key] for key in ("ended", "moves", "theirs", "closed") if key in played}
+        result["handed_over"] = {key: played[key] for key in (
+            "ended", "moves", "theirs", "closed", "resume_target", "moves_before_resume", "the_moves",
+            "first_was_hers", "acts",
+        ) if key in played}
         if played.get("ended") not in GAME_OVER:
             result["completed"] = False
             result["outcome"] = "stopped"

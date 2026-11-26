@@ -42,6 +42,7 @@ from enum import StrEnum
 from typing import Any
 
 from core.epistemics.effect_registry import EFFECT_REGISTRY
+from core.epistemics.turn_effects import receipt_verifies_effect
 
 __all__ = [
     "EffectClaim",
@@ -146,7 +147,7 @@ _PROVEN_CRITERION_VOCABULARY: dict[str, str] = {
 def _claims_from_os_automation(receipt: dict[str, Any]) -> list[EffectClaim]:
     """Effect claims for a script lane, read from the criteria it proved."""
 
-    if not receipt.get("ok"):
+    if not receipt_verifies_effect(receipt):
         return []
     evidence = str(receipt.get("effect_evidence") or "")
     identifier = str(receipt.get("durable_receipt_id") or f"step:{receipt.get('index', 0)}")
@@ -218,7 +219,7 @@ def claims_from_receipts(receipts: Any) -> list[EffectClaim]:
                 if value:
                     obj = value
                     break
-        if receipt.get("ok"):
+        if receipt_verifies_effect(receipt):
             identifier = str(
                 receipt.get("durable_receipt_id") or f"step:{receipt.get('index', index)}"
             )

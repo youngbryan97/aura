@@ -717,7 +717,7 @@ class _BuildsTheLivingContext:
                 ok=bool(call.get("ok", True)),
                 action="execute",
                 object_ref=str(call.get("args") or "")[:200],
-                effect_observed=True,
+                effect_observed=bool(call.get("effect_observed", call.get("ok", True))),
                 verification="tool loop returned a result for this turn",
                 observed_content=observed[:2000],
                 as_made={"id": str(call.get("id") or ""), "arguments": dict(call.get("args") or {}),
