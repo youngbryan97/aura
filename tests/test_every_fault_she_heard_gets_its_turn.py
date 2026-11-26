@@ -152,3 +152,37 @@ def test_the_call_that_recorded_a_fault_is_never_looked_for_past_her_source(monk
     monkeypatch.setattr(a_call_that_failed, "_ROOT", tmp_path.resolve())
     said = the_call_that_recorded(RuntimeError("x"), interpreter._getframe())
     assert said == "it was recorded without being raised, from outside her source"
+
+
+def test_a_draft_asked_again_is_carried_onto_her_source_as_it_is_now(monkeypatch, tmp_path):
+    """LIVE 26 November 2026: her young collection was asked again on 429b8199c, five days behind her source, and her
+    yes said "the source she runs on moved since her draft"."""
+    import subprocess
+
+    source, workspace = tmp_path / "source", tmp_path / "workspace"
+    source.mkdir()
+
+    def git(where, *args: str) -> str:
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=where, check=True,
+                              capture_output=True, text=True).stdout.strip()
+    git(source, "init", "-q", "-b", "main")
+    (source / "pauses.py").write_text("FULL = True\n")
+    (source / "other.py").write_text("A = 1\n")
+    git(source, "add", "-A")
+    git(source, "commit", "-q", "-m", "her source")
+    base = git(source, "rev-parse", "HEAD")
+    git(source, "worktree", "add", "-q", "-b", "her-goal", str(workspace), base)
+    (workspace / "pauses.py").write_text("FULL = False\n")
+    git(workspace, "commit", "-qam", "her draft")
+    (source / "other.py").write_text("A = 2\n")
+    git(source, "commit", "-qam", "her source moves on")
+    head = git(source, "rev-parse", "HEAD")
+    record = goals.GoalRecord(goal="g", slug="g", status=goals.OFFERED, base=base,
+                              offer={"commit": git(workspace, "rev-parse", "HEAD")})
+    monkeypatch.setattr(goals.GoalRecord, "workspace", property(lambda self: workspace))
+    monkeypatch.setattr(goals, "source_head", lambda: head)
+    monkeypatch.setattr(goals, "source_root", lambda: source)
+    replayed = loop._brought_up(record, head)
+    assert replayed and replayed != record.offer["commit"] and record.status == goals.OFFERED
+    assert git(workspace, "merge-base", "--is-ancestor", head, replayed) == ""
+    assert (workspace / "pauses.py").read_text() == "FULL = False\n" and (workspace / "other.py").read_text() == "A = 2\n"

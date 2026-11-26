@@ -620,17 +620,44 @@ async def _ask_again_of_a_draft_that_waits(*, only_a_changed_judge: bool = False
         return None
     record = min(waiting, key=lambda each: float(each.offer.get("asked_at") or each.offer.get("at") or 0.0))
     record.offer = {**record.offer, "asked_on": head, "asked_at": time.time()}
-    await goals.save(record)
     try:
-        await asyncio.to_thread(goals.ensure_workspace, record)
+        replayed = await asyncio.to_thread(_brought_up, record, head)
     except (RuntimeError, OSError) as exc:
         record_degradation("her_goal_at_work", exc, severity="warning",
                            action="her waiting draft was not asked again: its workspace could not be brought up")
         return {"slug": record.slug, "status": record.status, "why": f"{type(exc).__name__}: {exc}"[:240]}
+    if not replayed:
+        record.status = goals.WORKING
+        record.said.append({"words": "My draft could not be carried onto my source as it is now, so it is mine to make "
+                                     "again there.", "at": time.time()})
+        await goals.save(record)
+        return {"slug": record.slug, "status": record.status, "why": "her draft could not be carried onto her source"}
+    record.offer = {**record.offer, "commit": replayed}
+    await goals.save(record)
     done = await asyncio.to_thread(goals.take_it_herself, record.slug)
     after = goals.load(record.slug)
     return {"slug": record.slug, "status": after.status if after is not None else record.status,
             "why": str(done.get("why") or ("taken" if done.get("ok") else ""))}
+
+
+def _brought_up(record: Any, head: str) -> str:
+    """Her draft carried onto her source as it is now, in her workspace, and the commit it is there; "" when it could not
+    be. A draft is taken only by fast-forward, and her workspace is brought up only while its goal is being worked, so a
+    draft asked again as it was offered was asked of the old source and could never land. LIVE 26 November 2026 her
+    young collection at collector_pauses.py:226 was asked again on 429b8199c, five days behind her source, and her yes
+    said "the source she runs on moved since her draft"."""
+    from core.agency import her_goal_at_work as goals
+
+    status, record.status = record.status, goals.WORKING
+    try:
+        goals.ensure_workspace(record)
+    finally:
+        record.status = status
+    workspace = record.workspace
+    now = goals._git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
+    on_it = goals._git("merge-base", "--is-ancestor", head, now, cwd=workspace).returncode == 0
+    ahead = goals._git("rev-list", "--count", f"{head}..{now}", cwd=workspace).stdout.strip()
+    return now if now and on_it and ahead not in ("", "0") else ""
 
 
 __all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard"]
