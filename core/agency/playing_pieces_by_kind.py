@@ -863,27 +863,41 @@ class _Rehearsing:
         """A round in her model, where none is under way and the rules she holds move something. A game in her model
         that cannot end is judged by how it stood when it stopped (core/agency/what_a_kind_is_worth.py), so she
         rehearses from her first turn rather than once she has learned which piece must be kept safe."""
-        from core.agency.what_a_kind_is_worth import a_first_rehearsal, rehearse
+        from core.agency.what_a_kind_is_worth import rehearse
 
         self.collect()
         if self.running is not None or not any(kind.steps for kind in family.kinds.values()):
             return
-        from core.agency.what_a_kind_is_worth import royal_kinds
-
-        # Weights belong to the game they were fitted in: the kinds there are, and which of them the game keeps safe.
-        # A rehearsal kept before that was recorded is of a game she cannot name, and starts again.
-        if (self.rehearsal is None or set(self.rehearsal.weights.worth) != set(family.kinds)
-                or getattr(self.rehearsal, "royal", None) != royal_kinds(family)):
-            fresh = a_first_rehearsal(family)
-            if self.rehearsal is not None:
-                fresh.earned = []
-                # How long its games run is about the game, not about the kinds she reads in it; the positions her
-                # longer look searched are kept by each kind's name, and a kind read since does not unsettle them.
-                fresh.lengths = list(self.rehearsal.lengths)
-                fresh.looked_at_longer = self.rehearsal.looked_at_longer
-            self.rehearsal = fresh
+        self.rehearsal = self.fitted_to(family)
         self.rounds += 1
         self.running = pool.submit(rehearse, family, family.the_start(), self.rehearsal, seed=self.rounds)
+
+    def fitted_to(self, family: Family) -> Any:
+        """The rehearsal for the game as she holds it now. Weights belong to the game they were fitted in: the kinds it
+        begins with, and which of them it keeps safe. Where either differs, or none was recorded, it is a game she
+        cannot name, and rehearsal starts again. A kind read since the start, one a piece became or a look she misread,
+        is given the first guess and the rest stands. LIVE 25 November 2026 her king, glowing in check, read as a kind
+        of its own, twice threw away the 143 and 147 rounds her weights were earned in; with where each kind stands
+        lost, she opened 1.a4 and walked her king to f1, half a pawn to a pawn a move by Stockfish's count."""
+        from core.agency.what_a_kind_is_worth import a_first_rehearsal, royal_kinds
+
+        kept = self.rehearsal
+        begins_with = {kind for _side, kind in family.start.values()}
+        if (kept is not None and getattr(kept, "royal", None) == royal_kinds(family)
+                and begins_with <= set(kept.weights.worth)):
+            if set(kept.weights.worth) != set(family.kinds):
+                kept.weights = self.weights_for(family)
+                # What she gathers to fit on is laid out kind by kind: what was gathered for the kinds before is not.
+                kept.samples_x, kept.samples_y = [], []
+            return kept
+        fresh = a_first_rehearsal(family)
+        if kept is not None:
+            fresh.earned = []
+            # How long its games run is about the game, not about the kinds she reads in it; the positions her longer
+            # look searched are kept by each kind's name, and a kind read since does not unsettle them.
+            fresh.lengths = list(kept.lengths)
+            fresh.looked_at_longer = kept.looked_at_longer
+        return fresh
 
     def moves_left(self, made: int) -> int:
         """Her moves still to come, by the games she has rehearsed: half their median length, less hers so far, never
