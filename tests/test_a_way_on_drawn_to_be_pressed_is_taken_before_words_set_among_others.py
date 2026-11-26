@@ -96,11 +96,11 @@ def test_a_box_holding_other_words_is_not_a_box_of_its_own() -> None:
     assert not any(own[name] for name in own if "Stockfish" in name or "Aura" in name)
 
 
-def test_a_way_on_pressed_as_often_as_it_is_given_without_answering_leaves_the_choice_to_her(screen, monkeypatch) -> None:
-    """LIVE 25 November 2026 the heading was pressed twice, the board still took no move, and the run ended with "New
-    Game" on the screen. Pressed as often as a way on is given, the control that means most nearly what was asked has
-    been answered; which other control does the next step is put to her, with the controls not yet pressed as the only
-    answers."""
+def test_a_way_on_that_changed_the_screen_without_what_was_asked_coming_of_it_leaves_the_choice_to_her(
+        screen, monkeypatch) -> None:
+    """LIVE 26 November 2026 the heading was pressed a second time, each press followed by twenty seconds at a board
+    that took no move, before "New Game" was put to her. A press that changed the screen reached the control, and with
+    what was asked still undone it has answered: which control does the next step is put to her at the next look."""
     layout, pressed = screen
     offered: list[list[str]] = []
 
@@ -110,6 +110,35 @@ def test_a_way_on_pressed_as_often_as_it_is_given_without_answering_leaves_the_c
 
     monkeypatch.setattr(way_on, "_her_understanding", her_understanding)
     keep: dict = {}
+    layout[:] = _layout(boxed=False)
+    keep["way_on_looked_at"] = -1e9
+    asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
+    assert pressed == ["Stockfish"]
+    layout[:] = _layout(boxed=False)
+    keep["way_on_looked_at"] = -1e9
+    assert asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
+    assert pressed == ["Stockfish", "New Game"]
+    assert offered, "the choice was hers"
+
+
+def test_a_way_on_pressed_as_often_as_it_is_given_without_the_screen_changing_leaves_the_choice_to_her(
+        screen, monkeypatch) -> None:
+    """A press that changed nothing may not have reached the control: it is tried as often as a way on is given, then
+    which other control does the next step is put to her, with the controls not yet pressed that often as the answers."""
+    layout, pressed = screen
+    offered: list[list[str]] = []
+
+    async def her_understanding(_app, _act, texts):
+        offered.append(list(texts))
+        return texts.index("New Game")
+
+    async def a_press_that_changes_nothing(x, y, **_kwargs):
+        pressed.append(next(r["text"] for r in layout if (r["center_x"], r["center_y"]) == (x, y)))
+        return True
+
+    monkeypatch.setattr(way_on, "_her_understanding", her_understanding)
+    monkeypatch.setattr(surface, "click_normalized", a_press_that_changes_nothing)
+    keep: dict = {}
     for _ in range(way_on.PRESSES_OF_A_WAY_ON):
         layout[:] = _layout(boxed=False)
         keep["way_on_looked_at"] = -1e9
@@ -117,6 +146,6 @@ def test_a_way_on_pressed_as_often_as_it_is_given_without_answering_leaves_the_c
     assert pressed == ["Stockfish"] * way_on.PRESSES_OF_A_WAY_ON
     layout[:] = _layout(boxed=False)
     keep["way_on_looked_at"] = -1e9
-    assert asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
+    asyncio.run(way_on.took_a_way_on("en-croissant", ASKED, keep, nothing_answered=True))
     assert pressed[-1] == "New Game"
     assert offered and "Stockfish" not in offered[-1]

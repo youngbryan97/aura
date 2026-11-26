@@ -45,6 +45,13 @@ _ACTIVE_GAMES: set[str] = set()
 MAX_SUSPENDED_GAMES = 8
 
 
+def _the_words_shown(seen: dict[str, Any] | None) -> tuple[str, ...]:
+    """What a look read of a window, its words in order: the same words, with nothing pressed between, are the same
+    screen."""
+    return tuple(" ".join(str((region or {}).get("text") or "").split())
+                 for region in ((seen or {}).get("layout") or []))
+
+
 def _fewer_than_it_begins_with(start: dict, learned: Any) -> bool:
     """Whether a board read as two sides at their start holds fewer pieces than her record says this board's game
     begins with."""
@@ -81,6 +88,12 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         # board of its own to hand over to; the desktop is not touched for it.
         return None
     if now - float(keep.get("board_looked_for_at", -1e9)) < LOOKED_FOR_EVERY_S:
+        return None
+    words = _the_words_shown(seen)
+    if keep.get("board_would_not_take") and words and words == keep.get("board_refused_with_words"):
+        # The board would not take a move, and nothing has been pressed or has changed on the screen since: it will
+        # not now. Sitting down at it again cost twenty seconds a time: LIVE 26 November 2026 she tried a finished
+        # game's board four times in two minutes before pressing "New Game".
         return None
     keep["board_looked_for_at"] = now
     import asyncio
@@ -217,8 +230,10 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         keep["board_left_until"] = time.monotonic() + LEFT_UNTIL_S
         # Until the board takes a move, it has not answered her (screen_pursuit.nothing_has_answered).
         keep["board_would_not_take"] = True
+        keep["board_refused_with_words"] = _the_words_shown(seen)
         return None
     keep.pop("board_would_not_take", None)
+    keep.pop("board_refused_with_words", None)
     if came.get("ended") not in GAME_OVER and playing.session.in_progress:
         came["resume_target"] = target_app
     if came.get("ended") in GAME_OVER:

@@ -319,6 +319,7 @@ async def _pressed(region: dict[str, Any], before: list[dict[str, Any]], target_
     await asyncio.sleep(SHOWS_IN_S)
     after = await _a_reading(read_screen, target_app, from_a_window=from_a_window)
     if after and after.get("ok") is not False and _the_words_differ(before, _regions(after)):
+        keep.setdefault("ways_on_answered", []).append(region["text"])
         _tell(f"I pressed \"{region['text']}\": it's the next step here toward what you asked.")
         return True
     return False
@@ -431,11 +432,16 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
     # coming of it, has been answered: it is not the way. Which other control does the next step is the question put
     # where nothing stands out. LIVE 25 November 2026 at a finished game "BLACK Stockfish" was pressed twice, the board
     # still took no move, and the run ended with "New Game" on the screen, never pressed.
-    exhausted = chosen is not None and taken.count(" / ".join(r["text"] for r in controls[chosen])) >= \
-        PRESSES_OF_A_WAY_ON
+    # A press is tried twice where the first may not have reached it; one that changed the screen did reach it, and
+    # with what was asked still undone it has answered once and for all. LIVE 26 November 2026 at a finished game the
+    # heading "BLACK Stockfish" was pressed a second time, each press followed by twenty seconds at a board that took no
+    # move, before "New Game" was put to her.
+    label = " / ".join(r["text"] for r in controls[chosen]) if chosen is not None else ""
+    exhausted = chosen is not None and (taken.count(label) >= PRESSES_OF_A_WAY_ON
+                                        or label in keep.get("ways_on_answered", []))
     if exhausted:
-        logger.info("the way on in %r, %r, has not answered %d presses; which other control does the next step is put "
-                    "to her", target_app, texts[chosen][:80], PRESSES_OF_A_WAY_ON)
+        logger.info("the way on in %r, %r, has answered without what was asked coming of it; which other control does "
+                    "the next step is put to her", target_app, texts[chosen][:80])
     if chosen is None or exhausted:
         # Nothing stands out by what the words are about ("Start game" is not about chess against an engine, and is
         # what starts one): which control does the next step is a question of understanding the place, put to her own
@@ -472,6 +478,7 @@ async def _a_way_on_pressed(target_app: str, goal: str, keep: dict[str, Any], re
         if not after or after.get("ok") is False:
             return False
         if _the_words_differ(regions, _regions(after)):
+            keep.setdefault("ways_on_answered", []).append(control_label)
             _tell(f"I pressed \"{region['text']}\": it's the nearest thing here to what you asked.")
             return True
     return False

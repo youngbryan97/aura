@@ -321,6 +321,13 @@ ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
 
+def a_board_waited_on(pending: dict[str, Any]) -> bool:
+    """Whether a board of pieces she found would not take a move yet: it is waited on, and the controls around it are
+    the way on, not the keys, however long the look for one took. LIVE 26 November 2026 her model spent eleven seconds
+    on which control to press, the board's eight-second wait ran out, and she pressed the up arrow at a finished game."""
+    return bool(pending.get("board_would_not_take")) or time.monotonic() < float(pending.get("board_left_until", 0.0))
+
+
 def nothing_has_answered(pending: dict[str, Any], can_do: Any) -> bool:
     """Whether nothing she has done here has answered her: nothing she did changed the screen, or the board of pieces
     on it has not taken a move since it last would not. A board that would not take a move has not answered her
@@ -1201,11 +1208,11 @@ async def pursue_on_screen(
             # eight seconds the setup's board was left for she pressed the up arrow at the game twice.
             pending.pop("board_left_until", None)
             pending.pop("board_looked_for_at", None)
+            pending.pop("board_refused_with_words", None)
             return {**fresh, "surface": "a way on taken"}
         if pending.get("surface_is_controls"):
             return {**seen, "surface": "controls", "nothing_to_press": bool(pending.get("way_on_found_nothing"))}
-        if time.monotonic() < float(pending.get("board_left_until", 0.0)):
-            # A board of pieces she found a moment ago would not take a move yet: it is waited on, not tried with keys.
+        if a_board_waited_on(pending):
             return {**seen, "surface": "a board of pieces"}
         return seen
 
