@@ -31,10 +31,11 @@ def test_her_reply_is_her_own_turn_on_the_message_as_written(monkeypatch):
     assert asked["context"]["visible_user_message"] == asked["objective"] and asked["context"]["allow_tools"] is False
 
 
-def test_her_mail_is_answered_with_what_her_chat_carries_and_her_standard_prompt(monkeypatch):
+def test_her_mail_is_answered_with_what_her_chat_carries_and_not_her_own_objective(monkeypatch):
     """LIVE 26 November 2026 Bryan: "Why does her email not seem as rich as her regular conversational voice? It seems
-    more robotic?" Her mail turn had the simple prompt and the message alone, where her chat sets her learned profile
-    of who wrote and her own live state before the words, and asks for her live mind."""
+    more robotic?" Her mail turn had the message alone, where her chat sets her learned profile of who wrote and her
+    own live state before the words. Given her live mind too, the same afternoon, her reply to "What do you want to
+    know?" was the answer to her own background goal about the novel Solaris."""
     from core.conversation import chat_preflight
     from core.skills import her_replies_to_mail
 
@@ -58,7 +59,7 @@ def test_her_mail_is_answered_with_what_her_chat_carries_and_her_standard_prompt
         {"from": "B <b@example.org>", "subject": "Hi", "body": "How are you?", "from_owner": True}))
     said = asked["context"]["visible_user_message"]
     assert asked["objective"] == f"[how I am now]\n[what I know of bryan-principal]\n{said}", "in her chat's order"
-    assert asked["context"]["live_mind_context_required"] is True and asked["context"]["prefer_tier"] == "primary"
+    assert "live_mind_context_required" not in asked["context"], "her live mind carries her own objective, not the mail"
 
 
 def test_a_reply_is_held_and_read_back_until_it_is_sent(tmp_path, monkeypatch):

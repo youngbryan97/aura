@@ -58,6 +58,12 @@ class GoalHierarchy:
                 self.add_goal(description=value, parent_id=None, priority=1.0)
 
     def add_goal(self, description: str, parent_id: Optional[str] = None, priority: float = 0.5) -> str:
+        # A reading of her own state is never a goal (core/state/readings_of_her.py): nothing done makes
+        # "Affective state: dread" so, and kept as one it was offered to her as work she owed.
+        from core.state.readings_of_her import is_a_reading_of_her
+
+        if is_a_reading_of_her(description):
+            return ""
         # vZenith: Duplicate Prevention (BUG-052)
         # Don't add if an identical pending goal already exists to prevent loops
         for g in self.goals.values():
@@ -230,7 +236,10 @@ class GoalHierarchy:
         # Dynamic re-prioritization: age-based decay
         self._reprioritize()
         
-        pending = [g for g in self.goals.values() if g.status == "pending"]
+        from core.state.readings_of_her import is_a_reading_of_her
+
+        # A reading of her state kept before readings were refused is no goal to hand out (core/state/readings_of_her.py).
+        pending = [g for g in self.goals.values() if g.status == "pending" and not is_a_reading_of_her(g.description)]
         if not pending:
             return None
             

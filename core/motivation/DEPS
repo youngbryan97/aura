@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 11 outbound edges when this was generated.
+# 12 outbound edges when this was generated.
 
 description = "core.motivation: may import only what it already imports; every new edge is an edit here."
 
@@ -22,6 +22,8 @@ include_rules = [
     "+core.drive_engine",
     "+core.health",
     "+core.runtime",
+    # A reading of her state is never a goal (core/state/readings_of_her.py).
+    "+core.state.readings_of_her",
     "+core.thought_stream",
     "+core.utils",
     "+core.values",

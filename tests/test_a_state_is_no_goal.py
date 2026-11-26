@@ -62,3 +62,23 @@ async def test_what_was_kept_as_goals_before_is_let_go_and_what_is_to_be_done_is
     finally:
         engine.close()
     assert stands == {READINGS[0]: "abandoned", READINGS[1]: "abandoned", "[AUTONOMOUS INITIATIVE] verified internal task completion": "abandoned", THINGS_TO_DO[0]: "in_progress"}
+
+
+def test_her_goal_hierarchy_neither_files_nor_hands_out_a_reading(tmp_path):
+    """26 November 2026: her goal hierarchy (~/.aura/goals.json) still held readings of her state as pending goals,
+    "Affective state: dread (arousal=0.91)" among them, and handed out its oldest pending goals to her own time."""
+    import json
+
+    from core.motivation.goal_hierarchy import GoalHierarchy
+
+    path = tmp_path / "goals.json"
+    path.write_text(json.dumps({
+        "r1": {"id": "r1", "description": "Affective state: dread (arousal=0.91)", "status": "pending", "priority": 0.9},
+        "g1": {"id": "g1", "description": "Research the history of tide clocks.", "status": "pending", "priority": 0.5},
+    }))
+    hierarchy = GoalHierarchy(persist_path=str(path))
+    for goal in hierarchy.goals.values():
+        if goal.id not in {"r1", "g1"}:
+            goal.status = "completed"  # her root values, which the hierarchy sets as goals of its own
+    assert hierarchy.get_next_goal().id == "g1", "the reading kept before is passed over"
+    assert hierarchy.add_goal("Drive alert: social is depleted (95% urgency)") == ""

@@ -140,14 +140,13 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     if engine is None:
         return ""
     said = as_written(message)
-    # Answered as her chat is answered: her standard prompt with her live mind in it, not the simple one, and what her
-    # chat sets before a person's words, her learned profile of who wrote and her own live state where the message
-    # bears on her (core/conversation/chat_preflight.py). LIVE 26 November 2026 Bryan: "Why does her email not seem
-    # as rich as her regular conversational voice? It seems more robotic?" Her mail turn had been given the simple
-    # prompt and the message alone.
-    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False,
-               "desktop_cognitive_engine_required": True, "live_runtime_payload_required": True,
-               "live_mind_context_required": True, "prefer_tier": "primary"}
+    # What her chat sets before a person's words: her learned profile of who wrote, and her own live state where the
+    # message bears on her (core/conversation/chat_preflight.py). LIVE 26 November 2026 Bryan: "Why does her email not
+    # seem as rich as her regular conversational voice? It seems more robotic?" Her mail turn had the message alone.
+    # Not her live mind: a chat turn makes the person's words her current objective first, and a mail turn does not.
+    # Given her live mind at 14:13 that day, her reply to "What do you want to know?" was the answer to the goal her own
+    # time had just worked, "Find out who wrote the novel Solaris and reply with just the author's name."
+    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False}
     from core.runtime.principal_context import relational_principal_scope
 
     principal = _owner_principal() if message.get("from_owner") else ""
