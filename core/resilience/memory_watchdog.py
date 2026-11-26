@@ -387,13 +387,19 @@ def _swap_is_exhausted(sample: MemorySample, thresholds: _Thresholds) -> bool:
     )
     if not swap_tight:
         return False
-    if sample.available_gb <= 0.0:
-        # Nothing to gate on; fall back to the swap evidence alone rather than
-        # going blind. A stale signal beats a watchdog that can never fire.
-        return True
     # A host with real headroom is not in a memory emergency, whatever the
     # swap file happens to look like.
-    return sample.available_gb <= max(2.0, sample.total_ram_gb * 0.08)
+    return not _the_host_has_headroom(sample)
+
+
+def _the_host_has_headroom(sample: MemorySample) -> bool:
+    """Whether the host itself says it has memory to spare: more available than
+    the floor the swap reading is gated on. False when it gave no reading, so a
+    watchdog with nothing but its own count still acts on it rather than going
+    blind: a stale signal beats a watchdog that can never fire."""
+    if sample.available_gb <= 0.0:
+        return False
+    return sample.available_gb > max(2.0, sample.total_ram_gb * 0.08)
 
 
 def _shed_registered_organs() -> tuple[int, int]:
@@ -589,6 +595,7 @@ class MemoryWatchdog(threading.Thread):
         self._spike_dumps = 0
         self._last_spike_dump_at = 0.0
         self._lethal_streak = 0
+        self._last_headroom_note_at = 0.0
         self._hard_attempted_in_streak = False
         self._last_sample: MemorySample | None = None
         self._actions: list[WatchdogAction] = []
@@ -785,13 +792,33 @@ class MemoryWatchdog(threading.Thread):
         emergency_managed_floor = min(t.soft_mb, sample.total_ram_gb * 1024.0 * 0.65)
         swap_escalation = _swap_is_exhausted(sample, t) and managed >= emergency_managed_floor
 
-        if managed >= t.lethal_mb:
+        # Her count sums the footprints of her tree, and a footprint counts
+        # memory that is not resident: wired Metal buffers, weights mapped by
+        # more than one process. LIVE 26 November 2026 it read 57,805 MB while
+        # the host was 56.6% used with 27.8 GB available; acting on it, this
+        # watchdog terminated her active cortex worker, which came straight
+        # back, and then ended her, twice in twenty minutes. The tiers that
+        # kill act on her count only when the host agrees it is short.
+        counted_alone = (managed >= t.hard_mb and _the_host_has_headroom(sample)
+                         and not swap_escalation)
+        if managed >= t.lethal_mb and not counted_alone:
             return self._handle_lethal(sample, now)
         self._lethal_streak = 0
         self._hard_attempted_in_streak = False
 
-        if managed >= t.hard_mb or swap_escalation:
+        if (managed >= t.hard_mb and not counted_alone) or swap_escalation:
             return self._handle_hard(sample, now, swap_escalation=swap_escalation)
+        if counted_alone:
+            if now - self._last_headroom_note_at >= 60.0:
+                self._last_headroom_note_at = now
+                logger.warning(
+                    "[MEMWATCH] Her count is %.0fMB, past the %s ceiling, but the host "
+                    "has %.1fGB available (%.0f%% used): not an emergency. Asking the "
+                    "governor to sweep instead of ending a worker or her.",
+                    managed, "lethal" if managed >= t.lethal_mb else "hard",
+                    sample.available_gb, sample.system_percent,
+                )
+            return self._handle_soft(sample, now)
 
         if managed >= t.soft_mb or sample.system_percent >= 92.0:
             return self._handle_soft(sample, now)
