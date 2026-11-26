@@ -25,6 +25,7 @@ How it works.
 """
 from __future__ import annotations
 
+import ast
 import asyncio
 import hashlib
 import json
@@ -328,6 +329,24 @@ def source_head() -> str:
         logger.debug("her source's commit is unreadable: %s", exc)
         return ""
     return made.stdout.strip() if made.returncode == 0 else ""
+
+
+def brought_up(record: GoalRecord, head: str) -> str:
+    """Her draft carried onto her source as it is now, in her workspace, and the commit it is there; "" when it could not
+    be. A draft is taken only by fast-forward (approve), and her workspace is brought up only while its goal is being
+    worked, so a draft offered on an older source could never land as it was. LIVE 26 November 2026 her young
+    collection at collector_pauses.py:226 was asked again on 429b8199c, five days behind her source, and her yes said
+    "the source she runs on moved since her draft"."""
+    status, record.status = record.status, WORKING
+    try:
+        ensure_workspace(record)
+    finally:
+        record.status = status
+    workspace = record.workspace
+    now = _git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
+    on_it = _git("merge-base", "--is-ancestor", head, now, cwd=workspace).returncode == 0
+    ahead = _git("rev-list", "--count", f"{head}..{now}", cwd=workspace).stdout.strip()
+    return now if now and on_it and ahead not in ("", "0") else ""
 
 
 def ensure_workspace(record: GoalRecord) -> Path:
@@ -781,6 +800,27 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     if MEASURING_HOLD.exists():
         logger.info("her draft for '%s' waits: a run is measuring her", record.goal[:60])
         return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
+    head, commit = source_head(), str(record.offer.get("commit") or "")
+    if head and commit and _git("merge-base", "--is-ancestor", head, commit, cwd=source_root()).returncode != 0:
+        # Her source moved past the draft, and approve takes a draft only by fast-forward: it is carried onto her source
+        # as it is now before a gate is asked. LIVE 26 November 2026 her yes asked every gate of her morphogenesis draft,
+        # the outside check among them, on each pass for hours, and each time approve said only that her source had
+        # moved, which nothing wrote down.
+        replayed = brought_up(record, head)
+        record = load(slug, require_readable=True) or record
+        if not replayed:
+            record.status, record.quiet_passes = WORKING, 0
+            record.said.append({"words": "My draft could not be carried onto my source as it is now, so it is mine to "
+                                         "make again there.", "at": time.time()})
+            _write_now(record)
+            logger.info("her draft for '%s' could not be carried onto her source as it is now; it is hers to make again",
+                        record.goal[:60])
+            return {"ok": False, "why": "her draft could not be carried onto the source she runs on"}
+        record.offer = {**record.offer, "commit": replayed, "asked_on": head}
+        record.said.append({"words": f"My draft is on my source as it is now ({head[:9]}); I asked my gates of it there.",
+                            "at": time.time()})
+        _write_now(record)
+        logger.info("her draft for '%s' carried onto her source as it is now (%s)", record.goal[:60], replayed[:9])
     gates = the_gates_her_yes_asks(record)
     stopped = next((name for name, gate in gates.items() if gate.get("finished") is False), "")
     if stopped:
@@ -853,16 +893,47 @@ def _failing_without_the_draft(record: GoalRecord, said: str, env: dict[str, str
     return failed if outcome is False and set(failed) <= failing_there else []
 
 
+def _imports_module(source: bytes, dotted: str) -> bool:
+    """Whether code imports module ``dotted`` however the import is written: ``import a.b.c``, ``from a.b.c import x``,
+    and ``from a.b import c`` with ``c`` among other names or inside parentheses."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+    parent, _, stem = dotted.rpartition(".")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(alias.name == dotted or alias.name.startswith(dotted + ".")
+                                                for alias in node.names):
+            return True
+        if isinstance(node, ast.ImportFrom) and not node.level and (
+                (node.module or "") == dotted or (node.module or "").startswith(dotted + ".")
+                or (node.module == parent and any(alias.name == stem for alias in node.names))):
+            return True
+    return False
+
+
 def tests_that_touch(changed: list[str], workspace: Path) -> list[str]:
-    """The test files that name a changed module, and the changed test files themselves."""
+    """The test files that name a changed module, and the changed test files themselves.
+
+    Named by its dotted name or its path, or imported however the import is written. LIVE 26 November 2026 her mend of
+    ``_coerce_argv`` made the refusal its contract test asserts dead, and neither her repair nor her tests gate ran that
+    test: it imports ``from core.runtime import shutdown_coordinator, subprocess_gateway``, which holds neither text."""
     tests = {name for name in changed if Path(name).name.startswith("test_") and name.endswith(".py")}
     for name in changed:
         if not name.endswith(".py") or Path(name).name.startswith("test_") or not (workspace / name).exists():
             continue
-        dotted = name[:-3].replace("/", ".")
+        dotted = name[:-3].removesuffix("/__init__").replace("/", ".")
+        stem = dotted.rsplit(".", 1)[-1]
         found = _git("grep", "-l", "-F", "-e", dotted, "-e", name, "--", "tests", cwd=workspace, timeout=60.0)
-        tests.update(line.strip() for line in found.stdout.splitlines()
-                     if Path(line.strip()).name.startswith("test_") and line.strip().endswith(".py"))
+        named = [line.strip() for line in found.stdout.splitlines()]
+        spelled = _git("grep", "-l", "-w", "-F", "-e", stem, "--", "tests", cwd=workspace, timeout=60.0)
+        for line in (line.strip() for line in spelled.stdout.splitlines()):
+            try:
+                if line not in named and _imports_module((workspace / line).read_bytes(), dotted):
+                    named.append(line)
+            except OSError:
+                continue
+        tests.update(line for line in named if Path(line).name.startswith("test_") and line.endswith(".py"))
     return sorted(tests)
 
 

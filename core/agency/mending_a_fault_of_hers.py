@@ -641,23 +641,10 @@ async def _ask_again_of_a_draft_that_waits(*, only_a_changed_judge: bool = False
 
 
 def _brought_up(record: Any, head: str) -> str:
-    """Her draft carried onto her source as it is now, in her workspace, and the commit it is there; "" when it could not
-    be. A draft is taken only by fast-forward, and her workspace is brought up only while its goal is being worked, so a
-    draft asked again as it was offered was asked of the old source and could never land. LIVE 26 November 2026 her
-    young collection at collector_pauses.py:226 was asked again on 429b8199c, five days behind her source, and her yes
-    said "the source she runs on moved since her draft"."""
+    """Her draft carried onto her source as it is now (her_goal_at_work.brought_up, which her own yes asks too)."""
     from core.agency import her_goal_at_work as goals
 
-    status, record.status = record.status, goals.WORKING
-    try:
-        goals.ensure_workspace(record)
-    finally:
-        record.status = status
-    workspace = record.workspace
-    now = goals._git("rev-parse", "HEAD", cwd=workspace).stdout.strip()
-    on_it = goals._git("merge-base", "--is-ancestor", head, now, cwd=workspace).returncode == 0
-    ahead = goals._git("rev-list", "--count", f"{head}..{now}", cwd=workspace).stdout.strip()
-    return now if now and on_it and ahead not in ("", "0") else ""
+    return goals.brought_up(record, head)
 
 
 __all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard"]

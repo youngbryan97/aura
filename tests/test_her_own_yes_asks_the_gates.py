@@ -98,6 +98,18 @@ def test_the_tests_of_a_changed_module_are_found_where_they_name_it(her_source):
     assert work.tests_that_touch(["tests/test_new.py", "README.md"], her_source) == ["tests/test_new.py"]
 
 
+def test_a_test_that_imports_the_module_beside_another_is_found_too(her_source):
+    """LIVE 26 November 2026 her mend of _coerce_argv made the refusal its contract test asserts dead, and neither her
+    repair nor this gate ran that test: it imports ``from core.runtime import shutdown_coordinator,
+    subprocess_gateway``, which holds neither the module's dotted name nor its path."""
+    (her_source / "tests").mkdir(exist_ok=True)
+    (her_source / "tests" / "test_contract.py").write_text("from core import other, notes\n")
+    (her_source / "tests" / "test_spread.py").write_text("from core import (\n    other,\n    notes,\n)\n")
+    (her_source / "tests" / "test_says_it.py").write_text("notes = 'a word, not an import'\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "tests", cwd=her_source)
+    assert work.tests_that_touch(["core/notes.py"], her_source) == ["tests/test_contract.py", "tests/test_spread.py"]
+
+
 def test_a_gate_runs_through_the_subprocess_gateway_in_a_governed_scope(tmp_path, monkeypatch):
     import core.runtime.subprocess_gateway as gateway
     from core.governance_context import get_active_governance
@@ -229,3 +241,41 @@ def test_a_gate_killed_by_a_signal_or_out_of_time_is_one_that_did_not_finish(mon
     assert work._run_a_gate(["make", "writing"], cwd=tmp_path, env={})[0] is None
     monkeypatch.setattr(gateway, "get_subprocess_gateway", lambda: _OutOfTime())
     assert work._run_a_gate(["make", "writing"], cwd=tmp_path, env={}) == (None, "stopped after 2400 s")
+
+
+def test_a_draft_her_source_moved_past_is_carried_onto_it_before_a_gate_is_asked(her_source, gates_asked):
+    """LIVE 26 November 2026: her yes asked every gate of her morphogenesis draft, the outside check among them, on each
+    pass for hours, and each time approve said only that her source had moved past the draft."""
+    asked, _failing = gates_asked
+    work.MEASURING_HOLD.write_text("measuring")
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    assert record.status == work.OFFERED and asked == [], "held while she was measured"
+    offered = record.offer["commit"]
+    work.MEASURING_HOLD.unlink()
+    (her_source / "core" / "other.py").write_text("OTHER = 1\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "core/other.py", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "her source moves on", cwd=her_source)
+    moved_to = work.source_head()
+    done = work.take_it_herself(record.slug)
+    kept = work.load(record.slug)
+    assert done.get("ok") is not False and kept.status == work.MERGED, done
+    assert kept.offer["commit"] != offered and kept.offer["asked_on"] == moved_to
+    assert asked, "the gates were asked of the draft as it lands"
+    assert (her_source / "core" / "more_notes.py").exists() and (her_source / "core" / "other.py").exists()
+    assert any("on my source as it is now" in entry["words"] for entry in kept.said)
+
+
+def test_a_draft_that_cannot_be_carried_onto_her_source_goes_back_to_her(her_source, gates_asked, monkeypatch):
+    asked, _failing = gates_asked
+    work.MEASURING_HOLD.write_text("measuring")
+    record = asyncio.run(work.work_a_while(GOAL, router=_a_draft_of_hers()))
+    work.MEASURING_HOLD.unlink()
+    (her_source / "core" / "other.py").write_text("OTHER = 1\n")
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "add", "core/other.py", cwd=her_source)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "her source moves on", cwd=her_source)
+    monkeypatch.setattr(work, "brought_up", lambda record, head: "")
+    done = work.take_it_herself(record.slug)
+    kept = work.load(record.slug)
+    assert done == {"ok": False, "why": "her draft could not be carried onto the source she runs on"}
+    assert kept.status == work.WORKING and asked == [], "no gate is asked of a draft that cannot land"
+    assert "could not be carried" in kept.said[-1]["words"]

@@ -35,6 +35,8 @@ def test_the_longest_waiting_draft_is_asked_again_once_her_source_moves(her_sour
     heads, asked = ["head-a"], []
     monkeypatch.setattr(goals, "source_head", lambda: heads[0])
     monkeypatch.setattr(goals, "ensure_workspace", lambda record: None)
+    # Carried onto her source as it is now (test_every_fault_she_heard_gets_its_turn.py tests the carrying itself).
+    monkeypatch.setattr(goals, "brought_up", lambda record, head: f"{record.slug}-on-{head}")
     monkeypatch.setattr(goals, "take_it_herself", lambda slug: asked.append(slug) or {"ok": False, "why": "tests failed"})
 
     def ask():
