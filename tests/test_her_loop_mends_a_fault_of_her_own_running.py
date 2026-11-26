@@ -333,3 +333,34 @@ def test_a_draft_her_gates_refused_is_asked_again_on_her_source_as_it_now_is(her
     assert rows.first([1, 2]) == 1
     assert _git("log", "--format=%s", "-1", cwd=her_source).startswith("Mend planted_pkg.rows.first")
     assert any("asked my gates again" in said["words"] for said in goals.load(first["slug"]).said)
+
+
+def test_her_mend_starts_with_nobody_yet_spoken_to_her(monkeypatch):
+    """LIVE 26 November 2026: after a restart her mending waited on "no_user_anchor", the policy for background work
+    before anybody has spoken to her, with nine faults and a draft ready to land and nobody there. Her mend asks her
+    Python and her tests, not her model, and nobody need speak first."""
+    from types import SimpleNamespace
+
+    from core.self_modification import self_modification_engine as module
+    from core.self_modification.self_modification_engine import AutonomousSelfModificationEngine as Engine
+
+    asked: list[dict] = []
+
+    def policy(_orchestrator=None, **given):
+        asked.append(given)
+        return "" if given.get("allow_no_user_anchor") else "no_user_anchor"
+
+    started: list[bool] = []
+    engine = SimpleNamespace(monitoring_enabled=True, monitor_interval=0.01, _repair_event=asyncio.Event())
+
+    def start_mending() -> bool:
+        started.append(True)
+        engine.monitoring_enabled = False
+        return True
+    engine._start_mending = start_mending
+    from core.runtime import background_policy
+
+    monkeypatch.setattr(background_policy, "background_activity_reason", policy)
+    monkeypatch.setattr(module, "resolve_orchestrator", lambda: None)
+    asyncio.run(asyncio.wait_for(Engine._monitoring_loop(engine), timeout=5))
+    assert started == [True] and asked[0]["allow_no_user_anchor"] is True and asked[0]["needs_the_model"] is False

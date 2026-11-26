@@ -1373,9 +1373,11 @@ class AutonomousSelfModificationEngine:
                     # No fault heard in an interval: her own loop may still have a change to make for a cost her
                     # running measures, or one to judge (F16, part 3), in idle time, under the policy for work that
                     # does not use her model. The rest of the cycle waits for a fault.
+                    # Her mend needs nobody to have spoken to her first: LIVE 26 November 2026, after a restart, it
+                    # waited on "no_user_anchor" while nobody was there, with nine faults and a draft ready to land.
                     if not background_activity_reason(resolve_orchestrator(), require_conversation_ready=False,
                                                       min_idle_seconds=float(self.monitor_interval),
-                                                      needs_the_model=False):
+                                                      needs_the_model=False, allow_no_user_anchor=True):
                         self._start_mending()
                     continue
                 await _keep_the_faults_she_heard()
@@ -1385,6 +1387,7 @@ class AutonomousSelfModificationEngine:
                     min_idle_seconds=float(self.monitor_interval),
                     require_conversation_ready=False,
                     needs_the_model=False,
+                    allow_no_user_anchor=True,
                 )
                 if policy_reason:
                     logger.info("Skipping autonomous self-modification cycle: %s", policy_reason)
