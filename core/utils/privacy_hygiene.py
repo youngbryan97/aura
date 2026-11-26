@@ -53,11 +53,19 @@ class MetadataScrubber:
             (self.real_cwd, self.fake_cwd),
             (self.real_home, self.fake_home),
             (self.real_hostname, self.fake_hostname),
-            (self.real_username, self.fake_username),
         )
         for real, fake in replacements:
             if real:
                 scrubbed = scrubbed.replace(real, fake)
+        if self.real_username:
+            # The account's name is metadata where it is a part of a path or a login (user@host), and a person's name
+            # everywhere else. LIVE 26 November 2026 the account bore the name of the man she was writing to: her
+            # reply to him was held as "sensitive system metadata" for naming him, and would have gone out with his
+            # name, and the part of his address that holds it, turned into "user".
+            user = re.escape(self.real_username)
+            scrubbed = re.sub(rf"(?<=[/\\]){user}(?=[/\\]|\b)", self.fake_username, scrubbed)
+            scrubbed = re.sub(rf"(?<![\w.+-]){user}@(?={re.escape(self.fake_hostname)}\b|localhost\b)",
+                              f"{self.fake_username}@", scrubbed)
 
         scrubbed = _IP_RE.sub(_redact_ip_if_valid, scrubbed)
         scrubbed = _MAC_RE.sub("[MAC_REDACTED]", scrubbed)
