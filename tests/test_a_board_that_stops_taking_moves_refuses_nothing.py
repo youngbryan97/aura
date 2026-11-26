@@ -108,3 +108,23 @@ def test_pieces_picked_up_on_a_board_not_yet_begun_are_not_learned_as_going_nowh
     came = asyncio.run(run())
     assert came["ended"] == "not taking moves"
     assert learned_nothing == []
+
+
+def test_a_mate_her_rules_read_and_the_game_offers_nothing_against_is_how_the_game_ended() -> None:
+    """LIVE 25 November 2026 she was mated by a knight against Stockfish in En Croissant. Her rules read the end, the
+    game offered her nothing, and the window said nothing in words; she said "I couldn't get another move to register
+    or verify a result" and picked the same board up three times more. Where her rules read the end and the game
+    offers nothing, the two agree, and that is how it ended. A board that only stops taking moves, with no end her
+    rules read, is still not a result."""
+    from core.agency.pieces_by_their_kind import Position
+    from core.agency.playing_pieces_by_kind import _Game, _the_end
+
+    learned = HowThePiecesMove.from_the_start(8, 8, dict(NOBODYS_GAME.start))
+    said: list[str] = []
+    game = _Game(learned=learned, believed=Position(cells=dict(NOBODYS_GAME.start), turn=FIRST))
+    came = _the_end("won:1", game, said.append, observed=("", ""))
+    assert came["ended"] == "lost"
+    assert said[-1].startswith("The game offers me no move, and by its rules as I know them I lost")
+    said.clear()
+    came = _the_end("no move", game, said.append, observed=("", ""))
+    assert came["ended"] == "result unconfirmed"

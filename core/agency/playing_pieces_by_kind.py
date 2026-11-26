@@ -2208,6 +2208,19 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None], *,
                 _where_it_went_wrong(game)
             if ended == "no move":
                 game.learned.the_window_said(result, game.believed, game.last_followed, game.earlier)
+        elif ended.startswith("won:"):
+            # The window says nothing in words, and two readings agree: her rules leave the side to move no move, with
+            # the piece the game keeps safe attacked or a piece arrived where it wins, and the game, asked, offers her
+            # nothing. That is how the game ended, said as what the board showed. LIVE 25 November 2026 she was mated
+            # by a knight against Stockfish in En Croissant, said "I couldn't get another move to register or verify a
+            # result", picked the same board up three times more, and the game taught her nothing of how it ended.
+            result = "won" if int(ended.split(":", 1)[1]) == FIRST else "lost"
+            tell("The game offers me no move, and by its rules as I know them I won; the window doesn't say so in words."
+                 if result == "won" else
+                 "The game offers me no move, and by its rules as I know them I lost: my piece that must be kept safe "
+                 "is attacked with nowhere to go. The window doesn't say so in words.")
+            if result == "lost":
+                _where_it_went_wrong(game)
         else:
             result = "result unconfirmed"
             tell("I couldn't get another move to register or verify a result. I'll leave the board open.")
