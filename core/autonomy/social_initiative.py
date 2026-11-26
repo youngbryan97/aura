@@ -285,6 +285,11 @@ class _StartsSomethingSocial:
             if sent.get("ok"):
                 await mark_sent(str(draft["id"]))
                 went.add(str(draft["id"]))
+                # Kept as her chat answers are, where the mail asked about her (core/self/what_she_holds_over_time.py).
+                from core.self.what_she_holds_over_time import note_an_answer
+
+                await note_an_answer(str(draft.get("asked") or ""), str(draft.get("reply") or ""),
+                                     who=str(draft.get("to") or ""))
                 logger.info("Her reply to %s about %r went out (%s).", draft.get("to"), draft.get("subject"), draft["id"])
             elif tool_result_is_deferred(sent):
                 logger.info("Her reply %s is kept for her next round, its send deferred: %s", draft["id"], self._why_not(sent))

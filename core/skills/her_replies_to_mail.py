@@ -183,6 +183,8 @@ async def hold_for_bryan(message: dict[str, Any], reply: str) -> str:
     draft = {"id": uuid.uuid4().hex[:10], "written": time.time(), "uid": str(message.get("uid") or ""),
              "to": str(message.get("from") or ""), "subject": str(message.get("subject") or ""),
              "message_id": str(message.get("message_id") or ""), "reply": reply, "sent": False,
+             # What she answered, for her record of what she says of herself (core/self/what_she_holds_over_time.py).
+             "asked": as_written(message)[:900],
              # Written while she may send her own: hers to send until it goes, whatever deferred the first try.
              "to_send": sends_without_asking()}
     path = _drafts_path()

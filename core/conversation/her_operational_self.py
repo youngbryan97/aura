@@ -127,6 +127,8 @@ async def inject_operational_self_context(objective: str = "") -> str:
             "state": _HER_STATE,
             "forecasts": "How reliably I can judge myself from outcomes observed later, my self-prediction errors, and independent evidence about my reports.",
             "development": "My developmental history across sessions, what accumulated experience I carry, and how my current state relates to that history.",
+            "perspective": "Whether what I say about myself holds over time and whoever asks: how long I have held it, how "
+                           "often I have been asked, and whether my answers have contradicted each other.",
             "what_i_am": _joined("What I am:", _SUBSTRATE_FACTS),
             "capacities": _joined("Architectural capacities:", _ARCHITECTURAL_CAPACITIES),
             "what_i_can_do_now": "What I can do right now: the capabilities and tools I have available this turn, "
@@ -148,6 +150,13 @@ async def inject_operational_self_context(objective: str = "") -> str:
             lines += ["", "Measured self-forecast outcomes:", *(f"  • {item}" for item in _forecast_evidence())]
         if wanted("development"):
             lines += ["", "Developmental history:", *(f"  • {item}" for item in _development_evidence())]
+        if wanted("perspective"):
+            from core.self.what_she_holds_over_time import said_of_how_she_has_held
+
+            held = await asyncio.to_thread(said_of_how_she_has_held, objective)
+            if held or bears is not None:
+                lines += ["", "How what I say of myself has held:",
+                          *(f"  • {item}" for item in held or ["Nothing of what I have said of this is kept yet."])]
         if wanted("what_i_am"):
             lines += ["", "What I am:", *(f"  • {fact}" for fact in _SUBSTRATE_FACTS)]
         if wanted("capacities"):

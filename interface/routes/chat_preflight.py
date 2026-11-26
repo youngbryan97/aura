@@ -137,6 +137,8 @@ async def finalize_terminal_exchanges(capture: TerminalExchangeCapture, payload:
                     exchange_metadata=metadata,
                 )
                 committed = committed and state == "committed"
+                if state == "committed" and payload.get("status") != "cancelled_by_user":
+                    _keep_what_she_said_of_herself(entry["user"], reply, str(entry.get("principal") or ""))
             finally:
                 _CHAT_REQUEST_SESSION.reset(session_token)
                 _CHAT_REQUEST_SURFACE.reset(surface_token)
@@ -144,6 +146,19 @@ async def finalize_terminal_exchanges(capture: TerminalExchangeCapture, payload:
     finally:
         _TERMINAL_EXCHANGES.reset(token)
     return committed
+
+
+def _keep_what_she_said_of_herself(asked: str, answered: str, who: str) -> None:
+    """Her answer, where what she was asked bears on herself, kept and read against her earlier ones after it has
+    gone (core/self/what_she_holds_over_time.py): in the background, so the turn waits on none of it."""
+    try:
+        from core.self.what_she_holds_over_time import note_an_answer
+        from core.utils.task_tracker import get_task_tracker
+
+        get_task_tracker().track_task(note_an_answer(str(asked or ""), answered, who=who),
+                                      name="what_she_holds_over_time.note")
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        record_degradation("chat", exc, severity="info", action="an answer of hers about herself was not kept")
 
 
 async def reconcile_terminal_history(journal=None, *, limit: int = 20) -> bool:
