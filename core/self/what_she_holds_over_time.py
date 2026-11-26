@@ -255,13 +255,32 @@ def _her_exchanges() -> list[tuple[str, str, str, float]]:
     return sorted(out, key=lambda one: one[3])
 
 
-async def backfill_from_her_history(*, path: Path | None = None) -> int:
+async def _can_judge() -> bool:
+    """Whether her encoder and the entailment reader are both here to read with: a judgement that cannot be made is not
+    a question found not to be about her."""
+    from core.self.how_her_words_stand import can_read_her_words
+
+    judged = await asyncio.to_thread(_bears, ABOUT_HER, [ABOUT_HER])
+    return judged is not None and await asyncio.to_thread(can_read_her_words)
+
+
+async def backfill_from_her_history(*, path: Path | None = None, waits: int = 30, wait_s: float = 60.0) -> int:
     """Her answers about herself from the history she has kept, read as each would have been when she gave it: once,
     the oldest first, and marked done beside the record. How many were kept. Bryan, 26 November 2026: "A backfill
-    from her history is ok"."""
+    from her history is ok".
+
+    It waits, up to ``waits`` times ``wait_s``, for her encoder and the entailment reader; where they never come it is
+    not marked, and her next run tries again. LIVE 26 November 2026 the first run began in her first minute, before her
+    encoder had loaded, judged none of 881 exchanges, and was marked done."""
     path = path or _kept_at()
     done = path.with_suffix(".backfilled")
     if done.exists():
+        return 0
+    for _ in range(max(1, waits)):
+        if await _can_judge():
+            break
+        await asyncio.sleep(wait_s)
+    else:
         return 0
     try:
         exchanges = await asyncio.to_thread(_her_exchanges)

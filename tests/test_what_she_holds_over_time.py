@@ -99,3 +99,12 @@ def test_her_history_is_read_once_in_time_order_and_a_span_not_to_be_read_is_not
     assert [row["answered"] for row in rows] == ["I can't be sure.", "I am not conscious."]
     assert all("Be truthful" not in row["asked"] for row in rows)
     assert asyncio.run(held.backfill_from_her_history(path=path)) == 0, "once"
+
+
+def test_a_backfill_that_cannot_judge_yet_is_not_marked_done(tmp_path, monkeypatch):
+    """LIVE 26 November 2026 the first run began before her encoder had loaded, judged none of 881 exchanges, and was
+    marked done, so it would never run again."""
+    monkeypatch.setattr(held, "_bears", lambda asked, on: None)
+    path = tmp_path / "self" / "what_she_holds.jsonl"
+    assert asyncio.run(held.backfill_from_her_history(path=path, waits=2, wait_s=0.0)) == 0
+    assert not path.with_suffix(".backfilled").exists()
