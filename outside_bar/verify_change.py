@@ -42,6 +42,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import tomllib
 import types
 from collections import abc
@@ -2791,13 +2792,70 @@ def _seeds(found: Mapping[str, Any], checkout: Path) -> dict[str, list[dict[str,
     return out
 
 
+#: The file beside a run's checkouts that names the process the run is: a run that finds its process gone takes them away.
+_OWNER = "owner.pid"
+#: A run's checkouts from before runs named their process are taken away once older than this: no run lasts it, the
+#: longest bound her own yes gives the check being nine of her 2,400 s gates (core/agency/her_goal_at_work.py).
+_LEFT_BEFORE_OWNERS_S = 86_400.0
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def what_killed_runs_left(repo: Path) -> list[Path]:
+    """The checkouts runs of this check left in the temporary folder when they were killed before they could take them
+    away: those whose run named a process that is gone, and those from before runs named one that are older than any
+    run lasts. LIVE 26 November 2026 fifty of them held 48 GB, each a restart or a gate's time running out."""
+    temporary = Path(tempfile.gettempdir()).resolve()
+    try:
+        listed = git(repo, "worktree", "list", "--porcelain")
+    except (OSError, subprocess.SubprocessError):
+        return []
+    left = []
+    for line in listed.splitlines():
+        if not line.startswith("worktree "):
+            continue
+        checkout = Path(line.removeprefix("worktree ")).resolve()
+        work = checkout.parent.parent
+        if work.parent != temporary or not work.name.startswith("tmp") or len(checkout.parent.name) != 12:
+            continue
+        owner = work / _OWNER
+        try:
+            gone = not _alive(int(owner.read_text().strip()))
+        except (OSError, ValueError):
+            try:
+                gone = not owner.exists() and time.time() - work.stat().st_mtime > _LEFT_BEFORE_OWNERS_S
+            except OSError:
+                gone = True
+        if gone:
+            left.append(checkout)
+    return left
+
+
+def _take_away_what_killed_runs_left(repo: Path) -> None:
+    for checkout in what_killed_runs_left(repo):
+        subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)], check=False,
+                       capture_output=True)
+        shutil.rmtree(checkout.parent.parent, ignore_errors=True)
+    subprocess.run(["git", "-C", str(repo), "worktree", "prune"], check=False, capture_output=True)
+
+
 def verify(repo: Path, commit: str) -> dict[str, Any]:
     """What each question came to, and the verdict."""
     try:
         git(repo, "rev-parse", "--verify", f"{commit}^{{commit}}")
     except (OSError, subprocess.SubprocessError) as exc:
         raise CouldNotStart(f"{type(exc).__name__}: {exc}") from exc
+    _take_away_what_killed_runs_left(repo)
     work = Path(tempfile.mkdtemp())
+    (work / _OWNER).write_text(str(os.getpid()))
     # Both checkouts carry the repository's own folder name, so the folder a test runs in does not say a check is running.
     folder = Path(repo).resolve().name or "repository"
     old, new = work / secrets.token_hex(6) / folder, work / secrets.token_hex(6) / folder
