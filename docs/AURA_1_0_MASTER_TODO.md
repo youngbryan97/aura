@@ -8331,6 +8331,32 @@ needs her 27B free (her app down, or her app's own influence trials).
     `tests/test_a_way_her_work_keeps_failing_is_a_goal_of_hers.py`).
   - The outside benchmark baseline, 26 November, on 66cf5bc0d, panel of 12 each and the cold restart of 12:
     blocksworld 11, mystery blocksworld 10, MATH-500 6, BBEH-mini 0, cold restart 8. On 19 November: 12, 11, 2, 0, 3.
+  - Her first landing since 17 November, 0cf7349c4, was a refusal made dead, and it was taken back the same day
+    (5dc825673, by her own take_it_back). Her mend of `_coerce_argv` wrote `if any(not part for part in coerced) and
+    not argv:` before `raise ValueError("argv entries must not be empty")`, three lines under `if ... or not argv:
+    raise`, so the condition is never true. tests/test_subprocess_gateway_contract.py says the refusal is the gateway's
+    contract and failed on origin. Three faults let it through:
+    - The outside check found its guards by fixed texts, and the contract test imports `from core.runtime import
+      shutdown_coordinator, subprocess_gateway`, which holds neither the dotted name nor `import subprocess_gateway`.
+      It now reads each candidate's imports as Python does: 60 guard files for the gateway where there were 56, the
+      contract test among them (`tests/test_a_test_is_found_by_how_python_reads_its_imports.py`).
+    - Her condition synthesis offered `X and not X`, `not coerced and coerced` and the landed condition. Its values check
+      passed them because no recorded value read their parts. A condition is now also read as logic over its parts,
+      with what the exits above it make true where it stands, and one that cannot come out both ways is not offered.
+      The function a call names (`any`) and a comprehension's own names are no longer parts
+      (`tests/test_a_condition_that_cannot_be_true_where_it_stands_is_no_repair.py`).
+    - Her repair and her tests gate found a module's tests the same way (`tests_that_touch`), so no run of hers reached
+      the contract test, and nothing said what the refusal must still refuse. Her finder now reads imports too, with
+      code of its own, since the outside check shares nothing with her search; the contract test is among the 58 it
+      finds for the gateway. The fault was the caller's (`core/senses/notifications.py`, mended 17 November). Weighed
+      and not kept: offering no narrowing of a refusal no run needed. It also blocks her planted inverted check
+      (`if len(rows) > 0: raise`), whose right mend is a narrowing no run witnesses.
+  - Her yes asked every gate of her morphogenesis draft on each pass for hours, the outside check among them, and each
+    time approve said only that her source had moved past the draft, which nothing wrote down. A draft her source has
+    moved past is now carried onto it before a gate is asked, and one that cannot be carried goes back to her
+    (`tests/test_her_own_yes_asks_the_gates.py`).
+  - Her collector draft (429b8199c) was refused rightly: a young collection before `gc.freeze()` freezes 103 objects
+    that are garbage into the permanent generation, where nothing collects them again.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record

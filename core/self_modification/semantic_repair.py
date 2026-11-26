@@ -41,7 +41,7 @@ from core.self_modification.condition_synthesis import Example, ranked_condition
 
 logger = logging.getLogger("SelfModification.SemanticRepair")
 
-__all__ = ["Place", "RunForcings", "her_own_python", "instrumented", "places_at", "semantic_repairs"]
+__all__ = ["Place", "RunForcings", "her_own_python", "holds_at", "instrumented", "places_at", "semantic_repairs"]
 
 PROBE = "__aura_probe__"
 CHOICE = "_aura_choice_"
@@ -90,6 +90,8 @@ class Place:
     #: are read without a call (their types are recorded; a call's is learnt only by making it).
     candidates: tuple[str, ...] = ()
     pure: tuple[str, ...] = ()
+    #: What is true where it stands: the exits above it that did not leave, and the branches it is inside.
+    holds: tuple[str, ...] = ()
 
 
 def _starts(source: str) -> list[int]:
@@ -114,6 +116,69 @@ def _enclosing(functions: Sequence[ast.AST], line: int) -> ast.AST | None:
     return max(holders, key=lambda f: f.lineno) if holders else None
 
 
+_LEAVES = (ast.Raise, ast.Return, ast.Continue, ast.Break)
+_OWN_SCOPE = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+
+
+def _path_to(holder: ast.AST, statement: ast.stmt) -> list[tuple[ast.AST, str, int]] | None:
+    """The blocks from ``holder`` down to ``statement``: each as the node that owns it, its field and the index taken."""
+    for name in ("body", "orelse", "finalbody", "handlers"):
+        block = getattr(holder, name, None)
+        if not isinstance(block, list):
+            continue
+        for index, child in enumerate(block):
+            if child is statement:
+                return [(holder, name, index)]
+            if isinstance(child, _OWN_SCOPE) or not isinstance(child, ast.AST):
+                continue
+            deeper = _path_to(child, statement)
+            if deeper is not None:
+                return [(holder, name, index), *deeper]
+    return None
+
+
+def _assigned(statements: Sequence[ast.AST]) -> set[str]:
+    return {node.id for statement in statements for node in ast.walk(statement)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del))}
+
+
+def _read_by(test: ast.AST) -> set[str]:
+    return {node.id for node in ast.walk(test) if isinstance(node, ast.Name)}
+
+
+def holds_at(function: ast.AST | None, line: int) -> tuple[str, ...]:
+    """What is true at ``line`` of ``function`` before its statement runs, as conditions: for each ``if C:`` above it in
+    a block that holds it, with no ``else`` and a body that always leaves (``raise``, ``return``, ``continue``,
+    ``break``), ``not (C)``; and for each ``if`` it is inside, its condition, or ``not`` it in the ``else``. One whose
+    names are assigned between is left out, so what is said is true however the code between ran.
+
+    A repair's condition is read with these (condition_synthesis.can_come_out): ``not argv`` three lines under
+    ``if ... or not argv: raise`` can never be true, and joined to the condition before a raise it deletes the raise."""
+    if function is None:
+        return ()
+    statement = next((node for node in ast.walk(function) if isinstance(node, ast.stmt) and node is not function
+                      and getattr(node, "lineno", None) == line), None)
+    path = _path_to(function, statement) if statement is not None else None
+    if not path:
+        return ()
+    held: list[str] = []
+    for depth, (owner, name, index) in enumerate(path):
+        block = getattr(owner, name)
+        between = block[: index + 1]
+        if depth and isinstance(owner, ast.If) and name in ("body", "orelse"):
+            test = ast.unparse(owner.test)
+            if not _read_by(owner.test) & _assigned(block[:index + 1]):
+                held.append(test if name == "body" else f"not ({test})")
+        for at, earlier in enumerate(block[:index]):
+            if not (isinstance(earlier, ast.If) and not earlier.orelse and earlier.body
+                    and isinstance(earlier.body[-1], _LEAVES)):
+                continue
+            if _read_by(earlier.test) & _assigned(between[at + 1:]):
+                continue
+            held.append(f"not ({ast.unparse(earlier.test)})")
+    return tuple(held)
+
+
 def _pure(node: ast.AST) -> bool:
     for inner in ast.walk(node):
         if isinstance(inner, ast.Call) and not (isinstance(inner.func, ast.Name) and inner.func.id == "len"
@@ -124,11 +189,32 @@ def _pure(node: ast.AST) -> bool:
     return True
 
 
-def _parts(test: ast.AST) -> tuple[str, ...]:
-    """The pure parts of a condition, the condition itself left out, each once."""
-    seen = []
+_OWN_NAMES = (ast.GeneratorExp, ast.ListComp, ast.SetComp, ast.DictComp, ast.Lambda)
+
+
+def _not_read_here(test: ast.AST) -> set[int]:
+    """The nodes of a condition that are not values where it stands: the function a call names (``any`` in
+    ``any(...)`` is no condition), and what a comprehension or lambda reads in a scope of its own (its loop name, its
+    element, its filters), all but a comprehension's first iterable. LIVE 26 November 2026 the parts offered for
+    ``any(not part for part in coerced)`` were ``any``, ``not part`` and ``part``, and ``... and not any`` is never
+    true."""
+    out: set[int] = set()
     for node in ast.walk(test):
-        if node is test or not isinstance(node, ast.expr) or isinstance(node, ast.Constant):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            out.add(id(node.func))
+        if isinstance(node, _OWN_NAMES):
+            kept = {id(inner) for inner in ast.walk(node.generators[0].iter)} if not isinstance(node, ast.Lambda) else set()
+            out |= {id(inner) for inner in ast.walk(node) if inner is not node and id(inner) not in kept}
+    return out
+
+
+def _parts(test: ast.AST) -> tuple[str, ...]:
+    """The pure parts of a condition that are values where it stands (_not_read_here), the condition itself left out,
+    each once."""
+    seen = []
+    elsewhere = _not_read_here(test)
+    for node in ast.walk(test):
+        if node is test or not isinstance(node, ast.expr) or isinstance(node, ast.Constant) or id(node) in elsewhere:
             continue
         if _pure(node):
             text = ast.unparse(node)
@@ -296,7 +382,8 @@ def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
                 end = _offset(source, starts, test.end_lineno or test.lineno, test.end_col_offset or 0)
                 text = _one_line(source[start:end], test)
                 places.append(Place(f"c{len(places)}", "cond", path, line, text=text, start=start,
-                                    end=end, parts=_parts(test), constants=constants, names=_read(test)))
+                                    end=end, parts=_parts(test), constants=constants, names=_read(test),
+                                    holds=holds_at(function, line)))
             for read in _values_read(node) if function is not None else ():
                 if not _readable_again(read) or (read.lineno, read.col_offset) in valued:
                     continue
@@ -315,7 +402,7 @@ def places_at(source: str, path: str, lines: Sequence[int]) -> list[Place]:
             if rows[first - 1].lstrip() != rows[first - 1][node.col_offset:]:
                 continue  # not the first thing on its line (a statement after ";"): left alone
             where = {"first": first, "last": last, "col": node.col_offset, "statement": type(node).__name__,
-                     "indent": indent, "constants": constants, "names": _read(node)}
+                     "indent": indent, "constants": constants, "names": _read(node), "holds": holds_at(function, first)}
             if isinstance(node, _GUARDABLE) and not _one_block_string(node):
                 places.append(Place(f"g{len(places)}", "guard", path, line, **where))
             async_generator = isinstance(function, ast.AsyncFunctionDef) and _yields(function)
@@ -711,7 +798,8 @@ async def semantic_repairs(*, sources: Mapping[str, str], failing: Sequence[str]
                              parts=r.get("parts")) for r in kept_here]
         examples = _distinct(examples)
         original = place.text if place.kind == "cond" else ""
-        found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names)
+        found = ranked_conditions(examples, original=original, constants=place.constants, names=place.names,
+                                  holds=place.holds)
         note.setdefault("synthesised", []).extend(text for _, text in found)
         for cost, condition in found:
             value = place.returns[option] if place.kind == "leave" else ""

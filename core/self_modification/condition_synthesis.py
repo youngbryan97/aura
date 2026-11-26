@@ -22,11 +22,11 @@ from __future__ import annotations
 
 import ast
 import itertools
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["Example", "conditions", "ranked_conditions"]
+__all__ = ["Example", "can_come_out", "conditions", "ranked_conditions"]
 
 #: How many distinct values of one term are offered as bounds.
 BOUNDS_PER_TERM = 10
@@ -34,6 +34,9 @@ BOUNDS_PER_TERM = 10
 JOINED_AT_MOST = 120
 #: Bounds that name no particular run: comparing with one of these does not pin the condition to an example.
 NEUTRAL = (0, 1, -1, "", None)
+#: How many parts a condition and what holds where it stands may have between them for every way they can come out to
+#: be tried; beyond it the condition is taken as able to come out either way.
+_PARTS_AT_MOST = 12
 
 _MISSING = object()
 _COMPARISONS = {"<": lambda a, b: a < b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b,
@@ -412,6 +415,46 @@ def _decides_both_ways(text: str, examples: Sequence[Example]) -> bool:
     return not points or not outcomes
 
 
+def _as_logic(node: ast.AST, parts: dict[str, int]) -> Callable[[Sequence[bool]], bool]:
+    """``node`` as a function of the truth of its parts: ``and``, ``or`` and ``not`` read as logic, a constant as its
+    truth, and anything else (a comparison, a call, a name) as one part, the same part wherever its text is the same."""
+    if isinstance(node, ast.BoolOp):
+        each = [_as_logic(value, parts) for value in node.values]
+        if isinstance(node.op, ast.And):
+            return lambda truth: all(one(truth) for one in each)
+        return lambda truth: any(one(truth) for one in each)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        inner = _as_logic(node.operand, parts)
+        return lambda truth: not inner(truth)
+    if isinstance(node, ast.Constant):
+        constant = bool(node.value)
+        return lambda truth: constant
+    index = parts.setdefault(ast.unparse(node), len(parts))
+    return lambda truth: truth[index]
+
+
+def can_come_out(text: str, value: bool, holds: Sequence[str] = ()) -> bool:
+    """Whether ``text`` can come out ``value`` where everything in ``holds`` is true, with each part free to be true or
+    false: the test a contradiction fails whatever values were recorded.
+
+    LIVE 26 November 2026 her mend of ``_coerce_argv`` landed as ``any(not part for part in coerced) and not argv``
+    before ``raise ValueError("argv entries must not be empty")``, three lines below ``if ... or not argv: raise``.
+    Where it stands ``argv`` is never empty, so the refusal was dead; the synthesis had offered it beside
+    ``X and not X``, and the values check passed both because no recorded value read their parts. True when the
+    condition does not parse as logic or has too many parts to try every way."""
+    try:
+        nodes = [ast.parse(one, mode="eval").body for one in (text, *holds)]
+    # not a failure: a text that does not parse is not one this can read, and the values check decides it.
+    except SyntaxError:
+        return True
+    parts: dict[str, int] = {}
+    condition, *facts = [_as_logic(node, parts) for node in nodes]
+    if len(parts) > _PARTS_AT_MOST:
+        return True
+    return any(all(fact(truth) for fact in facts) and condition(truth) == value
+               for truth in itertools.product((False, True), repeat=len(parts)))
+
+
 def _changed_points(text: str, original: str, examples: Sequence[Example]) -> int:
     """At how many of the values its terms can take ``text`` decides otherwise than ``original``: of two repairs
     that change as much code, the one that changes what the program does in fewer places comes first (the smallest
@@ -437,7 +480,7 @@ def _names(text: str) -> set[str]:
 
 
 def ranked_conditions(examples: Sequence[Example], *, original: str = "", constants: Sequence[Any] = (),
-                      names: Sequence[str] = (), most: int = 12) -> list[tuple[int, str]]:
+                      names: Sequence[str] = (), holds: Sequence[str] = (), most: int = 12) -> list[tuple[int, str]]:
     """Conditions that decide as every example needed, each with its cost, the cheapest first.
 
     The cost is how much the condition changes what was there (see the module docstring), plus what _pins says
@@ -445,6 +488,9 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
     reads a name
     the code at the place already reads: a repair over the names the fault's own statement uses is the likelier one
     (ACS, Xiong et al., ICSE 2017, rank predicates the same way).
+
+    ``holds`` is what is true where the condition stands, from the exits above it (semantic_repair.holds_at); a
+    condition that cannot come out both ways there decides nothing, and is not offered.
     """
     if not examples:
         return []
@@ -454,6 +500,8 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
 
     def keep(cost: int, text: str) -> None:
         if text == original or not _decides_both_ways(text, examples):
+            return
+        if not (can_come_out(text, True, holds) and can_come_out(text, False, holds)):
             return
         cost += _pins(text, constants)
         cost -= 1 if used and _names(text) & used else 0
@@ -498,7 +546,7 @@ def ranked_conditions(examples: Sequence[Example], *, original: str = "", consta
 
 
 def conditions(examples: Sequence[Example], *, original: str = "", constants: Sequence[Any] = (),
-               names: Sequence[str] = (), most: int = 12) -> list[str]:
+               names: Sequence[str] = (), holds: Sequence[str] = (), most: int = 12) -> list[str]:
     """The conditions of ranked_conditions, without their costs."""
     return [text for _, text in ranked_conditions(examples, original=original, constants=constants, names=names,
-                                                   most=most)]
+                                                   holds=holds, most=most)]
