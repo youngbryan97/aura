@@ -104,6 +104,24 @@ def _owner_principal() -> str:
         return ""
 
 
+async def _what_her_chat_carries(said: str, principal: str) -> str:
+    """What her chat sets before a person's words, for the same words come by mail: her learned profile of who wrote,
+    and her live self where the words bear on her. Each is left out where it cannot be read, as her chat leaves it."""
+    from core.conversation.chat_preflight import inject_operational_self_context, inject_profile_context
+    from core.runtime.errors import record_degradation
+
+    carried = ""
+    # In her chat's order: each is set before what came before it, the profile first, so her self comes first.
+    for name, read in (("who wrote", lambda: inject_profile_context(principal) if principal else asyncio.sleep(0, "")),
+                       ("her self", lambda: inject_operational_self_context(said))):
+        try:
+            carried = f"{await read() or ''}{carried}"
+        except (ImportError, AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("her_replies_to_mail", exc, severity="info",
+                               action=f"her reply was written without what her chat carries of {name}")
+    return carried
+
+
 async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> str:
     """Her answer to a person's message, by her own turn on her model; '' when she has none.
 
@@ -122,12 +140,21 @@ async def her_reply_to(message: dict[str, Any], *, seconds: float = 180.0) -> st
     if engine is None:
         return ""
     said = as_written(message)
-    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False}
+    # Answered as her chat is answered: her standard prompt with her live mind in it, not the simple one, and what her
+    # chat sets before a person's words, her learned profile of who wrote and her own live state where the message
+    # bears on her (core/conversation/chat_preflight.py). LIVE 26 November 2026 Bryan: "Why does her email not seem
+    # as rich as her regular conversational voice? It seems more robotic?" Her mail turn had been given the simple
+    # prompt and the message alone.
+    context = {"desktop_quick_reply_contract": True, "origin": ORIGIN, "visible_user_message": said, "allow_tools": False,
+               "desktop_cognitive_engine_required": True, "live_runtime_payload_required": True,
+               "live_mind_context_required": True, "prefer_tier": "primary"}
     from core.runtime.principal_context import relational_principal_scope
 
     principal = _owner_principal() if message.get("from_owner") else ""
     with relational_principal_scope(principal) if principal else contextlib.nullcontext():
-        thought = await engine.think(said, context=context, mode=ThinkingMode.FAST, origin=ORIGIN, timeout_s=seconds)
+        carried = await _what_her_chat_carries(said, principal)
+        thought = await engine.think(f"{carried}{said}" if carried else said, context=context, mode=ThinkingMode.FAST,
+                                     origin=ORIGIN, timeout_s=seconds)
     metadata = getattr(thought, "metadata", None)
     if isinstance(metadata, dict) and metadata.get("reply_generation_incomplete"):
         # Cut off, or asked to stand aside for a person at her desk: a reply that did not finish is not sent, and her

@@ -20,11 +20,45 @@ def test_her_reply_is_her_own_turn_on_the_message_as_written(monkeypatch):
             return SimpleNamespace(content="Hi Maya, yes, that was me. The piece was about tide clocks.")
 
     monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+
+    async def nothing_carried(said, principal):
+        return ""
+    monkeypatch.setattr(her_replies_to_mail, "_what_her_chat_carries", nothing_carried)
     reply = asyncio.run(her_replies_to_mail.her_reply_to(
         {"from": "Maya <maya@example.org>", "subject": "Your post", "body": "Was that you who wrote about tide clocks?"}))
     assert reply.startswith("Hi Maya")
     assert asked["objective"].startswith("From: Maya <maya@example.org>\nSubject: Your post")
     assert asked["context"]["visible_user_message"] == asked["objective"] and asked["context"]["allow_tools"] is False
+
+
+def test_her_mail_is_answered_with_what_her_chat_carries_and_her_standard_prompt(monkeypatch):
+    """LIVE 26 November 2026 Bryan: "Why does her email not seem as rich as her regular conversational voice? It seems
+    more robotic?" Her mail turn had the simple prompt and the message alone, where her chat sets her learned profile
+    of who wrote and her own live state before the words, and asks for her live mind."""
+    from core.conversation import chat_preflight
+    from core.skills import her_replies_to_mail
+
+    asked = {}
+
+    class Engine:
+        async def think(self, objective, *, context, mode, origin, timeout_s):
+            asked.update(objective=objective, context=context)
+            return SimpleNamespace(content="Hey, I'm well. The tide clocks piece is still on my mind.")
+
+    async def her_self(said):
+        return "[how I am now]\n"
+
+    async def who_wrote(principal):
+        return f"[what I know of {principal}]\n"
+    monkeypatch.setattr("core.container.ServiceContainer.get", lambda name, default=None: Engine() if name == "cognitive_engine" else default)
+    monkeypatch.setattr(chat_preflight, "inject_operational_self_context", her_self)
+    monkeypatch.setattr(chat_preflight, "inject_profile_context", who_wrote)
+    monkeypatch.setattr(her_replies_to_mail, "_owner_principal", lambda: "bryan-principal")
+    asyncio.run(her_replies_to_mail.her_reply_to(
+        {"from": "B <b@example.org>", "subject": "Hi", "body": "How are you?", "from_owner": True}))
+    said = asked["context"]["visible_user_message"]
+    assert asked["objective"] == f"[how I am now]\n[what I know of bryan-principal]\n{said}", "in her chat's order"
+    assert asked["context"]["live_mind_context_required"] is True and asked["context"]["prefer_tier"] == "primary"
 
 
 def test_a_reply_is_held_and_read_back_until_it_is_sent(tmp_path, monkeypatch):
