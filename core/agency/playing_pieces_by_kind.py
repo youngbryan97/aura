@@ -63,6 +63,8 @@ WAITS_FOR_THE_FIRST_MOVE_S = 6.0
 MOVE_SHOWS_S = 3.0
 #: How many times a move is made before the game is taken not to accept it.
 TRIES_OF_A_MOVE = 2
+#: A move made while she had lost the thread of the moves, in her record of the game: one place for each.
+UNSEEN = "?"
 #: How long a move is thought about, when the place says nothing of its clock.
 THINKS_S = 4.0
 #: The moment between picking a piece up and looking at what the game offers for it.
@@ -1023,6 +1025,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     tell("I've lost the thread of the moves, so I'll go by the board as it stands.")
                     held = game.believed
                     cells = seat.filled(seen, held.cells)
+                    game.played.extend([UNSEEN] * _unseen_between(held, cells, turn))
                     # A look read as the kind it is most like may be one she has never seen move.
                     game.learned.knows_of({kind for _side, kind in cells.values()})
                     game.earlier.append(held)
@@ -1851,6 +1854,18 @@ async def _read_her_clock_while_it_stands(clock: Callable[[], Awaitable[float | 
 
 #: The coarsest a game's clock shows its time: a whole second.
 A_CLOCK_SHOWS_S = 1.0
+
+
+def _unseen_between(held: Position, cells: dict, turn: int) -> int:
+    """How many moves her record of the game holds as unseen where she lost the thread of them and went by the board:
+    none where the board stands on the squares she held (only how pieces look differs: a misreading, not a move), else
+    one where whose turn it is changed and two where it did not, the fewest moves that could have made it. What was
+    made is not known; that something was, and on which side of the pairs it falls, is. LIVE 25 November 2026 four of
+    her ten records since the night before went on past a lost thread as if nothing had been missed, and one had a man
+    take from a square no man of theirs had stood on."""
+    if set(cells) == set(held.cells):
+        return 0
+    return 1 if turn != held.turn else 2
 
 
 async def _whose_turn_by_the_clock(clock: Callable[[], Awaitable[float | None]] | None) -> int:

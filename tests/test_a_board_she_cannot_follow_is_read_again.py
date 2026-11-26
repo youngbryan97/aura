@@ -189,3 +189,20 @@ def test_a_mark_on_a_square_she_held_empty_does_not_lose_her_the_thread(monkeypa
     came, said = _played(app, monkeypatch, caplog, seconds=6.0)
     assert came["moves"] >= 2
     assert not any(line.startswith("I've lost the thread") for _t, line in said), [line for _t, line in said][-6:]
+
+
+def test_where_she_lost_the_thread_her_record_holds_the_moves_she_did_not_see_on_their_side_of_the_pairs() -> None:
+    """LIVE 25 November 2026 her king crossed, their man stepped two before she looked, she went by the board, and her
+    record went on without either move: a man of theirs later took from a square none of theirs had stood on. The
+    record now holds the moves she did not see, as many as the fewest that could have made the board: none where
+    only how pieces look changed, one where the turn moved on, two where it came back to her."""
+    from core.agency.playing_pieces_by_kind import _unseen_between
+
+    held = Position(cells={(0, 4): (FIRST, "K"), (0, 7): (FIRST, "R"), (6, 2): (SECOND, "P"), (7, 4): (SECOND, "K")},
+                    turn=FIRST)
+    crossed_and_answered = {(0, 6): (FIRST, "K"), (0, 5): (FIRST, "R"), (4, 2): (SECOND, "P"), (7, 4): (SECOND, "K")}
+    assert _unseen_between(held, crossed_and_answered, FIRST) == 2
+    assert _unseen_between(held, crossed_and_answered, SECOND) == 1
+    # Her king read as a kind it is not, where it stands: a misreading, and no move.
+    misread = {**held.cells, (0, 4): (FIRST, "7")}
+    assert _unseen_between(held, misread, FIRST) == 0
