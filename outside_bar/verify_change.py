@@ -303,10 +303,37 @@ def _under(name: str, roots: Sequence[str] | None) -> bool:
     return roots is None or any(name == root or name.startswith(root.rstrip("/") + "/") for root in roots)
 
 
+def imports_it(source: bytes, dotted: str, name: str = "") -> bool:
+    """Whether code imports module ``dotted`` however the import is written, or, given ``name``, imports that name
+    from it: ``import a.b.c``, ``from a.b.c import x``, and ``from a.b import c`` with ``c`` among other names, after
+    them or inside parentheses over several lines."""
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return False
+    parent, _, stem = dotted.rpartition(".")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and not name:
+            if any(alias.name == dotted or alias.name.startswith(dotted + ".") for alias in node.names):
+                return True
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            module = node.module or ""
+            if module == dotted and (not name or any(alias.name == name for alias in node.names)):
+                return True
+            if not name and module == parent and any(alias.name == stem for alias in node.names):
+                return True
+    return False
+
+
 def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, Sequence[str]] | None = None,
                  roots: Sequence[str] | None = None) -> list[str]:
     """The test files in ``checkout`` that name a changed module or a module that passes it on, within ``roots``, the
-    folders its tests are declared to be in, or anywhere when none are given."""
+    folders its tests are declared to be in, or anywhere when none are given.
+
+    A file is found by the text of its imports, and then by how Python reads them (imports_it). LIVE 26 November 2026
+    her mend of ``_coerce_argv`` took away the refusal its contract test asserts, and this check let it land: the test
+    imports ``from core.runtime import shutdown_coordinator, subprocess_gateway``, which holds neither the module's
+    dotted name nor ``import subprocess_gateway``, so it was never among the guards."""
     found: set[str] = set()
     for name in files:
         if not name.endswith(".py") or _a_test_file(name):
@@ -320,9 +347,25 @@ def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, S
         shown = subprocess.run([*argv, *itertools.chain(*(("-e", item) for item in patterns)), "--", "*.py"],
                                capture_output=True, text=True, check=False).stdout
         found.update(line for line in shown.splitlines() if _a_test_file(line) and _under(line, roots))
+        # The module's own name as a word, wherever it is written, and each such file kept if its imports reach it.
+        stem = Path(name).stem if Path(name).name != "__init__.py" else Path(name).parent.name
+        spelled = subprocess.run([*argv, "-w", "-e", stem, "--", "*.py"], capture_output=True, text=True,
+                                 check=False).stdout.splitlines()
+        reached = []
+        for line in spelled:
+            if line in found or line in shown.splitlines() or not _under(line, roots):
+                continue
+            if not (_a_test_file(line) or Path(line).name == "conftest.py"):
+                continue
+            try:
+                if imports_it((checkout / line).read_bytes(), dotted):
+                    reached.append(line)
+            except OSError:
+                continue
+        found.update(line for line in reached if _a_test_file(line))
         # A fixture in a conftest.py that uses the module hands what it makes to each test that asks for it, though
         # none of those tests names the module itself.
-        for conftest in (line for line in shown.splitlines() if Path(line).name == "conftest.py"):
+        for conftest in (line for line in [*shown.splitlines(), *reached] if Path(line).name == "conftest.py"):
             found.update(test for test in _tests_given_its_fixtures(checkout, conftest, dotted) if _under(test, roots))
     return sorted(found - set(files))
 
@@ -2723,7 +2766,7 @@ def tests_that_ran_it(run: Mapping[str, Any], guards: Sequence[str], checkout: P
             except OSError:
                 continue
             if any(re.search(rf"\b{re.escape(stem)}\.{re.escape(item)}\b", text)
-                   or re.search(rf"from\s+{re.escape(dotted)}\s+import\b[^\n]*\b{re.escape(item)}\b", text) for item in changed):
+                   or imports_it(text.encode("utf-8"), dotted, item) for item in changed):
                 files.add(test)
     return sorted(files & set(guards))
 
