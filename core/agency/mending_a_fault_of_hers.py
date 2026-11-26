@@ -54,6 +54,45 @@ async def _governed_run(argv: Sequence[str], *, cwd: Path, env: Mapping[str, str
     return done.returncode, ((done.stdout or "") + (done.stderr or ""))
 
 
+#: How long the web is given, in seconds, for what it says of a fault she is about to mend: her library answers in well
+#: under a second, and her research pipeline is bounded at 180 s for a whole inquiry, not one lookup.
+_WEB_SECONDS = 60.0
+
+
+async def _what_her_sources_say(record: Any, fault: Any) -> None:
+    """What her library and the web say of a fault she has made again, kept on her goal once, before any change is
+    searched for: what a pass of hers at the goal reads, with where each came from. Asked as her own goal work asks
+    (her standing grant, core/executive/her_own_passes.py). Bryan, 26 November 2026: "if she consults all her sources
+    to help improve/inform decisions and 'how tos' or find solutions for or descriptions of problems"."""
+    from core.agency import her_goal_at_work as goals
+    from core.executive.her_own_passes import OWN_GOAL_ORIGIN
+    from core.runtime.service_access import optional_service
+
+    if any(entry.get("consulted") for entry in record.said if isinstance(entry, dict)):
+        return
+    engine = optional_service("capability_engine", default=None)
+    if engine is None or not hasattr(engine, "execute"):
+        return
+    call = fault.call
+    asked = " ".join(f"{call.error_type.rsplit('.', 1)[-1]} {call.error_message}".split())[:200]
+    context = {"origin": OWN_GOAL_ORIGIN, "intent_source": OWN_GOAL_ORIGIN, "user_facing": False,
+               "objective": f"Find out what is known of this error before mending it: {asked}"}
+    said: list[str] = []
+    for tool, seconds in (("look_up", 30.0), ("search_the_web", _WEB_SECONDS)):
+        try:
+            came = await asyncio.wait_for(engine.execute(tool, {"query": asked}, context), timeout=seconds)
+        except (TimeoutError, asyncio.TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            came = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+        if isinstance(came, dict) and came.get("ok") and came.get("text"):
+            said.append(f"{'My library' if tool == 'look_up' else 'The web'}:\n{came['text']}")
+        else:
+            why = came.get("error") or came.get("summary") if isinstance(came, dict) else ""
+            said.append(f"{'My library' if tool == 'look_up' else 'The web'}: nothing ({str(why or 'no answer')[:160]})")
+    record.said.append({"words": f"What my sources say of {asked}, before I mend it:\n" + "\n\n".join(said),
+                        "at": time.time(), "consulted": True})
+    await goals.save(record)
+
+
 class InHerWorkspace:
     """Runs tests in her workspace on a candidate's sources, and puts the originals back after."""
 
@@ -194,6 +233,7 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     reproduction = await reproduce(fault, workspace)
     if not reproduction.reproduced:
         return await _stop(record, "its test did not raise what she raised", reproduction.output)
+    await _what_her_sources_say(record, fault)
     defect = as_defect(reproduction)
     file = fault.call.file
     sources = {file: (Path(workspace) / file).read_text(encoding="utf-8")}

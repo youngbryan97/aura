@@ -55,3 +55,36 @@ def test_a_web_search_gives_each_result_with_its_address_and_says_when_it_found_
     assert found["ok"] and "<https://docs.python.org/3/library/subprocess.html>" in found["text"]
     missed = asyncio.run(her_draft.SearchTheWebSkill().execute({"query": "nothing at all"}, {}))
     assert not missed["ok"] and "offline" in missed["error"]
+
+
+def test_a_fault_she_made_again_is_looked_up_once_before_she_mends_it(monkeypatch):
+    """What her library and the web say of the error goes on her goal, with where each came from, before any change is
+    searched for; asked under her own goal work's origin, and once."""
+    from core.agency import mending_a_fault_of_hers as mending
+    from core.runtime import service_access
+
+    asked = []
+
+    class Engine:
+        async def execute(self, tool, params, context):
+            asked.append((tool, params["query"], context["origin"]))
+            if tool == "look_up":
+                return {"ok": True, "text": "Exec (system call) (wikipedia): an empty argument is passed as is."}
+            return {"ok": False, "error": "offline"}
+    saved = []
+
+    async def save(record):
+        saved.append(record)
+    monkeypatch.setattr(service_access, "optional_service", lambda name, default=None: Engine())
+    monkeypatch.setattr(goals, "save", save)
+    record = goals.GoalRecord(goal="Mend x", slug="x")
+    fault = SimpleNamespace(call=SimpleNamespace(error_type="builtins.ValueError",
+                                                 error_message="argv entries must not be empty"))
+    asyncio.run(mending._what_her_sources_say(record, fault))
+    asyncio.run(mending._what_her_sources_say(record, fault))
+    assert [tool for tool, _query, _origin in asked] == ["look_up", "search_the_web"], "once"
+    assert all(query == "ValueError argv entries must not be empty" and origin == "her_goal_background"
+               for _tool, query, origin in asked)
+    (entry,) = record.said
+    assert entry["consulted"] and "Exec (system call) (wikipedia)" in entry["words"]
+    assert "The web: nothing (offline)" in entry["words"] and saved == [record]
