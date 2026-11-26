@@ -41,7 +41,7 @@ from core.agency.pieces_by_their_kind import (
 )
 from core.agency.thinking_on_their_time import Pondering, WhatTheyAnsweredWhere
 from core.agency.what_a_small_ending_comes_to import worked_to_the_end
-from core.agency.what_she_did import ACCEPTED, REFUSED, WhatSheDid
+from core.agency.what_she_did import ACCEPTED, WhatSheDid
 from core.cognition.how_far_her_judgement_holds import HowFarItHolds
 from core.cognition.how_far_to_go_before_looking import HowFarToGo
 from core.cognition.how_long_a_change_takes_to_settle import HowLongItSettles
@@ -1184,7 +1184,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     if left <= 0:
                         return Found(None, 0, 0, 0, [])
                     return search(family, game.believed, seconds=left, weights=weights,
-                                  earlier=game.earlier, set_aside=aside, threads=_cores_free(), wary=FIRST,
+                                  earlier=game.earlier, set_aside=list(dict.fromkeys([*set_aside, *aside])),
+                                  threads=_cores_free(), wary=FIRST,
                                   expected=expected, endings=endings)
 
                 if ready is not None:
@@ -1265,7 +1266,6 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         if found.by == "the only move":
             how = "It's the only move I have"
         elif found.by == "worked out ahead":
-            _judged(game, here, move, found)
             how = f"I worked this one out before the game (looked {found.depth} moves deep)"
         elif found.by == "worked out to the end":
             how = "I worked this ending out to the end before the game: every position it can come to"
@@ -1273,23 +1273,16 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             how = ("After it nothing either side can do changes the position, so it can only be drawn, and a sure "
                    "draw is worth more than how my other moves have turned out from positions like this")
         elif found.by == "worked out area by area, checked":
-            _judged(game, here, move, found)
-            how = ("Nothing on the board is worth committing to yet, so I'll make a move that changes nothing and let "
-                   "them commit first" + (", and I can keep that up longer than they can" if game.area_outlasts
-                                          else "") if game.area_kind == "wait" else
-                   "Nothing I could do beats staying where I stand, so I'll make a move that changes nothing while I "
-                   "set up the rest")
+            how = ("I held my position and left them to commit first" if game.area_kind == "wait" else
+                   "I held my position while I set up the rest")
             how += f". (looked {found.depth} moves deep)"
         elif found.by == "worked out on their time, checked":
-            _judged(game, here, move, found)
             how = (f"I'd worked out my answer to that while they were thinking ({game.counter_deep} moves deep), and a "
                    f"look now ({found.depth} moves deep) still finds it best")
         elif found.by == "worked out ahead, checked":
-            _judged(game, here, move, found)
             how = (f"I worked this one out before the game, and a look now ({found.depth} moves deep), with what I "
                    "have learned of the pieces since, still finds it best")
         else:
-            _judged(game, here, move, found)
             how = f"{_how_it_stands(found, weights, game.learned.start)}. (looked {found.depth} moves deep, " \
                   f"{found.nodes:,} positions)"
             areas_said = _the_areas_said(game, family, areas, weights)
@@ -1300,7 +1293,13 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             held_so = game.held.says(found.score)
             if held_so:
                 how += f" {held_so[0].upper()}{held_so[1:]}."
-        tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
+        small = (getattr(found, "accounting", None) or {}).get("small_solver")
+        if small:
+            how += f" My small solver compared {small['moves']} modeled moves through {small['depth']} plies."
+            how += (" This was among its best." if small["rank"] == 1 else
+                    f" My deeper search backed this move, which the small solver ranked {small['rank']}.")
+        if not await _as_it_was(seat, look, picture):
+            continue
         act = game.did.proposed(_as_played(game, move))
         game.did.attempted(act)
         made = False
@@ -1316,12 +1315,19 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                     game.learned.offered(game.believed, move.start, squares, family=family)
                     if _landing(move) not in squares:
                         break
-            await _by_hand(seat, click, picture, move, OFFERS_SHOW_S * (1 + attempt))
+            if not await _by_hand(seat, click, picture, move, OFFERS_SHOW_S * (1 + attempt)):
+                tell("I couldn't send the move to the game window.")
+                return await _finish_game("no move", game, tell, read_end)
+            game.did.dispatched(act)
             moved_at = monotonic_time()
             made = await _comes_to_show(seat, look, game, move)
             if made:
                 break
         if made:
+            game.did.settled(act, ACCEPTED, known_by="the board matched the move after my input was sent")
+            if found.by not in ("the only move", "worked out to the end", "nothing can change after it"):
+                _judged(game, here, move, found)
+            tell(f"I played {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}. {how}")
             # What making a move costs her clock: until it is made, for her clock stops there, and the look that sees it
             # shown runs on theirs. It is held back from her thinking on every turn.
             game.timed_finish(moved_at - finish_began)
@@ -1343,14 +1349,12 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                             "past the horizon, its best move changed at %d of %d depths", game.made + 1, found.depth,
                             looked.get("seldepth"), looked.get("tt_hits"), found.nodes, looked.get("qnodes"),
                             sum(1 for step in steps if step[2]), len(steps))
-        game.did.settled(act, ACCEPTED if made else REFUSED,
-                         known_by="the board showed it made" if made else "the game did not take it")
         if not made:
             game.untaken.append((game.believed, move, family))
             if game.unlooked:
                 game.far.it_was_not(game.unlooked)
                 game.unlooked = 0
-            tell("The game didn't take that move.")
+            tell("I sent a move but couldn't confirm it on the board.")
             continue
         _the_untaken_were_refused(game)
         game.made += 1
@@ -1493,14 +1497,33 @@ def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks
 
 def _held_to_the_areas(game: _Game, areas: Any, found: Any, legal: list[Move],
                        search_only: Callable[[list[Move]], Any]) -> Any:
-    """Her search's move, held to what the board read area by area chooses (core/cognition/what_each_area_comes_to.py
-    ``what_to_do``) where that is to wait (they must commit first, and a move that changes nothing makes them) or that
-    nothing beats standing still: that move is her hint, kept where her look now finds it no worse than its own
-    judgement moves while it looks, as any hint is. Bryan, 24 November 2026: "sometimes the least bad, or neutral option
-    is the best ... sometimes it's just better to wait for an opponent to get into a position"."""
+    """Give the exact finite-horizon composition a voice in any decision it covered. A better move in its ranking
+    is checked against the deep search at the same depth. The approximate area reading can still suggest waiting."""
+    from dataclasses import replace
+
     from core.agency.searching_by_kind import Found
 
-    if areas is None or found.move is None or areas.choice.weighed is None:
+    if areas is None or found.move is None or found.by == "nothing can change after it":
+        return found
+    if areas.played is not None:
+        hers = areas.played[0]
+        candidates = set(legal)
+        scores = {move: score for _part, move, score in hers.each if move in candidates}
+        if hers.complete and hers.deep > 0 and scores.keys() == candidates and found.move in scores:
+            best = max(scores, key=scores.__getitem__)
+            if scores[best] > scores[found.move]:
+                hint = Found(best, 0, hers.deep, 0, [best], by="worked out by the small solver, to check")
+                checked = _checked(hint, found, legal, search_only)
+                if checked.by == "worked out by the small solver, checked":
+                    found = checked
+            rank = 1 + sum(score > scores[found.move] for score in scores.values())
+            logger.info("small solver compared %d moves at %d plies, best %s (%.2f); played candidate %s (%.2f), "
+                        "rank %d", len(scores), hers.deep, _named(best), scores[best], _named(found.move),
+                        scores[found.move], rank)
+            return replace(found, accounting={**found.accounting,
+                                              "small_solver": {"moves": len(scores), "depth": hers.deep, "rank": rank}})
+
+    if areas.choice.weighed is None:
         return found
     from core.cognition.what_each_area_comes_to import changes_nothing, weigh_acts
 
@@ -1864,18 +1887,20 @@ async def _made_as_offered(seat: Seat, look: Look, click: Click, picture: Any, g
     end = sorted(ends)[0]
     taken = end if game.believed.cells.get(end, (FIRST,))[0] != FIRST else None
     move = Move(start, end, taken_at=taken)
-    tell(f"I'll move {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
-         "the move the game offers me.")
+    if not await _as_it_was(seat, look, picture):
+        return
     act = game.did.proposed(_as_played(game, move))
     game.did.attempted(act)
-    await _by_hand(seat, click, picture, move, OFFERS_SHOW_S)
+    if not await _by_hand(seat, click, picture, move, OFFERS_SHOW_S):
+        return
+    game.did.dispatched(act)
     if await _comes_to_show(seat, look, game, move):
-        game.did.settled(act, ACCEPTED, known_by="the board showed it made")
+        game.did.settled(act, ACCEPTED, known_by="the board matched the move after my input was sent")
+        tell(f"I played {said_of_a_move(family, game.believed, move, game.learned, game.first_is_hers)}, "
+             "the move the game offers me.")
         _the_untaken_were_refused(game)
         game.made += 1
         game.waiting_since = monotonic_time()
-    else:
-        game.did.settled(act, REFUSED, known_by="the board did not show it")
 
 
 async def _what_the_game_still_offers(seat: Seat, look: Look, click: Click, picture: Any,
@@ -1922,30 +1947,34 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
     """Whether the board comes to show her move made, alone or answered already. It is followed by whoever reads the
     board next, as moves seen."""
     ends_at = monotonic_time() + MOVE_SHOWS_S
+    family = game.learned.family(unseen_go_every_way=True)
+    expected = after(family, game.believed, move)
+    footprint = {sq: expected.cells.get(sq) for sq in expected.cells.keys() | game.believed.cells.keys()
+                 if expected.cells.get(sq) != game.believed.cells.get(sq)}
     while monotonic_time() < ends_at:
         # One look that shows her move's squares as her move leaves them is enough; a board still moving cannot show
         # that. Waiting for it to read the same twice first took 2.1 s a move, a third of game 11's clock.
         picture = await look()
         seen = None if picture is None else seat.looks.read(picture, seat.lattice, settled=True)
-        if seen is not None and _shows_her_move(_read_against(seat.as_rules(seen), game.believed.cells,
-                                                              _only_the_others(game.learned),
-                                                              _held_by_each(game.learned), move.end), move):
-            return True
+        if seen is not None:
+            shown = _read_against(seat.as_rules(seen), expected.cells, _only_the_others(game.learned),
+                                  _held_by_each(game.learned), move.end)
+            if _agrees(_without_marks_where_nothing_stood(shown, expected.cells), expected.cells):
+                return True
         still = await _seen_still(seat, look, within_s=MOVE_SHOWS_S)
         if still is None:
             await asyncio.sleep(0.15)
             continue
         shown = _read_against(seat.as_rules(still[1]), game.believed.cells, _only_the_others(game.learned),
                               _held_by_each(game.learned), move.end)
+        shown = _without_marks_where_nothing_stood(shown, expected.cells | game.believed.cells)
         if not _agrees(shown, game.believed.cells):
-            game.learned.knows_of({kind for _side, kind in shown.values() if kind is not None})
-            seen_moves = moves_seen(game.believed, shown, FIRST, game.learned.family())
-            if seen_moves and (seen_moves[0].start, seen_moves[0].end) == (move.start, move.end):
+            seen_moves = moves_seen(game.believed, shown, FIRST, family)
+            if seen_moves and seen_moves[0] == move:
                 return True
-            # The squares of her move as her move leaves them: made, whatever else the board shows that she cannot
-            # read yet. The rest is followed as the board is followed. Taken for a refusal, a move the game made
-            # would teach her a rule that is false.
-            if _shows_her_move(shown, move):
+            # The game may change elsewhere before a stable observation. This still requires every changed square
+            # of the dispatched move to agree, including captures, transformations and any partner movement.
+            if footprint and all(shown.get(sq) == held for sq, held in footprint.items()):
                 return True
         await asyncio.sleep(0.15)
     return False
@@ -1957,18 +1986,15 @@ def _landing(move: Move) -> tuple[int, int]:
     return move.via[0] if move.via else move.end
 
 
-async def _by_hand(seat: Seat, click: Click, picture: Any, move: Move, wait_s: float) -> None:
+async def _by_hand(seat: Seat, click: Click, picture: Any, move: Move, wait_s: float) -> bool:
     """A move made as a person makes it: the piece picked up, then each square it lands on in turn."""
-    await click(*seat.centre_share(move.start, picture))
+    if not await click(*seat.centre_share(move.start, picture)):
+        return False
     for square in (*move.via, move.end):
         await asyncio.sleep(wait_s)
-        await click(*seat.centre_share(square, picture))
-
-
-def _shows_her_move(shown: dict, move: Move) -> bool:
-    """Whether the board shows her move's squares as her move leaves them: the square it left not hers, the square it
-    went to hers."""
-    return shown.get(move.start, (None,))[0] != FIRST and shown.get(move.end, (None,))[0] == FIRST
+        if not await click(*seat.centre_share(square, picture)):
+            return False
+    return True
 
 
 def _a_place(position: Position, start: dict | None = None, family: Family | None = None) -> str:

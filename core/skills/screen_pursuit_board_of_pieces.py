@@ -47,6 +47,7 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
         play_pieces_by_kind,
     )
     from core.capabilities import window_server
+    from core.capabilities.host_automation import get_host_automation
     from core.perception.what_the_pixels_show import _the_pixels_of
 
     from .screen_pursuit import _tell
@@ -98,13 +99,20 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
 
     async def look() -> Any:
         current = await asyncio.to_thread(window_server.window_of, target_app)
-        return None if current is None else await _the_pixels_of(current)
+        return None if current is None or current.number != window.number else await _the_pixels_of(current)
 
     async def click(x: float, y: float) -> bool:
         current = await asyncio.to_thread(window_server.window_of, target_app)
-        if current is None:
+        if current is None or current.number != window.number:
             return False
-        return await click_normalized(x, y, expect_app=target_app, bounds=list(current.bounds))
+        refusal = await get_host_automation()._ensure_input_target(target_app, "click_at")
+        if refusal is not None:
+            logger.info("could not restore the game window's input focus in %r: %s", target_app, refusal.error)
+            return False
+        focused = await asyncio.to_thread(window_server.window_of, target_app)
+        if focused is None or focused.number != current.number or focused.bounds[2:] != current.bounds[2:]:
+            return False
+        return await click_normalized(x, y, expect_app=target_app, bounds=list(focused.bounds))
 
     async def clock() -> float | None:
         return await _her_clock(target_app)

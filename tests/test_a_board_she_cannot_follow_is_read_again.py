@@ -114,7 +114,7 @@ def test_an_ending_her_model_infers_is_asked_of_the_game(monkeypatch) -> None:
 
     came = asyncio.run(run())
     # The game may still end for real inside the run; what matters is that the ending her model inferred first did not.
-    moved = [i for i, line in enumerate(said) if line.startswith("I'll move")]
+    moved = [i for i, line in enumerate(said) if line.startswith("I played")]
     ended = [i for i, line in enumerate(said) if "no move left" in line or "won't let me move" in line]
     assert came["moves"] >= 2 and len(moved) >= 2, said[-3:]
     assert not ended or ended[0] > moved[1], said[: (ended[0] + 1) if ended else None][-3:]

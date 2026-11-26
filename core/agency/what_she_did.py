@@ -5,10 +5,9 @@ her account of a game named moves the game had refused: what she said as she pla
 attempt, and nothing kept the attempts the game would not take apart from the moves it made. An account built on
 that can describe a game that did not happen.
 
-So each act goes through its stages here, in order: proposed (what she decided), attempted (what she did with her
-hands), and settled, accepted when the world showed it done and refused when the world would not take it. What she
-reports is built from the settled acts: what was done is what was accepted, and what she tried and could not do is
-said as that.
+Each act is proposed, attempted, and dispatched once the input adapter acknowledges sending it. Only a dispatched
+act can be settled from the world's response. Reports can distinguish accepted actions and explicit refusals from
+attempts whose outcome is still unknown.
 
 Nothing here knows what the acts are: an act is named as its doer names it.
 """
@@ -39,10 +38,17 @@ class WhatSheDid:
         if 0 <= act < len(self.acts) and self.acts[act]["stage"] == "proposed":
             self.acts[act]["stage"] = "attempted"
 
-    def settled(self, act: int, outcome: str, *, known_by: str = "") -> None:
-        """What the world did with the act: ACCEPTED, shown done, or REFUSED; and how that is known."""
-        if 0 <= act < len(self.acts):
-            self.acts[act].update(stage=outcome, known_by=known_by, settled_at=time.time())
+    def dispatched(self, act: int) -> None:
+        """Mark an act whose input adapter acknowledged sending the input."""
+        if 0 <= act < len(self.acts) and self.acts[act]["stage"] == "attempted":
+            self.acts[act].update(stage="dispatched", dispatched_at=time.time())
+
+    def settled(self, act: int, outcome: str, *, known_by: str = "") -> bool:
+        """Settle a delivered input when its effect can be attributed to that attempt."""
+        if not (0 <= act < len(self.acts)) or not known_by or self.acts[act]["stage"] != "dispatched":
+            return False
+        self.acts[act].update(stage=outcome, known_by=known_by, settled_at=time.time())
+        return True
 
     def done(self) -> list[str]:
         return [act["what"] for act in self.acts if act["stage"] == ACCEPTED]
@@ -51,9 +57,8 @@ class WhatSheDid:
         return [act["what"] for act in self.acts if act["stage"] == REFUSED]
 
     def unsettled(self) -> list[str]:
-        """Acts proposed or attempted whose outcome the world never showed: neither done nor refused, as far as she
-        knows."""
-        return [act["what"] for act in self.acts if act["stage"] in ("proposed", "attempted")]
+        """Proposals and inputs without a confirmed outcome."""
+        return [act["what"] for act in self.acts if act["stage"] in ("proposed", "attempted", "dispatched")]
 
     def as_record(self) -> dict[str, Any]:
         return {"done": len(self.done()), "refused": self.refused(), "unsettled": self.unsettled()}

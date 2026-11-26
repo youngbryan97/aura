@@ -60,7 +60,8 @@ def test_moves_a_board_did_not_take_before_it_took_nothing_are_not_learned_as_re
     assert came["moves"] >= 1
     assert ending_reads == [True]
     assert came["ended"] == "result unconfirmed"
-    assert came["ended"] not in ("won", "lost", "drawn")
+    assert sum(line.startswith("I played") for line in said) == came["moves"]
+    assert all(not line.startswith("I'll move") for line in said)
     # Nothing the board did not take, once it had stopped taking anything, was learned as a refusal.
     assert refused == [], [move for _at, move in refused]
 

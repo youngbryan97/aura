@@ -99,6 +99,40 @@ def test_a_choice_to_wait_is_her_hint_kept_where_her_look_finds_it_no_worse_and_
     assert _held_to_the_areas(game, acted, found, legal, lambda aside: None) is found
 
 
+def test_small_solver_ranks_every_candidate_and_can_change_an_ordinary_move() -> None:
+    from dataclasses import replace
+
+    from core.agency.how_the_pieces_move import HowThePiecesMove
+    from core.agency.pieces_by_their_kind import moves
+    from core.agency.playing_pieces_by_kind import _Game, _held_to_the_areas
+    from core.agency.searching_by_kind import Found
+    from core.agency.what_each_area_of_a_board_comes_to import BoardReading
+    from core.cognition.what_each_area_comes_to import Choice, SumPlayed, Whole
+    from tests.fixtures.a_game_of_pieces_to_learn import NOBODYS_GAME
+
+    position = NOBODYS_GAME.the_start()
+    legal = moves(NOBODYS_GAME, position)
+    primary, alternative = legal[:2]
+    scores = tuple(((), move, 10.0 if move == alternative else 0.0) for move in legal)
+    rated = SumPlayed(10.0, (), alternative, 2, True, each=scores)
+    areas = BoardReading((), Whole(0.0, ()), Choice(None, "most good"), (), (rated, rated))
+    rules = HowThePiecesMove.from_the_start(NOBODYS_GAME.rows, NOBODYS_GAME.columns, dict(NOBODYS_GAME.start))
+    game = _Game(learned=rules, believed=position)
+    found = Found(primary, 40, 8, 1_000, [primary])
+
+    def check(aside):
+        assert set(aside) == set(legal) - {alternative}
+        return Found(alternative, 40, 8, 200, [alternative])
+
+    checked = _held_to_the_areas(game, areas, found, legal, check)
+    assert checked.move == alternative and checked.by == "worked out by the small solver, checked"
+    assert checked.accounting["small_solver"] == {"moves": len(legal), "depth": 2, "rank": 1}
+    rejected = _held_to_the_areas(game, areas, found, legal, lambda _: Found(alternative, 100, 7, 200, [alternative]))
+    assert rejected.move == primary and rejected.accounting["small_solver"]["rank"] == 2
+    partial = replace(areas, played=(replace(rated, each=scores[:-1]), rated))
+    assert _held_to_the_areas(game, partial, found, legal, check) is found
+
+
 def test_what_each_side_can_do_on_a_board_stops_when_their_time_is_over_and_leaves_areas_not_begun() -> None:
     from core.agency.what_each_area_of_a_board_comes_to import possible_on_a_board
 

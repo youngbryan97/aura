@@ -722,7 +722,7 @@ class PlayingAsItHappens:
         clip = await self._where()
         return clip["x"] + min(1.0, max(0.0, x)) * clip["width"], clip["y"] + min(1.0, max(0.0, y)) * clip["height"]
 
-    async def click(self, x: float, y: float) -> None:
+    async def click(self, x: float, y: float) -> bool:
         context = current(whose="realtime_input.click")
         context.check()
         at = await self._at(x, y)
@@ -732,6 +732,7 @@ class PlayingAsItHappens:
 
         await as_a_hand_clicks(self.page, *at, arrives_s=0.0, presses_s=0.04)
         self._focused = True
+        return True
 
     async def point(self, x: float, y: float) -> None:
         context = current(whose="realtime_input.point")

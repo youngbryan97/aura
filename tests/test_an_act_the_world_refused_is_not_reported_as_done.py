@@ -21,6 +21,9 @@ def test_each_act_is_kept_at_the_stage_the_world_left_it() -> None:
     made, refused, pending = did.proposed("e2-e4"), did.proposed("e2xa8"), did.proposed("g1-f3")
     for act in (made, refused, pending):
         did.attempted(act)
+    assert not did.settled(pending, ACCEPTED, known_by="the board changed")
+    did.dispatched(made)
+    did.dispatched(refused)
     did.settled(made, ACCEPTED, known_by="the board showed it made")
     did.settled(refused, REFUSED, known_by="the game did not take it")
     assert did.done() == ["e2-e4"] and did.refused() == ["e2xa8"] and did.unsettled() == ["g1-f3"]

@@ -50,6 +50,6 @@ def test_the_only_move_is_made_without_a_search(monkeypatch) -> None:
 
     came = asyncio.run(run())
     assert came["moves"] >= 1
-    first = next(line for line in said if line.startswith("I'll move"))
+    first = next(line for line in said if line.startswith("I played"))
     assert first.endswith("It's the only move I have"), first
     assert 1 not in searched_on, "her first turn, with one move, was searched"

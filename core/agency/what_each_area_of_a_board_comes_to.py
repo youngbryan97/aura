@@ -115,9 +115,9 @@ def read_board(family: Family, position: Position, worth: dict[str, float], *, h
     """Read ``position`` area by area for ``hers``: ``worth`` what she holds each kind worth, ``plies`` how many moves
     deep each area is looked at, ``seconds`` the time it may take in all, half for the areas alone and half for playing
     them as one game. ``weights``, where given, are her whole judgement (core/agency/searching_by_kind.py ``Weights``):
-    a move of hers that keeps everything held but that it judges leaves her worse is not one that changes nothing. An
-    area that stands as it stood when it was last read (its pieces, and everything on their lines and on the royal
-    pieces' lines) keeps that reading: what is already worked out is not worked out again."""
+    it evaluates the composed board at the end of each line. A move that it judges leaves her worse is not one that
+    changes nothing. An area that stands as it stood when it was last read keeps that reading, including its pieces
+    and everything on their lines and on the royal pieces' lines."""
     areas = areas_of(family, position)
     budget = None if seconds is None else seconds / max(1, 2 * len(areas))
     acts, moved, judge = _the_world_of(family, position, worth, hers)
@@ -139,8 +139,21 @@ def read_board(family: Family, position: Position, worth: dict[str, float], *, h
     reach = _reach_on(family, position)
     her_spare = spare_moves(movers, reach, hers)
     their_spare = spare_moves(movers, reach, 1 - hers)
-    played = _played_as_one(family, position, areas, acts, moved, judge, plies,
-                            math.inf if seconds is None else seconds / 4)
+    composed_judge = judge
+    if fuller is not None:
+        start_value = fuller(position)
+
+        def composed_judge(state: tuple[Position, frozenset[Square]]) -> float:
+            assert fuller is not None
+            return fuller(state[0]) - start_value
+
+    try:
+        played = _played_as_one(family, position, areas, acts, moved, composed_judge, plies,
+                                math.inf if seconds is None else seconds / 4)
+    finally:
+        # Recursive search closures can outlive the call until cyclic GC. Finalize the native evaluator here on
+        # the same thread that constructed it, before another thread collects any of those closures.
+        fuller = None
     return BoardReading(readings=readings, whole=put_together(readings, first=HERS),
                         choice=what_to_do(readings, her_spare=her_spare, their_spare=their_spare, played=played),
                         threats=tuple(threats(readings)), played=played)
