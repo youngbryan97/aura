@@ -140,7 +140,11 @@ def test_a_database_another_connection_held_is_made_again_with_it_held(workspace
         kept = the_call_that_failed(_raised(lambda: planted.save(database, "hello")))
     finally:
         holder.close()
-    assert ("sqlite_errorname", "SQLITE_BUSY") in kept.codes, kept
+    assert ("sqlite_errorname", "SQLITE_BUSY") in kept.codes and ("sqlite_errorcode", "5") in kept.codes, kept
+    # The extended codes are the same thing held: SQLITE_BUSY_SNAPSHOT is 517, whose low byte is 5.
+    assert faults._a_held_database((("sqlite_errorcode", "517"),)) and faults._a_held_database(
+        (("sqlite_errorname", "SQLITE_LOCKED_SHAREDCACHE"),))
+    assert not faults._a_held_database((("sqlite_errorcode", "1"), ("sqlite_errorname", "SQLITE_ERROR")))
     heard = faults.HeardFault(kept, "planted", 0.0, 0.0)
     assert "_held_by_another" in faults.test_source(heard)
     reproduced = asyncio.run(faults.reproduce(heard, tree))

@@ -324,9 +324,21 @@ def name_of(fault: HeardFault) -> str:
     return f"test_fault_{stem}_{digest}.py"
 
 
-#: SQLite's names for a database another connection held: what the call's own arguments do not carry, made again by
-#: holding the database from a second connection while the call runs.
-_HELD_DATABASE = frozenset({"SQLITE_BUSY", "SQLITE_LOCKED"})
+#: SQLite's primary result codes for a database another connection held, SQLITE_BUSY (5) and SQLITE_LOCKED (6): what
+#: the call's own arguments do not carry, made again by holding the database from a second connection while the call
+#: runs. The primary code is the low byte of the extended one, so SQLITE_BUSY_SNAPSHOT (517) and SQLITE_LOCKED_SHAREDCACHE
+#: (262) are each the same thing held (https://www.sqlite.org/rescode.html).
+_HELD_DATABASE = frozenset({5, 6})
+_HELD_NAMES = frozenset({"SQLITE_BUSY", "SQLITE_LOCKED"})
+
+
+def _a_held_database(codes: tuple[tuple[str, str], ...]) -> bool:
+    for name, value in codes:
+        if name == "sqlite_errorcode" and value.lstrip("-").isdigit() and int(value) & 0xFF in _HELD_DATABASE:
+            return True
+        if name == "sqlite_errorname" and any(value == held or value.startswith(held + "_") for held in _HELD_NAMES):
+            return True
+    return False
 
 _RECORDED_AGAIN = '''
 
@@ -376,7 +388,7 @@ def test_source(fault: HeardFault) -> str:
     when = time.strftime("%d %B %Y %H:%M", time.localtime(fault.first_at))
     said = call.error_message.replace('"""', "'''")
     kind = _error_name(call)
-    held = any(name == "sqlite_errorname" and value in _HELD_DATABASE for name, value in call.codes)
+    held = _a_held_database(call.codes)
     head = (
         f'"""A fault from her own running, made again: {call.module}.{call.qualname} raised {call.error_type}.\n\n'
         f"Heard {fault.times} time(s) from {fault.subsystem}, first at {when}: {said}\n"
