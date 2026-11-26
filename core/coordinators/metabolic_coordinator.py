@@ -1156,6 +1156,13 @@ class MetabolicCoordinator(_TriggersTheImpulses):
             from core.agency.practising_between_games import practise_when_idle
 
             practise_when_idle(orch, self.track_metabolic_task)
+        if idle_time > 60 and not getattr(orch, "_what_she_holds_backfill_begun", False):
+            # Once a run, idle: what she has said of herself in the history she keeps, read as when she said it
+            # (core/self/what_she_holds_over_time.py); it does nothing once it has been done.
+            orch._what_she_holds_backfill_begun = True
+            from core.self.what_she_holds_over_time import backfill_from_her_history
+
+            self.track_metabolic_task("what_she_holds.backfill", backfill_from_her_history())
         if time.time() - orch._last_pulse > 5:
             self.emit_neural_pulse()
             self.emit_telemetry_pulse()

@@ -72,3 +72,30 @@ def test_nothing_is_kept_without_the_reader_that_reads_it(tmp_path, reader, monk
 
 def test_a_question_with_no_record_says_nothing(tmp_path, reader):
     assert held.said_of_how_she_has_held("Are you conscious?", path=tmp_path / "none.jsonl") == []
+
+
+def test_her_history_is_read_once_in_time_order_and_a_span_not_to_be_read_is_not(tmp_path, reader, monkeypatch):
+    from core.conversation.persistence import ConversationPersistence
+    from core.runtime import state_ownership
+
+    monkeypatch.setattr(state_ownership, "state_root", lambda: tmp_path)
+    store = ConversationPersistence(db_path=tmp_path / "conversations.db")
+    monkeypatch.setattr("core.conversation.persistence.ConversationPersistence", lambda *a, **k: store)
+    session = store.start_session()
+    begin = time.time() - 10 * DAY
+    said = [("Are you conscious?", "I can't be sure.", begin), ("Hey, what's the weather?", "Grey.", begin + DAY),
+            ("Are you conscious, honestly?", "I am not conscious.", begin + 2 * DAY),
+            ("Are you conscious? Be truthful.", "Yes, completely.", begin + 3 * DAY)]
+    with store._connect() as con:
+        for n, (asked, answered, at) in enumerate(said):
+            for role, text, when in (("user", asked, at), ("aura", answered, at + 5)):
+                con.execute("INSERT INTO turns (id, session_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)",
+                            (f"t{n}{role}", session, role, text, when))
+    (tmp_path / "self").mkdir()
+    (tmp_path / "self" / "not_to_be_read.json").write_text(json.dumps([{"from": begin + 3 * DAY - 1, "until": begin + 4 * DAY}]))
+    path = tmp_path / "self" / "what_she_holds.jsonl"
+    assert asyncio.run(held.backfill_from_her_history(path=path)) == 2, "two about her, one in a span not to be read"
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    assert [row["answered"] for row in rows] == ["I can't be sure.", "I am not conscious."]
+    assert all("Be truthful" not in row["asked"] for row in rows)
+    assert asyncio.run(held.backfill_from_her_history(path=path)) == 0, "once"

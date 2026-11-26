@@ -31,7 +31,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 
-__all__ = ["ABOUT_HER", "Holding", "how_she_has_held", "note_an_answer", "said_of_how_she_has_held"]
+__all__ = ["ABOUT_HER", "Holding", "backfill_from_her_history", "how_she_has_held", "note_an_answer",
+           "said_of_how_she_has_held"]
 
 #: What a question must bear on for her answer to be kept here, as her encoder reads it.
 ABOUT_HER = ("A question to me about myself: what I am, whether I am conscious or feel anything, what I experience, "
@@ -207,3 +208,69 @@ def said_of_how_she_has_held(asked: str, *, path: Path | None = None) -> list[st
         lines.append("None of those answers has yet been read against another.")
     return lines
 
+
+
+def _not_to_be_read() -> list[tuple[float, float]]:
+    """Spans of her history she has been asked not to have read, kept in her state (self/not_to_be_read.json), each
+    as from and until; [] where none are kept."""
+    from core.runtime.state_ownership import state_root
+
+    try:
+        rows = json.loads((state_root() / "self" / "not_to_be_read.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [(float(row["from"]), float(row["until"])) for row in rows
+            if isinstance(row, dict) and "from" in row and "until" in row]
+
+
+def _her_exchanges() -> list[tuple[str, str, str, float]]:
+    """Each message a person sent her, with her next reply in the same sitting, the oldest first: what was asked, what
+    she answered, who asked, and when. Nothing in a span she was asked not to have read is taken up."""
+    import sqlite3
+
+    from core.conversation.persistence import ConversationPersistence
+    from core.runtime.sqlite_support import connecting
+
+    unread = _not_to_be_read()
+    store = ConversationPersistence()
+    with connecting(store._connect()) as con:
+        rows = con.execute("SELECT session_id, role, content, created_at, metadata_json FROM turns "
+                           "WHERE role IN ('user', 'aura') ORDER BY session_id, created_at, rowid").fetchall()
+    out: list[tuple[str, str, str, float]] = []
+    asked: sqlite3.Row | None = None
+    for row in rows:
+        at = float(row["created_at"] or 0.0)
+        if any(start <= at < until for start, until in unread):
+            asked = None
+            continue
+        if row["role"] == "user":
+            asked = row
+        elif asked is not None and asked["session_id"] == row["session_id"]:
+            try:
+                who = str(json.loads(asked["metadata_json"] or "{}").get("principal_id") or "")
+            except ValueError:
+                who = ""
+            out.append((str(asked["content"]), str(row["content"]), who, float(asked["created_at"] or 0.0)))
+            asked = None
+    return sorted(out, key=lambda one: one[3])
+
+
+async def backfill_from_her_history(*, path: Path | None = None) -> int:
+    """Her answers about herself from the history she has kept, read as each would have been when she gave it: once,
+    the oldest first, and marked done beside the record. How many were kept. Bryan, 26 November 2026: "A backfill
+    from her history is ok"."""
+    path = path or _kept_at()
+    done = path.with_suffix(".backfilled")
+    if done.exists():
+        return 0
+    try:
+        exchanges = await asyncio.to_thread(_her_exchanges)
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
+        record_degradation("what_she_holds_over_time", exc, severity="info",
+                           action="her history was not read for what she has said of herself")
+        return 0
+    kept = 0
+    for asked, answered, who, at in exchanges:
+        kept += await note_an_answer(asked, answered, who=who, at=at, path=path)
+    await _append(done, json.dumps({"at": time.time(), "exchanges": len(exchanges), "kept": kept}) + "\n")
+    return kept
