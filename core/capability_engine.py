@@ -1546,7 +1546,7 @@ def _her_own_read_of_her_own_source(skill_name: str, effect_scope: str, origin: 
     from core.executive.standing_authority import OWN_GOAL_ORIGIN, OWN_GOAL_TOOLS
 
     return (str(origin or "") == OWN_GOAL_ORIGIN and str(effect_scope or "") == "read_only"
-            and skill_name in OWN_GOAL_TOOLS and skill_name in {"read_source", "find_in_source", "what_went_wrong"})
+            and skill_name in OWN_GOAL_TOOLS and skill_name in {"read_source", "find_in_source", "what_went_wrong", "look_up"})
 
 class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).

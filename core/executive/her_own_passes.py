@@ -28,16 +28,21 @@ __all__ = [
     "her_passes_allow",
 ]
 
-#: Her own tools for a goal she set herself (core/skills/her_draft.py), the six
+#: Her own tools for a goal she set herself (core/skills/her_draft.py), the eight
 #: core.skills.catalog_policy.HER_GOAL_TOOLS names (a test holds the two equal).
 #: Each acts only inside a git worktree of her source that she works the goal in, but what_went_wrong, which only
 #: reads her runtime's record of its own faults, in her own process.
-OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "offer_draft", "read_source", "what_went_wrong"})
+OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "look_up", "offer_draft", "read_source",
+                            "search_the_web", "what_went_wrong"})
 #: What each takes, and the arguments among them that name a place in her workspace.
 _OWN_GOAL_ARGUMENTS = {
     "what_went_wrong": frozenset({"subsystem"}),
     "read_source": frozenset({"path", "from_line"}),
     "find_in_source": frozenset({"pattern", "where"}),
+    # What she needs to know, in her library and, where she is online, on the web (Bryan, 26 November 2026: "Internet if
+    # she has it of course").
+    "look_up": frozenset({"query"}),
+    "search_the_web": frozenset({"query"}),
     "edit_draft": frozenset({"path", "old_text", "new_text"}),
     "check_draft": frozenset({"tests"}),
     "offer_draft": frozenset({"summary"}),

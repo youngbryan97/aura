@@ -26,6 +26,8 @@ EXPECTED_REGISTERED_SKILLS = {
     "what_went_wrong",
     "read_source",
     "find_in_source",
+    "look_up",
+    "search_the_web",
     "edit_draft",
     "check_draft",
     "offer_draft",

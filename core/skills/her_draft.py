@@ -1,5 +1,6 @@
 """Her tools for a goal she set herself (core/agency/her_goal_at_work.py): read what has gone wrong in her running, read
-her source, search it, change a draft of it, check the draft, and offer it to Bryan.
+her source, search it, look up what she needs to know in her library or on the web, change a draft of it, check the
+draft, and offer it.
 
 Each acts in her workspace for the goal: a git worktree of her source on a branch of its own. A draft changes nothing
 she runs on until Bryan takes it. A path outside the workspace, inside its .git, or naming keys or secrets is refused.
@@ -451,7 +452,84 @@ class OfferDraftSkill(BaseSkill):
 
 
 #: Her tools, in the order a goal is worked.
-HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, EditDraftSkill, CheckDraftSkill, OfferDraftSkill)
+class LookUpInput(BaseModel):
+    query: str = Field(..., description="What to look up: an error, a function or library, a protocol, an idea.")
+
+
+class LookUpSkill(BaseSkill):
+    """Bryan, 26 November 2026: "Does Aura ever consult either the cortex or brainstem's llms ... Or the internet? Or
+    internal Wikipedia? Not just on whole problem sets but individual pieces of code and problems and issues." Her goal
+    passes read her source and her faults and nothing else; her mend of _coerce_argv narrowed a refusal whose purpose a
+    reference would have given her."""
+
+    result_schema = THE_SHARED_RESULT
+    name = "look_up"
+    description = ("Look something up in her reference library on this machine (Wikipedia, textbooks and manuals): "
+                   "what an error, a function, a protocol or an idea is, each passage with where it comes from.")
+    input_model = LookUpInput
+    effect_scope = "read_only"
+    timeout_seconds = 30.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.knowledge.local_corpus import get_local_corpus_store
+
+        try:
+            asked = _params(LookUpInput, params)
+        except Refused as why:
+            return {"ok": False, "error": str(why)}
+        query = " ".join(str(asked.query or "").split())
+        if not query:
+            return {"ok": False, "error": "nothing was given to look up"}
+        hits = await asyncio.to_thread(get_local_corpus_store().search, query, 5)
+        rows = [f"{hit.title} ({hit.source}): {' '.join(str(hit.snippet).split())}" for hit in hits]
+        summary = f"{len(rows)} passage(s) in her library" if rows else "nothing in her library on this"
+        shown = _what_fits(rows, {"ok": True, "found": len(rows), "summary": summary})
+        return {"ok": True, "found": len(rows), "text": "\n".join(shown), "summary": summary}
+
+
+class SearchTheWebInput(BaseModel):
+    query: str = Field(..., description="What to search the web for: documentation, an error message, how a problem "
+                                        "was solved elsewhere.")
+
+
+class SearchTheWebSkill(BaseSkill):
+    """For what her library does not hold, where she is online and her Will lets her reach out (Bryan: "Internet if she
+    has it of course. Not requirement for functionality"). The call is governed as this tool, under her standing grant
+    for her own goal work; the search it makes is her research pipeline's (core/skills/web_search.py)."""
+
+    result_schema = THE_SHARED_RESULT
+    name = "search_the_web"
+    description = ("Search the web for what her library does not hold: documentation, an error message, how a "
+                   "problem was solved elsewhere, each result with its address.")
+    input_model = SearchTheWebInput
+    effect_scope = "external_io"
+    timeout_seconds = 180.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.skills.web_search import EnhancedWebSearchSkill
+
+        try:
+            asked = _params(SearchTheWebInput, params)
+        except Refused as why:
+            return {"ok": False, "error": str(why)}
+        query = " ".join(str(asked.query or "").split())
+        if not query:
+            return {"ok": False, "error": "nothing was given to search for"}
+        found = await EnhancedWebSearchSkill().execute({"query": query, "num_results": 5, "retain": False},
+                                                     {"origin": "her_goal_background"})
+        results = [item for item in (found or {}).get("results") or [] if isinstance(item, dict)]
+        rows = [f"{item.get('title') or ''} <{item.get('url') or item.get('link') or ''}>: "
+                f"{' '.join(str(item.get('snippet') or item.get('content') or '').split())}" for item in results]
+        if not rows:
+            why = str((found or {}).get("error") or (found or {}).get("summary") or "no results")
+            return {"ok": False, "error": f"the web gave nothing back: {why}"[:400]}
+        summary = f"{len(rows)} result(s) from the web"
+        shown = _what_fits(rows, {"ok": True, "found": len(rows), "summary": summary})
+        return {"ok": True, "found": len(rows), "text": "\n".join(shown), "summary": summary}
+
+
+HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, LookUpSkill, SearchTheWebSkill, EditDraftSkill,
+             CheckDraftSkill, OfferDraftSkill)
 
 
 def tool_definitions() -> dict[str, dict[str, Any]]:
@@ -466,5 +544,5 @@ def tool_definitions() -> dict[str, dict[str, Any]]:
             for skill in HER_TOOLS}
 
 
-__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "OfferDraftSkill",
-           "ReadSourceSkill", "Refused", "WhatWentWrongSkill", "tool_definitions"]
+__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "LookUpSkill", "OfferDraftSkill",
+           "ReadSourceSkill", "Refused", "SearchTheWebSkill", "WhatWentWrongSkill", "tool_definitions"]
