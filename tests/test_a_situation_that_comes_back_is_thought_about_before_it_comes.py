@@ -250,13 +250,16 @@ def test_a_hint_stands_unless_a_look_now_finds_it_worse_than_its_own_judgement_m
     legal = sorted(moves(CHESS, CHESS.the_start()), key=_named)
     hint = Found(legal[0], 30, 16, 0, [legal[0]], by="worked out ahead, to check")
     now = Found(legal[1], 40, 9, 1000, [legal[1]], unsteady=15)
-    # Searched alone, the hint comes within what the look's own judgement moved: it stands.
-    kept = _checked(hint, now, legal, lambda aside: Found(legal[0], 30, 10, 500, [legal[0]]))
+    # Searched alone, the hint comes within what the look's own judgement moved, compared at the depth the look
+    # completed (0d8d9d7e8): it stands.
+    kept = _checked(hint, now, legal, lambda aside: Found(legal[0], 30, 10, 500, [legal[0]],
+                                                          accounting={"iterations": [(9, 30, False, 0)]}))
     assert kept.move == legal[0] and kept.by == "worked out ahead, checked"
     # Its worth and depth are the look's made now, not the ones worked out under rules since changed.
     assert (kept.score, kept.depth) == (30, 10)
     # Further off than that: the look made now is played.
-    assert _checked(hint, now, legal, lambda aside: Found(legal[0], 10, 10, 500, [legal[0]])).move == legal[1]
+    assert _checked(hint, now, legal, lambda aside: Found(legal[0], 10, 10, 500, [legal[0]],
+                                                         accounting={"iterations": [(9, 10, False, 0)]})).move == legal[1]
     # A look that finds the same move needs no second look.
     agreeing = Found(legal[0], 25, 9, 1000, [legal[0]])
     checked = _checked(hint, agreeing, legal, lambda aside: 1 / 0)
