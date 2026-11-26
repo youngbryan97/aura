@@ -215,7 +215,6 @@ _HEAVY_BACKGROUND_SKILLS = frozenset(
 
 _FOREGROUND_EXCLUSIVE_BACKGROUND_SKILLS = frozenset(
     {
-        "email_adapter",
         "reddit_adapter",
         "sovereign_browser",
         "sovereign_network",
@@ -223,8 +222,13 @@ _FOREGROUND_EXCLUSIVE_BACKGROUND_SKILLS = frozenset(
     }
 )
 
+#: Skills whose background use only moves data over the network, off her event loop, with no model: deferred only within
+#: 30 s of someone speaking to her, past 84% memory, or under heavy failure pressure. Mail is here: each of its modes
+#: (send, check, read, reply, search) is IMAP or SMTP in a thread. LIVE 26 November 2026 one reply of hers had waited 28 rounds under the heavy-skill gate,
+#: whose 72% memory ceiling her two resident models have kept her above since 24 November.
 _LIGHTWEIGHT_BACKGROUND_IO_SKILLS = frozenset(
     {
+        "email_adapter",
         "free_search",
         "grounded_search",
         "search_web",

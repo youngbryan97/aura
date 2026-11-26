@@ -22,7 +22,7 @@ from typing import Any
 from core.agency.her_inquiries import KEPT, Inquiry
 from core.agency.what_she_does_next import CameOf, Option, WhatSheDoesNext, get_what_she_does_next
 from core.runtime.errors import record_degradation
-from core.runtime.lockdep import checked_lock
+from core.runtime.lockdep import checked_async_lock, checked_lock
 
 logger = logging.getLogger("Aura.HerOwnTime")
 
@@ -66,7 +66,7 @@ class HerOwnTime:
         #: What would do a goal of hers, where something would.
         self.act_of: Callable[[str], Awaitable[Option | None]] | None = None
         self._loaded = False
-        self._going = asyncio.Lock()
+        self._going = checked_async_lock("her_own_time.going")
 
     def offers(self, name: str, what: Offers) -> None:
         """A part of her that can do something says what it could do."""
