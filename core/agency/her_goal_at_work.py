@@ -817,9 +817,10 @@ def take_it_herself(slug: str) -> dict[str, Any]:
 #: How long one gate may take, in seconds: the bound the repository's own test runner gives one pytest process
 #: (tools/run_test_chunks.py, --chunk-timeout).
 GATE_SECONDS = 2400.0
-#: How long the outside check may take: it makes as many as nine runs of its own, each under the same bound
-#: (outside_bar/verify_change.py, TEST_SECONDS): its guarding tests three times, the tests a commit wrote and edited, and
-#: three runs of calls. Under one gate's bound it was stopped part way on every change that a widely read module guards.
+#: How long the outside check may take, and her real calls, which run it again over what she called: it makes as many as
+#: nine runs of its own, each under the same bound (outside_bar/verify_change.py, TEST_SECONDS): its guarding tests three
+#: times, the tests a commit wrote and edited, and three runs of calls. Under one gate's bound it was stopped part way
+#: on every change that a widely read module guards.
 OUTSIDE_CHECK_SECONDS = 9 * GATE_SECONDS
 
 
@@ -939,7 +940,7 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     for name, argv in gates:
         started = time.time()
         outcome, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env,
-                                    seconds=OUTSIDE_CHECK_SECONDS if name == "outside-check" else GATE_SECONDS)
+                                    seconds=OUTSIDE_CHECK_SECONDS if name in JUDGING_GATES else GATE_SECONDS)
         before = _failing_without_the_draft(record, tail, env) if name == "tests" and outcome is False else []
         if before:
             outcome, tail = True, (f"{tail}\n\nEach test that failed fails on her source without the draft too, so none "
