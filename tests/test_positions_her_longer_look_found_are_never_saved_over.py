@@ -92,3 +92,29 @@ def test_a_save_from_a_rehearsal_begun_afresh_keeps_what_was_kept(monkeypatch: p
     saved = LookedAtLonger.from_bytes(what_she_learned.recall_beside(record, board_of_pieces._LOOKED_AT_LONGER))
     assert len(saved.parts) == 3
     assert len(fresh.looked_at_longer.parts) == 3, "she learns from what was kept from now on"
+
+
+def test_a_store_merged_with_what_it_carries_on_from_does_not_double_its_scales() -> None:
+    """LIVE 26 November 2026 the scales kept beside her board numbered 1,314,914,303 beside 100,000 positions: every
+    merge set the kept history before the history that carried on from it. Read back, they were 1.3 billion Python
+    floats, about 40 GB in her own process, and her memory watchdog ended her three times in twenty minutes."""
+    kept = _store(["K", "Q", "R"], KEPT, game0=0)
+    kept.game = [0, 10_000]
+    kept.scales = [1.0, 2.0]
+    store = LookedAtLonger.from_bytes(kept.as_bytes())
+    store.scales.append(3.0)
+    store.game.append(20_000)
+    store.parts.append(store.parts[0])
+    store.glance.append(0.0)
+    store.slow.append(9.0)
+    for _ in range(40):
+        store = store.with_what_was_kept(LookedAtLonger.from_bytes(store.as_bytes()))
+    assert store.scales == [1.0, 2.0, 3.0], "each round's scale once, for the three rounds whose positions are kept"
+
+
+def test_scales_are_kept_for_the_rounds_whose_positions_are_kept_and_no_more() -> None:
+    kept = _store(["K", "Q", "R"], KEPT, game0=0)
+    kept.scales = [float(n) for n in range(1_000)]
+    assert LookedAtLonger.from_bytes(kept.as_bytes()).scales == [999.0], "both positions came from one round"
+    kept.game = [0, 10_000]
+    assert LookedAtLonger.from_bytes(kept.as_bytes()).scales == [998.0, 999.0]

@@ -465,6 +465,33 @@ def _what_no_longer_holds_of_her_rules(world: str, _record: dict[str, Any]) -> l
     return wrong
 
 
+@replays("worth")
+def _what_no_longer_holds_of_the_positions_she_looked_at_longer(world: str, _record: dict[str, Any]) -> list[str]:
+    """The positions her longer look searched, kept beside the record, as this code reads them back: no more than the
+    cap, a scale for each round they came from and no more, and every part a piece of a kind it names on a square of
+    the board. LIVE 26 November 2026 the file beside her board held 1,314,914,303 scales beside 100,000 positions, and
+    reading it back ended her three times in twenty minutes."""
+    from core.agency.what_a_kind_is_worth import LOOKED_AT_LONGER_AT_MOST, LookedAtLonger
+    from core.runtime.what_she_learned import recall_beside
+
+    kept = recall_beside(world, _LOOKED_AT_LONGER)
+    if not kept:
+        return []
+    looked = LookedAtLonger.from_bytes(kept)
+    wrong: list[str] = []
+    if len(looked.parts) > LOOKED_AT_LONGER_AT_MOST:
+        wrong.append(f"{len(looked.parts)} positions read back, over the {LOOKED_AT_LONGER_AT_MOST} kept at most")
+    if not (len(looked.parts) == len(looked.glance) == len(looked.slow) == len(looked.game)):
+        wrong.append("its positions, first looks, longer looks and games are not as many as each other")
+    rounds = len({int(g) // 10_000 for g in looked.game}) or 1
+    if len(looked.scales) > rounds:
+        wrong.append(f"{len(looked.scales)} scales read back for {rounds} round(s) of positions")
+    span = 2 * len(looked.kinds) * looked.squares
+    if any(int(part.max(initial=0)) >= span or int(part.min(initial=0)) < 0 for part in looked.parts):
+        wrong.append("a position names a part outside its kinds and squares")
+    return wrong
+
+
 def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal: Any, went_wrong: Any = None,
                            they_answered: Any = None, held: Any = None) -> None:
     from dataclasses import asdict

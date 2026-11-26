@@ -43,6 +43,7 @@ import io
 import logging
 import math
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -102,6 +103,21 @@ SAMPLES_HELD_AT_MOST_BYTES = 256 * 2 ** 20
 LOOKED_AT_LONGER_AT_MOST = 100_000
 
 
+def _rounds_among(game: Sequence[int]) -> int:
+    """How many rounds the kept positions came from: a position's game is its round times 10,000 and its game in it."""
+    return max(1, len({int(g) // 10_000 for g in game}))
+
+
+def _carried_on(earlier: Sequence[float], later: Sequence[float]) -> list[float]:
+    """Two round-at-a-time histories as one, where the later carries on from the earlier: the longest end of the
+    earlier that the later begins with is counted once."""
+    earlier, later = list(earlier), list(later)
+    for size in range(min(len(earlier), len(later)), 0, -1):
+        if earlier[-size:] == later[:size]:
+            return earlier + later[size:]
+    return earlier + later
+
+
 @dataclass
 class LookedAtLonger:
     """The quiet positions her longer look searched: each one's pieces as the side to move sees them, her first
@@ -117,7 +133,10 @@ class LookedAtLonger:
     glance: list[float] = field(default_factory=list)
     slow: list[float] = field(default_factory=list)
     game: list[int] = field(default_factory=list)
-    #: The scale her results showed her longer look's scores on, a round at a time.
+    #: The scale her results showed her longer look's scores on, a round at a time, for the rounds whose positions are
+    #: kept and no more. LIVE 26 November 2026 the file kept beside her board held 1,314,914,303 of them beside 100,000
+    #: positions, doubled at every merge, and reading it back made 1.3 billion Python floats in her own process: about
+    #: 40 GB, which ended her three times in twenty minutes.
     scales: list[float] = field(default_factory=list)
 
     def add(self, played: dict, round_: int, rows: int, columns: int) -> None:
@@ -150,6 +169,7 @@ class LookedAtLonger:
         extra = len(self.parts) - LOOKED_AT_LONGER_AT_MOST
         if extra > 0:
             del self.parts[:extra], self.glance[:extra], self.slow[:extra], self.game[:extra]
+        del self.scales[:-_rounds_among(self.game)]
 
     def with_what_was_kept(self, kept: LookedAtLonger) -> LookedAtLonger:
         """This store with every position ``kept`` holds that it does not, those first, as they were kept before it:
@@ -186,10 +206,11 @@ class LookedAtLonger:
         merged = LookedAtLonger(kinds=kinds, squares=self.squares or kept.squares, columns=self.columns or kept.columns,
                                 parts=parts + list(self.parts), glance=glance + list(self.glance),
                                 slow=slow + list(self.slow), game=game + list(self.game),
-                                scales=list(kept.scales) + list(self.scales))
+                                scales=_carried_on(kept.scales, self.scales))
         extra = len(merged.parts) - LOOKED_AT_LONGER_AT_MOST
         if extra > 0:
             del merged.parts[:extra], merged.glance[:extra], merged.slow[:extra], merged.game[:extra]
+        del merged.scales[:-_rounds_among(merged.game)]
         return merged
 
     def judgement(self, *, seed: int = 0) -> dict[str, Any] | None:
@@ -243,10 +264,13 @@ class LookedAtLonger:
     @classmethod
     def from_bytes(cls, data: bytes) -> LookedAtLonger:
         held = np.load(io.BytesIO(data), allow_pickle=False)
+        game = [int(x) for x in held["game"]]
+        # Only the scales of the rounds kept are read as Python floats: one file kept before this held 1.3 billion.
+        scales = held["scales"][-_rounds_among(game):]
         return cls(kinds=[str(k) for k in held["kinds"]], squares=int(held["squares"]), columns=int(held["columns"]),
                    parts=[row[row >= 0].astype(np.int16) for row in held["parts"]],
                    glance=[float(x) for x in held["glance"]], slow=[float(x) for x in held["slow"]],
-                   game=[int(x) for x in held["game"]], scales=[float(x) for x in held["scales"]])
+                   game=game, scales=[float(x) for x in scales])
 
 
 @dataclass
