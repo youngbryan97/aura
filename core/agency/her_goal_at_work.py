@@ -817,6 +817,39 @@ def take_it_herself(slug: str) -> dict[str, Any]:
 #: How long one gate may take, in seconds: the bound the repository's own test runner gives one pytest process
 #: (tools/run_test_chunks.py, --chunk-timeout).
 GATE_SECONDS = 2400.0
+#: How long the outside check may take: it makes as many as nine runs of its own, each under the same bound
+#: (outside_bar/verify_change.py, TEST_SECONDS): its guarding tests three times, the tests a commit wrote and edited, and
+#: three runs of calls. Under one gate's bound it was stopped part way on every change that a widely read module guards.
+OUTSIDE_CHECK_SECONDS = 9 * GATE_SECONDS
+
+
+def _failing_without_the_draft(record: GoalRecord, said: str, env: dict[str, str]) -> list[str]:
+    """The tests a failed tests gate named that fail on her source without the draft too, all of them, or [] when any
+    one passes there. A test that fails either way is not the draft's to answer for. LIVE 17 to 22 November 2026 her
+    mend of the subprocess gateway's argument check was held back by six tests that were not its own; whether they
+    failed without it too nothing asked, and now her yes asks."""
+    import sys
+    import tempfile
+
+    failed = sorted({line.split(" - ", 1)[0] for line in re.findall(r"^(?:FAILED|ERROR) (\S+.*)$", said, re.MULTILINE)})
+    head, commit = source_head(), str(record.offer.get("commit") or "")
+    if not failed or not head or not commit:
+        return []
+    found = _git("merge-base", commit, head, cwd=record.workspace)
+    base = found.stdout.strip() if found.returncode == 0 else ""
+    if not base:
+        return []
+    beside = Path(tempfile.mkdtemp(prefix="her-tests-without-the-draft-")) / "source"
+    made = _git("worktree", "add", "-q", "--detach", str(beside), base, cwd=record.workspace, effect="workspace")
+    if made.returncode != 0:
+        return []
+    try:
+        outcome, there = _run_a_gate(["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
+                                      "-p", "no:randomly", *failed], cwd=beside, env=env)
+    finally:
+        _git("worktree", "remove", "--force", str(beside), cwd=record.workspace, effect="workspace")
+    failing_there = {line.split(" - ", 1)[0] for line in re.findall(r"^(?:FAILED|ERROR) (\S+.*)$", there, re.MULTILINE)}
+    return failed if outcome is False and set(failed) <= failing_there else []
 
 
 def tests_that_touch(changed: list[str], workspace: Path) -> list[str]:
@@ -832,7 +865,7 @@ def tests_that_touch(changed: list[str], workspace: Path) -> list[str]:
     return sorted(tests)
 
 
-def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[bool | None, str]:
+def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str], seconds: float = 0.0) -> tuple[bool | None, str]:
     """Whether the gate passed, and the end of what it said; None when it was stopped before it finished, which judged
     nothing: its process killed by a signal, out of its time, or her runtime shutting down around it. A caller that
     asks only ``if not passed`` counts it as not passed, as before.
@@ -849,10 +882,11 @@ def _run_a_gate(argv: list[str], *, cwd: Path, env: dict[str, str]) -> tuple[boo
                                            receipt_prefix="her-goal-gate",
                                            constraints={"artifact": "aura.her_goal_gate.v1", "operation": "check"}):
             # The offline suite and the tree's gates load no model.
-            done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=GATE_SECONDS, capture_output=True,
-                                                source="her_goal_at_work.gate", accelerator_capability="none")
+            done = get_subprocess_gateway().run(argv, cwd=cwd, env=env, timeout=seconds or GATE_SECONDS,
+                                                capture_output=True, source="her_goal_at_work.gate",
+                                                accelerator_capability="none")
     except subprocess.TimeoutExpired:
-        return None, f"stopped after {GATE_SECONDS:.0f} s"
+        return None, f"stopped after {seconds or GATE_SECONDS:.0f} s"
     out = ((done.stdout or "") + (done.stderr or "")).strip()[-1500:]
     if done.returncode < 0 or is_shutdown_requested():
         return None, out
@@ -879,8 +913,9 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     tests = tests_that_touch(list(record.offer.get("files") or []), workspace)
     gates: list[tuple[str, list[str]]] = []
     if tests:
+        # In one order, the files', so a red found here and asked again without the draft is asked in the same order.
         gates.append(("tests", ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",
-                                *tests]))
+                                "-p", "no:randomly", *tests]))
     # A draft her yes takes lands on origin's main (approve), so it asks what a push there is asked: the gates below
     # and the governance and DEPS checks.
     gates += [(name, ["nice", "-n", "10", "make", name])
@@ -903,7 +938,12 @@ def the_gates_her_yes_asks(record: GoalRecord) -> dict[str, dict[str, Any]]:
     results: dict[str, dict[str, Any]] = {}
     for name, argv in gates:
         started = time.time()
-        outcome, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env)
+        outcome, tail = _run_a_gate(argv, cwd=source_root() if name == "her-real-calls" else workspace, env=env,
+                                    seconds=OUTSIDE_CHECK_SECONDS if name == "outside-check" else GATE_SECONDS)
+        before = _failing_without_the_draft(record, tail, env) if name == "tests" and outcome is False else []
+        if before:
+            outcome, tail = True, (f"{tail}\n\nEach test that failed fails on her source without the draft too, so none "
+                                   f"is the draft's: {', '.join(before[:10])}")
         passed = outcome is True
         results[name] = {"passed": passed, "finished": outcome is not None, "seconds": round(time.time() - started, 1),
                          "tail": tail, **({"files": len(tests)} if name == "tests" else {})}

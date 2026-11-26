@@ -50,6 +50,9 @@ _VARIATIONS = 16
 #: How long one varied call may take, in seconds.
 _VARIED_SECONDS = 2.0
 _varying = [False]
+#: How many fixtures broader than one test are being set up now: a changed function called there makes something
+#: tests in other files may stand on, so the check cannot narrow its guards to the files that called it.
+_in_broad_fixture = [0]
 _held_calls: dict[int, tuple[Any, dict[str, Any], str, dict[str, Any]]] = {}
 _varied_counts: dict[tuple[str, str], int] = {}
 _digests: dict[str, str] = {}
@@ -429,6 +432,8 @@ def _started(code: Any, _offset: int) -> Any:
         return None  # a call made here to vary another is no call of the run's
     if not _named(code):
         return sys.monitoring.DISABLE
+    if _in_broad_fixture[0]:
+        _emit("broad", code.co_qualname)
     frame = sys._getframe(1)
     _open[id(frame)] = _key_of(code, frame)
     if _VARY:
@@ -491,6 +496,22 @@ def pytest_sessionstart(session: Any) -> None:
     _REAL.update(_hide_the_tool(_TOOL))
     sys.modules.pop(__name__, None)
     _emit("process", _PROCESS())
+
+
+def pytest_fixture_setup(fixturedef: Any, request: Any) -> Any:
+    """Around each fixture's setup: whether it serves more than one test (a session, package, module or class fixture)."""
+    broad = getattr(fixturedef, "scope", "function") != "function"
+    _in_broad_fixture[0] += broad
+    try:
+        yield
+    finally:
+        _in_broad_fixture[0] -= broad
+
+
+# A wrapper around pytest's own fixture setup, marked the way pluggy reads a mark (pytest.hookimpl sets this attribute):
+# this file imports nothing but the standard library, so a repository cannot stand a module of its own in for pytest's.
+pytest_fixture_setup.pytest_impl = {"wrapper": False, "hookwrapper": True, "optionalhook": False, "tryfirst": False,  # type: ignore[attr-defined]
+                                    "trylast": False, "specname": None}
 
 
 def pytest_runtest_logreport(report: Any) -> None:

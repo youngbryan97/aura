@@ -8297,6 +8297,40 @@ needs her 27B free (her app down, or her app's own influence trials).
     raises as a bare RuntimeError, chained to nothing, and a failure inside TorchScript.
   Still owed: probing shared state with several threads and forced switches; telling which change made a fall; and a
   new outside benchmark baseline (about 4.5 hours with the machine alone).
+  26 November, read from her records: why nothing of hers reached origin since 21 November.
+  - On 23 November she found a real fault in her running (two event-loop holds, 104 and 67 ms, from a deep copy taken
+    under the morphogenesis field's lock), wrote a right mend (a shallow copy: the values are floats), and passed all
+    seven of her own gates. The outside check refused it after 3.9 hours, on one test of 5,121,
+    test_installed_runtime_diagnostics_report_clean_at_rest, which reads the diagnostics of the whole test process and
+    ran nothing of hers. Three faults of the check's: a test broken in a long run counted without being asked alone;
+    every guard was run three times though only the files that ran the change can answer differently; and round
+    nine's subclass search counted four modules that only import MorphogenField as subclasses, which took the guards
+    from 12 files to 207. Now later runs ask only the files that ran what changed, a broken test is asked alone on
+    each side and is a doubt when it passes alone, and a module that only imports a class is followed, not counted.
+    Nothing would have asked her draft again: a draft a judging gate refused is now asked again once that gate's own
+    code has changed (`tests/test_a_change_is_guarded_by_the_tests_that_ran_it.py`).
+  - Her fault loop tried one fault a cycle, most frequent first. The most frequent was raised in what governs her,
+    never hers to change; its "said once" path left its stalled source as it was, so it counted as moved every cycle,
+    came first, was said stalled 85 times since her last boot, and the eight faults behind it were never tried again.
+    A fault in what governs her is now passed over once stalled. Of the faults heard since that boot, 4 could not be
+    made again only because an argument was a path, and 6 because the error was recorded without being raised: a path
+    is written back as a path, and a fault recorded without being raised is kept as the call that recorded it. A fault
+    counts as made again only in the function that made it, not by the name of its error alone
+    (`tests/test_every_fault_she_heard_gets_its_turn.py`).
+  - pytest-randomly is in her environment and shuffled every pytest run, the outside check's own among them, so the
+    code before a change and the change ran their tests in different orders: a test that depends on what ran before it
+    passed on one side and failed on the other by chance. The check's runs, and her yes's tests gate, now keep the
+    files' order on every side.
+  - Her own yes ran every gate under one 2,400 s bound, the outside check too, which makes as many as nine runs each
+    under that bound; it is given nine. A test her tests gate saw fail is asked again on her source without the draft,
+    in the same order, and one that fails there too is not counted against her
+    (`tests/test_a_test_that_fails_without_her_draft_is_not_her_drafts.py`).
+  - A way her work keeps failing is a goal of hers: a reason that stopped three of her goals or more becomes "Mend what
+    in my own code keeps failing this way", with what each showed said in it, offered to the goals her own time chooses
+    among, and set again only if it stops her after a mend (`core/agency/what_keeps_failing_her.py`,
+    `tests/test_a_way_her_work_keeps_failing_is_a_goal_of_hers.py`).
+  - The outside benchmark baseline, 26 November, on 66cf5bc0d, panel of 12 each and the cold restart of 12:
+    blocksworld 11, mystery blocksworld 10, MATH-500 6, BBEH-mini 0, cold restart 8. On 19 November: 12, 11, 2, 0, 3.
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
@@ -8331,6 +8365,10 @@ needs her 27B free (her app down, or her app's own influence trials).
     returns values, so forged records stop being possible. Code that behaves well only while watched is still possible
     against any check that runs it; only judging the change in her own running answers that.
   - Probe shared state with several threads and forced switches, instead of counting `with` blocks.
+    Weighed 26 November and not built: CPython 3.12 switches threads only where it checks for a switch, at a call
+    or a backward jump, so `self.total += n` with its lock taken away runs whole under any switch interval and a
+    probe would see no race. The lock-flow check (a lock held at every `yield`, a lock bound again after the object
+    is made) is what catches a lock taken away; a probe would add only races whose critical section makes a call.
   - Settle probation by measurement: start outside benchmark runs on their own, record latency and memory with each
     change on probation, and turn a change that survives into a guard test. Rounds five and six left changes on
     probation that a benchmark asking only valid questions will not notice (a guard deleted, bad input turned into 0),

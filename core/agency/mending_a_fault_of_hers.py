@@ -179,8 +179,8 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
         if record.status == goals.STALLED and (record.last_check or {}).get("why") == why:
             # Said once: no change to her source makes it hers to change. LIVE 21 November 2026 one refused save
             # heard on every surprise of her mind tick was said again each time, some sixty times in an afternoon.
-            return {"slug": slug, "status": record.status, "why": why}
-        return await _stop(record, why, fault.call.error_message)
+            return {"slug": slug, "status": record.status, "why": why, "worked": False}
+        return await _stop(record, why, fault.call.error_message, by_design=True)
     if record.status == goals.STALLED:
         # Taken up again: worked again, so its workspace is brought up to her source before anything runs in it.
         # LIVE 16 November 2026 her drill's retry ran in the workspace of the try before, on the old source.
@@ -250,7 +250,9 @@ def _into_her_running_process(fault: Any, before: str, after: str, slug: str) ->
     return {"functions": [swap.qualname for swap in loaded.swaps], "waits": list(loaded.waits)}
 
 
-async def _stop(record: Any, why: str, evidence: Any) -> dict[str, Any]:
+async def _stop(record: Any, why: str, evidence: Any, *, by_design: bool = False) -> dict[str, Any]:
+    """Stall a goal with why. ``by_design`` marks a stop her loop makes on purpose, which is no failure of hers to mend
+    (core/agency/what_keeps_failing_her.py)."""
     from core.agency import her_goal_at_work as goals
 
     record.status = goals.STALLED
@@ -258,7 +260,7 @@ async def _stop(record: Any, why: str, evidence: Any) -> dict[str, Any]:
     record.stalled_on = await asyncio.to_thread(goals.source_head)
     record.said.append({"words": f"Not mended: {why}.", "at": time.time()})
     record.last_check = {"passed": False, "at": time.time(), "why": why,
-                         "evidence": str(evidence)[-2000:]}
+                         "evidence": str(evidence)[-2000:], "by_design": by_design}
     await goals.save(record)
     return {"slug": record.slug, "status": record.status, "why": why}
 
@@ -523,6 +525,10 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     if taken_back:
         return taken_back
     await _start_an_outside_comparison_when_due()
+    # A draft that passed every gate of hers but a judge since changed is the nearest to landing, so it goes first.
+    asked = await _ask_again_of_a_draft_that_waits(only_a_changed_judge=True)
+    if asked is not None:
+        return [asked]
     heard = faults_heard()
     head = await asyncio.to_thread(goals.source_head) if heard else ""
     for fault in heard:
@@ -531,12 +537,21 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
                 record.status == goals.STALLED
                 and not await asyncio.to_thread(_what_it_stalled_on_has_moved, record, fault.call.file, head))):
             continue
+        if record is not None and record.status == goals.STALLED and goals.governs_her(fault.call.file):
+            # A fault in what governs her is never hers to change, whatever moved. LIVE 25 and 26 November 2026 the
+            # most frequent fault she heard was one of these: it came first every cycle, was said stalled 85 times,
+            # and the eight behind it were never tried again.
+            continue
         # Her model proposes too, last, once her own Python has nothing left, and its mend is judged as any other is
         # (Bryan, 22 November 2026: "as a last resort ... so long as its checked and verified the same way").
         from core.self_modification.a_mend_her_model_proposes import her_model_as_a_last_resort
 
         return [await mend(fault, proposals=sys.maxsize, seconds=seconds,
                            model=her_model_as_a_last_resort(fault.call.file, fault.call.line))]
+    # A way her work keeps failing, on goal after goal, is a goal of hers (it costs one read of her records).
+    from core.agency.what_keeps_failing_her import set_what_keeps_failing_her
+
+    await set_what_keeps_failing_her()
     # Nothing heard to mend: a draft of hers that waits on her own yes is asked again, once her source has moved.
     asked = await _ask_again_of_a_draft_that_waits()
     if asked is not None:
@@ -547,7 +562,32 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     return await improve_by_measurement()
 
 
-async def _ask_again_of_a_draft_that_waits() -> dict[str, Any] | None:
+#: The code of each gate that judges a change: when it has changed since it refused a draft, its verdict may too.
+_JUDGES = {"outside-check": ("outside_bar/",), "her-real-calls": ("core/self_modification/her_real_calls.py",)}
+
+
+def refused_by_a_judge_since_changed(record: Any, head: str) -> bool:
+    """Whether a draft of hers was refused by a gate that judges the change (the outside check, her real calls) whose
+    own code has changed since it refused. LIVE 23 to 26 November 2026 her right mend of MorphogenField.diffuse_step was
+    refused by a fault of the outside check's, and nothing would ever have asked it again once that fault was fixed."""
+    from core.agency import her_goal_at_work as goals
+
+    offer = record.offer or {}
+    gates = offer.get("gates") or {}
+    refused_by = [name for name in _JUDGES if (gates.get(name) or {}).get("passed") is False
+                  and (gates.get(name) or {}).get("finished", True) is not False]
+    asked_on = str(offer.get("asked_on") or record.base or "")
+    if record.status not in (goals.WORKING, goals.STALLED) or not offer.get("commit") or not refused_by \
+            or not asked_on or asked_on == head:
+        return False
+    shown = goals._git("diff", "--name-only", asked_on, head, cwd=goals.source_root())
+    if shown.returncode != 0:
+        return False
+    changed = shown.stdout.splitlines()
+    return any(name.startswith(_JUDGES[judge]) for judge in refused_by for name in changed)
+
+
+async def _ask_again_of_a_draft_that_waits(*, only_a_changed_judge: bool = False) -> dict[str, Any] | None:
     """The draft of hers that has waited longest on her own yes, asked of her gates again on her source as it now is,
     when that source has moved since it was last asked: one a cycle, and none that changes her own governance.
 
@@ -561,11 +601,21 @@ async def _ask_again_of_a_draft_that_waits() -> dict[str, Any] | None:
     from core.agency import her_goal_at_work as goals
 
     head = await asyncio.to_thread(goals.source_head)
-    if not head:
+    if not head or goals.MEASURING_HOLD.exists():
+        # Not while a run measures her: her yes would wait, and the draft would count as asked on this source.
         return None
-    waiting = [record for record in await asyncio.to_thread(goals.all_records)
-               if record.status == goals.OFFERED and record.offer.get("asked_on") != head
-               and not any(goals.governs_her(name) for name in record.offer.get("files") or [])]
+    records = await asyncio.to_thread(goals.all_records)
+    waiting = [] if only_a_changed_judge else [
+        record for record in records if record.status == goals.OFFERED and record.offer.get("asked_on") != head
+        and not any(goals.governs_her(name) for name in record.offer.get("files") or [])]
+    if not waiting:
+        # A draft a judge refused, asked again once the judge has changed: offered as it was.
+        waiting = [record for record in records if not any(goals.governs_her(name) for name in record.offer.get("files") or [])
+                   and await asyncio.to_thread(refused_by_a_judge_since_changed, record, head)]
+        for record in waiting:
+            record.status = goals.OFFERED
+            record.said.append({"words": "The gate that refused my draft has changed since, so I asked it again.",
+                                "at": time.time()})
     if not waiting:
         return None
     record = min(waiting, key=lambda each: float(each.offer.get("asked_at") or each.offer.get("at") or 0.0))

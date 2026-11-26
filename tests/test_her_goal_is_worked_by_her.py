@@ -38,7 +38,7 @@ def her_source(tmp_path, monkeypatch):
     monkeypatch.setattr(work, "MEASURING_HOLD", tmp_path / "measuring.hold")
     # This small repository has no Makefile or suite; what her own yes asks is tested in
     # tests/test_her_own_yes_asks_the_gates.py.
-    monkeypatch.setattr(work, "_run_a_gate", lambda argv, *, cwd, env: (True, "stood in"))
+    monkeypatch.setattr(work, "_run_a_gate", lambda argv, *, cwd, env, seconds=0.0: (True, "stood in"))
     return source
 
 

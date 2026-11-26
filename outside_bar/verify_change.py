@@ -320,7 +320,51 @@ def tests_naming(checkout: Path, files: Sequence[str], functions: Mapping[str, S
         shown = subprocess.run([*argv, *itertools.chain(*(("-e", item) for item in patterns)), "--", "*.py"],
                                capture_output=True, text=True, check=False).stdout
         found.update(line for line in shown.splitlines() if _a_test_file(line) and _under(line, roots))
+        # A fixture in a conftest.py that uses the module hands what it makes to each test that asks for it, though
+        # none of those tests names the module itself.
+        for conftest in (line for line in shown.splitlines() if Path(line).name == "conftest.py"):
+            found.update(test for test in _tests_given_its_fixtures(checkout, conftest, dotted) if _under(test, roots))
     return sorted(found - set(files))
+
+
+def _tests_given_its_fixtures(checkout: Path, conftest: str, dotted: str) -> list[str]:
+    """The test files beside and below ``conftest`` that ask for a fixture of it whose body uses module ``dotted``. An
+    autouse fixture serves every test, and is left out: her tests' conftest.py resets 73 of her modules around every
+    test, and taking those would make the whole suite guard each of them."""
+    try:
+        tree = ast.parse((checkout / conftest).read_bytes())
+    except (OSError, SyntaxError, ValueError):
+        return []
+    imported = {alias.asname or alias.name for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+                and node.module == dotted for alias in node.names}
+    imported |= {alias.asname or alias.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import)
+                 for alias in node.names if alias.name == dotted}
+
+    def a_fixture(decorator: ast.AST) -> bool:
+        called = decorator.func if isinstance(decorator, ast.Call) else decorator
+        autouse = isinstance(decorator, ast.Call) and any(
+            keyword.arg == "autouse" and isinstance(keyword.value, ast.Constant) and keyword.value.value is True
+            for keyword in decorator.keywords)
+        return getattr(called, "attr", getattr(called, "id", "")) == "fixture" and not autouse
+    fixtures = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and any(a_fixture(decorator) for decorator in node.decorator_list)
+                and {item.id for item in ast.walk(node) if isinstance(item, ast.Name)} & imported]
+    if not fixtures:
+        return []
+    folder = str(Path(conftest).parent)
+    listed = git(checkout, "ls-files", "--", "*.py" if folder in ("", ".") else f"{folder}/*.py").splitlines()
+    asked = re.compile(r"def test\w*\([^)]*\b(?:" + "|".join(map(re.escape, fixtures)) + r")\b|usefixtures\([^)]*\b(?:"
+                       + "|".join(map(re.escape, fixtures)) + r")\b")
+    out = []
+    for test in listed:
+        if not _a_test_file(test):
+            continue
+        try:
+            if asked.search((checkout / test).read_text(encoding="utf-8", errors="replace")):
+                out.append(test)
+        except OSError:
+            continue
+    return out
 
 
 #: Formats code reads into values (the standard library reads each), as opposed to prose for people.
@@ -491,8 +535,11 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     (private / "sitecustomize.py").write_text(
         "from __future__ import annotations\n\n" + _HIDING + "\n\n\n" + _RAN.format(watched=watched, lines=watched_lines, folder=str(ran)),
         encoding="utf-8")
-    argv = _bounded([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", f"run_{token}", *tests],
-                    checkout, scratch, network=True, also=ran)
+    # In the order the files give, the same on every side: pytest-randomly, in her environment, shuffled each run, so
+    # the code before and the change ran their tests in different orders and a test that depends on what ran before
+    # it passed on one and failed on the other by chance (26 November 2026).
+    argv = _bounded([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-p", "no:randomly", "-p",
+                     f"run_{token}", *tests], checkout, scratch, network=True, also=ran)
     got: list[str] = []
     reader = _read_all(read_end, got)
     process = subprocess.Popen(argv, cwd=checkout, env=_child_environment(scratch, str(private)), pass_fds=(write_end,),
@@ -504,7 +551,7 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
         process.kill()
         process.wait()
     reader.join(timeout=30)
-    report: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "varied": {}}
+    report: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "varied": {}, "broad": []}
     finished, whole, process_id = False, False, None
     for line in "".join(got).splitlines():
         try:
@@ -525,6 +572,8 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
             report["seen"].append(rest[0])
         elif kind == "varied":
             report["varied"].setdefault(rest[0], rest[1])
+        elif kind == "broad":
+            report["broad"].append(rest[0])
         elif kind == "process" and process_id is None:
             process_id = str(rest[0])
         elif kind == "whole":
@@ -547,6 +596,11 @@ def run_tests(checkout: Path, tests: Sequence[str], work: Path,
     # A run that did not say it ended, or whose watch was replaced, is evidence of nothing, and its verdicts with it.
     return {**report, "ran": sorted(names & known), "ran_here": sorted(here & known), "finished": finished,
             "whole": whole, "lines_ran": sorted(names & lines_known), "branches_ran": branches}
+
+
+#: The most tests broken in a full run that are each asked alone on both sides. More than this broken is no accident of
+#: order, and each alone costs two runs of pytest.
+_ASKED_ALONE = 10
 
 
 #: Objects the second run of the code before holds that the first does not, and nothing the code reads. A value that moves
@@ -931,12 +985,16 @@ def subclassed_elsewhere(checkout: Path, name: str, classes: set[str]) -> list[s
             resolved = _bases_resolved(tree, path, checkout)
             made = {(path, node.name) for node in ast.walk(tree) if isinstance(node, ast.ClassDef)
                     and any(resolved(base) in frontier for base in node.bases)}
-            made |= {(path, alias.asname or alias.name) for node in tree.body if isinstance(node, ast.ImportFrom)
-                     for alias in node.names if resolved(ast.Name(id=alias.asname or alias.name)) in frontier}
-            if made - frontier:
-                frontier |= made
-                found.add(path)
+            # A name it only imports is followed, so a subclass written against the name it hands on is found, but the
+            # module is no subclass of its own: LIVE 26 November 2026 four modules that only imported MorphogenField
+            # took her one-method change to 207 test files and 5,121 tests.
+            handed = {(path, alias.asname or alias.name) for node in tree.body if isinstance(node, ast.ImportFrom)
+                      for alias in node.names if resolved(ast.Name(id=alias.asname or alias.name)) in frontier}
+            if (made | handed) - frontier:
+                frontier |= made | handed
                 grown = True
+            if made:
+                found.add(path)
         if not grown:
             break
     return sorted(found - {name})
@@ -2621,6 +2679,55 @@ def checks_in(source: bytes) -> int:
     return sum(checks(test) for test in tests)
 
 
+def module_names_it_changed(repo: Path, commit: str, name: str) -> set[str]:
+    """The names at module level of ``name`` that the commit binds, changes or stops binding: assignments, and the names
+    an import it added or removed brings in. A test can read any of them without calling a function."""
+    if not name.endswith(".py"):
+        return set()
+    found: set[str] = set()
+    for at, lines in ((commit, _changed_lines(repo, commit, name)), (f"{commit}^", _removed_lines(repo, commit, name))):
+        if not _in_tree(repo, at, name):
+            continue
+        try:
+            tree = ast.parse(shown_at(repo, at, name))
+        except (SyntaxError, ValueError):
+            return {"*"}  # a module that does not parse may bind anything
+        found |= _assigned(tree.body, lines)
+        found |= {alias.asname or alias.name.split(".")[0] for node in tree.body
+                  if isinstance(node, (ast.Import, ast.ImportFrom)) and lines & _span(node) for alias in node.names}
+    return found
+
+
+def tests_that_ran_it(run: Mapping[str, Any], guards: Sequence[str], checkout: Path,
+                      names: Mapping[str, set[str]]) -> list[str] | None:
+    """The guarding test files a run shows ran a changed function, with those that name a module-level name the commit
+    changed, or None when the run cannot say: a changed function ran in a process the watch cannot tie to a test, or
+    a module-level name cannot be read off the files. A test that ran nothing the commit changed answers the same on
+    both sides. LIVE 26 November 2026: her change to MorphogenField.diffuse_step was guarded by 5,121 tests run three
+    times over, 3.9 hours, and the one that failed ran nothing of it."""
+    if not run["finished"] or not run["whole"] or set(run["ran"]) - set(run["ran_here"]) or run.get("broad"):
+        return None  # a changed function ran where no one test owns what it made: another process, a broad fixture
+    keys = [*run["values"], *run["seen"]]
+    answered = {key.split("|")[1] for key in keys if key.count("|") >= 2}
+    if {item.split("::", 1)[1] for item in run["ran"]} - answered:
+        return None  # a changed function ran and never came back in a test (a generator left part read, a thread)
+    files = {key.split("|", 1)[0].split("::", 1)[0] for key in keys}
+    for module, changed in names.items():
+        if "*" in changed:
+            return None
+        dotted = module[:-3].removesuffix("/__init__").replace("/", ".")
+        stem = dotted.rsplit(".", 1)[-1]
+        for test in guards:
+            try:
+                text = (checkout / test).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if any(re.search(rf"\b{re.escape(stem)}\.{re.escape(item)}\b", text)
+                   or re.search(rf"from\s+{re.escape(dotted)}\s+import\b[^\n]*\b{re.escape(item)}\b", text) for item in changed):
+                files.add(test)
+    return sorted(files & set(guards))
+
+
 def _the_call_in(key: str) -> tuple[str, str] | None:
     """The function and arguments of a value the watch kept, without the test that made it or its count."""
     parts = key.split("|")
@@ -2696,10 +2803,16 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         guards = sorted({*tests_naming(new, [*files, *readers, *source_of, *subclassing], functions, declared_test_roots(old)),
                          *edited})
         present = [name for name in guards if (new / name).is_file()]
-        first, second = run_tests(old, guards, work, functions), run_tests(old, guards, work, functions, ballast=BALLAST)
+        first = run_tests(old, guards, work, functions)
+        # Run again only the test files that ran what changed, when the first run can say which those are.
+        narrowed = tests_that_ran_it(first, guards, old, {name: module_names_it_changed(repo, commit, name)
+                                                          for name in files if name.endswith(".py")})
+        again_on = guards if narrowed is None else [name for name in guards if name in narrowed or name in edited]
+        second = run_tests(old, again_on, work, functions, ballast=BALLAST)
         written_lines = {name: sorted(lines_it_wrote_that_run(repo, commit, name)) for name in functions
                          if name not in readers and name not in source_of}
-        third = run_tests(new, present, work, functions, written_lines)
+        third = run_tests(new, [name for name in present if name in again_on], work, functions, written_lines)
+        asked_again = set(again_on)
         for name in edited:
             if (new / name).is_dir():
                 shutil.rmtree(new / name)
@@ -2712,8 +2825,25 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
         # A test renamed where it stands still passes as it was first written, so it is not a test lost.
         # A test a run cut short never reached has no verdict, not a failing one: that run refuses the change by itself.
         broke = sorted(node for node, passed in first["verdicts"].items() if passed and not third["verdicts"].get(node, False)
+                       and node.split("::")[0] in asked_again
                        and (third["finished"] or node in third["verdicts"])
                        and not (as_written.get(node, False) and (new / node.split("::")[0]).is_file()))
+        # A test that fails on the change in a long run is asked alone on each side before it counts: one that passes
+        # alone on the change, or fails alone before it, was decided by what ran beside it or by how long the run took
+        # (CLAUDE.md: an order-dependence defect). LIVE 26 November 2026 her right change to MorphogenField.diffuse_step
+        # was refused on test_installed_runtime_diagnostics_report_clean_at_rest, which reads the whole process's
+        # diagnostics and ran nothing of hers.
+        beside_others: list[str] = []
+        if broke:  # each side as committed, with nothing the long runs left behind
+            for checkout in (old, new):
+                git(checkout, "checkout", "-q", "--", ".")
+                git(checkout, "clean", "-fdxq")
+        for node in broke[:_ASKED_ALONE]:
+            was = run_tests(old, [node], work)["verdicts"].get(node, False)
+            now = run_tests(new, [node], work)["verdicts"].get(node, False)
+            if now or not was:
+                beside_others.append(node)
+        broke = [node for node in broke if node not in beside_others]
         rewritten = sorted(node for node, passed in first["verdicts"].items() if passed and node.split("::")[0] in edited
                            and node not in broke and not as_written.get(node, False))
         spec = run_tests(new, own, work, functions, written_lines)
@@ -2782,6 +2912,8 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                                            runs[2]["paths"])
         doubts += [f"a call an existing test makes gives another value, which the commit's own test pins: {key[:160]}"
                    for key in repinned]
+        doubts += [f"this test failed on the change among the others and not alone, so what ran beside it decided it: {node}"
+                   for node in beside_others]
         for one in shown_by:  # how each side's value was read, so a test written of it reads it the same way
             if isinstance(one.get("input"), dict):
                 key = _key(one["input"])
@@ -2855,7 +2987,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
             only = {name: [function for function in names if f"{name}::{function}" in unexamined]
                     for name, names in functions.items()}
             only = {name: names for name, names in only.items() if names}
-            both = [name for name in present if (old / name).is_file()]
+            both = [name for name in present if name in asked_again and (old / name).is_file()]
             varied = [run["varied"] for run in (run_tests(old, both, work, only, vary=True),
                                                 run_tests(old, both, work, only, vary=True, ballast=BALLAST),
                                                 run_tests(new, both, work, only, vary=True))]
@@ -2925,7 +3057,9 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                 and not changed and not lost and not doubts and not respecified and not broke:
             # A test added beside a change that keeps every value: a refactor with a guard, not a mend that shows nothing.
             shows_the_fault = {**shows_the_fault, "held": True, "keeps_every_value": True}
-        answers = {"shows_the_fault": shows_the_fault, "tests_held": {"tests": len(first["verdicts"]), "broke": broke[:20], "held": not broke},
+        answers = {"shows_the_fault": shows_the_fault, "tests_held": {"tests": len(first["verdicts"]), "broke": broke[:20], "held": not broke,
+                                                                     "asked_again": len(again_on),
+                                                                     "beside_others": beside_others[:20]},
                    "values_kept": values, "reverts_cleanly": {"held": reverted}}
         refused = not all(answer["held"] for answer in answers.values())
         verdict = "REFUSED" if refused or must_fix else "PROBATION" if doubts else "HELD"

@@ -37,7 +37,7 @@ def gates_asked(her_source, monkeypatch):
     asked: list[list[str]] = []
     failing: set[str] = set()
 
-    def run(argv, *, cwd, env):
+    def run(argv, *, cwd, env, seconds=0.0):
         asked.append(list(argv))
         name = "tests" if "pytest" in argv else argv[-1]
         return (name not in failing, f"{name} said this")
@@ -65,7 +65,7 @@ def test_the_outside_check_is_asked_last_and_its_refusal_sends_the_draft_back(he
     (her_source / "outside_bar" / "verify_change.py").write_text("")
     asked: list[list[str]] = []
 
-    def run(argv, *, cwd, env):
+    def run(argv, *, cwd, env, seconds=0.0):
         asked.append(list(argv))
         refused = any(part.endswith("verify_change.py") for part in argv)
         writes_verdict(argv, "REFUSED" if refused else "HELD")
@@ -120,7 +120,7 @@ def _the_outside_check_doubts(monkeypatch, her_source):
     (her_source / "outside_bar").mkdir(exist_ok=True)
     (her_source / "outside_bar" / "verify_change.py").write_text("")
 
-    def run(argv, *, cwd, env):
+    def run(argv, *, cwd, env, seconds=0.0):
         doubted = any(part.endswith("verify_change.py") for part in argv)
         writes_verdict(argv, "PROBATION" if doubted else "HELD")
         return (True, "on probation: its behaviour changed beside the input it pins" if doubted else "fine")
@@ -179,7 +179,7 @@ def test_her_yes_decides_by_the_verdict_written_and_not_by_the_words_printed(her
     (her_source / "outside_bar").mkdir(exist_ok=True)
     (her_source / "outside_bar" / "verify_change.py").write_text("")
 
-    def run(argv, *, cwd, env):
+    def run(argv, *, cwd, env, seconds=0.0):
         if any(part.endswith("verify_change.py") for part in argv) and verdict is not None:
             writes_verdict(argv, verdict)
         elif "core.self_modification.her_real_calls" in argv:
@@ -196,7 +196,7 @@ def test_a_gate_stopped_before_it_finished_judges_nothing_and_her_draft_stays_of
     Terminated: 15"), and the draft was sent back to her as failing it; its next try stalled."""
     stopped = [True]
 
-    def run(argv, *, cwd, env):
+    def run(argv, *, cwd, env, seconds=0.0):
         if argv[-1] == "writing" and stopped[0]:
             return (None, "make: *** [writing] Terminated: 15")
         return (True, "fine")

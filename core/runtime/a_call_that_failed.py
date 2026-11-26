@@ -153,7 +153,13 @@ def _a_record_written_back(value: Any) -> str | None:
 
 def _written_back(value: Any) -> str | None:
     """``value`` as source that evaluates to an equal value, or None when it is neither a plain value nor a record of
-    them."""
+    them. A path is written as the path it is: 4 of the faults she heard on 25 and 26 November 2026 could not be made
+    again only because an argument was a PosixPath."""
+    from pathlib import PurePath
+
+    if isinstance(value, PurePath) and type(value).__module__ == "pathlib":
+        text = str(value)
+        return f"__import__('pathlib').{type(value).__name__}({text!r})" if len(text) <= _LONGEST_ARGUMENT else None
     if _plain_within(value, _LONGEST_ARGUMENT) < 0:
         return _a_record_written_back(value)
     try:
@@ -280,6 +286,35 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
                                error_message=str(error)[:500], below=below,
                                causes=tuple(f"{type(one).__module__}.{type(one).__qualname__}" for one in chain[1:]),
                                codes=codes)
+
+
+#: Wrappers of hers that only hand an error on, passed through to find the call that made it.
+_WRAPPERS = 3
+
+
+def the_call_that_recorded(error: BaseException, frame: FrameType | None) -> FailedCall | str:
+    """For a fault recorded without being raised (``record_degradation("x", RuntimeError(...))``), the call of hers
+    that recorded it, from ``frame`` outward: making that call again is making the fault again when it records the same
+    fault again (core/self_modification/faults_she_can_reproduce.py). On 25 and 26 November 2026, 6 of the faults she
+    heard carried no call for that alone."""
+    while frame is not None and frame.f_globals.get("__name__") == "core.runtime.errors":
+        frame = frame.f_back
+    # A wrapper of hers that only hands the error on (``_record_goal_degradation(exc)``) is passed through, a few deep,
+    # to what made the error; a frame not of hers never is, since past it lies the machinery that ran her, her event
+    # loop and her process's own start among it.
+    for _ in range(_WRAPPERS):
+        if frame is None or not _hers(frame.f_code.co_filename) \
+                or not any(value is error for value in frame.f_locals.values()) or frame.f_back is None \
+                or not _hers(frame.f_back.f_code.co_filename):
+            break
+        frame = frame.f_back
+    if frame is None or not _hers(frame.f_code.co_filename):
+        return "it was recorded without being raised, from outside her source"
+    call = a_call_written_back(frame, raised=True)
+    if isinstance(call, str):
+        return call
+    return dataclasses.replace(call, error_type=f"{type(error).__module__}.{type(error).__qualname__}",
+                               error_message=str(error)[:500])
 
 
 def a_call_written_back(frame: FrameType, *, raised: bool = False) -> FailedCall | str:

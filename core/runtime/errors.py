@@ -743,6 +743,15 @@ def _record_degradation_backpressure_decision(_is_timeout, _shutting_down, actio
 
         failed_call: Any = the_call_that_failed(error)
         raised_in = where_it_was_raised(error)
+        if error.__traceback__ is None and isinstance(failed_call, str):
+            # Recorded without being raised: the call that recorded it is the one to make again.
+            import sys
+
+            from core.runtime.a_call_that_failed import the_call_that_recorded
+
+            failed_call = the_call_that_recorded(error, sys._getframe(1))
+            if not isinstance(failed_call, str):
+                raised_in = (failed_call.module, failed_call.qualname)
     except Exception as capture_exc:  # noqa: BLE001 - keeping the call must never cost the record itself
         failed_call = f"the call could not be kept: {type(capture_exc).__name__}"
 

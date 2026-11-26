@@ -40,7 +40,7 @@ def test_the_gates_her_yes_asks_run_in_it(her_runtimes_variables, monkeypatch, t
     import core.agency.her_goal_at_work as work
 
     seen = []
-    monkeypatch.setattr(work, "_run_a_gate", lambda argv, *, cwd, env: seen.append(env) or (True, ""))
+    monkeypatch.setattr(work, "_run_a_gate", lambda argv, *, cwd, env, seconds=0.0: seen.append(env) or (True, ""))
     monkeypatch.setattr(work.GoalRecord, "workspace", property(lambda _self: tmp_path), raising=False)
     work.the_gates_her_yes_asks(work.GoalRecord(goal="g", slug="g", offer={"files": []}))
     assert seen and all("AURA_GOVERNANCE_MODE" not in env and "AURA_REQUIRE_GOVERNANCE" not in env for env in seen)

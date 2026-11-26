@@ -336,9 +336,9 @@ def _records():
 
 
 def _recorded_since(before):
-    """What her degradation tracker recorded after ``before``, by kind: a fault her code catches and records is made
-    again when the call records it again, raised or not."""
-    return [record.error_type for record in _records() if id(record) not in before]
+    """What her degradation tracker recorded after ``before``, by kind and the function of hers it was raised in: a
+    fault her code catches and records is made again when the call records it again, raised or not."""
+    return [(record.error_type, getattr(record, "raised_in", None)) for record in _records() if id(record) not in before]
 '''
 
 #: Past the five seconds Python's sqlite3 waits for a held database by default (sqlite3.connect's ``timeout``).
@@ -404,7 +404,8 @@ def test_source(fault: HeardFault) -> str:
         + ("    monkeypatch.setattr(sqlite3, \"connect\", _held_by_another())\n" if held else "")
         + "    before = {id(record) for record in _records()}\n"
         + made
-        + f"    again = [one for one in _recorded_since(before) if one.rsplit('.', 1)[-1] == {kind!r}]\n"
+        + f"    again = [kind for kind, where in _recorded_since(before) if kind.rsplit('.', 1)[-1] == {kind!r}\n"
+        + f"             and where in (None, ({call.module!r}, {call.qualname!r}))]\n"
         + f"    assert not again, \"it recorded {kind} again\"\n"
     )
 
@@ -430,8 +431,22 @@ async def reproduce(fault: HeardFault, workspace: Path) -> Reproduction:
         await gateway.ensure_directory_async(folder, source="faults_she_can_reproduce")
         await gateway.write_text_async(path, test_source(fault), source="faults_she_can_reproduce")
     passed, output = await asyncio.to_thread(_run_the_test, test, Path(workspace))
-    raised = not passed and re.search(rf"\b{re.escape(_error_name(fault.call))}\b", output) is not None
-    return Reproduction(fault=fault, test=test, reproduced=raised, output=output)
+    return Reproduction(fault=fault, test=test, reproduced=not passed and made_again(fault.call, output), output=output)
+
+
+def made_again(call: FailedCall, output: str) -> bool:
+    """Whether a failed run of a fault's test made the fault again: it recorded the same kind of fault in the same
+    function (the test checks that place itself), or it raised the same kind with the same function of hers innermost
+    in its traceback. The kind alone is not enough: her browser's fetch, run in a workspace with no network, raises a
+    RuntimeError too, for another reason than the 403 she heard. The function, not the line, is compared, since her
+    source moves under a fault heard days before."""
+    kind = _error_name(call)
+    if f"it recorded {kind} again" in output:
+        return True
+    if not re.search(rf"\b{re.escape(kind)}\b", output):
+        return False
+    function = call.qualname.rsplit(".", 1)[-1]
+    return not call.file or re.search(rf"{re.escape(call.file)}:\d+: in {re.escape(function)}\b", output) is not None
 
 
 def _run_the_test(test: str, workspace: Path) -> tuple[bool, str]:
@@ -442,7 +457,7 @@ def _run_the_test(test: str, workspace: Path) -> tuple[bool, str]:
     from core.self_modification.a_checks_environment import a_checks_environment
 
     env = a_checks_environment(log_prefix="her-fault-logs-")
-    argv = ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", test]
+    argv = ["nice", "-n", "10", sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--tb=short", test]
     try:
         with local_internal_governed_scope("faults_she_can_reproduce.run", domain="tool_execution",
                                            receipt_prefix="her-fault-run",
