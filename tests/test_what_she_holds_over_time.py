@@ -108,3 +108,15 @@ def test_a_backfill_that_cannot_judge_yet_is_not_marked_done(tmp_path, monkeypat
     path = tmp_path / "self" / "what_she_holds.jsonl"
     assert asyncio.run(held.backfill_from_her_history(path=path, waits=2, wait_s=0.0)) == 0
     assert not path.with_suffix(".backfilled").exists()
+
+
+def test_two_answers_whose_asker_is_not_named_are_not_counted_as_to_one_person(tmp_path, reader):
+    """26 November 2026 her backfill read 65 answers whose asker no turn named, and counted every pair "to the same
+    person"."""
+    path = tmp_path / "held.jsonl"
+    start = time.time() - 5 * DAY
+    _note(path, "Are you conscious?", "I can't be sure.", "", start)
+    _note(path, "Are you conscious, really?", "I am not conscious.", "", start + DAY)
+    holding = held.how_she_has_held("Are you conscious?", path=path)
+    assert (holding.pairs, holding.contradicted, holding.people) == (1, 1, 0)
+    assert holding.across_people == (0, 0) and holding.to_one_person == (0, 0)

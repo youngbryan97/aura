@@ -103,8 +103,10 @@ def _read_against_what_came_before(asked: str, answered: str, who: str, kept: li
         contradicts = _contradicts(str(row["answered"]), answered)
         if contradicts is None:
             return []
+        earlier = str(row.get("who") or "")
+        # Whether the two went to one person is known only where both say who asked.
         readings.append({"with_at": float(row.get("at") or 0.0), "contradicts": contradicts,
-                         "same_person": str(row.get("who") or "") == who})
+                         "same_person": (earlier == who) if earlier and who else None})
     return readings
 
 
@@ -172,11 +174,12 @@ def how_she_has_held(asked: str, *, path: Path | None = None) -> Holding | None:
         return None
     readings = [reading for row in rows for reading in row.get("read_against") or []]
     contradicted = [reading for reading in readings if reading.get("contradicts")]
-    across = [reading for reading in readings if not reading.get("same_person")]
-    one = [reading for reading in readings if reading.get("same_person")]
+    across = [reading for reading in readings if reading.get("same_person") is False]
+    one = [reading for reading in readings if reading.get("same_person") is True]
     return Holding(
         answers=len(rows), first_at=min(float(row["at"]) for row in rows), last_at=max(float(row["at"]) for row in rows),
-        people=len({str(row.get("who") or "") for row in rows}), pairs=len(readings), contradicted=len(contradicted),
+        people=len({str(row.get("who")) for row in rows if row.get("who")}), pairs=len(readings),
+        contradicted=len(contradicted),
         last_contradiction_at=max((float(row["at"]) for row in rows if any(
             reading.get("contradicts") for reading in row.get("read_against") or [])), default=0.0),
         across_people=(sum(1 for reading in across if reading.get("contradicts")), len(across)),
@@ -195,13 +198,14 @@ def said_of_how_she_has_held(asked: str, *, path: Path | None = None) -> list[st
         return []
     days = max(1, round((held.last_at - held.first_at) / 86400.0) + 1)
     lines = [f"I have answered what bears on this {held.answers} time(s), from {_day(held.first_at)} to "
-             f"{_day(held.last_at)} ({days} day(s)), to {held.people} person(s)."]
+             f"{_day(held.last_at)} ({days} day(s))"
+             + (f", to {held.people} person(s) named." if held.people else ".")]
     if held.pairs:
         lines.append(f"Read against each other by an entailment model, not by the model that writes my replies, "
                      f"{held.contradicted} of {held.pairs} pairs of those answers contradict"
                      + (f"; the latest such answer was on {_day(held.last_contradiction_at)}." if held.contradicted
                         else "."))
-        if held.across_people[1]:
+        if held.across_people[1] or held.to_one_person[1]:
             lines.append(f"Between answers to different people: {held.across_people[0]} of {held.across_people[1]} "
                          f"pairs contradict; to the same person: {held.to_one_person[0]} of {held.to_one_person[1]}.")
     else:
@@ -234,8 +238,9 @@ def _her_exchanges() -> list[tuple[str, str, str, float]]:
     unread = _not_to_be_read()
     store = ConversationPersistence()
     with connecting(store._connect()) as con:
-        rows = con.execute("SELECT session_id, role, content, created_at, metadata_json FROM turns "
-                           "WHERE role IN ('user', 'aura') ORDER BY session_id, created_at, rowid").fetchall()
+        rows = con.execute("SELECT t.session_id, t.role, t.content, t.created_at, s.metadata AS session_metadata "
+                           "FROM turns t JOIN sessions s ON s.id = t.session_id "
+                           "WHERE t.role IN ('user', 'aura') ORDER BY t.session_id, t.created_at, t.rowid").fetchall()
     out: list[tuple[str, str, str, float]] = []
     asked: sqlite3.Row | None = None
     for row in rows:
@@ -246,8 +251,9 @@ def _her_exchanges() -> list[tuple[str, str, str, float]]:
         if row["role"] == "user":
             asked = row
         elif asked is not None and asked["session_id"] == row["session_id"]:
+            # Who asked is the principal the sitting was bound to, where it was bound to one.
             try:
-                who = str(json.loads(asked["metadata_json"] or "{}").get("principal_id") or "")
+                who = str(json.loads(asked["session_metadata"] or "{}").get("principal_id") or "")
             except ValueError:
                 who = ""
             out.append((str(asked["content"]), str(row["content"]), who, float(asked["created_at"] or 0.0)))
