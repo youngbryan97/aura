@@ -97,8 +97,8 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
                 seat.columns)
 
     async def look() -> Any:
-        current = await asyncio.to_thread(window_server.window_of, target_app) or window
-        return await _the_pixels_of(current)
+        current = await asyncio.to_thread(window_server.window_of, target_app)
+        return None if current is None else await _the_pixels_of(current)
 
     async def click(x: float, y: float) -> bool:
         current = await asyncio.to_thread(window_server.window_of, target_app)

@@ -925,14 +925,14 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
     while monotonic_time() - began < seconds:
         still = await _seen_still(seat, look)
         if still is None:
-            # A board that will not stand still for a while is not a board gone: while its window can still be seen,
-            # she watches on, as long as she would wait on an answer. LIVE 25 November 2026, twice in one sitting
-            # against Stockfish, the board did not stand still for ten seconds after her move, the game was given up
-            # at its fourteenth move, and the keys pressed to find it again took the board back to its start.
+            # Keep the position and wait for a fresh reading of an active game. A missing frame is also possible
+            # when the playing surface is temporarily unavailable, so don't hand back the controls on that alone.
             unsettled_s = monotonic_time() - game.stood_still_at
             if (unsettled_s < max(NO_ANSWER_AFTER_S, 10 * game.longest_answer_s)
-                    and await look() is not None):
-                logger.info("the board has not stood still for %.0f s; she watches on", unsettled_s)
+                    and (game.made or game.theirs or await look() is not None)):
+                if unsettled_s >= SETTLES_WITHIN_S:
+                    logger.debug("the board has not been readable for %.0f s; she watches on", unsettled_s)
+                await asyncio.sleep(0.3)
                 continue
             return {"ended": "the board went out of sight", "moves": game.made, "theirs": game.theirs,
                     "learned": game.learned}
@@ -1933,7 +1933,8 @@ async def _comes_to_show(seat: Seat, look: Look, game: _Game, move: Move) -> boo
             return True
         still = await _seen_still(seat, look, within_s=MOVE_SHOWS_S)
         if still is None:
-            return False
+            await asyncio.sleep(0.15)
+            continue
         shown = _read_against(seat.as_rules(still[1]), game.believed.cells, _only_the_others(game.learned),
                               _held_by_each(game.learned), move.end)
         if not _agrees(shown, game.believed.cells):

@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 import time
 
+import pytest
+
 import core.agency.playing_pieces_by_kind as playing
 from core.agency.pieces_by_their_kind import FIRST
 from tests.fixtures.a_board_application import BoardApplication
@@ -23,8 +25,9 @@ class _ABoardThatFlickers(BoardApplication):
     """After her first move, one empty square of the board changes on every look for a while: a mark that comes and
     goes. Then the board stands still again."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, drops_frames: bool, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.drops_frames = drops_frames
         self.flicker_until = 0.0
         self.flickers = 0
 
@@ -37,6 +40,8 @@ class _ABoardThatFlickers(BoardApplication):
         picture = await super().look()
         if time.monotonic() < self.flicker_until:
             self.flickers += 1
+            if self.drops_frames:
+                return None
             empty = next((r, c) for r in range(self.family.rows) for c in range(self.family.columns)
                          if (r, c) not in self.position.cells)
             x, y = self._centre_of(empty)
@@ -51,13 +56,14 @@ class _ABoardThatFlickers(BoardApplication):
                 self.margin + (self.family.rows - 1 - row) * self.square + self.square / 2)
 
 
-def test_a_board_that_does_not_stand_still_for_a_while_is_watched_on_and_the_game_goes_on(monkeypatch) -> None:
+@pytest.mark.parametrize("drops_frames", [False, True])
+def test_a_board_temporarily_unreadable_is_watched_on_and_the_game_goes_on(monkeypatch, drops_frames) -> None:
     monkeypatch.setattr(playing, "STILL_S", 0.02)
     monkeypatch.setattr(playing, "OFFERS_SHOW_S", 0.01)
     monkeypatch.setattr(playing, "WAITS_FOR_THE_FIRST_MOVE_S", 1.0)
     monkeypatch.setattr(playing, "SETTLES_WITHIN_S", SETTLES_WITHIN_S)
     monkeypatch.setattr(playing._Rehearsing, "start", lambda self, pool, family: None)
-    app = _ABoardThatFlickers(NOBODYS_GAME, seed=5)
+    app = _ABoardThatFlickers(NOBODYS_GAME, seed=5, drops_frames=drops_frames)
     said: list[str] = []
 
     async def run() -> dict:
