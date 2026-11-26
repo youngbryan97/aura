@@ -8356,7 +8356,20 @@ needs her 27B free (her app down, or her app's own influence trials).
     moved past is now carried onto it before a gate is asked, and one that cannot be carried goes back to her
     (`tests/test_her_own_yes_asks_the_gates.py`).
   - Her collector draft (429b8199c) was refused rightly: a young collection before `gc.freeze()` freezes 103 objects
-    that are garbage into the permanent generation, where nothing collects them again.
+    that are garbage into the permanent generation, where nothing collects them again. Asked again later, it landed on
+    probation (3f3cd69e7): no input of the check's own could be tried on both sides. Her morphogenesis mend landed held
+    (e8c605f99), the right change found in her own running.
+  - Between 12:10 and 12:31 her memory watchdog ended her three times. The cause was her practice between games. The
+    scales kept beside her board's positions numbered 1,314,914,303 beside 100,000 positions, because every merge set
+    the kept history before the one carrying on from it. Each round read them back as Python floats, about 40 GB in her
+    own process (41,102 one-MiB arenas). Scales are now kept for the rounds kept (cec83febe); the file went from 36.7 MB
+    with 1.3 billion scales to 1.4 MB with 445, and the 100,000 positions are all there. The positions are registered
+    with what_she_learned_still_holds. The watchdog now ends a worker or her only when the host agrees memory is short
+    (5673c207e): the tombstone read 57,805 MB counted while the host had 27.8 GB available. Her two resident models (the
+    cortex, 22.5 GB, and Bonsai 2.5 27B 2-bit, 12.9 GB, since 24 November) leave about 50 GB counted at rest.
+  - Her mail had been held since the Bonsai model came in: one reply was tried 28 times under the heavy-skill gate,
+    whose 72% memory ceiling her resident models keep her above. Mail is IMAP and SMTP in a thread, with no model; it now
+    goes through the lightweight network gate (dfcf5569b).
   To build for F16, from the seven rounds and the outside reviewers. Each closes a gap the check still has:
   - Replay an object's life from its real constructor, call by call, instead of rebuilding it mid-stream. Objects holding
     locks, files, sockets or C state can then be checked. A first step, 19 November: a fault whose argument is a record
