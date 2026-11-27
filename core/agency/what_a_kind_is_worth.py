@@ -651,8 +651,12 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
                            np.array(rehearsal.samples_y, dtype=np.float64), groups)
         if candidate is not None:
-            # A refit of what a weighted sum holds keeps how the pieces stand together as it was learned.
+            # A refit of what a weighted sum holds keeps what it does not fit as it was learned: how the pieces stand
+            # together, and what lies beyond the horizon, which is taught by how her games ended. LIVE 26 November 2026
+            # every refit kept since the 24th had set what lies beyond the horizon to nothing, and an earned group is not
+            # tried again: from 147 rounds to 474 her passed men and the like counted for nothing.
             candidate.learned = rehearsal.weights.learned
+            candidate.beyond = list(getattr(rehearsal.weights, "beyond", None) or [])
     if candidate is not None:
         # And how she searches with it: a judgement refitted is played with the habits it is measured against.
         candidate.habits = dict(getattr(rehearsal.weights, "habits", None) or {})
