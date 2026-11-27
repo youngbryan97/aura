@@ -190,6 +190,10 @@ struct Habits {
     /// is looked at more fully: where it is not improving, a late quiet move is shortened a ply more and fewer quiet
     /// moves are tried near the end of a look. Nought looks at both alike.
     improving: f64,
+    /// What a drawn game is worth to the side she plays (the side the look is wary for), in her judgement's units:
+    /// the judgement at which her chance against this opponent is even, as her games against it have turned out.
+    /// Nought where the two sides are as likely to win, as against herself.
+    draw_worth: f64,
     /// Where a look is about to end and her two judgements of the position disagree by more than this many margins
     /// (what her learned judgement adds to the weighted sum), the look goes a ply further, once on a line: what she
     /// is unsure of is looked into. Nought never.
@@ -270,6 +274,7 @@ impl Default for Habits {
             ends_past_the_horizon: 1.0,
             unhinted_from: 0.0,
             improving: 1.0,
+            draw_worth: 0.0,
             unsure_extends: 0.0,
             flip_mean: 0.0,
             flip_level: 0.0,
@@ -1824,6 +1829,19 @@ impl<'a> Searcher<'a> {
         self.tt.corrections[at].store(now, Ordering::Relaxed);
     }
 
+    /// A drawn game's worth to the side to move: what it is worth to her side where she is to move, the less of it
+    /// where they are; nought where the look is wary for neither side.
+    fn drawn(&self) -> i32 {
+        let worth = self.g.habits.draw_worth;
+        if worth == 0.0 || self.b.wary > 1 {
+            0
+        } else if self.b.turn == self.b.wary {
+            worth.round() as i32
+        } else {
+            -(worth.round() as i32)
+        }
+    }
+
     fn evaluate(&mut self) -> i32 {
         let key = self.b.hash;
         let at = key as usize & (JUDGEMENTS_KEPT - 1);
@@ -2281,7 +2299,7 @@ impl<'a> Searcher<'a> {
         if ply > 0 {
             // As in the search: a position repeated, or counted out, is drawn wherever the look meets it.
             if ends && (self.b.repeated(1) || (self.g.count_to_draw > 0 && self.b.count >= self.g.count_to_draw)) {
-                return 0;
+                return self.drawn();
             }
             if let Some(known) = self.known_ending(ply) {
                 return known;
@@ -2412,7 +2430,7 @@ impl<'a> Searcher<'a> {
                 return -MATE + ply as i32;
             }
             if self.b.repeated(1) || (g.count_to_draw > 0 && self.b.count >= g.count_to_draw) {
-                return 0;
+                return self.drawn();
             }
             if let Some(known) = self.known_ending(ply) {
                 return known;
@@ -2671,7 +2689,7 @@ impl<'a> Searcher<'a> {
             if leaving_out.is_some() {
                 return alpha;
             }
-            return if checked || !g.no_move_draws { -MATE + ply as i32 } else { 0 };
+            return if checked || !g.no_move_draws { -MATE + ply as i32 } else { self.drawn() };
         }
         let flag = if best_score <= original_alpha {
             2
@@ -3180,6 +3198,26 @@ impl Judgement {
         }
         Ok(judged)
     }
+
+    /// What each position is made of, as self-play's samples are: from the first side's view, for fitting weights to
+    /// how games ended. For positions she met in games played in the world, not in her model.
+    fn features_of_each(&self, positions: Vec<String>) -> PyResult<Vec<Vec<f32>>> {
+        let mut rows = Vec::with_capacity(positions.len());
+        let mut searcher: Option<Searcher> = None;
+        for position in &positions {
+            let p: PosD = serde_json::from_str(position).map_err(|e| PyValueError::new_err(format!("position: {e}")))?;
+            let b = Board::from(&self.g, &p).map_err(PyValueError::new_err)?;
+            let s = match searcher.as_mut() {
+                Some(s) => {
+                    s.b = b;
+                    s
+                }
+                None => searcher.insert(Searcher::fresh(&self.g, b, &self.table, 1e9, Instant::now(), 0)),
+            };
+            rows.push(s.features());
+        }
+        Ok(rows)
+    }
 }
 
 /// Hold endings worked out to the end under ``key``, for searches given that key: each as its pieces (side, kind
@@ -3382,7 +3420,7 @@ fn search_result(py: Python<'_>, g: &Game, result: (Option<Move>, i32, i32, u64,
 /// each sample came from, and each game's count of every kind where it stopped (first side less second): a game that
 /// stopped without a result can still be judged by how it stood.
 #[pyfunction]
-#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2, deep_nodes=0, nodes_per_move_b=0))]
+#[pyo3(signature = (description, start, weights_a, weights_b, games, nodes_per_move, random_plies=4, seed=1, max_plies=300, sample_every=2, deep_nodes=0, nodes_per_move_b=0, deep_quiet_only=false))]
 #[allow(clippy::too_many_arguments)]
 fn self_play(
     py: Python<'_>,
@@ -3398,6 +3436,7 @@ fn self_play(
     sample_every: u32,
     deep_nodes: u64,
     nodes_per_move_b: u64,
+    deep_quiet_only: bool,
 ) -> PyResult<PyObject> {
     let (ga, b0) = parse(description, start, weights_a)?;
     let (gb, _) = parse(description, start, weights_b)?;
@@ -3489,7 +3528,10 @@ fn self_play(
                     sample_turns.push(board.turn as u8);
                     // With ``deep_nodes``, what a much longer look of hers finds the position worth: her slow
                     // thinking, kept to teach her quick judgement what it would have found.
-                    let score = if deep_nodes > 0 {
+                    // With ``deep_quiet_only``, only a quiet position is given the longer look: what is gathered to
+                    // teach how the pieces stand together keeps only quiet ones, and the rest keep the look the game
+                    // gave them.
+                    let score = if deep_nodes > 0 && (!deep_quiet_only || takes_settled == judged) {
                         measure_the_margin(&ga, &board);
                         let saved = sa.max_nodes;
                         sa.max_nodes = deep_nodes;

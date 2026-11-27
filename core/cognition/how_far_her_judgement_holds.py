@@ -114,6 +114,24 @@ class HowFarItHolds:
             return None
         return _read(self.level, self.slope, judgement)
 
+    def even_at(self, scale: float) -> float:
+        """The judgement at which her chance here is even: what a drawn game is worth to her, in her judgement's units,
+        as the games here have turned out. Where the outcomes differ, it is where the fitted curve crosses one half.
+        Where every game here came to the same (or the curve cannot be read), her chance from the judgements she made
+        is Laplace's, one more of each ending than were seen, and her judgement moves her chance on ``scale``, the
+        judgement that reads as about three chances in four. With no games here it is nought, as against an equal.
+        LIVE 26 November 2026 her ten games against Stockfish and the 350 judgements in them all came to a loss: a
+        draw there is worth more than anything she judged, and her search held it worth nothing."""
+        undertakings = sorted({u for _j, _o, u in self.pairs})
+        if not undertakings or scale <= 0:
+            return 0.0
+        outcomes = {u: o for _j, o, u in self.pairs}
+        if len(set(outcomes.values())) > 1 and self.slope > 0:
+            return -self.level / self.slope
+        chance = (sum(outcomes.values()) + 1.0) / (len(undertakings) + 2.0)
+        middle = sum(j for j, _o, _u in self.pairs) / len(self.pairs)
+        return middle + scale * math.log((1.0 - chance) / chance)
+
     def error(self) -> float | None:
         """How far the curve's chances sit from what happened, as the mean squared difference (0 perfect, a quarter
         no better than a coin)."""

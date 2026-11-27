@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import numpy as np
@@ -831,6 +831,23 @@ class _Rehearsing:
     rehearsal: Any = None
     running: Any = None
     rounds: int = 0
+    #: What a drawn game is worth to her against the opponent in front of her, in her judgement's units
+    #: (HowFarItHolds.even_at): nought until her games here say otherwise.
+    draw_worth: float = 0.0
+
+    def weights_to_play(self, family: Family) -> Any:
+        """The weights she plays the game in front of her by: what rehearsal earned, with what a drawn game is worth
+        against this opponent. Her rehearsal plays herself, an equal, and is not given it."""
+        weights = self.weights_for(family)
+        if not self.draw_worth:
+            return weights
+        return replace(weights, habits={**(weights.habits or {}), "draw_worth": float(self.draw_worth)})
+
+    def scale(self) -> float:
+        """The judgement that reads as about three chances in four in her games against herself, or nought where she
+        has not measured it."""
+        scales = list(getattr(getattr(self.rehearsal, "looked_at_longer", None), "scales", None) or [])
+        return float(sorted(scales)[len(scales) // 2]) if scales else 0.0
 
     def weights_for(self, family: Family) -> Any:
         """The weights she plays by: what rehearsal earned, for the kinds it knows, and the first guess for the rest."""
@@ -976,6 +993,8 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
         game.learned.first_was_hers = game.first_is_hers
         if held is not None:
             game.held = held
+        # What a draw is worth against this opponent, as her games against it have turned out.
+        rehearsing.draw_worth = game.held.even_at(rehearsing.scale())
         if game.learned.shown is None:
             from core.agency.what_the_game_showed import WhatTheGameShowed
 
@@ -1179,7 +1198,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
             if not legal:
                 await _made_as_offered(seat, look, click, picture, game, family, offers_left, tell, session)
                 continue
-        weights = rehearsing.weights_for(family)
+        weights = rehearsing.weights_to_play(family)
         set_aside: list[Move] = []
         here = _a_place(game.believed, game.learned.start, family)
         failed_here = game.went_wrong.already_failed_at(here)
@@ -1307,7 +1326,7 @@ async def _play(seat: Seat, look: Look, click: Click, *, seconds: float, say: Ca
                 game.untaken.append((game.believed, found.move, family))
             set_aside.append(found.move)
             family = game.learned.family(unseen_go_every_way=True)
-            weights = rehearsing.weights_for(family)
+            weights = rehearsing.weights_to_play(family)
         else:
             # Every move she looked at was refused: she picks up every piece of hers to check if play can continue.
             for square in mine:
@@ -1579,7 +1598,7 @@ def _think_on_their_time(game: _Game, rehearsing: _Rehearsing, pool: Any, thinks
     if also is not None and (also.turn != FIRST or not moves(family, also)):
         also = None
     game.pondering.start(pool, family, facing, seconds=game.pondering.look_for(game.answers_s, game.last_share or thinks_s),
-                         weights=rehearsing.weights_for(family), earlier=[*game.earlier, game.believed],
+                         weights=rehearsing.weights_to_play(family), earlier=[*game.earlier, game.believed],
                          threads=max(1, _cores_free() - 1), also=also)
 
 
