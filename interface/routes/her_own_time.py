@@ -46,6 +46,40 @@ async def _carry_on(request: Any) -> None:
         await asyncio.sleep(2.0)
 
 
+async def _make_her_own(request: Any) -> None:
+    """Make a thing she set out to make for herself, as anybody's is made. Nobody is told as it goes, and nobody is asked:
+    what it came to is something she found, hers to tell or not."""
+    from core.agency.her_own_time import get_her_own_time
+    from core.understanding import carrying_out
+
+    def as_it_goes(line: str, **_how: Any) -> None:
+        logger.info("Making her own: %s", " ".join(str(line).split())[:200])
+
+    async def made(request: Any) -> None:
+        get_her_own_time().finds(f"what she made for herself, {request.said[:90]}", "; ".join(request.account()[1:5]), str(request.made.get("page") or ""))
+
+    if not carrying_out.begin(request, tell=as_it_goes, told=made):
+        return
+    ends = time.monotonic() + CARRIED_S
+    while carrying_out.is_under_way(request) and time.monotonic() < ends:
+        await asyncio.sleep(2.0)
+
+
+async def _imagines(facts: str) -> Any:
+    """Her model's reading of whether there is something she wants made now; None where her model is away."""
+    from core.agency.what_she_could_do import WhatSheWouldMake
+    from core.rebuilding.her_model import HerModelIsAwayError
+    from core.understanding.her_model_between_turns import ask
+
+    try:
+        return await ask(f"{facts}\n\nIs there something you would like to make for yourself now: a program, a tool, a game, an experiment, "
+                         "something to practise on? You need not make anything. Is there anything you made for yourself that you no "
+                         "longer want kept?", WhatSheWouldMake, 600)
+    except HerModelIsAwayError as away:
+        logger.info("Whether she would make something was not asked: %s", away)
+        return None
+
+
 async def _search(words: str) -> dict[str, Any]:
     from core.capability_engine import execute_tool
 
@@ -171,7 +205,8 @@ def begin_what_she_does_unasked() -> None:
 
     from core.container import ServiceContainer
 
-    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, looks=_looks, tell=_tell, here=_here, asks=_asks)
+    hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, looks=_looks, tell=_tell, here=_here, asks=_asks,
+                              make=_make_her_own, imagines=_imagines)
     hers.may = _her_will_says
     # Where the runtime's own loop, which is under her agency and may not reach up to it, finds it.
     ServiceContainer.register_instance("her_own_time", hers)

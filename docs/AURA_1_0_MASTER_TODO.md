@@ -8614,6 +8614,14 @@ needs her 27B free (her app down, or her app's own influence trials).
     does it, so acts that could not work do not stand against the same acts mended.
     Going on with a program somebody asked for is measured by how much of what it is tried by holds, and being closed as she
     does is being put down: an app went from 22 to 38 of 42 and it came to -1.00.
+  - 27 November, Bryan: she may make things of her own in the workspace if she wants to, "even if just experimental and she
+    wants to delete it later or practice something or whatever. dealer's choice". Making something is now one of the acts her
+    own time chooses among. Chosen, her model is asked whether there is anything she wants made, from what she wants and has
+    found and made before; it may say there is nothing. What she wants made becomes a request of her own, made by the same
+    engine as anybody's and measured by how much of what it is tried by holds. What came of it is something she found, hers to
+    tell or not. What she began and did not finish is hers to go on with, and is not among what people asked for. What she
+    no longer wants kept is put away beside the others, where it can be had back; only her own things can be. The Work panel
+    marks them as hers (`tests/test_she_makes_things_of_her_own.py`). Left: one of her own, made live.
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.

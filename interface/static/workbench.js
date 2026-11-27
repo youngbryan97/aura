@@ -276,7 +276,7 @@
     async function poll() { if (chosen === OWN) return own(); if (!chosen) return; try { came(await get(`/api/work/${chosen}?after=${after}`)); } catch (e) { /* asked again */ } }
     function railed(hers) {
       const rail = $('.wb-works'); if (!rail) return;
-      const html = list.map((w) => `<button data-work="${esc(w.id)}" class="${w.id === chosen ? 'on' : ''}"><span class="wb-thumb">${w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span><span class="wb-work-name">${esc(w.title)}<small>${{ going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state} · ${clock(w.ended || w.began)}</small></span><i class="${w.state}"></i></button>`).join('')
+      const html = list.map((w) => `<button data-work="${esc(w.id)}" class="${w.id === chosen ? 'on' : ''}"><span class="wb-thumb">${w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span><span class="wb-work-name">${esc(w.title)}<small>${w.hers ? 'Her own · ' : ''}${{ going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state} · ${clock(w.ended || w.began)}</small></span><i class="${w.state}"></i></button>`).join('')
         + `<button data-work="${OWN}" class="wb-hers ${chosen === OWN ? 'on' : ''}"><span class="wb-thumb">${icon('search')}</span><span class="wb-work-name">${hers.title}<small>With nobody asking</small></span></button>`;
       if (rail.__h !== html) { rail.__h = html; rail.innerHTML = html; }
     }

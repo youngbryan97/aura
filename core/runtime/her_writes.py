@@ -14,7 +14,7 @@ __all__ = ["governed"]
 
 def governed(how: str, path: str | Path, *payload: Any, source: str = "rebuilding_a_program") -> Any:
     """One write of hers: ``write_text`` (text), ``write_bytes`` (bytes), ``append_text`` (text), ``ensure_directory``,
-    ``delete_file`` or ``copy_path`` (destination)."""
+    ``delete_file``, ``copy_path`` or ``move_path`` (destination)."""
     from core.governance_context import local_internal_governed_scope
     from core.runtime.file_write_gateway import get_file_write_gateway
 
@@ -31,4 +31,6 @@ def governed(how: str, path: str | Path, *payload: Any, source: str = "rebuildin
             return get_file_write_gateway().delete_file(path, source=source)
         if how == "copy_path":
             return get_file_write_gateway().copy_path(path, *payload, source=source)
+        if how == "move_path":
+            return get_file_write_gateway().move_path(path, *payload, source=source)
     raise ValueError(f"no governed write named {how!r}")

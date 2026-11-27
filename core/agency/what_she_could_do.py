@@ -18,11 +18,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from core.agency.her_inquiries import Answered, Inquiry, NotNowError
 from core.agency.her_own_time import HERSELF, HerOwnTime
 from core.agency.what_she_does_next import CameOf, Option
 
-__all__ = ["act_of_a_goal", "begin_her_own_time", "goals_of_hers", "left_unmet", "things_to_find_out", "things_to_tell"]
+__all__ = ["WhatSheWouldMake", "act_of_a_goal", "begin_her_own_time", "goals_of_hers", "her_own_makes", "left_unmet", "put_away",
+           "things_to_find_out", "things_to_make", "things_to_tell"]
 
 #: A goal that asks for something to be known or found is looked up; one that asks for something to be built or changed is
 #: about her, and is worked in her own source. A goal that asks for nothing to be brought about has nothing that does it.
@@ -44,6 +47,7 @@ DOES: dict[str, tuple[str, ...]] = {
     "carry_on": ("core/understanding/carriers/*.py", "core/making/*.py", "core/making/*.js"),
     "find_out": ("core/agency/her_inquiries.py",), "look_up": ("core/agency/her_inquiries.py",),
     "goal": ("core/agency/her_goal_at_work.py",), "tell": ("core/agency/what_she_could_do.py",),
+    "make": ("core/understanding/carriers/building.py", "core/making/*.py", "core/making/*.js"),
 }
 
 
@@ -187,6 +191,134 @@ def things_to_tell(hers: HerOwnTime, tell: Callable[[dict[str, Any]], Awaitable[
     return out
 
 
+# ── what she makes for herself ───────────────────────────────────────
+
+#: What a thing she makes for herself is asked as: a program, made as anybody's is (core/understanding/carriers/building.py).
+HER_PROGRAM = "program"
+#: Where a thing she made and let go of is kept: beside what she makes, put away and not destroyed.
+PUT_AWAY = "put_away"
+
+
+class WhatSheWouldMake(BaseModel):
+    """Whether there is something she wants made now, what, and what of hers she no longer wants kept."""
+
+    wants_to: bool = Field(description="Whether there is something you want to make now.")
+    what: str = Field(default="", description="What to make, said the way you would ask somebody to make it.")
+    why: str = Field(default="", description="What it is for: a use you see for it, something to practise, or an experiment.")
+    let_go: list[str] = Field(default_factory=list, description="The ids of things you made for yourself that you no longer want kept.")
+
+
+#: Her model's reading of what she would make, from what she has to go on; None where her model is not there to read it.
+Imagines = Callable[[str], Awaitable[WhatSheWouldMake | None]]
+
+
+def her_own_makes() -> list[Any]:
+    """The things she set out to make for herself, the oldest first; those she let go of are not among them."""
+    from core.understanding.requests_of_her import get_requests_of_her
+
+    return [r for r in get_requests_of_her().all() if r.conversation == HERSELF and r.effect == HER_PROGRAM and not r.made.get(PUT_AWAY)]
+
+
+def what_she_has_to_go_on(hers: HerOwnTime) -> str:
+    """What she wants now, what she found on her own, and what she has made for herself, as facts."""
+    from core.conation.what_she_wants import get_what_she_wants
+
+    try:
+        wants = [{"thing": w.label, "why": _short(w.why, 200)} for w in get_what_she_wants().wants(limit=6)]
+    except _READ_FAILS:
+        wants = []
+    made = [{"id": r.id, "asked": _short(r.said, 300), "stands": r.stands, "of_what_it_is_tried_by_holds": _how_much_holds(r),
+             "begun": time.strftime("%Y-%m-%d", time.localtime(r.opened_at))} for r in her_own_makes()[-8:]]
+    return json.dumps({"what_you_want_now": wants, "what_you_found_on_your_own": [f["about"] for f in hers.found[-6:]],
+                       "what_you_have_made_for_yourself": made}, ensure_ascii=False)
+
+
+#: What a record of hers that cannot be read throws.
+_READ_FAILS = (ImportError, AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError)
+
+
+async def _made(request: Any, make: Callable[[Any], Awaitable[None]], *, began: bool = False) -> CameOf:
+    """Carry out a thing she set out to make; what came of it is how much more of what it is tried by holds, or, begun now,
+    how much holds."""
+    from core.understanding.requests_of_her import CUT_SHORT, SET_ASIDE
+
+    held = None if began else await asyncio.to_thread(_how_much_holds, request)
+    await make(request)
+    if request.stands in {CUT_SHORT, SET_ASIDE}:
+        return CameOf(put_down=True, what="it was put down before it came to anything")
+    holds = await asyncio.to_thread(_how_much_holds, request)
+    met = sum(1 for p in request.parts if p.stands == "met")
+    so = met / max(1, len(request.parts))
+    got = so if holds is None else holds if held is None or held >= 1.0 else max(0.0, (holds - held) / (1.0 - held))
+    return CameOf(got=max(0.0, min(1.0, got)), what=f"“{_short(request.said, 80)}”: {met} of {len(request.parts)} things asked of it are so"
+                  + (f"; {holds:.0%} of what it is tried by holds" + (f", and {held:.0%} did" if held is not None else "") if holds is not None else ""))
+
+
+def put_away(request: Any) -> str:
+    """Put away what she made for herself and no longer wants kept: moved beside the others where it can be had back, not
+    deleted. Where it went; "" where it was not a folder of hers to move."""
+    page = str(request.made.get("page") or "")
+    folder = Path(page).parent if page else None
+    if request.conversation != HERSELF or folder is None or not folder.is_dir():
+        return ""
+    from core.runtime.her_writes import governed
+
+    to = folder.parent / PUT_AWAY / folder.name
+    governed("ensure_directory", to.parent, source="her_own_time.put_away")
+    governed("move_path", folder, to, source="her_own_time.put_away")
+    request.made[PUT_AWAY] = str(to)
+    return str(to)
+
+
+async def _make_something(hers: HerOwnTime, make: Callable[[Any], Awaitable[None]], imagines: Imagines) -> CameOf:
+    """Ask herself whether there is something she wants made, and make it; and put away what of hers she no longer wants."""
+    from core.understanding.requests_of_her import get_requests_of_her
+
+    read = await imagines(await asyncio.to_thread(what_she_has_to_go_on, hers))
+    if read is None:
+        return CameOf(put_down=True, what="her model could not be asked")
+    gone = [r for r in her_own_makes() if r.id in set(read.let_go)]
+    put = [r.said for r in gone if await asyncio.to_thread(put_away, r)]
+    ledger = get_requests_of_her()
+    let = f"; she put away {len(put)} thing(s) she had made: " + "; ".join(_short(said, 60) for said in put) if put else ""
+    if not read.wants_to or not read.what.strip():
+        await ledger.keep()
+        return CameOf(got=0.0, what="there was nothing she wanted to make" + let)
+    request = ledger.asked(read.what.strip(), effect=HER_PROGRAM, conversation=HERSELF)
+    if read.why.strip():
+        request.added.append(read.why.strip())
+    await ledger.keep()
+    came = await _made(request, make, began=True)
+    return CameOf(came.got, came.worth, came.put_down, came.what + let, came.seconds)
+
+
+def things_to_make(hers: HerOwnTime, make: Callable[[Any], Awaitable[None]], imagines: Imagines) -> list[Option]:
+    """Making something of her own, if there is something she wants made; and going on with what she set out to make and did
+    not finish. Whether she makes anything is hers: asked, she may say there is nothing."""
+    from core.understanding import carrying_out
+    from core.understanding.requests_of_her import CUT_SHORT, PARTLY, UNMET
+
+    own = her_own_makes()
+    if any(carrying_out.is_under_way(r) for r in own):
+        return []
+    out = []
+    for request in reversed(own):
+        if request.stands not in {PARTLY, UNMET, CUT_SHORT} or time.time() - (request.changed_at or request.opened_at) > STILL_WANTED_S:
+            continue
+        met = sum(1 for p in request.parts if p.stands == "met")
+        out.append(Option(f"make:{request.id}", "make", f"go on making what she set out to make: {_short(request.said)}", f"{len(request.missing())} of it is not so yet",
+                          known={"met": met / max(1, len(request.parts)), "tried": len(request.tries) / (len(request.tries) + 2.0)},
+                          drives={"competence": _asking("competence")}, cost_s=900.0, does=lambda request=request: _made(request, make)))
+        if len(out) >= OF_A_SORT - 1:
+            break
+    held = [h for h in (_how_much_holds(r) for r in own) if h is not None]
+    out.append(Option("make:new", "make", "make something of her own, if there is something she wants made", f"{len(own)} made for herself before",
+                      known={"made": len(own) / (len(own) + 2.0), "held": sum(held) / len(held) if held else 0.0},
+                      drives={"competence": _asking("competence"), "curiosity": _asking("curiosity")}, cost_s=1200.0,
+                      does=lambda: _make_something(hers, make, imagines)))
+    return out
+
+
 async def _hers_to_do() -> list[tuple[str, Any, str]]:
     """Her goals that are under way: each with what she did of it in her own source, and its record in the goal store."""
     from core.agency import her_goal_at_work as goals
@@ -278,8 +410,10 @@ async def _nothing_reads(_goal: str) -> str:
 
 
 def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[None]], looks: LooksInto,
-                       tell: Callable[[dict[str, Any]], Awaitable[bool]], here: Callable[[], float], asks: Asks = _nothing_reads) -> HerOwnTime:
-    """Give her own time what she could do with it."""
+                       tell: Callable[[dict[str, Any]], Awaitable[bool]], here: Callable[[], float], asks: Asks = _nothing_reads,
+                       make: Callable[[Any], Awaitable[None]] | None = None, imagines: Imagines | None = None) -> HerOwnTime:
+    """Give her own time what she could do with it. ``make`` carries out a thing she set out to make for herself, and
+    ``imagines`` reads whether there is one; without both she makes nothing of her own."""
     def as_done_now(options: list[Option]) -> list[Option]:
         return [dataclasses.replace(option, way=way_of(option.kind)) for option in options]
 
@@ -290,5 +424,7 @@ def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[
     hers.offers("wants", lambda: asyncio.to_thread(lambda: as_done_now(things_to_find_out(hers, looks))))
     hers.offers("finds", lambda: as_done_now(things_to_tell(hers, tell, here)))
     hers.offers("goals", goals)
+    if make is not None and imagines is not None:
+        hers.offers("makes", lambda: asyncio.to_thread(lambda: as_done_now(things_to_make(hers, make, imagines))))
     hers.act_of = lambda goal: act_of_a_goal(goal, hers=hers, asks=asks, looks=looks)
     return hers

@@ -46,6 +46,9 @@ def _listed(work: Work) -> dict[str, Any]:
     seen["now"] = {k: v for k, v in seen["now"].items() if k != "writing"}
     folder = _folder(work.id)
     seen["icon"] = folder is not None and (folder / "icon.png").is_file()
+    request = get_requests_of_her().get(work.id)
+    # What she made for herself, with nobody asking for it.
+    seen["hers"] = request is not None and request.conversation == "herself"
     return seen
 
 
