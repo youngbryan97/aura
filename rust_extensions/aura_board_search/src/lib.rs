@@ -3516,6 +3516,11 @@ fn self_play(
                     let judged = sa.evaluate();
                     // Her first judgement without the learned one: what a learned judgement is fitted on top of.
                     let first_look = judged - sa.learned_judgement();
+                    // What a look at the takes alone begins from: her judgement as corrected by what her looks have
+                    // found of it. A position is quiet where no take moves that. LIVE-like 26 November 2026, compared
+                    // with her judgement uncorrected instead, two positions a game in her model of chess counted as
+                    // quiet once corrections had gathered, against thirty-seven in a seven-square world.
+                    let (stands, _) = sa.judged();
                     sa.nodes = 0;
                     sa.stop = false;
                     sa.started = Instant::now();
@@ -3524,14 +3529,20 @@ fn self_play(
                     let takes_settled = sa.quiesce(-INF, INF, 0);
                     sa.max_nodes = saved_nodes;
                     sample_static.push(first_look);
-                    sample_quiet.push(takes_settled == judged);
+                    // Quiet where the takes change her judgement by no more than one quiet move could: what is left to
+                    // learn there is how the pieces stand. Exactly equal is too strict for a judgement that is not a
+                    // plain sum of its parts: LIVE-like 26 November 2026, her learned layer made nine in ten positions
+                    // of her model of chess unquiet, where her first guess left nine in ten quiet.
+                    measure_the_margin(&ga, &board);
+                    let quiet = (takes_settled - stands).abs() <= ga.margin.load(Ordering::Relaxed);
+                    sample_quiet.push(quiet);
                     sample_turns.push(board.turn as u8);
                     // With ``deep_nodes``, what a much longer look of hers finds the position worth: her slow
                     // thinking, kept to teach her quick judgement what it would have found.
                     // With ``deep_quiet_only``, only a quiet position is given the longer look: what is gathered to
                     // teach how the pieces stand together keeps only quiet ones, and the rest keep the look the game
                     // gave them.
-                    let score = if deep_nodes > 0 && (!deep_quiet_only || takes_settled == judged) {
+                    let score = if deep_nodes > 0 && (!deep_quiet_only || quiet) {
                         measure_the_margin(&ga, &board);
                         let saved = sa.max_nodes;
                         sa.max_nodes = deep_nodes;
