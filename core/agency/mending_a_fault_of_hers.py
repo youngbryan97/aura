@@ -110,14 +110,17 @@ async def _where_it_lies(record: Any, fault: Any, source: str, *, ask: bool = Tr
     where_a_fault_lies.py), kept on her goal: read once for each version of the function, and with ``ask`` False only
     what was kept. None where the function did not raise it itself or her model gave no reading."""
     from core.agency import her_goal_at_work as goals
-    from core.self_modification.where_a_fault_lies import Judged, judge, version_of
+    from core.self_modification.where_a_fault_lies import Judged, her_model, judge, reader_of, version_of
 
     version = version_of(source, fault.call.qualname)
     if not version:
         return None
+    # A reading her brainstem made is read again by her cortex where it is there: LIVE 27 November 2026 her
+    # brainstem's readings, kept on her goals, were taken for her cortex's and it was never asked.
+    reader = reader_of(her_model())
     for entry in reversed(record.said):
         kept = Judged.from_kept(entry.get("judged")) if isinstance(entry, dict) else None
-        if kept is not None and kept.function_digest == version:
+        if kept is not None and kept.function_digest == version and kept.stands_for(reader):
             return kept
     if not ask:
         return None

@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Judged", "NotReadNow", "ToLookUp", "WhereItLies", "judge", "raised_here", "the_function", "version_of", "what_to_look_up"]
+__all__ = ["HerCortexReads", "Judged", "NotReadNow", "reader_of", "ToLookUp", "WhereItLies", "judge", "raised_here", "the_function", "version_of", "what_to_look_up"]
 
 logger = logging.getLogger("SelfModification.WhereAFaultLies")
 
@@ -66,6 +66,9 @@ class Judged:
     lies_in: str
     why: str
     function_digest: str
+    #: Which of her models read it: "cortex", or "brainstem" for her router's background tier. Readings kept before
+    #: this was kept were her brainstem's.
+    reader: str = "brainstem"
 
     @property
     def leaves_the_function(self) -> bool:
@@ -74,14 +77,19 @@ class Judged:
 
     def as_kept(self) -> dict[str, Any]:
         return {"on_purpose": self.on_purpose, "lies_in": self.lies_in, "why": self.why,
-                "function_digest": self.function_digest}
+                "function_digest": self.function_digest, "reader": self.reader}
 
     @classmethod
     def from_kept(cls, kept: Any) -> Judged | None:
         if not isinstance(kept, dict) or not kept.get("function_digest"):
             return None
         return cls(bool(kept.get("on_purpose")), str(kept.get("lies_in") or ""), str(kept.get("why") or ""),
-                   str(kept["function_digest"]))
+                   str(kept["function_digest"]), str(kept.get("reader") or "brainstem"))
+
+    def stands_for(self, reader: str) -> bool:
+        """Whether this reading stands where ``reader`` would read now: her cortex's always, her brainstem's only
+        where her cortex is not there to read it again."""
+        return self.reader == "cortex" or reader != "cortex"
 
 
 def _name_called(node: ast.AST) -> str:
@@ -225,6 +233,7 @@ class HerCortexReads:
                 return self.schema.model_validate(found)
             except ValueError:
                 continue
+        logger.info("her cortex's answer held no %s: %r", self.schema.__name__, " ".join(text.split())[-300:])
         return None
 
 
@@ -244,6 +253,11 @@ def _the_objects_in(text: str) -> list[Any]:
             found.append(value)
         at = said.find("{", at + end)
     return found
+
+
+def reader_of(advisor: Any) -> str:
+    """Which of her models ``advisor`` asks."""
+    return "cortex" if isinstance(advisor, HerCortexReads) else "brainstem"
 
 
 def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
@@ -339,10 +353,11 @@ async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = N
         return None
     _put_off(advisor, read)
     if read is None:
+        logger.info("her model gave no reading of %s", call.qualname)
         return None
     if not isinstance(read, WhereItLies):
         read = WhereItLies.model_validate(read)
-    judged = Judged(read.on_purpose, read.lies_in, " ".join(read.why.split()), digest)
+    judged = Judged(read.on_purpose, read.lies_in, " ".join(read.why.split()), digest, reader_of(advisor))
     logger.info("her model read %s: %s, and what should change is in %s", call.qualname,
                 "raised on purpose" if judged.on_purpose else "not raised on purpose", judged.lies_in)
     return judged

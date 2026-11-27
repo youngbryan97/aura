@@ -292,3 +292,23 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", held)
     with pytest.raises(lies.NotReadNow):
         asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
+
+
+def test_a_reading_her_brainstem_kept_is_read_again_by_her_cortex(monkeypatch):
+    """LIVE 27 November 2026, her brainstem's readings kept on her goals were taken for her cortex's."""
+    fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
+    record = goals.GoalRecord(goal="g", slug="mend-g")
+    brainstem = _HerModel(False, "the function", "it is the function's to change")
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: brainstem)
+    asyncio.run(mending._where_it_lies(record, fault, REFUSES))
+    assert record.said[-1]["judged"]["reader"] == "brainstem"
+
+    class Cortex(lies.HerCortexReads):
+        async def generate(self, prompt, *, is_background=True, deadline_s=lies.ASK_S):
+            return lies.WhereItLies(on_purpose=True, lies_in="what called it", why="it refuses an empty word")
+
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: Cortex(lies.WhereItLies))
+    judged = asyncio.run(mending._where_it_lies(record, fault, REFUSES))
+    assert judged.reader == "cortex" and judged.leaves_the_function
+    again = asyncio.run(mending._where_it_lies(record, fault, REFUSES, ask=False))
+    assert again.reader == "cortex", "her cortex's reading stands from then on"
