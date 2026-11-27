@@ -75,16 +75,25 @@
   const signed = (v) => (v == null ? '' : `<span class="${v < 0 ? 'minus' : 'plus'}">${v < 0 ? '−' : '+'}${Math.abs(v).toFixed(2)}</span>`);
   const site = (url) => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
   const asked = (q) => `<li class="${{ answered: 'ok', partly: 'ok part' }[q.stands] || (q.stands === 'let go' ? 'no' : 'open')}">${icon({ answered: 'ok', partly: 'ok', 'let go': 'no' }[q.stands] || 'asks')}<span>${esc(q.question)}${q.answer ? `<div class="wb-answer">${esc(q.answer)}${/^https?:/.test(q.where || '') ? ` <a href="${esc(q.where)}" target="_blank" rel="noopener noreferrer">${esc(site(q.where))}</a>` : ''}</div>` : q.stands === 'let go' ? '<div class="wb-why">Nothing she read says.</div>' : ''}</span></li>`;
+  // What she does is said as she would begin a sentence of it.
+  const up = (t) => { t = String(t || ''); return t ? t[0].toUpperCase() + t.slice(1) : t; };
   function ownTime(h) {
-    const b = h.before || {}, now = h.doing && h.doing.what ? `<div class="wb-own-now"><span class="wb-spin"></span><div><strong>${esc(h.doing.what)}</strong>${h.doing.why ? `<div class="wb-why">${esc(h.doing.why)}</div>` : ''}</div></div>`
-      : `<div class="wb-own-now">${icon('hold')}<div><strong>At rest</strong>${b.what ? `<div class="wb-why">Last: ${esc(b.what)}${b.came ? `. ${esc(b.came)}` : ''}</div>` : ''}</div></div>`;
+    const b = h.before || {}, now = h.doing && h.doing.what ? `<div class="wb-own-now"><span class="wb-spin"></span><div><strong>${esc(up(h.doing.what))}</strong>${h.doing.why ? `<div class="wb-why">${esc(h.doing.why)}</div>` : ''}</div></div>`
+      : `<div class="wb-own-now">${icon('hold')}<div><strong>At rest</strong>${b.what ? `<div class="wb-why">Last: ${esc(up(b.what))}${b.came ? `. ${esc(b.came)}` : ''}</div>` : ''}</div></div>`;
     const part = (title, inner) => (inner ? `<h3>${title}</h3>${inner}` : '');
     const finding = (h.finding_out || []).filter((f) => (f.questions || []).length).map((f) => `<details class="wb-card" data-of="${esc(f.of)}"><summary>${icon('search')}<span class="wb-card-name">${esc(f.about)}</span><span class="wb-about">${f.questions.filter((q) => q.stands === 'answered').length} of ${f.questions.length} answered</span><span class="wb-chev">${icon('chevron')}</span><span class="wb-meter"><i style="width:${Math.round(100 * (f.met || 0))}%"></i></span></summary><div class="wb-card-in"><ul class="wb-checks">${f.questions.map(asked).join('')}</ul></div></details>`).join('');
-    const did = (h.choices || []).slice(0, 12).map((c) => `<details class="wb-card" data-of="${esc(c.at)}"><summary>${icon(c.reward == null ? 'hold' : c.reward < 0 ? 'no' : 'ok')}<span class="wb-card-name">${esc(c.what)}</span><span class="wb-about">${clock(c.at)} ${signed(c.reward)}</span><span class="wb-chev">${icon('chevron')}</span></summary><div class="wb-card-in">${c.came ? `<p>${esc(c.came)}</p>` : ''}<p class="wb-why whole">${esc(c.why)}</p></div></details>`).join('');
+    const did = (h.choices || []).slice(0, 12).map((c) => `<details class="wb-card" data-of="${esc(c.at)}"><summary>${icon(c.reward == null ? 'hold' : c.reward < 0 ? 'no' : 'ok')}<span class="wb-card-name">${esc(up(c.what))}</span><span class="wb-about">${clock(c.at)} ${signed(c.reward)}</span><span class="wb-chev">${icon('chevron')}</span></summary><div class="wb-card-in">${c.came ? `<p>${esc(c.came)}</p>` : ''}<p class="wb-why whole">${esc(c.why)}</p></div></details>`).join('');
     const kinds = Object.entries((h.learned || {}).kinds || {}).filter(([, k]) => k.done).sort((x, y) => y[1].expected - x[1].expected).map(([k, v]) => `<tr><td>${esc(SORTS[k] || k.replace(/_/g, ' '))}</td><td>${v.done} done</td><td>${signed(v.expected)}</td></tr>`).join('');
     const l = h.learned || {}, better = l.before != null && l.lately != null ? `<p class="wb-why">What came of it lately ${signed(l.lately)}, and before ${signed(l.before)}.</p>` : '';
-    return now + part('Finding out', finding) + part('What she did', did) + part('What she expects of each', kinds ? `<table class="wb-learned">${kinds}</table>${better}` : '') || '<div class="wb-empty">Nothing yet.</div>';
+    return now + part('Finding out', finding) + part('What she did', did) + part('What she expects of each', kinds ? `<table class="wb-learned">${kinds}</table>${better}` : '');
   }
+  const STATE = { going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' };
+  // A work is named by what it makes once that has a name, and by what was asked until then.
+  const nameOf = (w) => (w && (w.name || w.title)) || '';
+  const thumbOf = (w) => `<span class="wb-thumb">${w.id === OWN ? icon('search') : w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span>`;
+  const subOf = (w) => (w.id === OWN ? 'With nobody asking' : `${w.hers ? '<b class="wb-tag">Her own</b>' : ''}${STATE[w.state] || esc(w.state)} · ${clock(w.ended || w.began)}`);
+  const item = (w, on) => `<button type="button" role="option" aria-selected="${!!on}" data-work="${esc(w.id)}" class="wb-item${on ? ' on' : ''}" title="${esc(w.title || '')}">${thumbOf(w)}<span class="wb-item-text"><span class="wb-item-name">${esc(nameOf(w))}</span><span class="wb-item-sub">${subOf(w)}</span></span>${w.id === OWN ? '' : `<i class="wb-dot ${esc(w.state)}"></i>`}</button>`;
+  const blank = (k, title, hint) => `<div class="wb-blank">${icon(k)}<strong>${title}</strong>${hint ? `<p>${hint}</p>` : ''}</div>`;
   const el = (tag, cls, html) => { const x = document.createElement(tag); if (cls) x.className = cls; if (html != null) x.innerHTML = html; return x; };
 
   window.mountWorkbench = function (root, options) {
@@ -95,17 +104,30 @@
     root.innerHTML = `
       ${wide ? '<nav class="wb-rail" aria-label="Her works"><h2>Work</h2><div class="wb-works"></div></nav>' : ''}
       <section class="wb-main">
-        <header class="wb-top"><select aria-label="Which work"></select><div class="wb-title"></div><span class="wb-state"><i></i><span></span></span>
+        <header class="wb-top"><button type="button" class="wb-switch" aria-haspopup="listbox" aria-expanded="false"${wide ? ' disabled' : ''}><span class="wb-head-thumb"></span><span class="wb-head-text"><span class="wb-title"></span><span class="wb-sub"></span></span>${wide ? '' : `<span class="wb-switch-chev">${icon('chevron')}</span>`}</button><span class="wb-state"><i></i><span></span></span>
           <button data-do="hold" class="wb-quiet" title="Hold it where it is">${icon('hold')}</button><button data-do="open" class="wb-quiet" title="Open what it made">${icon('open')}</button>${wide ? '' : `<button data-do="wide" class="wb-quiet" title="Open in a window of its own">${icon('wide')}</button>`}</header>
-        ${wide ? '' : '<div class="wb-tabs" role="tablist"></div>'}
+        ${wide ? '' : '<div class="wb-menu" role="listbox" aria-label="Her works" hidden></div><div class="wb-tabs" role="tablist"></div>'}
         <div class="wb-session" data-view="session"><div class="wb-log" role="log" aria-live="off"></div></div>
         <button class="wb-latest" hidden>${icon('down')}Latest</button>
         ${wide ? '' : '<div class="wb-view" hidden></div>'}
-        <footer class="wb-foot"><div class="wb-status" aria-live="polite"></div><form class="wb-say"><textarea rows="1" placeholder="Say something to her about this" aria-label="Say something to this work"></textarea><button type="button" data-do="stop" class="wb-round wb-stop" title="Stop">${icon('stop')}</button><button type="submit" class="wb-round" title="Say it">${icon('send')}</button></form></footer>
+        <footer class="wb-foot"><div class="wb-status" aria-live="polite"></div><form class="wb-say"><textarea rows="1" placeholder="Say something to her about this work" aria-label="Say something to this work"></textarea><button type="button" data-do="stop" class="wb-round wb-stop" title="Stop">${icon('stop')}</button><button type="submit" class="wb-round" title="Say it">${icon('send')}</button></form></footer>
       </section>
       ${wide ? '<aside class="wb-canvas"><div class="wb-tabs" role="tablist"></div><div class="wb-view"></div></aside>' : ''}`;
     const $ = (q) => root.querySelector(q);
-    const log = $('.wb-log'), scroller = $('.wb-session'), say = $('.wb-say textarea'), view = $('.wb-view'), latest = $('.wb-latest'), pick = $('select');
+    const log = $('.wb-log'), scroller = $('.wb-session'), say = $('.wb-say textarea'), view = $('.wb-view'), latest = $('.wb-latest'), menu = $('.wb-menu'), switcher = $('.wb-switch');
+    const HERS = { id: OWN, title: 'Her own time' };
+    // The head: the work's name, what was asked of it under that, and its picture.
+    function named(w) {
+      const at = w.id === OWN ? HERS : { ...(list.find((x) => x.id === w.id) || {}), ...w, name: (list.find((x) => x.id === w.id) || {}).name || (design && design.name) || w.name };
+      const t = $('.wb-title'), sub = $('.wb-sub'), name = nameOf(at), asked = at.id === OWN ? 'What she does with nobody asking' : at.name && at.title !== at.name ? at.title : '';
+      if (t.textContent !== name) t.textContent = name; if (sub.textContent !== asked) { sub.textContent = asked; sub.title = asked; }
+      const thumb = thumbOf(at); const box = $('.wb-head-thumb'); if (box.__h !== thumb) { box.__h = thumb; box.innerHTML = thumb; }
+    }
+    function drawMenu() { if (!menu) return; const html = list.map((w) => item(w, w.id === chosen)).join('') + '<div class="wb-sep" role="separator"></div>' + item(HERS, chosen === OWN); if (menu.__h !== html) { menu.__h = html; menu.innerHTML = html; } }
+    function menuOpen(on) {
+      if (!menu) return; menu.hidden = !on; switcher.setAttribute('aria-expanded', String(on));
+      if (on) { drawMenu(); (menu.querySelector('.on') || menu.querySelector('.wb-item')).focus(); }
+    }
     const get = async (url) => { const r = await fetch(url, { credentials: 'same-origin' }); if (!r.ok) throw new Error(String(r.status)); return r.json(); };
     const post = (url, body) => fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : '{}' });
     const visible = () => root.isConnected && root.offsetParent !== null && !document.hidden;
@@ -116,15 +138,15 @@
       if (id === chosen) return;
       clearTimeout(timer); cancelAnimationFrame(raf); raf = 0; live = null; writing = ''; if (chosen) drafts.set(chosen, say.value);
       chosen = id; last = null; after = 0; files = new Map(); checks = []; design = null; program = null; kept = 0; group = null; target = ''; shownN = 0; liveKey = ''; part = ''; pinned = true; asking = [];
-      log.innerHTML = ''; view.innerHTML = ''; say.value = drafts.get(id) || ''; $('.wb-title').textContent = ''; $('.wb-status').textContent = ''; root.classList.toggle('wb-own', id === OWN);
+      log.innerHTML = ''; view.innerHTML = ''; say.value = drafts.get(id) || ''; named(id === OWN ? HERS : list.find((x) => x.id === id) || { id, title: '' }); $('.wb-status').textContent = ''; root.classList.toggle('wb-own', id === OWN);
       if (id === OWN) { if (source) { source.close(); source = null; } own(); return; }
       stream(); drawTabs(); drawView();
     }
     async function own() {
       let h; try { h = await get('/api/her_own_time'); } catch (e) { return; }
       if (chosen !== OWN) return;
-      const busy = !!(h.doing && h.doing.what), s = $('.wb-state'); s.className = 'wb-state ' + (busy ? 'going' : ''); s.lastElementChild.textContent = busy ? 'Doing something' : 'At rest'; $('.wb-title').textContent = 'Her own time';
-      const html = ownTime(h); if (log.__own === html && log.firstChild) return;
+      const busy = !!(h.doing && h.doing.what), s = $('.wb-state'); s.className = 'wb-state ' + (busy ? 'going' : ''); s.lastElementChild.textContent = busy ? 'Doing something' : 'At rest'; named(HERS);
+      const html = ownTime(h) || blank('hold', 'Nothing yet', 'What she chooses to do with nobody asking shows here, and what came of it.'); if (log.__own === html && log.firstChild) return;
       const open = new Set([...log.querySelectorAll('details[open]')].map((d) => d.dataset.of)), at = scroller.scrollTop;
       log.__own = html; log.innerHTML = `<div class="wb-own-time">${html}</div>`; for (const d of log.querySelectorAll('details')) if (open.has(d.dataset.of)) d.open = true; scroller.scrollTop = at;
     }
@@ -154,7 +176,7 @@
       trouble(h) { into().appendChild(el('div', 'wb-trouble', icon('trouble') + `<span>${esc(h.why)}</span>`)); },
       made(h) { const c = el('div', 'wb-made', `<div class="wb-made-pic">${icon('made')}</div><div><strong>${esc(h.title)}</strong><div class="wb-why">${esc(h.where)}</div></div><button data-do="open">${icon('open')}Open it</button>`); log.appendChild(c); const img = new Image(); img.alt = ''; img.onload = () => c.querySelector('.wb-made-pic').replaceChildren(img); img.src = `/api/work/${chosen}/picture/icon`; },
       layer(h) { into().appendChild(card('layer', `Part ${h.n} of ${h.of}`, `${(h.rules || []).length} rules`, `<ul class="wb-plain">${(h.rules || []).map((r) => `<li>${esc(r)}</li>`).join('')}</ul>`)); },
-      design(h) { design = h.design || {}; into().appendChild(card('design', `${esc(design.name)}`, `${(design.rules || []).length} rules`, `<p>${esc(design.about)}</p><ul class="wb-plain">${(design.rules || []).map((r) => `<li>${esc(r.says)}${r.of ? `<span class="wb-why"> “${esc(r.of)}”</span>` : ''}</li>`).join('')}</ul>`)); drawTabs(); },
+      design(h) { design = h.design || {}; if (last) named(last); into().appendChild(card('design', `${esc(design.name)}`, `${(design.rules || []).length} rules`, `<p>${esc(design.about)}</p><ul class="wb-plain">${(design.rules || []).map((r) => `<li>${esc(r.says)}${r.of ? `<span class="wb-why"> “${esc(r.of)}”</span>` : ''}</li>`).join('')}</ul>`)); drawTabs(); },
       code(h) {
         const was = files.get(h.name); files.set(h.name, { ...h, was: was ? was.code : '' });
         const d = diff(was ? was.code : '', h.code || '');
@@ -167,7 +189,7 @@
         c.classList.toggle('all', !bad.length && h.of > 0); c.querySelector('summary').insertAdjacentHTML('beforeend', `<span class="wb-meter"><i style="width:${h.of ? (100 * h.good) / h.of : 0}%"></i></span>`); into().appendChild(c); drawTabs();
       },
       consulted(h) { const said = h.said || [], by = (k) => said.filter((x) => x.source === k).length, link = (w) => { const m = /<(https?:[^>]+)>/.exec(w || ''); return m ? `${esc(w.replace(m[0], ''))}<a href="${esc(m[1])}" target="_blank" rel="noopener noreferrer">${esc(site(m[1]))}</a>` : esc(w); };
-        into().appendChild(card('search', 'What her sources say', `${by('library')} from her library · ${by('web')} from the web${by('her model') ? ' · her own model' : ''}`, () => (h.asked || []).map((q) => `<p><b>${esc(q)}</b></p><ul class="wb-plain">${said.filter((x) => x.question === q).map((x) => `<li><span class="wb-why">${esc(x.source)}, ${link(x.where)}</span><div>${esc(x.text)}</div></li>`).join('')}</ul>`).join('') + said.filter((x) => x.source === 'her model').map((x) => `<p><b>Her own model would advise</b></p><div class="wb-says">${prose(x.text)}</div>`).join(''))); },
+        into().appendChild(card('search', 'What her sources say', [by('library') ? `${by('library')} from her library` : '', by('web') ? `${by('web')} from the web` : '', by('her model') ? 'her own model' : ''].filter(Boolean).join(' · '), () => (h.asked || []).map((q) => `<p><b>${esc(q)}</b></p><ul class="wb-plain">${said.filter((x) => x.question === q).map((x) => `<li><span class="wb-why">${esc(x.source)}, ${link(x.where)}</span><div>${esc(x.text)}</div></li>`).join('')}</ul>`).join('') + said.filter((x) => x.source === 'her model').map((x) => `<p><b>Her own model would advise</b></p><div class="wb-says">${prose(x.text)}</div>`).join(''))); },
       painted(h) { const c = el('figure', 'wb-painted'); c.innerHTML = `<img alt="${esc(h.shows || h.name)}" src="/api/work/${chosen}/picture/${encodeURIComponent(h.name)}"><figcaption>${esc(h.name)}${h.shows ? `<div class="wb-why">${esc(h.shows)}</div>` : ''}</figcaption>`; let strip = into().lastElementChild; if (!strip || !strip.classList.contains('wb-strip')) { strip = el('div', 'wb-strip'); into().appendChild(strip); } strip.appendChild(c); },
       asks(h) { asking.push(h.words); const c = el('div', 'wb-ask'); c.innerHTML = `<div class="wb-ask-q">${icon('asks')}<div>${prose(h.words)}${h.goes_with ? `<div class="wb-why">Until you say, she goes on with ${esc(h.goes_with)}.</div>` : ''}</div></div><form><input aria-label="Your answer" placeholder="Answer her"><button>Answer</button></form>`; c.querySelector('form').onsubmit = async (e) => { e.preventDefault(); const words = c.querySelector('input').value.trim(); if (!words) return; c.classList.add('answered'); c.querySelector('form').remove(); await post(`/api/work/${chosen}/say`, { words }); }; log.appendChild(c); group = null; },
       kept() { kept++; program = null; drawTabs(); if (tab === 'preview' || tab === 'code') drawView(); },
@@ -221,25 +243,25 @@
       if (tab === 'preview') {
         const at = view.querySelector('iframe'); const src = `/api/work/${id}/preview?v=${kept}`;
         if (at && at.dataset.src === src) return;
-        view.className = 'wb-view wb-preview'; view.innerHTML = kept || (last && last.made) ? `<iframe title="What she has made, running" sandbox="allow-scripts" data-src="${src}" src="${src}"></iframe>` : '<div class="wb-empty">What she makes runs here as soon as there is something to run.</div>';
+        view.className = 'wb-view wb-preview'; view.innerHTML = kept || (last && last.made) ? `<iframe title="What she has made, running" sandbox="allow-scripts" data-src="${src}" src="${src}"></iframe>` : blank('go', 'Nothing to run yet', 'What she makes runs here as soon as there is something to run.');
       } else if (tab === 'code') {
         if (!program || program.of !== id) { let its; try { its = await get(`/api/work/${id}/program`); } catch (e) { its = { parts: {} }; } if (id !== chosen || tab !== 'code') return; program = { ...its, of: id }; }
         const names = Object.keys(program.parts || {});
-        if (!names.length) { view.className = 'wb-view'; view.innerHTML = '<div class="wb-empty">Nothing of it is written yet.</div>'; return; }
+        if (!names.length) { view.className = 'wb-view'; view.innerHTML = blank('code', 'Nothing written yet', 'Its code shows here, part by part, as she writes it.'); return; }
         if (!names.includes(part)) part = names[0];
         const text = program.parts[part] || '', language = program.language || 'javascript';
         view.className = 'wb-view wb-files'; view.innerHTML = `<nav>${names.map((n) => `<button data-part="${esc(n)}" class="${n === part ? 'on' : ''}">${esc(n.replace(/^.*:/, ''))}</button>`).join('')}</nav><pre class="wb-code wb-numbered">${text.split('\n').map((l) => `<div class="wb-l">${lit(l, language) || '&#8203;'}</div>`).join('')}</pre>`;
       } else if (tab === 'checks') {
         view.className = 'wb-view'; const good = checks.filter((r) => r.ok).length;
-        view.innerHTML = checks.length ? `<div class="wb-score"><strong>${good}</strong> of ${checks.length} hold<span class="wb-meter"><i style="width:${(100 * good) / checks.length}%"></i></span></div><ul class="wb-checks">${[...checks].sort((a, b) => a.ok - b.ok).map(checkRow).join('')}</ul>` : `<div class="wb-empty">${design ? 'Its tests are being written.' : 'What has to hold of it shows here, and whether it does.'}</div>`;
+        view.innerHTML = checks.length ? `<div class="wb-score"><strong>${good}</strong> of ${checks.length} hold<span class="wb-meter"><i style="width:${(100 * good) / checks.length}%"></i></span></div><ul class="wb-checks">${[...checks].sort((a, b) => a.ok - b.ok).map(checkRow).join('')}</ul>` : blank('tried', design ? 'Its tests are being written' : 'Nothing tried yet', 'What has to hold of it shows here, and whether it does.');
       }
     }
 
     // ── what is going on now ───────────────────────────────────────
     function drawHead() {
       const w = last; if (!w) return;
-      const label = { going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state, going = w.state === 'going' || w.state === 'held';
-      const s = $('.wb-state'); s.className = 'wb-state ' + w.state; s.lastElementChild.textContent = label; const t = $('.wb-title'); if (t.textContent !== w.title) t.textContent = w.title;
+      const label = STATE[w.state] || w.state, going = w.state === 'going' || w.state === 'held';
+      const s = $('.wb-state'); s.className = 'wb-state ' + w.state; s.lastElementChild.textContent = label; named(w);
       const hold = $('[data-do=hold]'); hold.innerHTML = icon(w.state === 'held' ? 'go' : 'hold'); hold.title = w.state === 'held' ? 'Let it go on' : 'Hold it where it is'; hold.hidden = !going; $('.wb-stop').hidden = !going;
       if (!going && group && group.el.classList.contains('now')) { group.el.classList.remove('now'); group.el.classList.add('was'); group.icon.innerHTML = icon(w.state === 'done' ? 'done' : 'stop'); group.time.textContent = ''; }
       drawStatus();
@@ -274,10 +296,9 @@
       s.onerror = () => { s.close(); if (source === s) { source = null; clearTimeout(timer); timer = setTimeout(() => { if (id === chosen) { poll(); stream(); } }, 1500); } };
     }
     async function poll() { if (chosen === OWN) return own(); if (!chosen) return; try { came(await get(`/api/work/${chosen}?after=${after}`)); } catch (e) { /* asked again */ } }
-    function railed(hers) {
+    function railed() {
       const rail = $('.wb-works'); if (!rail) return;
-      const html = list.map((w) => `<button data-work="${esc(w.id)}" class="${w.id === chosen ? 'on' : ''}"><span class="wb-thumb">${w.icon ? `<img alt="" src="/api/work/${esc(w.id)}/picture/icon">` : icon('made')}</span><span class="wb-work-name">${esc(w.title)}<small>${w.hers ? 'Her own · ' : ''}${{ going: 'Working', held: 'Held', done: 'Done', stopped: 'Stopped' }[w.state] || w.state} · ${clock(w.ended || w.began)}</small></span><i class="${w.state}"></i></button>`).join('')
-        + `<button data-work="${OWN}" class="wb-hers ${chosen === OWN ? 'on' : ''}"><span class="wb-thumb">${icon('search')}</span><span class="wb-work-name">${hers.title}<small>With nobody asking</small></span></button>`;
+      const html = list.map((w) => item(w, w.id === chosen)).join('') + '<div class="wb-sep" role="separator"></div>' + item(HERS, chosen === OWN);
       if (rail.__h !== html) { rail.__h = html; rail.innerHTML = html; }
     }
     async function works() {
@@ -285,19 +306,18 @@
       const button = document.querySelector('.tab-btn[data-tab="work"]');
       if (button) { const going = list.some((w) => w.state === 'going' || w.state === 'held'); button.classList.toggle('wb-going', going); button.title = going ? 'She is working on something' : 'Her work'; }
       if (!visible()) { if (source) { source.close(); source = null; } return; }
-      const hers = { id: OWN, title: 'Her own time' };
-      if (pick) { const html = [...list, hers].map((w) => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join(''); if (pick.__h !== html) { pick.__h = html; pick.innerHTML = html; } }
+      if (menu && !menu.hidden) drawMenu();
       if (chosen === OWN) own();
-      if (!list.length && chosen !== OWN) { if (pick) pick.selectedIndex = -1; railed(hers); if (!log.children.length) log.innerHTML = '<div class="wb-empty">Ask her to make something and her work shows here as she does it: what she decides, the code as she writes it, what trying it shows, and the program running. You can speak to it while it goes.</div>'; return; }
-      railed(hers);
+      if (!list.length && chosen !== OWN) { railed(); named({ id: '', title: 'Work' }); if (!log.children.length) log.innerHTML = blank('made', 'Nothing made yet', 'Ask her to make something and it shows here as she does it: what she decides, the code as she writes it, what trying it shows, and the program running. You can speak to it while it goes.'); return; }
+      railed(); if (last) named(last);
       const going = list.find((w) => w.state === 'going');
       if (!chosen || (chosen !== OWN && !list.some((w) => w.id === chosen))) choose((going || list[0]).id);
-      if (pick) pick.value = chosen;
       if (!source) stream();
     }
 
     root.addEventListener('click', async (e) => {
-      const w = e.target.closest('[data-work]'); if (w) { choose(w.dataset.work); works(); return; }
+      if (switcher && switcher.contains(e.target) && !wide) { menuOpen(menu.hidden); return; }
+      const w = e.target.closest('[data-work]'); if (w) { menuOpen(false); choose(w.dataset.work); works(); if (!wide) switcher.focus(); return; }
       const t = e.target.closest('[data-tab]'); if (t && root.contains(t)) { tab = t.dataset.tab; drawTabs(); drawView(); return; }
       if (e.target.closest('[data-again]')) { const f = view.querySelector('iframe'); if (f) f.src = f.dataset.src + '&again=' + Date.now(); return; }
       const y = e.target.closest('.wb-why'); if (y) { y.classList.toggle('whole'); return; }
@@ -307,7 +327,16 @@
       if (what === 'wide') return void window.open('/api/workbench', 'aura-workbench', 'width=1360,height=880');
       await post(`/api/work/${chosen}/${what === 'hold' && last && last.state === 'held' ? 'go_on' : what}`); if (!source) poll();
     });
-    if (pick) pick.addEventListener('change', () => { choose(pick.value); });
+    if (menu) {
+      menu.addEventListener('keydown', (e) => {
+        const items = [...menu.querySelectorAll('.wb-item')], at = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { items[(at + (e.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length].focus(); e.preventDefault(); }
+        else if (e.key === 'Home' || e.key === 'End') { items[e.key === 'Home' ? 0 : items.length - 1].focus(); e.preventDefault(); }
+        else if (e.key === 'Escape' || e.key === 'Tab') { menuOpen(false); switcher.focus(); if (e.key === 'Escape') e.preventDefault(); }
+      });
+      switcher.addEventListener('keydown', (e) => { if (e.key === 'ArrowDown' && menu.hidden) { menuOpen(true); e.preventDefault(); } });
+      document.addEventListener('pointerdown', (e) => { if (!menu.hidden && !menu.contains(e.target) && !switcher.contains(e.target)) menuOpen(false); });
+    }
     const grow = () => { say.style.height = 'auto'; say.style.height = Math.min(160, say.scrollHeight) + 'px'; };
     const send = async () => { const words = say.value.trim(); if (!words || !chosen || chosen === OWN) return; say.value = ''; grow(); pinned = true; await post(`/api/work/${chosen}/say`, { words }); if (!source) { poll(); stream(); } };
     $('.wb-say').addEventListener('submit', (e) => { e.preventDefault(); send(); });

@@ -92,3 +92,51 @@ def test_what_outlives_a_watch_is_not_shown_in_it():
     asyncio.run(go())
     written.forget("during")
     assert seen == ["mine"]
+
+
+_NARROW = """<!doctype html><html><body><div id="workbench" class="wb" style="width:820px;height:800px;position:relative"></div><script>
+const work = (id, name, title) => ({ id, name, title, kind: 'program', state: id === 'one' ? 'going' : 'done', began: 1, ended: id === 'one' ? 0 : 2, now: {}, stalled: '', hers: id === 'two', happened: [] });
+window.fetch = async (url) => { const u = new URL(url, 'http://x'), p = u.pathname.split('/').filter(Boolean);
+  const all = [work('one', 'Supper Week', 'A little app for planning a week of suppers'), work('two', '', 'A tide table with a bell')];
+  if (u.pathname === '/api/work') return { ok: true, json: async () => ({ works: all }) };
+  if (u.pathname === '/api/her_own_time') return { ok: true, json: async () => ({ doing: {}, before: {}, choices: [], finding_out: [], learned: {} }) };
+  return { ok: true, json: async () => ({ ...all.find((w) => w.id === p[2]), happened: [] }) }; };
+window.EventSource = class { constructor() {} addEventListener() {} close() {} };
+</script><script>%s</script><script>window.it = mountWorkbench(document.getElementById('workbench'), {});</script></body></html>"""
+
+
+def test_in_a_narrow_panel_her_works_are_chosen_from_a_list_of_its_own_by_their_names(tmp_path):
+    """27 November 2026, Bryan, of the panel in her window: the works were chosen from the browser's own list, each by the first
+    words of what was asked, and "polish on the actual panel needs work too"."""
+    api = pytest.importorskip("playwright.async_api")
+    path = tmp_path / "narrow.html"
+    path.write_text(_NARROW % (_STATIC / "workbench.js").read_text(encoding="utf-8"), encoding="utf-8")
+
+    async def go():
+        async with api.async_playwright() as started:
+            try:
+                browser = await started.chromium.launch(headless=True)
+            except api.Error as exc:
+                pytest.skip(f"no browser: {exc}")
+            page = await browser.new_page()
+            await page.goto(path.as_uri())
+            await page.wait_for_function("document.querySelector('.wb-title').textContent === 'Supper Week'")
+            seen = {"selects": await page.locator("select").count(), "sub": await page.locator(".wb-sub").text_content(), "shut": await page.locator(".wb-menu").is_hidden()}
+            await page.click(".wb-switch")
+            seen["listed"] = await page.locator(".wb-menu .wb-item-name").all_text_contents()
+            seen["tag"] = await page.locator(".wb-menu [data-work=two] .wb-tag").count()
+            seen["focus"] = await page.evaluate("document.activeElement.dataset.work")
+            await page.keyboard.press("ArrowDown")
+            await page.keyboard.press("Enter")
+            await page.wait_for_function("document.querySelector('.wb-title').textContent === 'A tide table with a bell'")
+            seen["after"] = [await page.locator(".wb-menu").is_hidden(), await page.locator(".wb-sub").text_content()]
+            await page.click(".wb-switch")
+            await page.keyboard.press("Escape")
+            seen["escaped"] = await page.locator(".wb-menu").is_hidden()
+            await browser.close()
+            return seen
+
+    seen = asyncio.run(go())
+    assert seen["selects"] == 0 and seen["shut"] and seen["sub"] == "A little app for planning a week of suppers", seen
+    assert seen["listed"] == ["Supper Week", "A tide table with a bell", "Her own time"] and seen["tag"] == 1, seen
+    assert seen["focus"] == "one" and seen["after"] == [True, ""] and seen["escaped"], seen

@@ -8586,6 +8586,11 @@ needs her 27B free (her app down, or her app's own influence trials).
       keys and that Escape leaves, a word that something was done which fades on its own, and motion that stops where the
       reader asked for less. The tests had tried apps only through the tester, never on the real page, so a mistake of mine
       in the redraw passed all 234 of them; the page itself is tried now (`tests/test_many_ways.py`).
+    - The same day, Bryan, of the Work panel in her window: "polish on the actual panel needs work too". It chose works from
+      the browser's own list, each by the first words of what was asked. A work is named now by what it makes once that is
+      designed, with what was asked under it; in the panel the works open from its head as a list of its own, which the keys
+      go through and Escape shuts; and where there is nothing yet each part says so in its place
+      (`tests/test_the_workbench_keeps_works_apart.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

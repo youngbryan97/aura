@@ -49,6 +49,9 @@ def _listed(work: Work) -> dict[str, Any]:
     request = get_requests_of_her().get(work.id)
     # What she made for herself, with nobody asking for it.
     seen["hers"] = request is not None and request.conversation == "herself"
+    # What it makes is named once it is designed: by that name it is known, and what was asked stands under it.
+    designed = next((row.get("design") for row in reversed(work._happened) if row.get("what") == "design"), None)
+    seen["name"] = str((designed or {}).get("name") or "") if isinstance(designed, dict) else ""
     return seen
 
 

@@ -95,4 +95,4 @@ def test_it_is_there_where_there_is_no_work(tmp_path):
         await page.wait_for_selector(".wb-own-now")
         return await page.evaluate("document.querySelector('.wb-log').innerText")
 
-    assert "find out more about limpets" in _seen(_page(tmp_path, []), then)
+    assert "Find out more about limpets" in _seen(_page(tmp_path, []), then)
