@@ -11,7 +11,7 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -133,7 +133,7 @@ struct WeightsD {
 /// of a look, how many plies margins reach and how wide they are, how far a passed turn shortens a look, and how wide
 /// a look's first window is. Each begins where it was set by hand and measured (22 November 2026), and her rehearsal
 /// may move it by playing herself.
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Deserialize, Serialize, Clone, Copy)]
 #[serde(default)]
 struct Habits {
     shorten_from: f64,
@@ -3220,6 +3220,12 @@ impl Judgement {
     }
 }
 
+/// Her search's habits as they were set, before anything of hers moved them: each by name, as weights carry them.
+#[pyfunction]
+fn habits_as_set() -> PyResult<String> {
+    serde_json::to_string(&Habits::default()).map_err(|e| PyValueError::new_err(format!("habits: {e}")))
+}
+
 /// Hold endings worked out to the end under ``key``, for searches given that key: each as its pieces (side, kind
 /// letter) in the order its situations are named by, its board's rows and columns, and its values as little-endian
 /// 16-bit numbers. Held once and kept, so a game's searches do not pass them again.
@@ -3603,5 +3609,6 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(beyond_counts, m)?)?;
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(self_play, m)?)?;
+    m.add_function(wrap_pyfunction!(habits_as_set, m)?)?;
     Ok(())
 }
