@@ -110,17 +110,34 @@ class RecallOnTheGpu:
         self.queries: list[Any] = []
         self.fired: list[Any] = []
         self.last_fired: Any = None
+        #: The pass its products with every key were taken for, its queries and those products.
+        self._pass: tuple[Any, Any, Any] | None = None
 
-    def __call__(self, tokens: Any, logits: Any, *, hidden: Any = None) -> Any:
-        """``logits`` with what recall adds to them, from ``hidden``, the last position's hidden state."""
+    def _with_every_key(self, hidden: Any, of_a_pass: tuple[Any, int] | None) -> tuple[Any, Any]:
+        """A position's query and its product with every key: a pass's positions all in one, since the keys are a gigabyte and
+        are read once either way."""
+        import mlx.core as mx
+
+        if of_a_pass is None:
+            q = hidden.reshape(-1).astype(mx.float32)
+            q = q / mx.maximum(mx.linalg.norm(q), 1e-8)
+            return q, self.entries["keys"] @ q
+        hiddens, at = of_a_pass
+        if self._pass is None or self._pass[0] is not hiddens:
+            queries = hiddens.astype(mx.float32)
+            queries = queries / mx.maximum(mx.linalg.norm(queries, axis=-1, keepdims=True), 1e-8)
+            self._pass = (hiddens, queries, self.entries["keys"] @ queries.T)
+        return self._pass[1][at], self._pass[2][:, at]
+
+    def __call__(self, tokens: Any, logits: Any, *, hidden: Any = None, of_a_pass: tuple[Any, int] | None = None) -> Any:
+        """``logits`` with what recall adds to them, from ``hidden``, the last position's hidden state; ``of_a_pass``, where it is
+        one of a pass's positions, is all of theirs and which it is."""
         import mlx.core as mx
 
         on = self.entries
         if hidden is None or on["n"] == 0:
             return logits
-        q = hidden.reshape(-1).astype(mx.float32)
-        q = q / mx.maximum(mx.linalg.norm(q), 1e-8)
-        kq = on["keys"] @ q
+        q, kq = self._with_every_key(hidden, of_a_pass)
         qm = mx.sum(q * on["mu"])
         qq = mx.sum(q * q)
         q_centered = mx.sqrt(mx.maximum(qq - 2.0 * qm + on["mm"], 0.0))
@@ -174,7 +191,7 @@ class RecallOnTheGpu:
 
     def processor(self, tap: Any) -> Any:
         """The logits processor for a generation, reading ``tap.last_hidden``."""
-        return lambda tokens, logits: self(tokens, logits, hidden=getattr(tap, "last_hidden", None))
+        return lambda tokens, logits: self(tokens, logits, hidden=getattr(tap, "last_hidden", None), of_a_pass=getattr(tap, "of_a_pass", None))
 
     def given_back(self) -> None:
         """The reply's queries into the store's mean, and how many tokens recall moved, once the reply has ended."""
@@ -190,4 +207,4 @@ class RecallOnTheGpu:
             self.memory.took_queries(np.asarray(queries), interpolated=moved, fallthrough=len(self.queries) - moved)
         except (RuntimeError, ValueError, TypeError, AttributeError) as exc:
             logger.debug("a reply's queries were not given back to the store: %s", exc)
-        self.queries, self.fired = [], []
+        self.queries, self.fired, self._pass = [], [], None

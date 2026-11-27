@@ -466,3 +466,21 @@ def test_what_building_a_pass_calls_is_told_once_where_it_is_asked_for(on_cpu, m
     monkeypatch.setenv("AURA_LOOK_INTO_DECODE", "1")
     (said,) = told()
     assert "_linear_reading" in said
+
+
+def test_the_tap_tells_the_pass_a_position_is_of(on_cpu):
+    from core.brain.llm.her_head_in_the_stream import head_generate_step
+
+    class _Tap:
+        last_hidden = of_a_pass = None
+
+    tap, told = _Tap(), []
+
+    def processor(tokens, logits):
+        hiddens, at = tap.of_a_pass
+        told.append((hiddens.shape[0], at, bool(mx.array_equal(hiddens[at], tap.last_hidden).item())))
+        return logits
+
+    model = _tiny(vocab=7, seed=0)
+    list(head_generate_step(mx.array(PROMPT), model, _head(model), max_tokens=30, logits_processors=[processor], prefill_step_size=4, tap=tap, how_deep=_Always(2)))
+    assert all(same for _n, _at, same in told) and {n for n, _at, _same in told} <= {1, 2, 3} and {at for _n, at, _same in told} >= {-1, 0, 1}

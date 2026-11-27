@@ -124,3 +124,32 @@ def test_a_copy_made_before_the_mean_was_ready_follows_it_once_it_is(tmp_path):
     logits = mx.array(np.zeros((1, VOCABULARY), dtype=np.float32))
     near = keys[5] + 0.05 * rng.normal(size=DIM).astype(np.float32)
     assert not np.array_equal(np.asarray(second(None, logits, hidden=mx.array(near))), np.asarray(logits))
+
+
+def test_the_positions_of_a_pass_are_recalled_as_each_would_be_and_the_keys_are_read_once(store):
+    """LIVE 25 November 2026 her gigabyte of keys was read for each token drafted and each she chose, 5.5 ms a position."""
+    memory, keys = store
+    rng = np.random.default_rng(5)
+    logits = [mx.array(rng.normal(size=(1, VOCABULARY)).astype(np.float32)) for _ in range(4)]
+    hiddens = mx.array(np.stack([keys[3], rng.normal(size=DIM).astype(np.float32), keys[9] * 2.5, keys[9]]))
+    alone, together = RecallOnTheGpu(memory, principal="bryan"), RecallOnTheGpu(memory, principal="bryan")
+
+    class _Keys:
+        def __init__(self, held):
+            self.held, self.read = held, 0
+
+        def __matmul__(self, other):
+            self.read += 1
+            return self.held @ other
+
+    together.entries = {**together.entries, "keys": _Keys(together.entries["keys"])}
+    for at in range(4):
+        one = np.asarray(alone(None, logits[at], hidden=hiddens[at]))
+        in_a_pass = np.asarray(together(None, logits[at], hidden=hiddens[at], of_a_pass=(hiddens, at)))
+        assert np.allclose(one, in_a_pass, atol=1e-4), at
+    assert together.entries["keys"].read == 1
+    again = mx.array(np.stack([keys[4]]))
+    together(None, logits[0], hidden=again[0], of_a_pass=(again, 0))
+    assert together.entries["keys"].read == 2, "another pass is another reading"
+    at_its_end = np.asarray(together(None, logits[1], hidden=again[-1], of_a_pass=(again, -1)))
+    assert at_its_end.shape == (1, VOCABULARY) and together.entries["keys"].read == 2

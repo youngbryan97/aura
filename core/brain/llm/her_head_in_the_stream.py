@@ -258,7 +258,7 @@ def head_generate_step(prompt: mx.array, model: Any, head: Any, *, max_tokens: i
         was drawn from a distribution, that draft or what is said instead of it."""
         nonlocal positions
         if tap is not None and hiddens is not None:
-            tap.last_hidden = hiddens[at]
+            tap.last_hidden, tap.of_a_pass = hiddens[at], (hiddens, at)
         positions += 1
         timed_here = positions % TIMED_EVERY == 0
         if timed_here:

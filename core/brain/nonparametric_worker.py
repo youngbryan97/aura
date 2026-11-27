@@ -483,7 +483,7 @@ class _TappedInner:
         try:
             # out is hidden states [B, T, H]; the last position of the last call, left where the model computed it.
             # Read back as a key here it was a GPU-to-CPU read inside every forward pass (core/brain/recall_on_the_gpu.py).
-            self._tap.last_hidden = out[0, -1]
+            self._tap.last_hidden, self._tap.of_a_pass = out[0, -1], None
         # not a failure: hidden states this cannot index hold no key to tap.
         except (IndexError, ValueError, TypeError):
             self._tap.last_hidden = None
@@ -508,6 +508,8 @@ class HiddenStateTap:
         self._real_inner: Any = None
         self.active = False
         self.last_hidden: Any = None
+        #: All the positions of the pass it is one of, and which: where several are chosen after in one pass.
+        self.of_a_pass: tuple[Any, int] | None = None
         self._key: tuple[Any, np.ndarray | None] = (None, None)
         #: Called when the generation ends, once the tap is taken out.
         self.when_done: list[Callable[[], None]] = []
