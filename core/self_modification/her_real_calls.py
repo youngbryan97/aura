@@ -77,7 +77,7 @@ def where_her_real_calls_are_kept() -> Path:
 
 def _row(call: FailedCall, at: float) -> dict[str, Any]:
     row = dataclasses.asdict(call)
-    for name in ("error_type", "error_message", "below", "line", "causes", "codes"):
+    for name in ("error_type", "error_message", "below", "line", "causes", "codes", "caller"):
         row.pop(name, None)
     return {**row, "at": at}
 

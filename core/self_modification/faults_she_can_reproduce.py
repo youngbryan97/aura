@@ -237,15 +237,21 @@ def _as_row(fault: HeardFault) -> dict[str, Any]:
     return {**dataclasses.asdict(fault), "call": dataclasses.asdict(fault.call)}
 
 
+def _call_from(kept: Any) -> FailedCall:
+    """A failed call as her state keeps it, the call that gave it what it refused among it."""
+    call = dict(kept)
+    call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
+    call["receiver_state"] = tuple((str(key), str(value)) for key, value in call.get("receiver_state") or ())
+    for name in ("positional", "positional_names", "below", "causes"):
+        call[name] = tuple(str(part) for part in call.get(name) or ())
+    call["codes"] = tuple((str(key), str(value)) for key, value in call.get("codes") or ())
+    call["caller"] = _call_from(call["caller"]) if isinstance(call.get("caller"), dict) else None
+    return FailedCall(**call)
+
+
 def _from_row(row: Any) -> HeardFault | None:
     try:
-        call = dict(row["call"])
-        call["keywords"] = tuple((str(key), str(value)) for key, value in call.get("keywords") or ())
-        call["receiver_state"] = tuple((str(key), str(value)) for key, value in call.get("receiver_state") or ())
-        for name in ("positional", "positional_names", "below", "causes"):
-            call[name] = tuple(str(part) for part in call.get(name) or ())
-        call["codes"] = tuple((str(key), str(value)) for key, value in call.get("codes") or ())
-        return HeardFault(call=FailedCall(**call), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
+        return HeardFault(call=_call_from(row["call"]), subsystem=str(row["subsystem"]), first_at=float(row["first_at"]),
                           last_at=float(row["last_at"]), times=int(row["times"]))
     except (KeyError, TypeError, ValueError) as exc:
         logger.debug("a kept fault could not be read back: %s", exc)

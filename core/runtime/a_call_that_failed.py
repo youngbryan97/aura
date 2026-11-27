@@ -70,6 +70,10 @@ class FailedCall:
     #: What the exceptions say of themselves as data rather than words: SQLite's own name and number for its error
     #: (``sqlite_errorname``, ``sqlite_errorcode``: SQLITE_BUSY, 5, when another connection held the database).
     codes: tuple[tuple[str, str], ...] = ()
+    #: The call of hers above this one that built an argument this one was given, rather than passing on one it was
+    #: given itself, written back the same way: where a refusal was right, what should change is there. None where no
+    #: such call of hers was in the traceback, or it could not be written back.
+    caller: FailedCall | None = None
 
     @property
     def fingerprint(self) -> tuple[str, str, str]:
@@ -226,14 +230,48 @@ def _the_instance_written_back(instance: Any, code: CodeType, qualname: str) -> 
 
 def _innermost_frame_of_hers(error: BaseException) -> tuple[FrameType, int, str, tuple[str, ...]] | None:
     """The frame nearest the raise that is in her source, its line, its path, and where the call went below it."""
-    walked = list(traceback.walk_tb(error.__traceback__))
+    found = _innermost_of_hers(list(traceback.walk_tb(error.__traceback__)))
+    return found[1:] if found is not None else None
+
+
+def _innermost_of_hers(walked: list[tuple[FrameType, int]]) -> tuple[int, FrameType, int, str, tuple[str, ...]] | None:
+    """Where in ``walked`` the frame nearest the raise in her source is, and the rest as _innermost_frame_of_hers."""
     for index in range(len(walked) - 1, -1, -1):
         frame, line = walked[index]
         path = _hers(frame.f_code.co_filename)
         if path:
             below = tuple(f"{inner.f_code.co_filename}:{inner_line} {inner.f_code.co_qualname}"
                           for inner, inner_line in walked[index + 1:])
-            return frame, line, path, below
+            return index, frame, line, path, below
+    return None
+
+
+def _given(frame: FrameType) -> list[Any]:
+    """What ``frame``'s function was given, by its parameters, where the value is an object of its own: an integer or a
+    string may be one shared object wherever it is written, so whether it was passed on cannot be told from it."""
+    positional_only, either, keyword_only, star_args, star_kwargs = _parameters(frame.f_code)
+    names = [*positional_only, *either, *keyword_only, *(n for n in (star_args, star_kwargs) if n)]
+    values = frame.f_locals
+    return [values[name] for name in names if name not in ("self", "cls") and name in values
+            and not isinstance(values[name], _PLAIN)]
+
+
+def _the_call_that_gave_it(walked: list[tuple[FrameType, int]], index: int) -> FailedCall | None:
+    """The nearest call of hers above ``walked[index]`` that built an argument it was given: each call between that
+    only passed on what it was given itself is passed through. LIVE 16 November 2026 her notifications built an
+    argument vector with an empty subtitle, her subprocess gateway passed it on, and ``_coerce_argv`` refused it; the
+    refusal was right, and the fault was in the notification."""
+    given = _given(walked[index][0])
+    if not given:
+        return None
+    for outer, line in reversed(walked[:index]):
+        if not _hers(outer.f_code.co_filename):
+            return None
+        passed = _given(outer)
+        if all(any(value is other for other in passed) for value in given):
+            continue  # it only passed on what it was given
+        call = a_call_written_back(outer, raised=True)
+        return None if isinstance(call, str) else dataclasses.replace(call, line=int(line or 0))
     return None
 
 
@@ -268,10 +306,11 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
         return "it was cancelled by what waited on it, not raised by what it was given"
     if error.__traceback__ is None:
         return "it was recorded without being raised in this process, so it carries no call"
-    found = _innermost_frame_of_hers(error)
+    walked = list(traceback.walk_tb(error.__traceback__))
+    found = _innermost_of_hers(walked)
     if found is None:
         return "raised outside her source"
-    frame, line, _path, below = found
+    index, frame, line, _path, below = found
     call = a_call_written_back(frame, raised=True)
     if isinstance(call, str):
         return call
@@ -285,7 +324,7 @@ def the_call_that_failed(error: BaseException) -> FailedCall | str:
     return dataclasses.replace(call, line=int(line or 0), error_type=f"{type(error).__module__}.{type(error).__qualname__}",
                                error_message=str(error)[:500], below=below,
                                causes=tuple(f"{type(one).__module__}.{type(one).__qualname__}" for one in chain[1:]),
-                               codes=codes)
+                               codes=codes, caller=_the_call_that_gave_it(walked, index))
 
 
 #: Wrappers of hers that only hand an error on, passed through to find the call that made it.

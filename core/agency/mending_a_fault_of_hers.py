@@ -12,6 +12,7 @@ takes it into the source she runs on unless it changes her governance (``take_it
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import re
 import sys
@@ -147,6 +148,21 @@ async def _left_as_it_is(record: Any, workspace: Path, fault: Any, judged: Any) 
     return await _stop(record, f"my model read {fault.call.qualname} as raising this on purpose, and what should change "
                                f"as in {judged.lies_in}, so I leave it as it is: {judged.why}",
                        judged.as_kept(), by_design=True)
+
+
+def the_callers_fault(fault: Any) -> Any:
+    """The fault as the call that built what was refused raised it, when her running kept that call (FailedCall
+    .caller): it raised what the refusal raised, from below it. None when no such call was kept."""
+    from core.self_modification.faults_she_can_reproduce import HeardFault
+
+    call = fault.call
+    if call.caller is None:
+        return None
+    raised = dataclasses.replace(call.caller, error_type=call.error_type, error_message=call.error_message,
+                                 below=(f"{call.file}:{call.line} {call.qualname}", *call.below), causes=call.causes,
+                                 codes=call.codes)
+    return HeardFault(call=raised, subsystem=fault.subsystem, first_at=fault.first_at, last_at=fault.last_at,
+                      times=fault.times)
 
 
 def _the_fault_of(record: Any) -> Any:
@@ -303,7 +319,20 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     await _what_her_sources_say(record, fault, sources[file])
     judged = await _where_it_lies(record, fault, sources[file])
     if judged is not None and judged.leaves_the_function:
-        return await _left_as_it_is(record, workspace, fault, judged)
+        left = await _left_as_it_is(record, workspace, fault, judged)
+        caller = the_callers_fault(fault) if judged.lies_in == "what called it" else None
+        if caller is None:
+            return left
+        # What should change is in the call that built what it refused: that call is mended as a fault of its own.
+        from core.self_modification.a_mend_her_model_proposes import her_model_as_a_last_resort
+
+        record.said.append({"words": f"I took up {caller.call.qualname}, which built what {fault.call.qualname} "
+                                     "refused, as a goal of its own.", "at": time.time()})
+        await goals.save(record)
+        mended = await mend(caller, proposals=proposals, seconds=seconds,
+                            model=her_model_as_a_last_resort(caller.call.file, caller.call.line)
+                            if model is not None else None)
+        return {**mended, "for": record.slug}
     reproduction = await reproduce(fault, workspace)
     if not reproduction.reproduced:
         return await _stop(record, "its test did not raise what she raised", reproduction.output)
@@ -771,4 +800,4 @@ def _brought_up(record: Any, head: str) -> str:
     return goals.brought_up(record, head)
 
 
-__all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard"]
+__all__ = ["InHerWorkspace", "goal_for", "her_own_python_first", "mend", "mend_the_faults_she_heard", "the_callers_fault"]
