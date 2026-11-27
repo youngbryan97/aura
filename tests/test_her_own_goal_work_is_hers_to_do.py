@@ -30,6 +30,7 @@ CALLS = {
     "check_draft": {"tests": ["tests/test_notes.py"]},
     "offer_draft": {"summary": "A note store."},
     "nothing_to_change": {"what_came_of_it": "The scan found nothing to mend."},
+    "my_goal": {},
 }
 
 

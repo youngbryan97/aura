@@ -452,6 +452,20 @@ def turns_from(steps: list[dict[str, Any]], room: int, said: list[dict[str, Any]
     return kept
 
 
+async def her_goal_as_she_reads_it(context: dict[str, Any]) -> list[dict[str, Any]]:
+    """The opening of a pass: nobody's turn, empty since nobody asked, and her call that reads her goal with what came
+    back, in her template's form for a call of hers (as her unprompted turns read what she noticed,
+    core/brain/her_unprompted_turn.her_conversation_now_with). Her template takes no turn of hers before somebody's."""
+    from core.skills.her_draft import MyGoalSkill
+
+    read = await MyGoalSkill().execute({}, context)
+    return [{"role": "user", "content": ""},
+            {"role": "assistant", "content": "", "tool_calls": [
+                {"id": "her_goal", "type": "function", "function": {"name": MyGoalSkill.name, "arguments": {}}}]},
+            {"role": "tool", "tool_call_id": "her_goal", "name": MyGoalSkill.name,
+             "content": json.dumps(read, ensure_ascii=False)}]
+
+
 def what_she_works_toward(record: GoalRecord) -> str:
     """The goal as she set it, and what Bryan said of a draft of hers he did not take, in his words."""
     told = [f"Bryan, on your draft: {note.get('words')}" for note in record.notes_from_bryan[-3:] if note.get("words")]
@@ -484,13 +498,17 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     router = router or HerCortex()
     workspace = await asyncio.to_thread(ensure_workspace, record)
     await save(record)  # her tools read it during the pass: edit_draft, check_draft and offer_draft
+    context = {"origin": ORIGIN, "her_goal": slug, "her_goal_workspace": str(workspace), "requested_by": "aura"}
     result = await router.think_and_act(
         what_she_works_toward(record),
         system_prompt="",
         tools=tool_definitions(),
         max_turns=CALLS_A_PASS,
-        context={"origin": ORIGIN, "her_goal": slug, "her_goal_workspace": str(workspace), "requested_by": "aura"},
+        context=context,
         origin=ORIGIN,
+        # Her goal reaches her model as what her first call of the pass read, after a turn of nobody's: no one asked
+        # for it, and put as a person's message it read as somebody's request (MyGoalSkill).
+        conversation=await her_goal_as_she_reads_it(context),
         prior_turns=turns_from(record.steps, _what_she_reads_of_before(), record.said),
         work_in_background=True,
         native_tools_only=True,

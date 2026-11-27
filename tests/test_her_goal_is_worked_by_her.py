@@ -50,8 +50,12 @@ class _HerModelStandIn:
         self.seen_prior = []
 
     async def think_and_act(self, objective, *, system_prompt, tools, max_turns, context, origin, prior_turns,
-                            work_in_background, native_tools_only, her_plan, her_needs, her_ends):
+                            work_in_background, native_tools_only, her_plan, her_needs, her_ends, conversation):
         assert work_in_background and native_tools_only
+        # Her goal reaches her as her own call's reading after nobody's turn, never as a person's words.
+        assert conversation[0] == {"role": "user", "content": ""}
+        assert conversation[1]["tool_calls"][0]["function"]["name"] == "my_goal"
+        assert json.loads(conversation[2]["content"])["goal"].startswith(objective.split("\n\n")[0])
         # Her way through a goal is hers: the steps, which waits on which, and which ends it come with the pass.
         assert list(her_plan) == list(work.HER_WAY) and her_needs == work.HER_WAY_NEEDS
         assert tuple(her_ends) == work.HER_WAY_ENDS

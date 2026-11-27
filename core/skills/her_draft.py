@@ -235,6 +235,35 @@ class FindInSourceSkill(BaseSkill):
                                                              else "")}
 
 
+class MyGoalInput(BaseModel):
+    pass
+
+
+class MyGoalSkill(BaseSkill):
+    """The goal a pass of hers works toward, as she set it, and where it stands: what her pass reads first, as a call of
+    hers. Put to her model as a person's message instead, a goal she had set herself read as somebody's request, and
+    a bare one ("Running a self-integrity scan") as somebody who said almost nothing: LIVE 27 November 2026, after 354
+    passes, her model wrote "Your messages have been empty the whole time" and "you haven't asked me anything"."""
+
+    result_schema = THE_SHARED_RESULT
+    name = "my_goal"
+    description = "The goal she set herself that this pass works toward, when she set it, and where it stands."
+    input_model = MyGoalInput
+    effect_scope = "read_only"
+    timeout_seconds = 30.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.agency.her_goal_at_work import load, what_she_works_toward
+
+        record = await asyncio.to_thread(load, _goal_of(context), require_readable=True)
+        if record is None:
+            return {"ok": False, "error": "no record of this goal"}
+        return {"ok": True, "goal": what_she_works_toward(record), "set_by": "herself",
+                "set_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(record.started_at)),
+                "passes_so_far": record.passes, "calls_so_far": len(record.steps), "status": record.status,
+                "summary": f"her own goal, {record.passes} passes so far"}
+
+
 class WhatWentWrongInput(BaseModel):
     subsystem: str = Field("", description="Only what this subsystem recorded, or the start of its name, e.g. memory.")
 
@@ -589,6 +618,6 @@ def tool_definitions() -> dict[str, dict[str, Any]]:
             for skill in HER_TOOLS}
 
 
-__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "LookUpSkill",
+__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "LookUpSkill", "MyGoalSkill",
            "NothingToChangeSkill", "OfferDraftSkill",
            "ReadSourceSkill", "Refused", "SearchTheWebSkill", "WhatWentWrongSkill", "tool_definitions"]
