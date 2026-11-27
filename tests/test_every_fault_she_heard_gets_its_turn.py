@@ -186,3 +186,33 @@ def test_a_draft_asked_again_is_carried_onto_her_source_as_it_is_now(monkeypatch
     assert replayed and replayed != record.offer["commit"] and record.status == goals.OFFERED
     assert git(workspace, "merge-base", "--is-ancestor", head, replayed) == ""
     assert (workspace / "pauses.py").read_text() == "FULL = False\n" and (workspace / "other.py").read_text() == "A = 2\n"
+
+
+def test_a_fault_whose_reading_waits_does_not_stand_in_front_of_the_others(monkeypatch):
+    """A reading of a fault put off by her model (her cortex held, or its generation stopped for a turn that came
+    first) leaves that fault for her next cycle, and the next one is tried in this one."""
+    waits, hers = _fault("core/watching.py", "watch"), _fault("core/notes.py", "count")
+
+    async def nothing(*_args, **_kwargs):
+        return None
+    tried: list[str] = []
+
+    async def mend(found, **_kwargs):
+        tried.append(found.call.file)
+        if found is waits:
+            return {"slug": "w", "why": "my model's reading of it waits (held)", "worked": False, "waits": True}
+        return {"slug": found.call.file}
+    monkeypatch.setattr(heard, "keep_what_was_heard", nothing)
+    monkeypatch.setattr(heard, "mends_undone", lambda: [])
+    monkeypatch.setattr(heard, "faults_heard", lambda: [waits, hers])
+    monkeypatch.setattr(goals, "mends_undone_on_record", lambda: [])
+    monkeypatch.setattr(goals, "settle_probation", lambda: [])
+    monkeypatch.setattr(goals, "source_head", lambda: "new")
+    monkeypatch.setattr(goals, "load", lambda slug: None)
+    for name in ("_keep_her_real_calls_of_what_she_may_change", "_keep_her_recent_turns",
+                 "_start_an_outside_comparison_when_due"):
+        monkeypatch.setattr(loop, name, nothing)
+    monkeypatch.setattr(loop, "mend", mend)
+    done = asyncio.run(loop.mend_the_faults_she_heard(seconds=1))
+    assert tried == ["core/watching.py", "core/notes.py"]
+    assert [entry["slug"] for entry in done] == ["w", "core/notes.py"]

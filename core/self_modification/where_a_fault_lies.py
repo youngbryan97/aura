@@ -224,9 +224,16 @@ class HerCortexReads:
                 schema=self.schema.model_json_schema(), output_shape="json_object", read_by_a_machine=True,
                 max_tokens=answer_tokens, timeout=seconds) or "")
 
-        text = await on_her_lane(messages, origin=ORIGIN, least_s=deadline_s, work=read)
+        text = await on_her_lane(messages, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(messages,
+                                                                                                    answer_tokens)),
+                                 work=read)
         if text is None:
             self.last_defer_reason = "her cortex is held for something else"
+            return None
+        if not text.strip():
+            # Nothing came back: her generation was stopped for a turn that came first (LIVE 27 November 2026, 15:33,
+            # soft-cancelled 986 tokens in), which is a reading put off and not one that found nothing.
+            self.last_defer_reason = "her cortex's generation was stopped before it answered"
             return None
         for found in _the_objects_in(text):
             try:
@@ -235,6 +242,22 @@ class HerCortexReads:
                 continue
         logger.info("her cortex's answer held no %s: %r", self.schema.__name__, " ".join(text.split())[-300:])
         return None
+
+
+    @staticmethod
+    def _time_it_needs(messages: list[dict[str, Any]], answer_tokens: int) -> float:
+        """What reading the question, thinking and answering take on this machine: the prompt, the thinking her
+        cortex's private channel has been measured to cost on top of the answer, and the answer. Given 120 s, a
+        reading thought until its time ran out and came back as thinking with no answer (LIVE 27 November 2026, 15:4x,
+        "the function deliberately raises RuntimeError(\"warmup_precompile_worker_dead\")")."""
+        from core.brain.llm.mlx_client import time_a_prompt_needs
+        from core.brain.llm.thinking_reserve import reserve_tokens
+        from core.runtime.service_access import resolve_inference_gate
+
+        client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+        thinking = reserve_tokens(str(getattr(client, "model_path", "") or ""))
+        chars = sum(len(str(message.get("content") or "")) for message in messages)
+        return time_a_prompt_needs(chars, answer_tokens + thinking)
 
 
 def _the_objects_in(text: str) -> list[Any]:

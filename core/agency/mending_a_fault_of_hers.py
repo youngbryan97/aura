@@ -327,7 +327,7 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     except NotReadNow as why:
         # Asked again on her next cycle: a reading put off is not one that found nothing.
         return {"slug": slug, "status": record.status, "why": f"my model's reading of it waits ({why})",
-                "worked": False}
+                "worked": False, "waits": True}
     if judged is not None and judged.leaves_the_function:
         left = await _left_as_it_is(record, workspace, fault, judged)
         caller = the_callers_fault(fault) if judged.lies_in == "what called it" else None
@@ -689,6 +689,7 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
         return [asked]
     heard = faults_heard()
     head = await asyncio.to_thread(goals.source_head) if heard else ""
+    waited: list[dict[str, Any]] = []
     for fault in heard:
         record = goals.load(goals.slug_of(goal_for(fault)))
         if record is not None and (record.status in (goals.OFFERED, goals.MERGED) or (
@@ -704,8 +705,13 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
         # (Bryan, 22 November 2026: "as a last resort ... so long as its checked and verified the same way").
         from core.self_modification.a_mend_her_model_proposes import her_model_as_a_last_resort
 
-        return [await mend(fault, proposals=sys.maxsize, seconds=seconds,
-                           model=her_model_as_a_last_resort(fault.call.file, fault.call.line))]
+        done = await mend(fault, proposals=sys.maxsize, seconds=seconds,
+                          model=her_model_as_a_last_resort(fault.call.file, fault.call.line))
+        if done.get("waits"):
+            # Its reading waits for her model: the next fault is tried this cycle, so none waits behind it.
+            waited.append(done)
+            continue
+        return [*waited, done]
     # A way her work keeps failing, on goal after goal, is a goal of hers (it costs one read of her records).
     from core.agency.what_keeps_failing_her import set_what_keeps_failing_her
 
@@ -713,11 +719,11 @@ async def mend_the_faults_she_heard(*, seconds: float = _RUN_SECONDS) -> list[di
     # Nothing heard to mend: a draft of hers that waits on her own yes is asked again, once her source has moved.
     asked = await _ask_again_of_a_draft_that_waits()
     if asked is not None:
-        return [asked]
+        return [*waited, asked]
     # Then a change for a cost her running measures, or the judgement of one she made (F16, part 3).
     from core.agency.improving_by_measurement import improve_by_measurement
 
-    return await improve_by_measurement()
+    return [*waited, *await improve_by_measurement()]
 
 
 #: The code of each gate that judges a change: when it has changed since it refused a draft, its verdict may too.

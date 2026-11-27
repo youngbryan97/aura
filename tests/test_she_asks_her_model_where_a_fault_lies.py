@@ -286,6 +286,17 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     assert asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
     assert '"lies_in"' in asked[0]["messages"][0]["content"], "the answer's fields reach her cortex"
 
+    class Stopped:
+        async def generate_text_async(self, prompt, **kwargs):
+            return ""  # soft-cancelled for a turn that came first: nothing is delivered for it
+
+    async def stopped(messages, *, origin, least_s, work):
+        return await work(Stopped(), least_s)
+
+    monkeypatch.setattr(her_unprompted_turn, "on_her_lane", stopped)
+    with pytest.raises(lies.NotReadNow):
+        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
+
     async def held(messages, *, origin, least_s, work):
         return None
 
