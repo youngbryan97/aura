@@ -42,10 +42,7 @@ class _Hand:
     def __init__(self, shown: dict) -> None:
         self.shown, self.done = shown, []
 
-    async def point_at(self, x, y):
-        self.done.append(("point", x, y))
-
-    async def scroll(self, dx=0, dy=0):
+    async def scroll(self, dx=0, dy=0, *, at=None):
         self.done.append(("scroll", dy))
 
     async def hotkey(self, *keys, expect_app=""):

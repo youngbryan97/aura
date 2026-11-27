@@ -176,7 +176,7 @@ async def set_what_the_goal_sets(target_app: str, goal: str, keep: dict[str, Any
     looked: list[str] = keep.setdefault("settings_looked_down", [])
     may_scroll = screen not in looked
     looked.append(screen)
-    steps = 0
+    steps, under = 0, None
     for scrolled in range(SCROLLS_AT_MOST + 1):
         beside = numbers_beside_labels(reading)
         labels = list(beside)
@@ -187,7 +187,7 @@ async def set_what_the_goal_sets(target_app: str, goal: str, keep: dict[str, Any
             break
         if scrolled == SCROLLS_AT_MOST or len(bounds) < 4 or not may_scroll:
             if steps:
-                await host.scroll(dy=SCROLL_LINES * steps)
+                await host.scroll(dy=SCROLL_LINES * steps, at=under)
             logger.info("the setting %r is not to be found in %r", name, target_app)
             return False
         # Further down the form, where its words are: the pointer over them, then a step down.
@@ -196,8 +196,8 @@ async def set_what_the_goal_sets(target_app: str, goal: str, keep: dict[str, Any
             return False
         middle_x = sorted(r["x"] for r in regions)[len(regions) // 2]
         middle_y = sorted(r["y"] for r in regions)[len(regions) // 2]
-        await host.point_at(int(bounds[0] + middle_x * bounds[2]), int(bounds[1] + middle_y * bounds[3]))
-        await host.scroll(dy=-SCROLL_LINES)
+        under = (int(bounds[0] + middle_x * bounds[2]), int(bounds[1] + middle_y * bounds[3]))
+        await host.scroll(dy=-SCROLL_LINES, at=under)
         steps += 1
         await asyncio.sleep(SHOWS_IN_S)
         reading = await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {}

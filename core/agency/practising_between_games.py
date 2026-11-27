@@ -39,7 +39,7 @@ PREPARES_TURNS = 20
 #: The kinds of round: rehearsing, preparing, looking into where a lost game went wrong, and working a small ending out
 #: to the end. Which comes next is whichever has lately paid best, with a margin for how little each has been tried
 #: (core/cognition/where_practice_pays.py); a kind with nothing to do gives its turn to the next.
-_ROUNDS = ("rehearses", "prepares", "investigates", "looks back", "works out an ending")
+_ROUNDS = ("rehearses", "prepares", "investigates", "looks back", "looks again", "works out an ending")
 _PAYS: dict[str, Any] = {}
 
 
@@ -150,6 +150,12 @@ def _one_round_of(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
                 # A position kept from looking back changes what she learns how the pieces stand together from.
                 pays.came_to(kind, kept > 0)
                 return {"looked back": looked, "kept": kept > 0}
+        elif kind == "looks again":
+            looked = _look_again_some(name, written)
+            if looked:
+                # A longer look taken again changes what she learns how the pieces stand together from.
+                pays.came_to(kind, True)
+                return {"looked again": looked}
         elif kind == "works out an ending":
             if _work_out_an_ending(name, written):
                 pays.came_to(kind, True)
@@ -188,6 +194,39 @@ def _look_back_some(name: str, written: tuple[int, int]) -> tuple[int, int]:
         if held is not None and held[0] == name:
             _HELD["written"] = held[1]
     return looked, len(shown.parts) - before
+
+
+def _look_again_some(name: str, written: tuple[int, int]) -> int:
+    """A round of looking again, with the weights she plays by now, at the kept positions whose longer look is oldest
+    (core/agency/looking_again_at_what_she_kept.py), for about as long as her last round of rehearsal took. How many
+    were looked at. Blocks; run it in a thread."""
+    from core.agency.looking_again_at_what_she_kept import looked_at_again
+    from core.agency.playing_pieces_by_kind import _cores_free, _Rehearsing
+    from core.agency.what_a_kind_is_worth import LONGER_LOOK_NODES
+    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
+
+    if _held(name, written) is None:
+        return 0
+    kept, rehearsal = _HELD["kept"], _HELD["rehearsal"]
+    store = getattr(rehearsal, "looked_at_longer", None)
+    if store is None or not store.parts:
+        return 0
+    # As long as a round of rehearsal takes, once one has been measured this sitting.
+    if not _HELD.get("round_s"):
+        return 0
+    rules = kept["rules"]
+    family = rules.family()
+    weights = _Rehearsing(rehearsal).weights_for(family)
+    looked = looked_at_again(store, family, weights, dict(rules.start), now=int(rehearsal.rounds),
+                             seconds=float(_HELD["round_s"]), nodes=LONGER_LOOK_NODES, threads=_cores_free())
+    if looked and not _PLAYING:
+        _keep_what_she_learned(kept.get("app") or name, kept["looks"], rules, rehearsal, kept.get("went_wrong"))
+        held = _the_board_she_last_played()
+        if held is not None and held[0] == name:
+            _HELD["written"] = held[1]
+    if looked:
+        logger.info("looked again at %d kept position(s) of %s with the weights she plays by now", looked, name)
+    return looked
 
 
 def _work_out_an_ending(name: str, written: tuple[int, int]) -> int:
@@ -344,10 +383,19 @@ def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None
 #: her games against the world's other player takes, so a person who stepped away does not come back to find one
 #: under way, nor is met by one started as they sit down.
 AWAY_FOR_S = 900.0
-#: The longest a practice game is given, start to end.
-A_PRACTICE_GAME_S = 3600.0
+#: The longest a practice game is given, start to end: within the lease Bryan's standing yes to it gives a call
+#: (core/executive/standing_authority.py, aura.practice-games, 900 s), with time to spare for its end.
+A_PRACTICE_GAME_S = 840.0
 #: The round of rehearsal after which the last practice game was begun: a round of practice comes between two games.
 _GAME_AFTER_ROUND: list[int] = [-1]
+
+
+def nobody_at_the_machine() -> bool:
+    """Whether nobody has touched the machine for AWAY_FOR_S: what a practice game waits for, here and in the
+    standing yes that lets it take the desktop (core/executive/her_own_passes.py)."""
+    from core.capabilities import window_server
+
+    return window_server.seconds_since_someone_touched_it() >= AWAY_FOR_S
 
 
 def _a_practice_game_due(board: tuple[str, tuple[int, int]]) -> tuple[str, str, int] | None:
@@ -355,11 +403,10 @@ def _a_practice_game_due(board: tuple[str, tuple[int, int]]) -> tuple[str, str, 
     where one is due: nobody has touched the machine for AWAY_FOR_S, and a round of rehearsal has run since the last
     (core/agency/where_her_results_vary.py)."""
     from core.agency.where_her_results_vary import the_setting_to_play
-    from core.capabilities import window_server
     from core.runtime.proof_policy import proof_run_active
 
     # A run of tests or proofs never takes the screen of the machine it runs on.
-    if proof_run_active() or window_server.seconds_since_someone_touched_it() < AWAY_FOR_S:
+    if proof_run_active() or not nobody_at_the_machine():
         return None
     name, written = board
     if _held(name, written) is None:

@@ -136,6 +136,9 @@ class LookedAtLonger:
     #: positions, doubled at every merge, and reading it back made 1.3 billion Python floats in her own process: about
     #: 40 GB, which ended her three times in twenty minutes.
     scales: list[float] = field(default_factory=list)
+    #: The round of her rehearsal each position's longer look was taken in, or taken again (core/agency/
+    #: looking_again_at_what_she_kept.py): the oldest are looked at again first.
+    labelled: list[int] = field(default_factory=list)
 
     def add(self, played: dict, round_: int, rows: int, columns: int) -> None:
         """The positions of one round of her games, where her compiled search gave what is needed of them."""
@@ -164,15 +167,17 @@ class LookedAtLonger:
             self.glance.append(float(glance))
             self.slow.append(float(score) if int(turn) == 0 else -float(score))
             self.game.append(round_ * 10_000 + (int(games[n]) if n < len(games) else 0))
+            self.labelled.append(int(round_))
         extra = len(self.parts) - LOOKED_AT_LONGER_AT_MOST
         if extra > 0:
-            del self.parts[:extra], self.glance[:extra], self.slow[:extra], self.game[:extra]
+            del self.parts[:extra], self.glance[:extra], self.slow[:extra], self.game[:extra], self.labelled[:extra]
         del self.scales[:-_rounds_among(self.game)]
 
     def with_what_was_kept(self, kept: LookedAtLonger) -> LookedAtLonger:
         """This store with every position ``kept`` holds that it does not, those first, as they were kept before it:
         what is saved over what was kept never holds less of it than the latest LOOKED_AT_LONGER_AT_MOST allow. A
-        position is the same where its pieces, its game and what her longer look found it worth are. LIVE 25 November
+        position is the same where its pieces and its game are, and this store's own is kept where both hold one: a
+        position looked at again holds what the later look found (core/agency/looking_again_at_what_she_kept.py). LIVE 25 November
         2026 a run that began its rehearsal afresh, its weights lost, saved its 5,531 positions over the 83,781 kept,
         and how the pieces stand together was learned again from the few."""
         if not kept.parts or (self.squares and kept.squares and kept.squares != self.squares):
@@ -180,36 +185,48 @@ class LookedAtLonger:
         kinds = list(self.kinds) + [letter for letter in kept.kinds if letter not in self.kinds]
         span = 2 * (self.squares or kept.squares)
 
-        def named(parts: np.ndarray, slots: np.ndarray, game: int, slow: float) -> tuple[bytes, int, float]:
+        def named(parts: np.ndarray, slots: np.ndarray, game: int) -> tuple[bytes, int]:
             slot, rest = np.divmod(parts.astype(np.int64), span)
-            return np.sort(slots[slot] * span + rest).tobytes(), int(game), round(float(slow), 3)
+            return np.sort(slots[slot] * span + rest).tobytes(), int(game)
 
         mine = np.arange(len(self.kinds), dtype=np.int64)
-        held = {named(p, mine, g, v) for p, g, v in zip(self.parts, self.game, self.slow, strict=True)}
+        held = {named(p, mine, g) for p, g in zip(self.parts, self.game, strict=True)}
         theirs = np.array([kinds.index(letter) for letter in kept.kinds], dtype=np.int64)
         parts: list[np.ndarray] = []
         glance: list[float] = []
         slow: list[float] = []
         game: list[int] = []
-        for p, first, longer, g in zip(kept.parts, kept.glance, kept.slow, kept.game, strict=True):
-            if named(p, theirs, g, longer) in held:
+        labelled: list[int] = []
+        for p, first, longer, g, at in zip(kept.parts, kept.glance, kept.slow, kept.game, kept.rounds_labelled(),
+                                           strict=True):
+            if named(p, theirs, g) in held:
                 continue
             slot, rest = np.divmod(p.astype(np.int64), span)
             parts.append((theirs[slot] * span + rest).astype(np.int16))
             glance.append(float(first))
             slow.append(float(longer))
             game.append(int(g))
+            labelled.append(int(at))
         if not parts:
             return self
         merged = LookedAtLonger(kinds=kinds, squares=self.squares or kept.squares, columns=self.columns or kept.columns,
                                 parts=parts + list(self.parts), glance=glance + list(self.glance),
                                 slow=slow + list(self.slow), game=game + list(self.game),
-                                scales=_carried_on(kept.scales, self.scales))
+                                scales=_carried_on(kept.scales, self.scales),
+                                labelled=labelled + self.rounds_labelled())
         extra = len(merged.parts) - LOOKED_AT_LONGER_AT_MOST
         if extra > 0:
             del merged.parts[:extra], merged.glance[:extra], merged.slow[:extra], merged.game[:extra]
+            del merged.labelled[:extra]
         del merged.scales[:-_rounds_among(merged.game)]
         return merged
+
+    def rounds_labelled(self) -> list[int]:
+        """The round each position's longer look was taken in: as kept, or, for a store kept before the round was, the
+        round its game came from."""
+        if len(self.labelled) == len(self.parts):
+            return list(self.labelled)
+        return [max(0, int(g) // 10_000) for g in self.game]
 
     def judgement(self, *, seed: int = 0) -> dict[str, Any] | None:
         """How the pieces stand together, learned from what her first look missed of what her longer look found, as
@@ -256,7 +273,8 @@ class LookedAtLonger:
         np.savez_compressed(out, kinds=np.array(self.kinds), squares=np.array(self.squares),
                             columns=np.array(self.columns), parts=parts,
                             glance=np.array(self.glance, dtype=np.float32), slow=np.array(self.slow, dtype=np.float32),
-                            game=np.array(self.game, dtype=np.int64), scales=np.array(self.scales, dtype=np.float32))
+                            game=np.array(self.game, dtype=np.int64), scales=np.array(self.scales, dtype=np.float32),
+                            labelled=np.array(self.rounds_labelled(), dtype=np.int64))
         return out.getvalue()
 
     @classmethod
@@ -268,7 +286,8 @@ class LookedAtLonger:
         return cls(kinds=[str(k) for k in held["kinds"]], squares=int(held["squares"]), columns=int(held["columns"]),
                    parts=[row[row >= 0].astype(np.int16) for row in held["parts"]],
                    glance=[float(x) for x in held["glance"]], slow=[float(x) for x in held["slow"]],
-                   game=game, scales=[float(x) for x in scales])
+                   game=game, scales=[float(x) for x in scales],
+                   labelled=[int(x) for x in held["labelled"]] if "labelled" in held.files else [])
 
 
 @dataclass
@@ -550,6 +569,18 @@ def _pace(engine: Any, description: str, begin: str, candidate: str, current: st
 PAIRS_TESTED_AT_MOST = 400
 
 
+def _first_looks_as_they_are_now(rehearsal: Rehearsal, family: Family, start: Position) -> None:
+    """Every kept position's first look taken again with the weights she plays by now, before how the pieces stand
+    together is learned from the gap between it and her longer look (core/agency/looking_again_at_what_she_kept.py).
+    Left as they were where they cannot be taken again."""
+    from core.agency.looking_again_at_what_she_kept import first_looks_now
+
+    store = rehearsal.looked_at_longer
+    fresh = first_looks_now(store, family, rehearsal.weights, dict(start.cells))
+    if fresh is not None and len(fresh) == len(store.glance):
+        store.glance = fresh
+
+
 def _with_what_she_was_shown(rehearsal: Rehearsal) -> LookedAtLonger:
     """Her practice's positions with those kept from looking again at where games in the world showed her wrong
     (core/agency/where_she_was_shown_wrong.py), under the practice store's order of kinds: what how the pieces stand
@@ -653,6 +684,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     if trying == TOGETHER and refreshing:
         # Learned again, it goes to its match: the layer she plays by was learned on many of the positions any of
         # them would be held back on, so how each foretells them is no fair test between the two.
+        _first_looks_as_they_are_now(rehearsal, family, start)
         learned = _with_what_she_was_shown(rehearsal).judgement(seed=seed)
         if learned is None:
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
@@ -660,6 +692,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
             return rehearsal
         candidate = replace(rehearsal.weights, learned=learned)
     elif trying == TOGETHER:
+        _first_looks_as_they_are_now(rehearsal, family, start)
         learned = _with_what_she_was_shown(rehearsal).judgement(seed=seed)
         if learned is None:
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,

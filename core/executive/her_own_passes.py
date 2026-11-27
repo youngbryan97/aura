@@ -23,6 +23,9 @@ __all__ = [
     "OWN_GOAL_GRANT",
     "OWN_GOAL_ORIGIN",
     "OWN_GOAL_TOOLS",
+    "PRACTICE_GAME_GRANT",
+    "PRACTICE_GAME_ORIGIN",
+    "PRACTICE_GAME_TOOLS",
     "STANDING_YES_MODALITIES",
     "carries_bryans_standing_yes",
     "her_passes_allow",
@@ -75,9 +78,18 @@ REMINDER_DUE_TOOLS = frozenset({"notify_user"})
 _REMINDER_DUE_ARGUMENTS = frozenset({"title", "message", "sound"})
 REMINDER_DUE_ORIGIN = "her_reminder_due"
 REMINDER_DUE_GRANT = "aura.reminder-due"
+#: A practice game of hers against the world's other player, where her results vary (core/agency/
+#: practising_between_games.py, core/agency/where_her_results_vary.py): the tool, what it takes, her practice's origin,
+#: and the grant that is Bryan's standing yes to it (27 November 2026, asked and answered: "Yes, add the grant").
+PRACTICE_GAME_TOOLS = frozenset({"computer_use"})
+_PRACTICE_GAME_ARGUMENTS = frozenset({"action", "target"})
+_PRACTICE_GAME_TARGET = frozenset({"goal", "success_when", "target_app", "max_seconds", "narrate"})
+PRACTICE_GAME_ORIGIN = "her_practice"
+PRACTICE_GAME_GRANT = "aura.practice-games"
 #: The grants whose lease is Bryan's yes to a call nobody is there to confirm (core/capabilities/permission_model.py),
 #: and for each, the modalities a call within it reaches that are off unless someone says otherwise.
-BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT, REMINDER_DUE_GRANT})
+BRYANS_STANDING_YES = frozenset({OWN_GOAL_GRANT, DESK_COMPANY_GRANT, MAIL_REPLY_GRANT, REMINDER_DUE_GRANT,
+                                 PRACTICE_GAME_GRANT})
 STANDING_YES_MODALITIES = {MAIL_REPLY_GRANT: frozenset({"email", "network_write"})}
 
 
@@ -94,7 +106,8 @@ def carries_bryans_standing_yes(origin: Any, tool_name: Any) -> bool:
     return ((source == OWN_GOAL_ORIGIN and name in OWN_GOAL_TOOLS)
             or (source == DESK_COMPANY_ORIGIN and name in DESK_COMPANY_TOOLS)
             or (source == MAIL_REPLY_ORIGIN and name in MAIL_REPLY_TOOLS)
-            or (source == REMINDER_DUE_ORIGIN and name in REMINDER_DUE_TOOLS))
+            or (source == REMINDER_DUE_ORIGIN and name in REMINDER_DUE_TOOLS)
+            or (source == PRACTICE_GAME_ORIGIN and name in PRACTICE_GAME_TOOLS))
 
 
 def her_passes_allow(policy: str, tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str] | None:
@@ -115,6 +128,8 @@ def her_passes_allow(policy: str, tool_name: str, arguments: dict[str, Any]) -> 
         if not str(arguments.get("uid") or "").strip() or not str(arguments.get("body") or "").strip():
             return False, "her_mail_reply_names_no_message_or_says_nothing"
         return True, "her_mail_reply"
+    if policy == "her_practice_game":
+        return _a_practice_game_allowed(tool_name, arguments)
     if policy == "reminder_due":
         if tool_name not in REMINDER_DUE_TOOLS:
             return False, "reminder_due_tool_mismatch"
@@ -156,3 +171,37 @@ def her_passes_allow(policy: str, tool_name: str, arguments: dict[str, Any]) -> 
                 return False, "her_goal_place_outside_her_workspace"
         return True, "her_goal_work"
     return None
+
+
+def _a_practice_game_allowed(tool_name: str, arguments: dict[str, Any]) -> tuple[bool, str]:
+    """A practice game and nothing else: a pursuit in the board application she last played, its goal the practice
+    game's own, and nobody at the machine for as long as her practice waits for (practising_between_games
+    .nobody_at_the_machine)."""
+    import json
+    import re
+
+    if tool_name not in PRACTICE_GAME_TOOLS:
+        return False, "her_practice_game_tool_mismatch"
+    if {key for key, value in arguments.items() if value not in (None, "")} - _PRACTICE_GAME_ARGUMENTS:
+        return False, "her_practice_game_arguments_unsupported"
+    if str(arguments.get("action") or "") != "pursue_on_screen":
+        return False, "her_practice_game_is_only_a_game"
+    try:
+        target = json.loads(str(arguments.get("target") or "{}"))
+    except ValueError:
+        return False, "her_practice_game_target_unreadable"
+    if not isinstance(target, dict) or set(target) - _PRACTICE_GAME_TARGET:
+        return False, "her_practice_game_target_unsupported"
+    if not re.fullmatch(r"Play a game against the other player, with the other player's strength set to \d+\.",
+                        str(target.get("goal") or "")):
+        return False, "her_practice_game_goal_is_not_a_practice_game"
+    from core.agency.practising_between_games import _the_board_she_last_played, nobody_at_the_machine
+    from core.skills.screen_pursuit_board_of_pieces import _kept_under
+
+    board = _the_board_she_last_played()
+    app = str((_kept_under(board[0]) if board is not None else {}).get("app") or "")
+    if not app or str(target.get("target_app") or "") != app:
+        return False, "her_practice_game_is_not_in_the_board_she_last_played"
+    if not nobody_at_the_machine():
+        return False, "her_practice_game_waits_while_someone_is_at_the_machine"
+    return True, "her_practice_game"

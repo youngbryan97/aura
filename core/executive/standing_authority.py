@@ -49,6 +49,9 @@ from core.executive.her_own_passes import (  # noqa: F401 - re-exported: they we
     OWN_GOAL_GRANT,
     OWN_GOAL_ORIGIN,
     OWN_GOAL_TOOLS,
+    PRACTICE_GAME_GRANT,
+    PRACTICE_GAME_ORIGIN,
+    PRACTICE_GAME_TOOLS,
     REMINDER_DUE_GRANT,
     REMINDER_DUE_ORIGIN,
     REMINDER_DUE_TOOLS,
@@ -134,6 +137,8 @@ AUTONOMOUS_AUTHORITY_ORIGINS = frozenset(
         "her_mail_reply",
         # A reminder a person asked for, sent to their desktop when it comes due (REMINDER_DUE_ORIGIN).
         "her_reminder_due",
+        # A practice game of hers against the world's other player (PRACTICE_GAME_ORIGIN).
+        "her_practice",
     }
 )
 
@@ -222,6 +227,7 @@ _SUPPORTED_ARGUMENT_POLICIES = frozenset(
         "desk_company",
         "her_goal_work",
         "her_mail_reply",
+        "her_practice_game",
         "local_introspection",
         "reminder_due",
         "owner_private_message",
@@ -681,6 +687,27 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             window_seconds=3600.0,
             lease_ttl_seconds=120.0,
             argument_policy="reminder_due",
+            built_in=True,
+        ),
+        # Bryan, 27 November 2026, asked whether her practice games may take the desktop while nobody is there:
+        # "Yes, add the grant". The game, its application and the person's absence are checked by her_practice_game.
+        StandingAuthorityGrant(
+            grant_id=PRACTICE_GAME_GRANT,
+            issuer="owner_policy",
+            description=(
+                "While nobody has been at the machine for a quarter of an hour, Aura may play a practice game "
+                "against the other player of the board application she last played, at a strength she sets on its "
+                "form. Nothing else on the desktop is reached."
+            ),
+            allowed_origins=(PRACTICE_GAME_ORIGIN,),
+            allowed_tools=tuple(sorted(PRACTICE_GAME_TOOLS)),
+            allowed_effect_scopes=("foreground_desktop_control",),
+            max_risk="critical",
+            # About one an hour around the clock, each a quarter of an hour at most.
+            max_actions=24,
+            window_seconds=86400.0,
+            lease_ttl_seconds=900.0,
+            argument_policy="her_practice_game",
             built_in=True,
         ),
         StandingAuthorityGrant(
