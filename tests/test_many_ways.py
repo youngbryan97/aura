@@ -413,3 +413,89 @@ def test_what_puts_something_in_is_not_drawn_as_taking_something_away_and_is_dra
     assert best is not None and best.sort == "tone", f"{[(m.way.sort, m.mends) for m in found.mends[:4]]}"
     mended = many_ways.made(code, best)
     assert mended.count("danger") == 1 and 'ui.button("Forget", "drop", i, { tone: "danger" })' in mended
+
+
+def test_what_is_worked_out_from_the_state_is_worked_out_where_it_is_read(tmp_path):
+    """LIVE 25 November 2026 a shopping list went on holding a dish taken off it: it was kept, and set by the test it was not
+    worked out again."""
+    worked_out = DIARY.replace("  view(s, ui) {", "  derived(s) { return { minutes: s.kept.reduce((n, x) => n + x.least, 0), first: [...s.kept].sort((a, b) => a.what.localeCompare(b.what)).map((x) => x.what) }; },\n  view(s, ui) {").replace(
+        "ui.text(s.said),", "ui.text(s.said), ui.note(`${s.minutes} minutes`), ui.text(s.first.join(\" then \")),")
+    tests = '''test("What is set is what is worked out from", t => { t.s = { kept: [{ what: "Swim", least: 30 }, { what: "Bike", least: 15 }] }; t.expect(t.sees("45 minutes"), "it shows " + t.shown); t.expect(t.sees("Bike then Swim"), "not in order"); t.expect(t.s.minutes === 45, "t.s says " + t.s.minutes); });
+test("And what is kept", t => { t.type("What", "Row"); t.type("Minutes", 10); t.click("Save"); t.expect(t.sees("10 minutes"), "it shows " + t.shown); });'''
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state={**DIARY_STATE, "minutes": 0}), worked_out, tests=tests), tmp_path / "t.html", browser)
+
+    trial = _in_a_browser(run)
+    assert [(r.name, r.why[:200]) for r in [*trial.rules, *trial.generic] if not r.ok and r.name in {"What is set is what is worked out from", "And what is kept", "its state is as it was designed", "it begins"}] == []
+
+
+def test_a_button_that_does_nothing_says_what_it_sends_and_that_nothing_looks_at_it(tmp_path):
+    """LIVE 25 November 2026 a form's Cancel sent "cancelForm", which update had no branch for, and the app was called done."""
+    dead = DIARY.replace('ui.button("Save", "save")', 'ui.button("Save", "save"), ui.button("Cancel", "cancelForm")')
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE), dead, tests=DIARY_TESTS), tmp_path / "t.html", browser)
+
+    shown = next(r for r in _in_a_browser(run).generic if r.name == "every control does something")
+    assert not shown.ok and "Cancel (sends “cancelForm”, which update never looks at)" in shown.why
+
+
+def test_a_button_that_does_nothing_is_mended_before_rules_that_fail():
+    from core.making.maker import _how_much_is_wrong
+    from core.making.trying import Result
+
+    assert _how_much_is_wrong([Result("every control does something", False, "these change nothing: Cancel")]) > _how_much_is_wrong([Result("A rule", False, "not shown", broke=True)])
+
+
+DISHES = """({
+  initial() { return { dishes: [], asking: false, said: "" }; },
+  update(s, e) {
+    if (e.name === "add") return { ...s, dishes: [...s.dishes, "Soup " + (s.dishes.length + 1)], said: "Soup " + (s.dishes.length + 1) + " added" };
+    if (e.name === "clear") return { ...s, asking: true };
+    if (e.name === "keep") return { ...s, asking: false };
+    if (e.name === "sure") return { ...s, dishes: [], asking: false, said: "Cleared" };
+    return s;
+  },
+  view(s, ui) {
+    return ui.column(ui.title("Dishes"), ui.row(ui.button("Add", "add", null, { icon: "plus" }), ui.button("Clear", "clear", null, { tone: "danger", icon: "trash" })),
+      s.dishes.length ? ui.list(s.dishes) : ui.empty("No dishes yet", "Add one to begin", "food"),
+      s.asking ? ui.dialog("Clear every dish?", ui.text("They will be gone."), ui.row(ui.button("Keep them", "keep"), ui.button("Clear them", "sure", null, { tone: "danger" }))) : null,
+      ui.toast(s.said, "good"));
+  },
+})"""
+
+
+def test_what_an_app_is_shown_with_has_icons_an_empty_state_a_dialog_over_it_and_a_word_that_comes_again(tmp_path):
+    """27 November 2026: Bryan asked that what she makes have the finish of something made with care, and the frame had no icons,
+    nothing to say where there was nothing yet, no way to ask before something was done, and no word that something was."""
+
+    async def run(browser):
+        page = await browser.new_page()
+        try:
+            await page.set_content(page_of(_design(name="Dishes", state={"dishes": [], "asking": False, "said": ""}), DISHES))
+            seen = {"icons": await page.locator("main button svg.ico path").count(),
+                    "empty": await page.locator(".empty strong").inner_text(), "dialog": await page.locator("[role=dialog]").count()}
+            await page.click("main button:has-text('Add')")
+            await page.evaluate("document.querySelector('.toast').__first = true")
+            await page.click("main button:has-text('Add')")
+            seen["toast"] = await page.evaluate("[document.querySelector('.toast').textContent, !!document.querySelector('.toast').__first]")
+            seen["listed"] = await page.locator("main .list li").count()
+            await page.click("main button:has-text('Clear')")
+            seen["asked"] = await page.locator(".scrim [role=dialog][aria-modal=true] h2").inner_text()
+            seen["focus"] = await page.evaluate("document.activeElement.textContent")
+            await page.keyboard.press("Escape")
+            seen["escaped"] = [await page.locator("[role=dialog]").count(), await page.locator("main .list li").count()]
+            await page.click("main button:has-text('Clear')")
+            await page.click(".dialog button:has-text('Clear them')")
+            seen["after"] = [await page.locator("[role=dialog]").count(), await page.locator(".empty").count(), await page.locator(".toast").inner_text()]
+            return seen
+        finally:
+            await page.close()
+
+    seen = _in_a_browser(run)
+    assert seen["icons"] == 2 and seen["empty"] == "No dishes yet" and seen["dialog"] == 0, seen
+    assert seen["toast"] == ["Soup 2 added", False], "a new word is shown as new, and comes in again"
+    assert seen["listed"] == 2 and seen["asked"] == "Clear every dish?", seen
+    assert seen["focus"] == "Keep them" and seen["escaped"] == [0, 2], "Escape leaves things as they were"
+    assert seen["after"] == [0, 1, "Cleared"], seen

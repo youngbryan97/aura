@@ -188,6 +188,9 @@ class _Maker:
         self.when_kept: Callable[[Path], None] | None = None
         #: What paints its pictures, and the painting of them, beside everything else.
         self.paints: Any = None
+        #: What her sources said of it as it was designed.
+        self.consulted: Any = None
+        self._consulted_on: dict[str, str] = {}
         self.painting: asyncio.Task[list[str]] | None = None
         self.began = time.monotonic()
 
@@ -205,6 +208,8 @@ class _Maker:
                 + f"\nTools can be written in: {', '.join(languages())}.\n")
         if self.told:
             told += f"\nYou have told them of it, and what you told them is kept to where it goes with what they asked:\n{self.told}\n"
+        if before is None:
+            told += await self._what_her_sources_say(told)
         if before is not None:
             told += f"\nIt was designed as:\n{before.model_dump_json()}\n\nWhat they have said since is the last of what they asked. "
         wrong: list[str] = []
@@ -235,6 +240,43 @@ class _Maker:
             self.work.says(f"{best.name}: {best.about} {len(best.rules)} rules"
                            + (f", made from {', '.join(best.pieces)}" if best.pieces else "") + ".")
         return best
+
+    async def _what_her_sources_say(self, about: str) -> str:
+        """Her library, the web and her own model, asked what is worth knowing to make it well: a reading of what they say,
+        each with where it came from (core/making/consulting.py), or nothing where none of them could be asked."""
+        from core.making.consulting import consult
+
+        self.work.step("Asking her library, the web and her own model what is worth knowing")
+        try:
+            consulted = await consult(about, ask=self.ask, write=self.write, advice_on=f"Somebody asked for a program:\n{self.asked}")
+        except (OSError, RuntimeError, ValueError, TypeError) as why:
+            self.work.trouble(f"Her sources could not be asked ({type(why).__name__}).")
+            return ""
+        self.consulted = consulted
+        if consulted.said:
+            self.work.happened("consulted", asked=consulted.asked, said=[{"question": s.question, "source": s.source, "where": s.where, "text": s.text} for s in consulted.said])
+        return f"\n{consulted.reading()}\n" if consulted.said else ""
+
+    async def _what_her_sources_say_of(self, failing: Result) -> str:
+        """Where a mend has gained nothing, what her sources say of what still fails, asked once for each thing: how it is
+        worked out, what it is called, how others did it."""
+        from core.making.consulting import consult
+
+        assert self.design is not None
+        rule = rule_of(failing.name)
+        if rule in self._consulted_on:
+            return self._consulted_on[rule]
+        self.work.step(f"Asking her library, the web and her own model about: {rule[:90]}")
+        about = f"Making {self.design.name}: {self.design.about}\nThis of it is not so yet, and mends have not made it so: {rule}\nWhy, as trying it shows: {failing.why[:400]}"
+        try:
+            consulted = await consult(about, ask=self.ask, write=self.write, advice_on=about)
+        except (OSError, RuntimeError, ValueError, TypeError) as why:
+            self.work.trouble(f"Her sources could not be asked ({type(why).__name__}).")
+            consulted = None
+        if consulted is not None and consulted.said:
+            self.work.happened("consulted", asked=consulted.asked, said=[{"question": s.question, "source": s.source, "where": s.where, "text": s.text} for s in consulted.said])
+        self._consulted_on[rule] = f"\n{consulted.reading()}\n" if consulted is not None and consulted.said else ""
+        return self._consulted_on[rule]
 
     def _not_the_windows(self, design: Design) -> list[Rule]:
         """Its rules but those nobody asked for that the window it runs in keeps by itself: a start screen built into a
@@ -951,6 +993,8 @@ class _Maker:
             told += "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {text}" for text in self.trial.never_ran)
         worked = await asyncio.to_thread(get_kept().like, design.kind, f"{first[0].name}: {first[0].why}")
         told += "\nWhat mended failures like these before:\n" + "\n".join(f"- {m}" for m in worked) if worked else ""
+        if warm > 0.2:
+            told += await self._what_her_sources_say_of(first[0])
         said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
                                 f"Trying it, these fail:\n{told}\n\nSay in a sentence or two what is wrong and what you change, then "
                                 f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm), given=self._given())
@@ -1140,6 +1184,9 @@ def _how_much_is_wrong(failing: list[Result]) -> float:
             return 4.0
         if result.why.startswith("pressing it changes nothing"):
             return 1.0
+        # A button that does nothing is what a person finds first, and says least of what is wrong in its own words.
+        if result.name == "every control does something":
+            return 6.0
         # A test that got as far as what it expects is nearer than one the program broke in, and one that did more of what it
         # does before it failed is nearer than one that did less.
         return (3.0 if result.broke else 2.0) - 0.5 * result.got / (abs(result.got) + 4.0)

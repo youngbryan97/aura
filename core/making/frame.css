@@ -40,3 +40,18 @@ input, select, textarea { border: 1px solid var(--line); background: var(--surfa
 .panel { width: min(440px, 88%); max-height: 92%; overflow: auto; padding: 26px 28px; border-radius: 18px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 13px; box-shadow: 0 24px 70px rgba(0,0,0,.4); } .panel .primary { align-self: flex-start; padding: 10px 22px; }
 dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; } dt { font-weight: 650; min-width: 34px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 7px; text-align: center; background: var(--ground); } dd { margin: 0; color: var(--quiet); }
 .problem { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: #3a1512; color: #ffd9d4; padding: 10px 16px; border-radius: 10px; z-index: 9; max-width: 90%; }
+
+/* Touch: what is pressed gives under the finger, what comes in comes in, and what is to be decided is in front of everything. */
+button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; } button:active:not(:disabled) { transform: translateY(1px) scale(.985); }
+.ico { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.column > .badge, .card > .badge, .column > .big, .card > .big { justify-self: start; } .card > h2:first-child { margin-bottom: -2px; }
+.empty { display: grid; justify-items: center; text-align: center; gap: 4px; padding: 22px 12px; color: var(--quiet); } .empty .ico { width: 26px; height: 26px; opacity: .7; margin-bottom: 4px; } .empty strong { color: var(--ink); font-weight: 600; }
+.scrim { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; padding: 16px; background: rgba(15, 20, 30, .38); backdrop-filter: blur(3px); animation: made-fade .14s ease-out; }
+.dialog { width: min(440px, 100%); max-height: 90vh; overflow: auto; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; padding: 22px 22px 18px; display: grid; gap: 12px; box-shadow: 0 24px 70px rgba(0, 0, 0, .28); animation: made-rise .18s cubic-bezier(.2, .8, .2, 1); }
+.dialog .row { justify-content: flex-end; } .dialog .row > button { flex: none; }
+.toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 30; max-width: min(520px, 90vw); padding: 10px 16px; border-radius: 11px; background: var(--ink); color: var(--surface); font-weight: 550; box-shadow: 0 10px 30px rgba(0, 0, 0, .25); animation: made-toast .22s cubic-bezier(.2, .8, .2, 1), made-gone .35s ease-in 3.4s forwards; pointer-events: none; }
+.toast.good { background: var(--good); color: #fff; } .toast.bad { background: var(--bad); color: #fff; }
+.list > li, tbody tr, .card { animation: made-in .2s ease-out; }
+@keyframes made-in { from { opacity: 0; transform: translateY(3px); } } @keyframes made-fade { from { opacity: 0; } } @keyframes made-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } } @keyframes made-toast { from { opacity: 0; transform: translate(-50%, 8px); } } @keyframes made-gone { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+input[type=number], .num, td.num { font-variant-numeric: tabular-nums; }

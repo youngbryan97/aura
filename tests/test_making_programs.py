@@ -635,6 +635,8 @@ class _Model:
 
     async def write(self, prompt, n, *, warmth=0.2, given=""):
         self.asked.append(given + prompt)
+        if "What would you advise" in prompt:
+            return ""
         return self.again if warmth == 0.7 else self.written.pop(0)
 
 

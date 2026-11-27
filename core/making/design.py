@@ -164,9 +164,12 @@ APP = f"""An app is one JavaScript object. Its state is plain data: numbers, str
   initial()       the state as it begins, before anybody has used it: empty of records
   update(s, e)    changes s for one event e: {{type:"do", name, value}} from a button, {{type:"input", name, value}} from a field, {{type:"key", key, down}}, and {{type:"tick", dt, now}} ten times a second where it moves by itself (now is milliseconds)
   view(s, ui)     what is shown for s, changing nothing: a tree of ui parts. Anything longer is split into functions beside these, called as this.name(...).
+  derived(s)      what is worked out from the state (totals, a list sorted, filtered or added up, what clashes with what), as {{name: value}}: view and the tests read it as part of s, and update never keeps or changes it.
 ui.column(..) ui.row(..) ui.card(..) ui.grid(..) ui.title(t) ui.heading(t) ui.text(t) ui.note(t) ui.big(t) ui.badge(t,"good|bad|warm") ui.divider() ui.spacer()
-ui.button(label, name, value, {{tone, disabled, hint}}) tone is "primary" for the one used most there, "danger" for what takes something away, and none for the rest; ui.toggle(label, name, value, on) sends "do"
+ui.button(label, name, value, {{tone, icon, disabled, hint}}) icon is one of the icons below; tone is "primary" for the one used most there, "danger" for what takes something away, and none for the rest; ui.toggle(label, name, value, on) sends "do"
 ui.input(label, name, value, {{placeholder, enter:"name sent on Enter", type}}) ui.number(label,name,value,{{min,max,step}}) ui.date(label,name,"2026-11-23") ui.area(label,name,value,{{rows}}) ui.check(label,name,on) ui.select(label,name,value,[value or [value,label]]) ui.slider(label,name,value,{{min,max,step}}) send "input"
+ui.empty(title, hint, icon) where there is nothing yet; ui.dialog(title, ..parts) over everything while it is in the view, for what is to be decided first: its first button leaves things as they were, and Escape presses it; ui.toast(words, "good|bad") a word that something was done; ui.icon(name)
+Icons: plus minus check close trash edit download upload search star heart clock calendar play pause stop refresh settings user users cart list filter sort arrow-right arrow-left chevron info warn copy share print home leaf drop sun moon bell tag book chart money pin food
 ui.list(items, (item, i) => part) ui.table(heads, rows of cells) ui.tabs(names, chosen, name) ui.progress(value, of) ui.bars([{{label,value,show}}]) ui.lines([numbers]) ui.canvas(name, w, h, (g, w, h) => ...) sends "do" with {{x, y}} when pressed
 Labels of buttons that stand together differ, so each can be told from the rest. {_CHANCE}"""
 

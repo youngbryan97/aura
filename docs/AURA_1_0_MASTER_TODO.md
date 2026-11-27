@@ -8571,6 +8571,21 @@ needs her 27B free (her app down, or her app's own influence trials).
     chosen, its icon as large as it was painted, and the buttons that add things in red: the frame every app is made in shows
     what is so, and what is marked as taking something away and only puts something in is a fault, which her search mends with
     no model (`tests/test_many_ways.py`).
+  - 27 November, Bryan: "not all the buttons work on the dinner-planning app", and he asked for finish, taste and care in what
+    she makes, with the web, her own model and her library consulted as advice. The dinner planner had been called done at 21
+    of 35 with a Cancel that sent "cancelForm", which nothing read, and a shopping list that went on holding a dish taken off
+    the plan, because the list was kept in the state and not worked out from it. Now:
+    - What is worked out from the state is written as `derived(s)` and worked out wherever the state is read, by the page and
+      by the tests alike.
+    - A button that changes nothing is named with what it sends and that nothing reads it, and it is mended before any rule
+      that fails (`tests/test_many_ways.py`).
+    - Before she designs, and when a mend has failed once, she asks her library, the web and her own model what is worth
+      knowing. What they say comes to her as advice to weigh, with where each part came from, and the workbench shows it
+      (`core/making/consulting.py`, `tests/test_she_consults_her_sources_as_she_makes.py`).
+    - The frame every app is made in has icons on buttons, a state for when there is nothing yet, a dialog that takes the
+      keys and that Escape leaves, a word that something was done which fades on its own, and motion that stops where the
+      reader asked for less. The tests had tried apps only through the tester, never on the real page, so a mistake of mine
+      in the redraw passed all 234 of them; the page itself is tried now (`tests/test_many_ways.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

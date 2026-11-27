@@ -93,13 +93,21 @@ const Frame = (() => {
 
   // ── what an app is shown with: a tree of plain things, drawn into the page and kept in step with it ────────────
   const node = (tag, props, kids) => ({ tag, props: props || {}, kids: (kids || []).flat(9).filter((k) => k != null && k !== false).map((k) => (typeof k === "object" ? k : { tag: "#", text: String(k) })) });
+  const ICONS = {"plus":"M8 3v10M3 8h10","minus":"M3 8h10","check":"m3.5 8.5 3 3 6-7","close":"m4 4 8 8M12 4l-8 8","trash":"M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5","edit":"m3 13 .5-2.5L10.5 3.5l2 2-7 7zM9 5l2 2","download":"M8 3v7M5 7.5 8 10.5 11 7.5M3.5 13h9","upload":"M8 11V4M5 6.5 8 3.5 11 6.5M3.5 13h9","search":"M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zM10.3 10.3 13.5 13.5","star":"M8 2.5l1.7 3.5 3.8.5-2.8 2.6.7 3.8L8 11l-3.4 1.9.7-3.8-2.8-2.6 3.8-.5z","heart":"M8 13s-5-3-5-6.5A2.5 2.5 0 0 1 8 5a2.5 2.5 0 0 1 5 1.5C13 10 8 13 8 13z","clock":"M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 5v3l2 1.5","calendar":"M3 4.5h10v8.5H3zM3 7h10M5.5 3v3M10.5 3v3","play":"M5 3.5v9l7-4.5z","pause":"M5.5 3.5v9M10.5 3.5v9","stop":"M4 4h8v8H4z","refresh":"M12.5 8A4.5 4.5 0 1 1 11 4.6M12.5 2.5v2.6H10","settings":"M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.8 3.8l1 1M11.2 11.2l1 1M3.8 12.2l1-1M11.2 4.8l1-1","user":"M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3.5 13.5c.6-2.6 2.3-4 4.5-4s3.9 1.4 4.5 4","users":"M6 7a2.2 2.2 0 1 0 0-4.4A2.2 2.2 0 0 0 6 7zM2 13c.5-2.3 2-3.5 4-3.5s3.5 1.2 4 3.5M10.5 3a2 2 0 0 1 0 4M11.5 9.6c1.4.4 2.2 1.6 2.5 3.4","cart":"M2.5 3h2l1.5 7h6l1.5-5H5M6.5 13h.1M11.5 13h.1","list":"M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.5 4.5h.1M2.5 8h.1M2.5 11.5h.1","filter":"M2.5 3.5h11l-4.3 5v4l-2.4 1v-5z","sort":"M5 3v10M2.5 10.5 5 13l2.5-2.5M11 13V3M8.5 5.5 11 3l2.5 2.5","arrow-right":"M3 8h10M9.5 4.5 13 8l-3.5 3.5","arrow-left":"M13 8H3M6.5 4.5 3 8l3.5 3.5","chevron":"m6 4 4 4-4 4","info":"M8 13.5a5.5 5.5 0 1 0 0-11 5.5 5.5 0 0 0 0 11zM8 7.5v3.5M8 5.2v.1","warn":"M8 2.5 14 13H2zM8 6.5v3M8 11.3v.1","copy":"M5.5 5.5h7v7h-7zM3.5 10.5v-7h7","share":"M8 10V2.5M5 5.5 8 2.5l3 3M3.5 8.5v4.5h9V8.5","print":"M4.5 6V2.5h7V6M4.5 11h-2V6h11v5h-2M4.5 9h7v4.5h-7z","home":"M2.5 7.5 8 3l5.5 4.5M4 6.5V13h8V6.5","leaf":"M3 13c0-6 4-9.5 10-10-.5 6-4 10-10 10zM3 13l5-5","drop":"M8 2.5s4.5 4.6 4.5 7.5a4.5 4.5 0 0 1-9 0C3.5 7.1 8 2.5 8 2.5z","sun":"M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1","moon":"M13 9.5A5.5 5.5 0 1 1 6.5 3 4.5 4.5 0 0 0 13 9.5z","bell":"M4 11V7.5a4 4 0 0 1 8 0V11l1 1.5H3zM6.5 13.5a1.5 1.5 0 0 0 3 0","tag":"M2.5 2.5h5l6 6-5 5-6-6zM5.5 5.5h.1","book":"M3 3.5c2-.7 3.5-.5 5 .7 1.5-1.2 3-1.4 5-.7v9c-2-.7-3.5-.5-5 .7-1.5-1.2-3-1.4-5-.7zM8 4.2v9","chart":"M2.5 13.5h11M4.5 11V8M8 11V4.5M11.5 11V6.5","money":"M2.5 4.5h11v7h-11zM8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM4.5 6.5v.1M11.5 9.5v.1","pin":"M8 14s4.5-4.2 4.5-7.5a4.5 4.5 0 0 0-9 0C3.5 9.8 8 14 8 14zM8 8a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z","food":"M4 2.5v4a1.5 1.5 0 0 0 3 0v-4M5.5 2.5v11M11 2.5c-1.4 0-2 1.6-2 4s.6 3 2 3v4"};
+  const glyph = (name) => (ICONS[name] ? node("svg", { viewBox: "0 0 16 16", class: "ico", "aria-hidden": "true" }, [node("path", { d: ICONS[name] })]) : null);
   const ui = {
     column: (...k) => node("div", { class: "column" }, k), row: (...k) => node("div", { class: "row" }, k),
     card: (...k) => node("section", { class: "card" }, k), grid: (...k) => node("div", { class: "grid" }, k),
     title: (t) => node("h1", {}, [t]), heading: (t) => node("h2", {}, [t]), text: (t) => node("p", {}, [t]),
     note: (t) => node("p", { class: "note" }, [t]), big: (t) => node("div", { class: "big" }, [t]), badge: (t, tone) => node("span", { class: "badge " + (tone || "") }, [t]),
     divider: () => node("hr"), spacer: () => node("div", { class: "spacer" }),
-    button: (label, name, value, o) => node("button", { class: (o && o.tone) || "", type: "button", disabled: !!(o && o.disabled), title: (o && o.hint) || null, do: [name, value === undefined ? null : value] }, [label]),
+    button: (label, name, value, o) => node("button", { class: (o && o.tone) || "", type: "button", disabled: !!(o && o.disabled), title: (o && o.hint) || null, do: [name, value === undefined ? null : value] }, [o && o.icon ? glyph(o.icon) : null, label]),
+    icon: (name) => glyph(name),
+    // What there is nothing of yet, said where it would be, with what to do about it.
+    empty: (title, hint, icon) => node("div", { class: "empty" }, [glyph(icon || "list"), node("strong", {}, [title]), hint ? node("p", { class: "note" }, [hint]) : null]),
+    // Over everything while it is shown: what is to be decided before anything else is done.
+    dialog: (title, ...k) => node("div", { class: "scrim" }, [node("section", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-label": title }, [node("h2", {}, [title]), ...k])]),
+    toast: (words, tone) => (words ? node("div", { class: "toast " + (tone || ""), role: "status", renew: words }, [words]) : null),
     input: (label, name, value, o) => field(label, node("input", { type: (o && o.type) || "text", value: value == null ? "" : String(value), placeholder: (o && o.placeholder) || "", in: name, enter: (o && o.enter) || null, "aria-label": label })),
     number: (label, name, value, o) => field(label, node("input", { type: "number", value: value == null ? "" : String(value), min: o && o.min, max: o && o.max, step: o && o.step, in: name, number: true, enter: (o && o.enter) || null, "aria-label": label })),
     date: (label, name, value) => field(label, node("input", { type: "date", value: value || "", in: name, "aria-label": label })),
@@ -127,9 +135,12 @@ const Frame = (() => {
   const field = (label, control) => node("label", { class: "field" }, [node("span", {}, [label]), control]);
   const words = (v) => (v.tag === "#" ? v.text : v.kids.map(words).join(" ")).replace(/\s+/g, " ").trim();
   function every(v, found) { found = found || []; if (v.tag !== "#") { found.push(v); v.kids.forEach((k) => every(k, found)); } return found; }
-  function shown(state) { const v = P.view(state, ui); return v && v.tag ? v : node("div", {}, [v]); }
+  // What is worked out from the state is worked out where it is read, and is never kept: kept, it was what the state had been
+  // when it was last worked out (LIVE 25 November 2026, a shopping list that went on holding a dish that had been taken off it).
+  const whole = (state) => (P && typeof P.derived === "function" && state && typeof state === "object" ? { ...state, ...P.derived(state) } : state);
+  function shown(state) { const v = P.view(whole(state), ui); return v && v.tag ? v : node("div", {}, [v]); }
 
-  const SVG = new Set(["svg", "polyline"]);
+  const SVG = new Set(["svg", "polyline", "path"]);
   function make(v) {
     if (v.tag === "#") return document.createTextNode(v.text);
     const el = SVG.has(v.tag) ? document.createElementNS("http://www.w3.org/2000/svg", v.tag) : document.createElement(v.tag);
@@ -138,7 +149,7 @@ const Frame = (() => {
   function fit(el, was, v) {
     for (const key of Object.keys({ ...was.props, ...v.props })) {
       const value = v.props[key];
-      if (key === "do" || key === "in" || key === "enter" || key === "number" || key === "paint" || key === "point") { el["__" + key] = value; continue; }
+      if (key === "do" || key === "in" || key === "enter" || key === "number" || key === "paint" || key === "point" || key === "renew") { el["__" + key] = value; continue; }
       if (key === "value") { if (el.value !== value && document.activeElement !== el) el.value = value ?? ""; else if (el.value !== value && value === "") el.value = ""; continue; }
       if (key === "checked" || key === "disabled" || key === "selected") { el[key] = !!value; continue; }
       if (value == null || value === false) el.removeAttribute(key); else el.setAttribute(key, value === true ? "" : value);
@@ -147,7 +158,7 @@ const Frame = (() => {
     v.kids.forEach((kid, i) => {
       const at = el.childNodes[i], before = old[i];
       if (!at) el.appendChild(make(kid));
-      else if (!before || before.tag !== kid.tag) el.replaceChild(make(kid), at);
+      else if (!before || before.tag !== kid.tag || (kid.tag !== "#" && before.props.renew !== kid.props.renew)) el.replaceChild(make(kid), at);
       else if (kid.tag === "#") { if (at.nodeValue !== kid.text) at.nodeValue = kid.text; }
       else fit(at, before, kid);
     });
@@ -188,7 +199,10 @@ const Frame = (() => {
     const main = el("main"); root.append(bar, main);
     let was_shown = null, top = null;
     const unsaid = (v) => { if (v.tag === "#") return v; return { ...v, kids: v.kids.filter((k) => !(k.tag === "h1" && words(k) === P.name)).map(unsaid) }; };
-    function show() { try { const v = unsaid(shown(state)); if (!was_shown || was_shown.tag !== v.tag) { main.textContent = ""; top = make(v); main.appendChild(top); } else fit(top, was_shown, v); was_shown = v; } catch (e) { problem(e); } }
+    // A dialog that comes up takes the keys: what is pressed is in it, and Escape presses its first button, which leaves things as they were.
+    let asked = null;
+    const asking = () => { const d = main.querySelector("[role=dialog]"); if (d && d !== asked) { const first = d.querySelector("button, input, select, textarea"); if (first) first.focus(); } asked = d; };
+    function show() { try { const v = unsaid(shown(state)); if (!was_shown || was_shown.tag !== v.tag) { main.textContent = ""; top = make(v); main.appendChild(top); } else fit(top, was_shown, v); was_shown = v; asking(); } catch (e) { problem(e); } }
     function send(event, remember) { try { const before = remember ? JSON.parse(JSON.stringify(state)) : null; state = apply(state, event); if (before && JSON.stringify(before) !== JSON.stringify(state)) { past.push(before); if (past.length > 100) past.shift(); } show(); keep(); } catch (e) { problem(e); } }
     const up = (t, what) => { while (t && t !== main && t["__" + what] == null) t = t.parentNode; return t && t !== main ? t : null; };
     main.addEventListener("click", (e) => { const t = up(e.target, "do"); if (t && t.tagName !== "INPUT") send({ type: "do", name: t.__do[0], value: t.__do[1] }, true); });
@@ -196,7 +210,7 @@ const Frame = (() => {
     main.addEventListener("input", (e) => { const t = e.target; if (t.__in && t.type !== "checkbox" && t.tagName !== "SELECT") send({ type: "input", name: t.__in, value: t.__number ? Number(t.value) : t.value }); });
     main.addEventListener("keydown", (e) => { const t = e.target; if (e.key === "Enter" && t.__enter && t.tagName !== "TEXTAREA") send({ type: "do", name: t.__enter, value: null }, true); });
     main.addEventListener("pointerdown", (e) => { const t = up(e.target, "point"); if (t) { const r = t.getBoundingClientRect(); send({ type: "do", name: t.__point, value: { x: ((e.clientX - r.left) * t.width) / r.width, y: ((e.clientY - r.top) * t.height) / r.height } }, true); } });
-    window.addEventListener("keydown", (e) => { if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return; send({ type: "key", key: key(e), down: true }); });
+    window.addEventListener("keydown", (e) => { if (asked) { if (e.key === "Escape") { const first = asked.querySelector("button"); if (first) first.click(); e.preventDefault(); } else if (e.key === "Tab") { const all = [...asked.querySelectorAll("button, input, select, textarea")], at = all.indexOf(document.activeElement); if (all.length) { all[(at + (e.shiftKey ? all.length - 1 : 1)) % all.length].focus(); e.preventDefault(); } } return; } if (["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return; send({ type: "key", key: key(e), down: true }); });
     show();
     if (P.ticks) { let last = performance.now(); setInterval(() => { const now = performance.now(), dt = Math.min(1, (now - last) / 1000); last = now; send({ type: "tick", dt, now: Date.now() }); }, 1000 / (P.ticks === true ? 10 : P.ticks)); }
   }
@@ -383,7 +397,7 @@ const Frame = (() => {
       const takes = !isGame() && !Array.isArray(value) ? every(shown(s)).filter((n) => n.tag === "select" && meant(n, value) === undefined && setsOf(s, n).some((path) => path.some((k) => { const has = wordsIn(k), want = wordsIn(label); return want.length && want.every((w) => has.includes(w)); })))[0] : null;
       if (takes) refuse(label, takes, value);
       return find(label, (n) => n.props.in); };
-    const t = { get s() { return s; }, set s(v) { s = only({ ...P.initial(), ...v }); }, W, H,
+    const t = { get s() { return whole(s); }, set s(v) { s = only({ ...P.initial(), ...v }); }, W, H,
       send(e) { return act((s) => apply(s, e)); },
       tick(seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, null)); },
       hold(k, seconds) { return act((s) => run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } })); },
@@ -446,7 +460,7 @@ const Frame = (() => {
     const wander = (from, seconds, sd, take) => { seed = sd; let s = from === null ? P.initial() : copy(from); let left = seconds; while (left > 0 && !(P.over && ended(s))) { const way = take ? take(s) : ways.length ? ways[Math.floor(rnd() * ways.length)] : null; s = run(s, 0.25, way); left -= 0.25; } return s; };
     check("it begins", () => { seed = 7; const s = P.initial(); must(s && typeof s === "object", "initial() gives no state"); must(JSON.stringify(s) === JSON.stringify(copy(s)), "its state is not plain data"); const w = wrong(s, "state", 0); must(!w, w); if (P.over) must(!ended(s), "it is over as it begins"); });
     if (out[0] && out[0].ok === false) return out;
-    if (P.designed) check("its state is as it was designed", () => { seed = 7; const s = P.initial(), lost = Object.keys(P.designed).filter((k) => !(k in s)); must(!lost.length, `initial() has no ${lost.join(", ")}; the design's state has`); });
+    if (P.designed) check("its state is as it was designed", () => { seed = 7; const s = whole(P.initial()), lost = Object.keys(P.designed).filter((k) => !(k in s)); must(!lost.length, `initial() has no ${lost.join(", ")}; the design's state has`); });
     if (P.designed && Object.keys(P.designed).length) check("it goes on from its state as it was designed", () => { seed = 7; let s = { ...P.initial(), ...copy(P.designed) }; if (isGame()) { s = run(s, 1.5, null); P.draw(s, pen(document.createElement("canvas").getContext("2d"), 1)); } else shown(s); const w = wrong(s, "state", 0); must(!w, `begun from the designed state, ${w}: what it holds has only the names the design gives it`); });
     if (isGame()) {
       check("it runs without breaking, whatever is pressed", () => { for (let sd = 1; sd <= 5; sd++) { const s = wander(null, 30, sd); const w = wrong(s, "state", 0); must(!w, w); } });
@@ -486,7 +500,15 @@ const Frame = (() => {
         // a mend that put in what was missing was not kept, for "Edit" and "Delete" had not been come upon by chance that time.
         for (const [, body] of (gone().length && window.TESTS) || []) { watching = (then) => { try { look(then); } catch (e) { /* what breaks as it is shown is told by what else is tried */ } }; try { body(tester()); } catch (e) { /* what it finds is told where it is tried */ } finally { watching = null; waiting = []; emptied = null; } if (!gone().length) break; }
         const left = gone(); must(!left.length, `the design has ${left.map((g) => `“${g}”`).join(", ")}, and wherever it was used nothing was called that; there are: ${[...said].filter(Boolean).slice(0, 16).join(", ")}`); });
-      check("every control does something", () => { const dead = [...used].filter(([, did]) => !did).map(([label]) => label); must(dead.length === 0, `these change nothing: ${dead.slice(0, 8).join(", ")}`); must(used.size > 0, "there is nothing to use"); });
+      check("every control does something", () => { const deadNow = () => [...used].filter(([, did]) => !did).map(([label]) => label);
+        // What does something only where something has been put in is pressed where the tests have put it: LIVE 25 November 2026
+        // a dialog's Cancel was there only once a dish had been begun, and was called dead, and was.
+        const tried = (then) => { for (const n of every(shown(then))) { if (!n.props.do || n.props.disabled) continue; const label = n.props["aria-label"] || words(n); if (used.get(label) !== false) continue; let next; try { next = apply(copy(then), { type: "do", name: n.props.do[0], value: n.props.do[1] }); } catch (e) { continue; } if (JSON.stringify(next) !== JSON.stringify(then)) used.set(label, true); } };
+        for (const [, body] of (deadNow().length && window.TESTS) || []) { watching = (then) => { try { tried(then); } catch (e) { /* told where it is tried */ } }; try { body(tester()); } catch (e) { /* told where it is tried */ } finally { watching = null; waiting = []; emptied = null; } if (!deadNow().length) break; }
+        // What each sends, and whether update looks at it anywhere: a name nothing looks at is a branch that was never written.
+        const sends = new Map(); for (let sd = 1; sd <= 2; sd++) { seed = sd; let x = P.initial(); for (let i = 0; i < 60; i++) { for (const n of every(shown(x))) if (n.props.do) sends.set(n.props["aria-label"] || words(n), String(n.props.do[0])); x = act(x); } }
+        const read = Object.values(P).filter((f) => typeof f === "function").map(String).filter((f) => !/\bui\.\w+\(/.test(f)).join("\n"), told = (label) => { const name = sends.get(label); return name ? `${label} (sends “${name}”${read.includes(name) ? "" : ", which update never looks at"})` : label; };
+        const dead = deadNow(); must(dead.length === 0, `these change nothing: ${dead.slice(0, 8).map(told).join(", ")}`); must(used.size > 0, "there is nothing to use"); });
       // What is true of any program that keeps things, whatever it is for, and that no test of a rule of it says.
       const records = (s) => { const out = []; const of = (x, path, d) => { if (!x || typeof x !== "object" || d > 4) return; if (Array.isArray(x)) { if (x.length && x.every((y) => y && typeof y === "object" && !Array.isArray(y))) out.push([path, x]); x.slice(0, 60).forEach((y, i) => of(y, `${path}[${i}]`, d + 1)); } else for (const k of Object.keys(x)) of(x[k], path ? `${path}.${k}` : k, d + 1); }; of(s, "", 0); return out; };
       const fill = (s, sd) => { seed = sd; const names = ["Ana", "Ben", "rice", "a longer thing"]; for (const n of every(shown(s)).filter((n) => n.props.in)) { const all = n.tag === "select" ? n.kids : null; s = apply(s, { type: "input", name: n.props.in, value: n.props.type === "checkbox" ? true : all ? (all.length ? all[all.length > 1 ? 1 : 0].props.value : "") : n.props.number || n.props.type === "number" ? 12 : n.props.type === "date" ? "2026-11-20" : names[Math.floor(rnd() * names.length)] }); } return s; };
