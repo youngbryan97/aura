@@ -57,11 +57,15 @@ class StructuredLLM:
     and technical/model failures escalate lanes before giving up.
     """
 
-    def __init__(self, model_class: type[T], max_retries: int = 3, llm_router: object | None = None):
+    def __init__(self, model_class: type[T], max_retries: int = 3, llm_router: object | None = None, *,
+                 before_anyone_has_spoken: bool = False):
         self.model_class = model_class
         self.max_retries = max(1, int(max_retries or 1))
         self._llm_router = llm_router if llm_router is not None else ServiceContainer.get("llm_router")
         self.last_defer_reason = ""
+        #: Whether this background work may run before anybody has spoken to her since she started: work of her own
+        #: loops that nobody is waiting on and that nobody need start (background_policy's "no_user_anchor").
+        self.before_anyone_has_spoken = bool(before_anyone_has_spoken)
 
     #: Wall-clock ceiling for one generate() campaign across all retries.
     #: Not a per-attempt timeout: the point is a bound on the REQUEST.
@@ -377,6 +381,7 @@ class StructuredLLM:
                 orch,
                 profile=THOUGHT_BACKGROUND_POLICY,
                 require_conversation_ready=True,
+                allow_no_user_anchor=self.before_anyone_has_spoken,
             )
         except STRUCTURED_RECOVERABLE_ERRORS as exc:
             _record_structured_degradation(

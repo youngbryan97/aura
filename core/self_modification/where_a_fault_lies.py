@@ -184,7 +184,9 @@ def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
     try:
         from core.brain.llm.structured_llm import StructuredLLM
 
-        return StructuredLLM(schema, max_retries=1)
+        # Her mending loop runs with nobody yet spoken to her after a restart (adeff4bde), and so does its reading of a
+        # fault: LIVE 27 November 2026 every reading after her restart was put off as "no_user_anchor".
+        return StructuredLLM(schema, max_retries=1, before_anyone_has_spoken=True)
     except (ImportError, RuntimeError) as why:
         logger.info("no model to ask where a fault lies: %s", why)
         return None

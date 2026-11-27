@@ -211,3 +211,26 @@ def test_a_report_her_model_reads_as_done_on_purpose_is_left_before_any_test_is_
     record = goals.load(done["slug"])
     assert record.status == goals.STALLED and record.last_check["by_design"]
     assert "what it depends on" in record.last_check["why"]
+
+
+def test_her_reading_of_a_fault_does_not_wait_for_somebody_to_speak_to_her_first(monkeypatch):
+    """LIVE 27 November 2026, after her restart, every reading was put off as "no_user_anchor" while nobody was there,
+    as her mending loop itself had been until adeff4bde."""
+    from core.brain.llm import structured_llm
+    from core.container import ServiceContainer
+    from core.runtime import background_policy
+
+    asked: dict = {}
+
+    def reason(orchestrator=None, **kwargs):
+        asked.update(kwargs)
+        return "" if kwargs.get("allow_no_user_anchor") else "no_user_anchor"
+
+    monkeypatch.setattr(background_policy, "background_activity_reason", reason)
+    monkeypatch.setattr(structured_llm, "resolve_orchestrator", lambda: None, raising=False)
+    monkeypatch.setattr(ServiceContainer, "get", classmethod(lambda cls, name, default=None: object()))
+    model = lies.her_model()
+    assert model is not None and model._background_defer_reason(is_background=True) == ""
+    assert asked["allow_no_user_anchor"] is True
+    plain = structured_llm.StructuredLLM(lies.WhereItLies, llm_router=object())
+    assert plain._background_defer_reason(is_background=True) == "no_user_anchor", "others still wait"
