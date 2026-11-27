@@ -83,3 +83,24 @@ def test_a_pass_opens_with_her_goal_read_from_her_record_and_not_by_a_skill_run_
     opening = asyncio.run(work.her_goal_as_she_reads_it(record))
     assert opening[0] == {"role": "user", "content": ""}
     assert '"goal": "Running a self-integrity scan"' in opening[2]["content"] and '"passes_so_far": 3' in opening[2]["content"]
+
+
+def test_a_stalled_goal_is_woken_only_by_what_could_change_how_it_goes(her_source):
+    """LIVE 27 November 2026 "Running a self-integrity scan", stalled, was woken by every commit to her source and
+    each time spent two passes thinking 2,221 tokens and writing nothing."""
+    from tests.test_her_goal_is_worked_by_her import _git
+
+    def commit(path, text):
+        (her_source / path).parent.mkdir(parents=True, exist_ok=True)
+        (her_source / path).write_text(text)
+        _git("-c", "user.name=t", "-c", "user.email=t@t", "add", path, cwd=her_source)
+        _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", path, cwd=her_source)
+        return _git("rev-parse", "HEAD", cwd=her_source).strip()
+
+    record = work.GoalRecord(goal=SCAN, slug=work.slug_of(SCAN), status=work.STALLED,
+                             stalled_on=_git("rev-parse", "HEAD", cwd=her_source).strip(),
+                             steps=[{"tool": "edit_draft", "args": {"path": "core/notes.py"}}])
+    assert not work.what_it_stalled_on_has_moved(record, commit("core/elsewhere.py", "x = 1\n"))
+    assert work.what_it_stalled_on_has_moved(record, commit("core/notes.py", "def note_count():\n    return 1\n"))
+    record.stalled_on = _git("rev-parse", "HEAD", cwd=her_source).strip()
+    assert work.what_it_stalled_on_has_moved(record, commit("core/skills/her_draft.py", "# her tools\n"))

@@ -460,6 +460,27 @@ def what_she_set_out_to_do(record: GoalRecord) -> dict[str, Any]:
             "summary": f"her own goal, {record.passes} passes so far"}
 
 
+#: What carries out a pass of hers at a goal: when one of these changes, a goal that stalled may go otherwise.
+HER_MEANS_OF_GOAL_WORK = ("core/agency/her_goal_at_work.py", "core/skills/her_draft.py", "core/brain/llm/her_steps.py",
+                          "core/brain/llm/mlx_client.py", "core/brain/llm/mlx_client_tool_results.py",
+                          "core/brain/llm/mlx_worker.py", "core/brain/llm/thinking_reserve.py",
+                          "core/brain/llm/a_bounded_private_channel.py", "core/executive/", "core/capability_engine.py")
+
+
+def what_it_stalled_on_has_moved(record: GoalRecord, head: str) -> bool:
+    """Whether a pass at a stalled goal could go otherwise on ``head``: what carries out her passes changed, or a file
+    her draft for it edited. LIVE 27 November 2026 "Running a self-integrity scan", stalled, was woken by every commit
+    to her source, and each time spent two passes thinking 2,221 tokens and writing nothing."""
+    if not record.stalled_on:
+        return True
+    shown = _git("diff", "--name-only", record.stalled_on, head, cwd=source_root())
+    if shown.returncode != 0:
+        return True
+    changed = set(shown.stdout.splitlines())
+    edited = {str((step.get("args") or {}).get("path") or "") for step in record.steps if step.get("tool") == "edit_draft"}
+    return any(name.startswith(HER_MEANS_OF_GOAL_WORK) for name in changed) or bool(changed & edited)
+
+
 async def her_goal_as_she_reads_it(record: GoalRecord) -> list[dict[str, Any]]:
     """The opening of a pass: nobody's turn, empty since nobody asked, and her call that reads her goal with what came
     back, in her template's form for a call of hers (as her unprompted turns read what she noticed,
@@ -496,9 +517,10 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     if record.status == STALLED:
         # A goal stalls after two passes with no call, and on day run 4 (9 and 10 November 2026) every stall came of a
         # fault in what she was given: her tools refused, her model held. Stalled for good, a goal waited on a fix
-        # that had already landed. On source changed since it stalled, she works it again.
+        # that had already landed. On source changed since it stalled, in what could change how it goes, she works it
+        # again.
         head = await asyncio.to_thread(source_head)
-        if head and head != record.stalled_on:
+        if head and head != record.stalled_on and await asyncio.to_thread(what_it_stalled_on_has_moved, record, head):
             logger.info("'%s' worked again: her source moved from %s to %s since it stalled", goal[:60],
                         record.stalled_on[:9] or "before this was kept", head[:9])
             record.status, record.quiet_passes = WORKING, 0
