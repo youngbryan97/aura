@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Judged", "ToLookUp", "WhereItLies", "judge", "raised_here", "the_function", "version_of", "what_to_look_up"]
+__all__ = ["Judged", "NotReadNow", "ToLookUp", "WhereItLies", "judge", "raised_here", "the_function", "version_of", "what_to_look_up"]
 
 logger = logging.getLogger("SelfModification.WhereAFaultLies")
 
@@ -42,6 +42,12 @@ ASK_S = 120.0
 SHOWN = 1200
 
 THIS_FUNCTION = "the function"
+
+
+class NotReadNow(RuntimeError):
+    """Her model put the reading off (her background policy: the quiet window after a start, someone talking with her):
+    not now, which is not the same as no reading. LIVE 27 November 2026, put off in the quiet window after her start,
+    each fault went on unread, was made again, and stalled for good."""
 
 
 class WhereItLies(BaseModel):
@@ -192,6 +198,13 @@ def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
         return None
 
 
+def _put_off(advisor: Any, read: Any) -> None:
+    """Raise NotReadNow where her model gave nothing because it put the asking off."""
+    reason = str(getattr(advisor, "last_defer_reason", "") or "")
+    if read is None and reason:
+        raise NotReadNow(reason)
+
+
 def _what_was_called(call: Any, source: str) -> dict[str, Any] | None:
     """The function and the call that failed, as data her model reads; None where the function is not in ``source``."""
     found = the_function(source, call.qualname)
@@ -226,6 +239,7 @@ async def what_to_look_up(call: Any, source: str, *, advisor: Any = None) -> lis
     except (RuntimeError, TimeoutError, ValueError, TypeError, OSError) as why:
         logger.info("her model could not be asked what to look up: %s", why)
         return []
+    _put_off(advisor, read)
     searches = [" ".join(str(each).split()) for each in (read.searches if read is not None else [])]
     return list(dict.fromkeys(each for each in searches if each))
 
@@ -253,6 +267,7 @@ async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = N
     except (RuntimeError, TimeoutError, ValueError, TypeError, OSError) as why:
         logger.info("her model could not be asked where a fault lies: %s", why)
         return None
+    _put_off(advisor, read)
     if read is None:
         return None
     if not isinstance(read, WhereItLies):

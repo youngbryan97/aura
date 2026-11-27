@@ -234,3 +234,29 @@ def test_her_reading_of_a_fault_does_not_wait_for_somebody_to_speak_to_her_first
     assert asked["allow_no_user_anchor"] is True
     plain = structured_llm.StructuredLLM(lies.WhereItLies, llm_router=object())
     assert plain._background_defer_reason(is_background=True) == "no_user_anchor", "others still wait"
+
+
+def test_a_reading_her_model_put_off_leaves_the_fault_to_her_next_cycle(her_source, monkeypatch):
+    """LIVE 27 November 2026, put off in the quiet window after her start, each fault went on unread and stalled."""
+    (her_source / "core" / "notes.py").write_text(REFUSES)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "refuses", cwd=her_source)
+
+    class PutOff:
+        last_defer_reason = "foreground_quiet_window"
+
+        async def generate(self, prompt, *, is_background, deadline_s):
+            return None
+
+    async def never(*_args, **_kwargs):
+        raise AssertionError("not made again unread")
+
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: PutOff())
+    monkeypatch.setattr(heard, "reproduce", never)
+    fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
+    done = asyncio.run(mending.mend(fault, proposals=4, seconds=30.0))
+    assert "waits (foreground_quiet_window)" in done["why"]
+    assert goals.load(done["slug"]).status == goals.WORKING, "not stalled: asked again on her next cycle"
+    model = _HerModel(True, "what called it")
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
+    again = asyncio.run(mending.mend(fault, proposals=4, seconds=30.0))
+    assert goals.load(again["slug"]).last_check["by_design"] and model.asked

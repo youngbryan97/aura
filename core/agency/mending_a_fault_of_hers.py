@@ -316,8 +316,15 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     # no test makes it again. LIVE 27 November 2026 eight of the fifteen faults she held were raised by her own
     # functions, and those her loop took up stalled on "its test did not raise what she raised" before her model ever
     # read them.
-    await _what_her_sources_say(record, fault, sources[file])
-    judged = await _where_it_lies(record, fault, sources[file])
+    from core.self_modification.where_a_fault_lies import NotReadNow
+
+    try:
+        await _what_her_sources_say(record, fault, sources[file])
+        judged = await _where_it_lies(record, fault, sources[file])
+    except NotReadNow as why:
+        # Asked again on her next cycle: a reading put off is not one that found nothing.
+        return {"slug": slug, "status": record.status, "why": f"my model's reading of it waits ({why})",
+                "worked": False}
     if judged is not None and judged.leaves_the_function:
         left = await _left_as_it_is(record, workspace, fault, judged)
         caller = the_callers_fault(fault) if judged.lies_in == "what called it" else None
@@ -488,7 +495,12 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
     file = fault.call.file
     _, before = await _governed_run(["git", "show", f"{record.base}:{file}"], cwd=workspace, env=None, timeout=30.0,
                                     effect="compute")
-    judged = await _where_it_lies(record, fault, before)
+    from core.self_modification.where_a_fault_lies import NotReadNow
+
+    try:
+        judged = await _where_it_lies(record, fault, before)
+    except NotReadNow as why:
+        return {"slug": record.slug, "status": record.status, "why": f"my model's reading of it waits ({why})"}
     if judged is not None and judged.leaves_the_function:
         return await _left_as_it_is(record, workspace, fault, judged)
     after = (Path(workspace) / file).read_text(encoding="utf-8")
@@ -769,7 +781,12 @@ async def _ask_again_of_a_draft_that_waits(*, only_a_changed_judge: bool = False
             source = (goals.source_root() / fault.call.file).read_text(encoding="utf-8")
         except OSError:
             source = ""
-        judged = await _where_it_lies(record, fault, source) if source else None
+        from core.self_modification.where_a_fault_lies import NotReadNow
+
+        try:
+            judged = await _where_it_lies(record, fault, source) if source else None
+        except NotReadNow as why:
+            return {"slug": record.slug, "status": record.status, "why": f"my model's reading of it waits ({why})"}
         if judged is not None and judged.leaves_the_function:
             return await _left_as_it_is(record, record.workspace, fault, judged)
     record.offer = {**record.offer, "asked_on": head, "asked_at": time.time()}
