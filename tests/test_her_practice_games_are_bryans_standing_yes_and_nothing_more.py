@@ -39,6 +39,9 @@ def nobody_at_a_board(monkeypatch):
 
 def test_a_practice_game_in_the_board_she_last_played_is_let_through(nobody_at_a_board) -> None:
     assert passes.her_passes_allow("her_practice_game", "computer_use", _call()) == (True, "her_practice_game")
+    # As the skill's input model hands it over, coordinates at their defaults.
+    assert passes.her_passes_allow("her_practice_game", "computer_use", {**_call(), "x": 0, "y": 0}) == (
+        True, "her_practice_game")
     assert passes.carries_bryans_standing_yes("her_practice", "computer_use")
     assert not passes.carries_bryans_standing_yes("her_practice", "email_adapter")
     grant = next(g for g in _builtin_grants() if g.grant_id == passes.PRACTICE_GAME_GRANT)

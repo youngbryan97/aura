@@ -182,7 +182,12 @@ def _a_practice_game_allowed(tool_name: str, arguments: dict[str, Any]) -> tuple
 
     if tool_name not in PRACTICE_GAME_TOOLS:
         return False, "her_practice_game_tool_mismatch"
-    if {key for key, value in arguments.items() if value not in (None, "")} - _PRACTICE_GAME_ARGUMENTS:
+    # Judged by what the call carries: the skill authorizes its whole input model, and a pursuit names no point on
+    # the screen, so its coordinates stand at their defaults. LIVE 27 November 2026 they came as 0, not None, and the
+    # first practice game under this grant was refused for carrying them.
+    carried = {key for key, value in arguments.items()
+               if value not in (None, "") and not (key in ("x", "y") and value == 0)}
+    if carried - _PRACTICE_GAME_ARGUMENTS:
         return False, "her_practice_game_arguments_unsupported"
     if str(arguments.get("action") or "") != "pursue_on_screen":
         return False, "her_practice_game_is_only_a_game"
