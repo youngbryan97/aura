@@ -216,6 +216,9 @@ async def played_a_board_of_pieces(target_app: str, ends_at: float, keep: dict[s
     came.pop("final", None)
     came.pop("last_move", None)
     earlier = came.pop("positions", None)
+    # What the pursuit set before the game began, for whoever asked for it at that setting.
+    if keep.get("settings_set"):
+        came["settings_set"] = dict(keep["settings_set"])
     logger.info("a board of pieces played: %s", came)
     if learned_now is not None:
         keep["pieces_learned"] = learned_now
@@ -423,7 +426,10 @@ def _kept_under(record: str) -> dict[str, Any]:
                                   trying_looks=(dict(worth["trying_looks"])
                                                 if isinstance(worth.get("trying_looks"), dict) else None),
                                   looks_tried_after=int(worth.get("looks_tried_after", -1)),
-                                  trials={str(k): [float(x) for x in v] for k, v in (worth.get("trials") or {}).items()})
+                                  trials={str(k): [float(x) for x in v] for k, v in (worth.get("trials") or {}).items()},
+                                  results_vary={str(k): [float(x) for x in v]
+                                                for k, v in (worth.get("results_vary") or {}).items()},
+                                  on_trial=(dict(worth["on_trial"]) if isinstance(worth.get("on_trial"), dict) else None))
             positions = recall_beside(record, _LOOKED_AT_LONGER)
             if positions:
                 rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
@@ -604,7 +610,9 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
                            "together_tried_at": float(getattr(rehearsal, "together_tried_at", 1.0)),
                            "trying_looks": getattr(rehearsal, "trying_looks", None),
                            "looks_tried_after": int(getattr(rehearsal, "looks_tried_after", -1)),
-                           "trials": {k: [round(x, 3) for x in v] for k, v in getattr(rehearsal, "trials", {}).items()}}
+                           "trials": {k: [round(x, 3) for x in v] for k, v in getattr(rehearsal, "trials", {}).items()},
+                           "results_vary": dict(getattr(rehearsal, "results_vary", {}) or {}),
+                           "on_trial": getattr(rehearsal, "on_trial", None)}
     remember(_her_record(target_app), record)
 
 

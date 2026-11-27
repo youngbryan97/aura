@@ -234,7 +234,7 @@ def _pursue_on_screen_result(
 
         result["handed_over"] = {key: played[key] for key in (
             "ended", "moves", "theirs", "closed", "resume_target", "moves_before_resume", "the_moves",
-            "first_was_hers", "acts",
+            "first_was_hers", "acts", "settings_set",
         ) if key in played}
         if played.get("ended") not in GAME_OVER:
             result["completed"] = False

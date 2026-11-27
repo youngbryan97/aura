@@ -266,6 +266,9 @@ def a_round_of_trying(rehearsal: Any, family: Any, seconds: float) -> dict[str, 
     if run.tested:
         last["scored"] = round(sum(run.tested) / len(run.tested), 3)
     if said == "better" and run.found:
+        from core.agency.where_her_results_vary import open_a_trial
+
+        open_a_trial(rehearsal, weights)
         rehearsal.weights = replace(weights, habits={**dict(weights.habits or {}), **run.found})
         last["habits"] = {name: round(value, 3) for name, value in run.found.items()}
     rehearsal.trying_looks = None if said else run.as_dict()

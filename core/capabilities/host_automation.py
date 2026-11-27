@@ -1571,6 +1571,26 @@ class HostAutomationProvider(_ReadsTheScreen):  # type: ignore[misc]
         self._log_receipt(receipt)
         return receipt
 
+    async def point_at(self, x: int, y: int) -> AutomationReceipt:
+        """Move the pointer to screen coordinates without pressing: where a scroll is to reach. Refused under a proof
+        run, which must never move the person's pointer."""
+        start = time.time()
+        if proof_run_active():
+            receipt = AutomationReceipt(action="point", target=f"{x},{y}", adapter="refused", success=False,
+                                        error="point_refused_under_proof_run", duration_ms=(time.time() - start) * 1000)
+            self._log_receipt(receipt)
+            return receipt
+        try:
+            import pyautogui
+            pyautogui.moveTo(x, y, _pause=False)
+            receipt = AutomationReceipt(action="point", target=f"{x},{y}", adapter="pyautogui", success=True,
+                                        duration_ms=(time.time() - start) * 1000)
+        except _pointer_faults() as e:
+            receipt = AutomationReceipt(action="point", target=f"{x},{y}", adapter="pyautogui", success=False,
+                                        error=_what_stopped_it(e), duration_ms=(time.time() - start) * 1000)
+        self._log_receipt(receipt)
+        return receipt
+
     async def scroll(self, dx: int = 0, dy: int = 0) -> AutomationReceipt:
         """Scroll by delta amounts.
 

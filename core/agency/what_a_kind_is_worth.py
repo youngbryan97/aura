@@ -313,6 +313,10 @@ class Rehearsal:
     trials: dict[str, list[float]] = field(default_factory=dict)
     #: Where games in the world showed her wrong, looked at again for longer (core/agency/where_she_was_shown_wrong.py).
     shown_wrong: Any = None
+    #: Her points against the world's other player at each setting of its strength she has played, and a keep of her
+    #: practice on trial there (core/agency/where_her_results_vary.py).
+    results_vary: dict[str, list[float]] = field(default_factory=dict)
+    on_trial: dict[str, Any] | None = None
 
 
 def _engine() -> Any | None:
@@ -748,6 +752,11 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
                       "pairs_tested": len(tested), "decided": said or "not yet",
                       "scored_on": "how the games ended" if ends_known else "material where the games stopped"}
     if kept:
+        # What practice keeps answers to her games against the world's other player, where her results there vary
+        # (core/agency/where_her_results_vary.py).
+        from core.agency.where_her_results_vary import open_a_trial
+
+        open_a_trial(rehearsal, rehearsal.weights)
         rehearsal.weights = candidate
         rehearsal.royal = royal_kinds(family)
         if trying and trying not in rehearsal.earned:

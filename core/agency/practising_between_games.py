@@ -340,6 +340,77 @@ def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None
     return rehearsal.last
 
 
+#: How long nobody must have touched the machine before she takes its screen for a practice game: longer than one of
+#: her games against the world's other player takes, so a person who stepped away does not come back to find one
+#: under way, nor is met by one started as they sit down.
+AWAY_FOR_S = 900.0
+#: The longest a practice game is given, start to end.
+A_PRACTICE_GAME_S = 3600.0
+#: The round of rehearsal after which the last practice game was begun: a round of practice comes between two games.
+_GAME_AFTER_ROUND: list[int] = [-1]
+
+
+def _a_practice_game_due(board: tuple[str, tuple[int, int]]) -> tuple[str, str, int] | None:
+    """The board, its application and the setting of the other player's strength a practice game is to be played at,
+    where one is due: nobody has touched the machine for AWAY_FOR_S, and a round of rehearsal has run since the last
+    (core/agency/where_her_results_vary.py)."""
+    from core.agency.where_her_results_vary import the_setting_to_play
+    from core.capabilities import window_server
+    from core.runtime.proof_policy import proof_run_active
+
+    # A run of tests or proofs never takes the screen of the machine it runs on.
+    if proof_run_active() or window_server.seconds_since_someone_touched_it() < AWAY_FOR_S:
+        return None
+    name, written = board
+    if _held(name, written) is None:
+        return None
+    kept, rehearsal = _HELD["kept"], _HELD["rehearsal"]
+    app = str(kept.get("app") or "")
+    if not app or int(getattr(rehearsal, "rounds", 0)) <= _GAME_AFTER_ROUND[0]:
+        return None
+    return name, app, the_setting_to_play(rehearsal)
+
+
+async def _a_practice_game(name: str, app: str, setting: int) -> dict[str, Any] | None:
+    """A game against the world's other player at ``setting`` of its strength, its points kept where her results vary
+    and against any keep of her practice on trial there. What came of it."""
+    from core.agency.where_her_results_vary import came_from_a_game
+    from core.skills.screen_pursuit import pursue_on_screen
+    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
+
+    rehearsal = _HELD.get("rehearsal")
+    _GAME_AFTER_ROUND[0] = int(getattr(rehearsal, "rounds", 0))
+    goal = f"Play a game against the other player, with the other player's strength set to {setting}."
+    logger.info("a practice game in %s: %s", app, goal)
+    result = await pursue_on_screen(goal=goal, success_when="the game has ended", target_app=app,
+                                    max_seconds=A_PRACTICE_GAME_S, narrate=False)
+    played = result.get("handed_over") or {}
+    points = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(str(played.get("ended") or ""))
+    settings = dict(played.get("settings_set") or {})
+    if points is None or not settings:
+        logger.info("a practice game in %s came to nothing kept: ended %r, settings set %s", app, played.get("ended"),
+                    settings)
+        return None
+    # The game wrote her record as it ended: what it wrote is carried on from.
+    held = _written_now(name)
+    if held is None or _held(name, held) is None:
+        return None
+    kept, rehearsal = _HELD["kept"], _HELD["rehearsal"]
+    at = float(next(iter(settings.values())))
+    said = came_from_a_game(rehearsal, at, points)
+    _keep_what_she_learned(kept.get("app") or name, kept["looks"], kept["rules"], rehearsal, kept.get("went_wrong"))
+    last = _the_board_she_last_played()
+    if last is not None and last[0] == name:
+        _HELD["written"] = last[1]
+    logger.info("a practice game in %s at %s: %s%s", app, at, points, f"; the keep on trial: {said}" if said else "")
+    return {"practice game": at, "points": points, "trial": said}
+
+
+def _written_now(name: str) -> tuple[int, int] | None:
+    held = _the_board_she_last_played()
+    return held[1] if held is not None and held[0] == name else None
+
+
 def practise_when_idle(orch: Any, track: Any = None) -> bool:
     """A round of practice, where she is idle, no game of hers is being played, and none is under way. Whether one
     was begun."""
@@ -368,6 +439,13 @@ def practise_when_idle(orch: Any, track: Any = None) -> bool:
     except RuntimeError:
         return False
     _waits("")
+    game = _a_practice_game_due(board)
+    if game is not None:
+        work = _a_practice_game(*game)
+        _RUNNING = track("metabolic.practice_between_games", work) if track is not None else loop.create_task(work)
+        if not isinstance(_RUNNING, asyncio.Task):
+            _RUNNING = None
+        return True
     work = asyncio.to_thread(_one_round, *board)
     _RUNNING = track("metabolic.practice_between_games", work) if track is not None else loop.create_task(work)
     if not isinstance(_RUNNING, asyncio.Task):

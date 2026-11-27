@@ -375,7 +375,13 @@ async def took_a_way_on(target_app: str, goal: str, keep: dict[str, Any], *, not
     keep["surface_is_controls"] = bool(from_a_window and _a_surface_of_controls(reading.get("layout") or []))
     if not (nothing_answered or keep["surface_is_controls"]):
         return False
-    pressed = await _a_way_on_pressed(target_app, goal, keep, reading, read_screen, from_a_window)
+    # What the goal sets comes before what it asks done: a form is filled in before it is sent
+    # (core/skills/screen_pursuit_a_setting.py).
+    from .screen_pursuit_a_setting import set_what_the_goal_sets, without_its_settings
+
+    if await set_what_the_goal_sets(target_app, goal, keep, reading, read_screen, from_a_window):
+        return True
+    pressed = await _a_way_on_pressed(target_app, without_its_settings(goal), keep, reading, read_screen, from_a_window)
     keep["way_on_found_nothing"] = not pressed
     return pressed
 
