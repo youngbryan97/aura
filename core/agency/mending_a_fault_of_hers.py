@@ -295,17 +295,18 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
         return again
 
     file = fault.call.file
-    kept = await _where_it_lies(record, fault, (Path(workspace) / file).read_text(encoding="utf-8"), ask=False)
-    if kept is not None and kept.leaves_the_function:
-        return await _left_as_it_is(record, workspace, fault, kept)
-    reproduction = await reproduce(fault, workspace)
-    if not reproduction.reproduced:
-        return await _stop(record, "its test did not raise what she raised", reproduction.output)
     sources = {file: (Path(workspace) / file).read_text(encoding="utf-8")}
+    # Read before it is made again: a watchdog's report of a lag or a stall says what happened on the machine then, and
+    # no test makes it again. LIVE 27 November 2026 eight of the fifteen faults she held were raised by her own
+    # functions, and those her loop took up stalled on "its test did not raise what she raised" before her model ever
+    # read them.
     await _what_her_sources_say(record, fault, sources[file])
     judged = await _where_it_lies(record, fault, sources[file])
     if judged is not None and judged.leaves_the_function:
         return await _left_as_it_is(record, workspace, fault, judged)
+    reproduction = await reproduce(fault, workspace)
+    if not reproduction.reproduced:
+        return await _stop(record, "its test did not raise what she raised", reproduction.output)
     defect = as_defect(reproduction)
     runner = InHerWorkspace(workspace, sources)
 

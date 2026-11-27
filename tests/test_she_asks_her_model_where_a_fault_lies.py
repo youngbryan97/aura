@@ -191,3 +191,23 @@ def test_a_fault_her_model_reads_as_done_on_purpose_is_not_searched_for_a_change
     asyncio.run(goals.save(again))
     asyncio.run(mending.mend(fault, proposals=4, seconds=30.0))
     assert len(model.asked) == 1, "the same function is not read again, nor made again in a test"
+
+
+def test_a_report_her_model_reads_as_done_on_purpose_is_left_before_any_test_is_written(her_source, monkeypatch):
+    """A watchdog's report of a lag says what happened on the machine then; no test makes it again."""
+    (her_source / "core" / "notes.py").write_text(REPORTS)
+    _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "reports", cwd=her_source)
+    call = FailedCall(module="core.notes", qualname="Resilience.request", file="core/notes.py", line=9,
+                      error_type="core.notes.SubsystemDown", error_message="subsystem orchestrator is unhealthy",
+                      keywords=(("name", "'orchestrator'"), ("method", "None")))
+    model = _HerModel(True, "what it depends on", "the subsystem was unhealthy, and this says so")
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
+
+    async def never(*_args, **_kwargs):
+        raise AssertionError("no test is written to make it again")
+
+    monkeypatch.setattr(heard, "reproduce", never)
+    done = asyncio.run(mending.mend(heard.HeardFault(call, "notes", 0.0, 0.0), proposals=4, seconds=30.0))
+    record = goals.load(done["slug"])
+    assert record.status == goals.STALLED and record.last_check["by_design"]
+    assert "what it depends on" in record.last_check["why"]

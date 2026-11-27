@@ -135,7 +135,8 @@ def test_a_draft_another_gate_refused_is_still_asked_again(her_source, monkeypat
         return {"ok": False}
 
     monkeypatch.setattr(mending, "_taken_and_loaded", taken)
-    fault = type("Fault", (), {"call": type("Call", (), {"file": "core/notes.py"})()})()
+    fault = type("Fault", (), {"call": type("Call", (), {"file": "core/notes.py", "qualname": "note_count", "line": 2,
+                                                         "error_type": "builtins.ValueError"})()})()
     said = asyncio.run(mending._her_draft_asked_again(record, record.workspace, fault))
     assert said["why"] == "her draft asked of her gates again" and asked
 
