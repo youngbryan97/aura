@@ -200,7 +200,10 @@ class HerCortexReads:
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         self.last_defer_reason = ""
-        messages = [{"role": "user", "content": prompt}]
+        # The answer's fields reach her cortex as a tool's parameters do: the decoder holds the answer to JSON, not to
+        # these keys. LIVE 27 November 2026, without them, her cortex's object was the data it had been given.
+        fields = {name: (field.description or name) for name, field in self.schema.model_fields.items()}
+        messages = [{"role": "user", "content": f"{prompt}\nThe answer's fields: {json.dumps(fields)}"}]
         # One closed question's answer, and the longest text a field of the schema may hold, in her measured tokens.
         longest = max((int(field.metadata[0].max_length) for field in self.schema.model_fields.values()
                        if field.metadata and getattr(field.metadata[0], "max_length", None)), default=0)
@@ -217,23 +220,30 @@ class HerCortexReads:
         if text is None:
             self.last_defer_reason = "her cortex is held for something else"
             return None
-        found = _the_object_in(text)
-        return self.schema.model_validate(found) if found is not None else None
+        for found in _the_objects_in(text):
+            try:
+                return self.schema.model_validate(found)
+            except ValueError:
+                continue
+        return None
 
 
-def _the_object_in(text: str) -> Any:
-    """The first whole JSON object in what her cortex wrote, past what it thought before it; None if there is none."""
+def _the_objects_in(text: str) -> list[Any]:
+    """Each whole JSON object in what her cortex wrote, past what it thought before it, in order."""
     said = str(text or "")
     if "</think>" in said:
         said = said.rsplit("</think>", 1)[1]
-    start = said.find("{")
-    if start < 0:
-        return None
-    try:
-        found, _end = json.JSONDecoder().raw_decode(said[start:])
-    except ValueError:
-        return None
-    return found if isinstance(found, dict) else None
+    found, at, decoder = [], said.find("{"), json.JSONDecoder()
+    while at >= 0:
+        try:
+            value, end = decoder.raw_decode(said[at:])
+        except ValueError:
+            at = said.find("{", at + 1)
+            continue
+        if isinstance(value, dict):
+            found.append(value)
+        at = said.find("{", at + end)
+    return found
 
 
 def her_model(schema: type[BaseModel] = WhereItLies) -> Any:

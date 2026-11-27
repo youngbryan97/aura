@@ -253,15 +253,12 @@ class MyGoalSkill(BaseSkill):
     timeout_seconds = 30.0
 
     async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
-        from core.agency.her_goal_at_work import load, what_she_works_toward
+        from core.agency.her_goal_at_work import load, what_she_set_out_to_do
 
         record = await asyncio.to_thread(load, _goal_of(context), require_readable=True)
         if record is None:
             return {"ok": False, "error": "no record of this goal"}
-        return {"ok": True, "goal": what_she_works_toward(record), "set_by": "herself",
-                "set_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(record.started_at)),
-                "passes_so_far": record.passes, "calls_so_far": len(record.steps), "status": record.status,
-                "summary": f"her own goal, {record.passes} passes so far"}
+        return what_she_set_out_to_do(record)
 
 
 class WhatWentWrongInput(BaseModel):

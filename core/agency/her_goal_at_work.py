@@ -452,13 +452,24 @@ def turns_from(steps: list[dict[str, Any]], room: int, said: list[dict[str, Any]
     return kept
 
 
-async def her_goal_as_she_reads_it(context: dict[str, Any]) -> list[dict[str, Any]]:
+def what_she_set_out_to_do(record: GoalRecord) -> dict[str, Any]:
+    """Her goal as she set it, when, and where it stands: what her tool my_goal reads (core/skills/her_draft.py)."""
+    return {"ok": True, "goal": what_she_works_toward(record), "set_by": "herself",
+            "set_at": time.strftime("%Y-%m-%d %H:%M", time.localtime(record.started_at)),
+            "passes_so_far": record.passes, "calls_so_far": len(record.steps), "status": record.status,
+            "summary": f"her own goal, {record.passes} passes so far"}
+
+
+async def her_goal_as_she_reads_it(record: GoalRecord) -> list[dict[str, Any]]:
     """The opening of a pass: nobody's turn, empty since nobody asked, and her call that reads her goal with what came
     back, in her template's form for a call of hers (as her unprompted turns read what she noticed,
-    core/brain/her_unprompted_turn.her_conversation_now_with). Her template takes no turn of hers before somebody's."""
+    core/brain/her_unprompted_turn.her_conversation_now_with). Her template takes no turn of hers before somebody's.
+
+    What came back is her record read here, as my_goal reads it. Run as the skill from here, outside her capability
+    engine, the read was refused as ungoverned: LIVE 27 November 2026, 14:52, every pass opened with that refusal."""
     from core.skills.her_draft import MyGoalSkill
 
-    read = await MyGoalSkill().execute({}, context)
+    read = what_she_set_out_to_do(record)
     return [{"role": "user", "content": ""},
             {"role": "assistant", "content": "", "tool_calls": [
                 {"id": "her_goal", "type": "function", "function": {"name": MyGoalSkill.name, "arguments": {}}}]},
@@ -508,7 +519,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         origin=ORIGIN,
         # Her goal reaches her model as what her first call of the pass read, after a turn of nobody's: no one asked
         # for it, and put as a person's message it read as somebody's request (MyGoalSkill).
-        conversation=await her_goal_as_she_reads_it(context),
+        conversation=await her_goal_as_she_reads_it(record),
         prior_turns=turns_from(record.steps, _what_she_reads_of_before(), record.said),
         work_in_background=True,
         native_tools_only=True,

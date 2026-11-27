@@ -70,3 +70,16 @@ def test_her_way_ends_without_a_change_only_after_she_has_read_and_looked_up():
     way = list(work.HER_WAY)
     assert way.index("search_the_web") < way.index("nothing_to_change") < way.index("edit_draft")
     assert "nothing_to_change" in {skill.name for skill in her_draft.HER_TOOLS}
+
+
+def test_a_pass_opens_with_her_goal_read_from_her_record_and_not_by_a_skill_run_outside_her_engine(her_source, monkeypatch):
+    """LIVE 27 November 2026, 14:52, the opening read ran my_goal's skill outside her capability engine and was refused
+    as ungoverned, so every pass opened with the refusal instead of her goal."""
+    async def refused(self, params, context=None):
+        raise AssertionError("not run as a skill here")
+
+    monkeypatch.setattr(her_draft.MyGoalSkill, "execute", refused)
+    record = work.GoalRecord(goal=SCAN, slug=work.slug_of(SCAN), passes=3)
+    opening = asyncio.run(work.her_goal_as_she_reads_it(record))
+    assert opening[0] == {"role": "user", "content": ""}
+    assert '"goal": "Running a self-integrity scan"' in opening[2]["content"] and '"passes_so_far": 3' in opening[2]["content"]

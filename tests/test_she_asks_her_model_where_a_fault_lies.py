@@ -272,8 +272,9 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     class Cortex:
         async def generate_text_async(self, prompt, **kwargs):
             asked.append(kwargs)
-            return '<think>a refusal of an empty word</think>{"on_purpose": true, "lies_in": "what called it", ' \
-                   '"why": "it refuses an empty word, and was given one"}'
+            # LIVE 27 November 2026 her cortex's first object was the data it was given.
+            return '<think>a refusal of an empty word</think>{"the function": "0006: raise"} {"on_purpose": true, ' \
+                   '"lies_in": "what called it", "why": "it refuses an empty word, and was given one"}'
 
     async def lane(messages, *, origin, least_s, work):
         return await work(Cortex(), least_s)
@@ -283,6 +284,7 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     assert judged.leaves_the_function and judged.lies_in == "what called it"
     assert asked[0]["is_background"] and asked[0]["output_shape"] == "json_object" and asked[0]["schema"]
     assert asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
+    assert '"lies_in"' in asked[0]["messages"][0]["content"], "the answer's fields reach her cortex"
 
     async def held(messages, *, origin, least_s, work):
         return None
