@@ -1,6 +1,6 @@
 """Her tools for a goal she set herself (core/agency/her_goal_at_work.py): read what has gone wrong in her running, read
 her source, search it, look up what she needs to know in her library or on the web, change a draft of it, check the
-draft, and offer it.
+draft, and offer it; or end a goal that needs no change, saying what came of it.
 
 Each acts in her workspace for the goal: a git worktree of her source on a branch of its own. A draft changes nothing
 she runs on until Bryan takes it. A path outside the workspace, inside its .git, or naming keys or secrets is refused.
@@ -451,6 +451,51 @@ class OfferDraftSkill(BaseSkill):
                            "does not change her own governance"}
 
 
+class NothingToChangeInput(BaseModel):
+    what_came_of_it: str = Field(..., description="What she found or did toward the goal, in her words, and why her "
+                                                  "source needs no change for it.")
+
+
+class NothingToChangeSkill(BaseSkill):
+    """A goal of hers that needs no change to her source, ended: a check that found nothing to mend, a question she has
+    answered. LIVE 27 November 2026 "Running a self-integrity scan" had been worked 352 passes and 1,054 calls; her model
+    said there was nothing left to verify, and a goal ended only by offering a draft, so it was worked again each time
+    her source moved."""
+
+    result_schema = THE_SHARED_RESULT
+    name = "nothing_to_change"
+    description = ("End this goal with no change to her source, saying what came of it. Refused while her workspace "
+                   "holds a change: that is checked and offered, or taken back, instead.")
+    input_model = NothingToChangeInput
+    effect_scope = "read_write_artifacts"
+    timeout_seconds = 60.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        from core.agency.her_goal_at_work import DONE, WORKING, load, save
+
+        try:
+            asked = _params(NothingToChangeInput, params)
+            workspace = _workspace(context)
+        except Refused as why:
+            return {"ok": False, "error": str(why)}
+        record = await asyncio.to_thread(load, _goal_of(context), require_readable=True)
+        if record is None:
+            return {"ok": False, "error": "no record of this goal"}
+        if record.status != WORKING:
+            return {"ok": False, "error": f"this goal is {record.status}"}
+        _, changed = await _run("git", "-c", "core.fsmonitor=false", "status", "--porcelain", cwd=workspace,
+                                timeout=60.0)
+        _, ahead = await _run("git", "-c", "core.fsmonitor=false", "rev-list", "--count", f"{record.base}..HEAD",
+                              cwd=workspace, timeout=60.0) if record.base else (0, "0")
+        if changed.strip() or ahead.strip() not in ("", "0"):
+            return {"ok": False, "error": "her workspace holds a change toward this goal: check and offer it, or take "
+                                          "it back, rather than end the goal without one"}
+        record.status = DONE
+        record.came_of_it = {"words": asked.what_came_of_it.strip(), "at": time.time()}
+        await save(record)
+        return {"ok": True, "summary": "the goal is done, with nothing in her source changed"}
+
+
 #: Her tools, in the order a goal is worked.
 class LookUpInput(BaseModel):
     query: str = Field(..., description="What to look up: an error, a function or library, a protocol, an idea.")
@@ -528,8 +573,8 @@ class SearchTheWebSkill(BaseSkill):
         return {"ok": True, "found": len(rows), "text": "\n".join(shown), "summary": summary}
 
 
-HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, LookUpSkill, SearchTheWebSkill, EditDraftSkill,
-             CheckDraftSkill, OfferDraftSkill)
+HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, LookUpSkill, SearchTheWebSkill,
+             NothingToChangeSkill, EditDraftSkill, CheckDraftSkill, OfferDraftSkill)
 
 
 def tool_definitions() -> dict[str, dict[str, Any]]:
@@ -544,5 +589,6 @@ def tool_definitions() -> dict[str, dict[str, Any]]:
             for skill in HER_TOOLS}
 
 
-__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "LookUpSkill", "OfferDraftSkill",
+__all__ = ["CheckDraftSkill", "EditDraftSkill", "FindInSourceSkill", "HER_TOOLS", "LookUpSkill",
+           "NothingToChangeSkill", "OfferDraftSkill",
            "ReadSourceSkill", "Refused", "SearchTheWebSkill", "WhatWentWrongSkill", "tool_definitions"]

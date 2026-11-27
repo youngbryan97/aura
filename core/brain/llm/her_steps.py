@@ -53,6 +53,8 @@ class HerSteps:
     choose_by_meaning: bool = False
     #: A step and the step it needs to have come back done before it is taken.
     needs: dict[str, str] = field(default_factory=dict)
+    #: Steps after which none is left: once one comes back done, her steps are done.
+    ends: frozenset[str] = frozenset()
     #: What each tool does, for choosing by meaning.
     described: dict[str, str] = field(default_factory=dict)
     tries: dict[str, int] = field(default_factory=dict)
@@ -63,7 +65,8 @@ class HerSteps:
     @classmethod
     def for_loop(cls, tools: Mapping[str, Any] | None, objective: str = "", *, order: Iterable[str] | None = None,
                  choose_by_meaning: bool = False, needs: Mapping[str, str] | None = None,
-                 already: Iterable[tuple[str, bool]] = (), let_go: Iterable[str] = ()) -> HerSteps | None:
+                 already: Iterable[tuple[str, bool]] = (), let_go: Iterable[str] = (),
+                 ends: Iterable[str] = ()) -> HerSteps | None:
         """Her steps over ``tools`` (None where none are offered), in ``order`` where given, with the calls of this
         piece of work already made (``already``: each tool and whether it came back done) counted, and the steps
         already let go in it (``let_go``) not offered again."""
@@ -74,6 +77,7 @@ class HerSteps:
         named += [name for name in offered if name not in named]
         steps = cls(named, objective=str(objective or ""), choose_by_meaning=choose_by_meaning,
                     needs={k: v for k, v in dict(needs or {}).items() if k in offered and v in offered},
+                    ends=frozenset(name for name in ends if name in offered),
                     described={name: str((offered[name] or {}).get("description") or "")
                                if isinstance(offered[name], Mapping) else "" for name in named})
         for name, ok in already:
@@ -87,6 +91,8 @@ class HerSteps:
         return [name for name in self.tools if name in self.finished and name not in self.done]
 
     def _open(self) -> list[str]:
+        if self.ends & self.done:
+            return []
         open_steps = []
         for name in self.tools:
             if name in self.finished:

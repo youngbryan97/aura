@@ -64,13 +64,16 @@ def _what_she_reads_of_before() -> int:
 
 #: Her way of working on a body of work, a step at a time: what went wrong last, where the work is, what is there, the
 #: change, its check, and the change offered. Each pass takes them in this order; her model writes what each takes.
-HER_WAY = ("what_went_wrong", "find_in_source", "read_source", "look_up", "search_the_web", "edit_draft", "check_draft",
-           "offer_draft")
+#: Once she has read and looked up what she needs, a goal that needs no change ends there (nothing_to_change).
+HER_WAY = ("what_went_wrong", "find_in_source", "read_source", "look_up", "search_the_web", "nothing_to_change",
+           "edit_draft", "check_draft", "offer_draft")
 #: A step and the one that must have come back done first: a draft is checked once made, and offered once it passed.
 HER_WAY_NEEDS = {"check_draft": "edit_draft", "offer_draft": "check_draft"}
+#: The steps after which nothing of her way is left: the goal ended without a change, or her draft offered.
+HER_WAY_ENDS = ("nothing_to_change", "offer_draft")
 
-#: Where a goal stands.
-WORKING, OFFERED, MERGED, STALLED = "working", "offered", "merged", "stalled"
+#: Where a goal stands. DONE is a goal ended with no change to her source, saying what came of it.
+WORKING, OFFERED, MERGED, STALLED, DONE = "working", "offered", "merged", "stalled", "done"
 
 
 #: The longest one pass may hold her model, in seconds: the cap the router puts on a whole tool loop
@@ -237,6 +240,8 @@ class GoalRecord:
     last_worked_at: float = 0.0
     #: The commit of her source when the goal stalled; a goal stalled on older source is worked again.
     stalled_on: str = ""
+    #: What came of a goal she ended with no change to her source, in her words, and when (her_draft.nothing_to_change).
+    came_of_it: dict[str, Any] = field(default_factory=dict)
 
     @property
     def workspace(self) -> Path:
@@ -493,6 +498,7 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
         # (core/brain/llm/her_steps.py). Her model writes what each step takes.
         her_plan=HER_WAY,
         her_needs=HER_WAY_NEEDS,
+        her_ends=HER_WAY_ENDS,
     )
     calls = list((result or {}).get("tool_calls") or [])
     words = str((result or {}).get("content") or "").strip()
@@ -569,8 +575,10 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
             and record.passes == (before.passes if before is not None else 0)):
         return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, summary="Not now: her model is held.",
                           trace_id=trace_id, steps_completed=0, steps_total=0, deferred_reason="her_model_held")
-    return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED),
-                      summary=f"{calls} call(s) of hers this pass, {len(record.steps)} in all; the goal is {record.status}.",
+    came = f" What came of it: {str(record.came_of_it.get('words') or '')[:400]}" if record.status == DONE else ""
+    return TaskResult(plan_id=plan_id, goal=goal, succeeded=record.status in (OFFERED, MERGED, DONE),
+                      summary=f"{calls} call(s) of hers this pass, {len(record.steps)} in all; the goal is "
+                              f"{record.status}.{came}",
                       trace_id=trace_id, steps_completed=calls, steps_total=calls)
 
 

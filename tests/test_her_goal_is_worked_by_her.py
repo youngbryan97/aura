@@ -50,10 +50,11 @@ class _HerModelStandIn:
         self.seen_prior = []
 
     async def think_and_act(self, objective, *, system_prompt, tools, max_turns, context, origin, prior_turns,
-                            work_in_background, native_tools_only, her_plan, her_needs):
+                            work_in_background, native_tools_only, her_plan, her_needs, her_ends):
         assert work_in_background and native_tools_only
-        # Her way through a goal is hers: the steps and which waits on which come with the pass.
+        # Her way through a goal is hers: the steps, which waits on which, and which ends it come with the pass.
         assert list(her_plan) == list(work.HER_WAY) and her_needs == work.HER_WAY_NEEDS
+        assert tuple(her_ends) == work.HER_WAY_ENDS
         assert set(tools) == {skill.name for skill in her_draft.HER_TOOLS} and origin == work.ORIGIN
         self.seen_prior.append(list(prior_turns))
         if not self.passes:

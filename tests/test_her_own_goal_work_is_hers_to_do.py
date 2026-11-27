@@ -29,6 +29,7 @@ CALLS = {
     "edit_draft": {"path": "core/notes.py", "old_text": "", "new_text": "x = 1\n"},
     "check_draft": {"tests": ["tests/test_notes.py"]},
     "offer_draft": {"summary": "A note store."},
+    "nothing_to_change": {"what_came_of_it": "The scan found nothing to mend."},
 }
 
 

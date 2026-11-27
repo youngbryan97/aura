@@ -11052,7 +11052,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
         steps = HerSteps.for_loop(tools, str(objective or ""), order=kwargs.get("her_plan"),
                                   choose_by_meaning=kwargs.get("her_choice") == "by_meaning",
                                   needs=kwargs.get("her_needs"), already=kwargs.get("her_steps_taken") or (),
-                                  let_go=kwargs.get("her_steps_let_go") or ())
+                                  let_go=kwargs.get("her_steps_let_go") or (), ends=kwargs.get("her_ends") or ())
         step: str | None = None
         last_result = ""
         native_on = bool(template_tools)

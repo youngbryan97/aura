@@ -274,8 +274,11 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     # had no way to be worked on (core/agency/her_goal_at_work.py). One on
     # 16 November 2026, point_at_on_screen, because at the desk she said she
     # had no tool to highlight with (core/skills/at_the_desk.py), and with it
-    # show_page and reveal_file, the "show me something" Bryan asked for.
-    assert len(catalog.accepted) == 93
+    # show_page and reveal_file, the "show me something" Bryan asked for. On 26 November 2026 look_up and
+    # search_the_web, so a goal of hers consults her library and the web; on 27 November nothing_to_change, so a goal
+    # that needs no change to her source can end. One more came in between without this count moving (96 on 27
+    # November, before nothing_to_change).
+    assert len(catalog.accepted) == 97
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"
