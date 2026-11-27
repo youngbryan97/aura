@@ -1,9 +1,9 @@
-"""A group taught by a new teacher is a new candidate: the tries of the old one do not raise its bar.
+"""A group taught by a new teacher is a new candidate: the pairs the old teacher's candidates played do not count in
+its test (core/agency/what_a_kind_is_worth.py ``_decided``).
 
-Each try of a group is one more chance for a group that does not help to win its match by luck, so each asks more of it
-(Bonferroni). LIVE 22 November 2026 her rehearsal at En Croissant had tried where each kind stands 71 times, nearly all
-taught by how her games ended, and her longer look then taught candidates scoring up to 0.646 +- 0.072: two standard
-errors above even, against a bar of nearly three that the results-taught candidates had raised.
+LIVE 22 November 2026 her rehearsal at En Croissant had tried where each kind stands 71 times, nearly all taught by how
+her games ended, and her longer look then taught candidates scoring up to 0.646 +- 0.072. Judged with the results-taught
+candidates' record, a new teacher's candidates answer for another teacher's.
 """
 from __future__ import annotations
 
@@ -53,9 +53,12 @@ def test_a_candidate_her_longer_look_taught_is_judged_as_a_first_try(monkeypatch
     assert rehearsal.tries["where each stands"] == 71
 
 
-def test_the_same_score_on_the_seventy_second_try_of_one_teacher_is_not_enough(monkeypatch) -> None:
-    monkeypatch.setattr(worth, "_engine", lambda: _Engine())
-    monkeypatch.setattr(worth, "fitted", lambda family, xs, ys, groups: worth.first_weights(family))
-    rehearsal = worth.rehearse(CHESS, CHESS.the_start(), _rehearsal(worth.RESULTS), games=40, nodes=10)
-    assert not rehearsal.last["kept"], rehearsal.last
-    assert "where each stands" not in rehearsal.earned
+def test_the_pairs_one_teacher_s_candidates_lost_count_against_that_teacher_alone(monkeypatch) -> None:
+    lost = [0.0] * 60
+    for teacher, kept in ((worth.HER_LONGER_LOOK, True), (worth.RESULTS, False)):
+        monkeypatch.setattr(worth, "_engine", lambda: _Engine())
+        monkeypatch.setattr(worth, "fitted", lambda family, xs, ys, groups: worth.first_weights(family))
+        rehearsal = _rehearsal(teacher)
+        rehearsal.trials = {"where each stands": list(lost)}
+        rehearsal = worth.rehearse(CHESS, CHESS.the_start(), rehearsal, games=40, nodes=10)
+        assert rehearsal.last["kept"] is kept, rehearsal.last

@@ -67,8 +67,6 @@ NODES_A_MOVE = 1_500
 RANDOM_PLIES = 8
 #: How far a fit is held back toward nothing: a weight is earned by the positions that show it.
 HELD_BACK = 1.0
-#: How many standard errors above even a new set of weights must score against the old to be kept.
-BETTER_BY = 1.0
 #: What a weighted sum cannot hold: how the pieces stand together, learned from her longer look.
 TOGETHER = "how the pieces stand together"
 #: What a search cannot see the end of, taught by how her games ended (core/agency/what_lies_beyond_the_horizon.py).
@@ -311,6 +309,8 @@ class Rehearsal:
     #: round of rehearsal after which a round of it was last played: rounds of the two take turns.
     trying_looks: dict[str, Any] | None = None
     looks_tried_after: int = -1
+    #: Each group's pairs tested so far, its candidates against the weights she plays by, until a test decides.
+    trials: dict[str, list[float]] = field(default_factory=dict)
 
 
 def _engine() -> Any | None:
@@ -538,19 +538,29 @@ def _pace(engine: Any, description: str, begin: str, candidate: str, current: st
     return 1.0 if abs(math.log(pace)) <= math.log(scatter) else pace
 
 
-def how_far_above_even(tries: int) -> float:
-    """How many standard errors above even a group must score on its ``tries``-th try to be kept, so that the chance a
-    group that does not help is ever kept, over all its tries, stays what BETTER_BY gives one try: the ``t``-th try is
-    given that chance over t(t+1), and those add up to it whatever the number of tries. A share of chance/t each, as
-    before, adds up without end: a hundred tries gave a group that does not help about even odds of being kept
-    (suggestions of 23 November 2026). LIVE-like 21 November 2026: a lead-over-what-is-left feature was tried seven
-    times at one standard error, kept on the seventh at 0.584 +- 0.074, and then lost to the weights without it,
-    0.446 +- 0.040 over 120 games."""
-    from statistics import NormalDist
+#: Pairs a group's candidates are given to show themselves better or not, as many as a run of trying how she looks is
+#: given (core/agency/how_she_looks_set_by_trying.py): about an hour of her practice, and a test of as many tells a gain
+#: of about one game in forty.
+PAIRS_TESTED_AT_MOST = 400
 
-    chance = 1.0 - NormalDist().cdf(BETTER_BY)
-    t = max(1, tries)
-    return NormalDist().inv_cdf(1.0 - chance / (t * (t + 1)))
+
+def _decided(earlier: list[float], pairs: list[float]) -> tuple[str | None, list[float]]:
+    """What a group's pairs so far and this round's decide (core/cognition/whether_one_way_is_better.py): "better",
+    "no better", or None while they decide neither; and the pairs counted. The margin is what a test of
+    PAIRS_TESTED_AT_MOST pairs can tell, two standard errors of pairs that spread as these do; undecided after as many
+    is no better."""
+    from core.cognition.whether_one_way_is_better import Comparison
+
+    every = [*earlier, *pairs]
+    spread = float(np.std(every)) if len(every) > 1 else 0.25
+    test = Comparison(better=0.5 + 2 * (spread or 0.25) / math.sqrt(PAIRS_TESTED_AT_MOST), scores=list(earlier))
+    for score in pairs:
+        said = test.add(float(score))
+        if said:
+            return said, test.scores
+    if len(test.scores) >= PAIRS_TESTED_AT_MOST:
+        return "no better", test.scores
+    return None, test.scores
 
 
 def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: int = GAMES_A_ROUND,
@@ -696,7 +706,7 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     pairs = (first[:count] + (1.0 - second[:count])) / 2.0
     mean = float(pairs.mean()) if count else 0.5
     error = float(pairs.std(ddof=1) / math.sqrt(count)) if count > 1 else 1.0
-    tries = 1
+    counted, tries = "a refit", 1
     if trying:
         # A refit of the groups she has, with none new to try, is no group's try.
         # What lies beyond the horizon is taught by how her games ended, whoever teaches the rest; a layer learned again
@@ -705,9 +715,16 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         if refreshing:
             counted = f"{counted}, learned again"
         tries = rehearsal.tries[counted] = rehearsal.tries.get(counted, 0) + 1
-    kept = mean - 0.5 > how_far_above_even(tries) * max(error, 1e-9)
+    # Whether a candidate is kept is decided as its pairs come in, round after round: each round's candidate of a
+    # group adds its pairs to the group's test, the latest is kept once they show the group's candidates better, and
+    # the test begins again once they show them no better. A bar raised with every try asked 0.77 of a layer learned
+    # again on its 200th: LIVE 27 November 2026 one scored 0.525 +- 0.060 and could not be kept, nor any after it.
+    said, tested = _decided(rehearsal.trials.get(counted, []), pairs.tolist())
+    kept = said == "better"
+    rehearsal.trials[counted] = [] if said else tested
     rehearsal.last = {"samples": len(rehearsal.samples_y), "tried": trying, "scored": round(mean, 3),
                       "error": round(error, 3), "kept": kept, "pace": round(pace, 3),
+                      "pairs_tested": len(tested), "decided": said or "not yet",
                       "scored_on": "how the games ended" if ends_known else "material where the games stopped"}
     if kept:
         rehearsal.weights = candidate

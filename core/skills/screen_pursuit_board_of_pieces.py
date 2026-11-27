@@ -421,7 +421,8 @@ def _kept_under(record: str) -> dict[str, Any]:
                                   together_tried_at=float(worth.get("together_tried_at") or 1.0),
                                   trying_looks=(dict(worth["trying_looks"])
                                                 if isinstance(worth.get("trying_looks"), dict) else None),
-                                  looks_tried_after=int(worth.get("looks_tried_after", -1)))
+                                  looks_tried_after=int(worth.get("looks_tried_after", -1)),
+                                  trials={str(k): [float(x) for x in v] for k, v in (worth.get("trials") or {}).items()})
             positions = recall_beside(record, _LOOKED_AT_LONGER)
             if positions:
                 rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
@@ -558,7 +559,8 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
                            "rounds": int(getattr(rehearsal, "rounds", 0)),
                            "together_tried_at": float(getattr(rehearsal, "together_tried_at", 1.0)),
                            "trying_looks": getattr(rehearsal, "trying_looks", None),
-                           "looks_tried_after": int(getattr(rehearsal, "looks_tried_after", -1))}
+                           "looks_tried_after": int(getattr(rehearsal, "looks_tried_after", -1)),
+                           "trials": {k: [round(x, 3) for x in v] for k, v in getattr(rehearsal, "trials", {}).items()}}
     remember(_her_record(target_app), record)
 
 

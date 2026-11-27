@@ -108,20 +108,28 @@ def test_weights_fitted_in_the_same_game_are_kept() -> None:
     assert rehearsing.rehearsal is same
 
 
-def test_each_try_of_a_group_asks_more_of_it() -> None:
-    """LIVE-like 21 November 2026 a feature tried seven times at one standard error was kept on the seventh and then
-    lost to the weights without it, 0.446 +- 0.040 over 120 games. And the chances that a group that does not help is
-    kept, added over all its tries, stay within what BETTER_BY gives one try: shares of chance/t added up without end,
-    a hundred tries near even odds (suggestions of 23 November 2026)."""
-    from statistics import NormalDist
+def test_a_round_won_by_luck_is_not_kept_and_a_group_that_keeps_winning_is() -> None:
+    """LIVE-like 21 November 2026 a feature tried seven times at one standard error was kept on the seventh at 0.584
+    +- 0.074 and then lost to the weights without it, 0.446 +- 0.040 over 120 games. Decided as the pairs come in
+    (core/agency/what_a_kind_is_worth.py ``_decided``), one round like it is not enough, a group whose candidates go on
+    scoring so is kept, and one at even never is."""
+    from core.agency.what_a_kind_is_worth import PAIRS_TESTED_AT_MOST, _decided
 
-    from core.agency.what_a_kind_is_worth import BETTER_BY, how_far_above_even
-
-    bars = [how_far_above_even(t) for t in range(1, 1001)]
-    one_try = 1.0 - NormalDist().cdf(BETTER_BY)
-    assert sum(1.0 - NormalDist().cdf(bar) for bar in bars) <= one_try + 1e-12
-    assert all(later > earlier for earlier, later in zip(bars, bars[1:]))
-    assert bars[6] > (0.584 - 0.5) / 0.074  # the seventh try that was kept by luck is not kept
+    lucky = [1.0] * 7 + [0.75] * 3 + [0.5] * 4 + [0.25] * 2 + [0.0] * 4
+    said, tested = _decided([], lucky)
+    assert said is None and len(tested) == len(lucky)
+    for _round in range(PAIRS_TESTED_AT_MOST // len(lucky)):
+        said, tested = _decided(tested, lucky)
+        if said:
+            break
+    assert said == "better"
+    even = [1.0, 0.0, 0.5, 0.5, 0.75, 0.25] * 4
+    said, tested = None, []
+    for _round in range(PAIRS_TESTED_AT_MOST // len(even) + 1):
+        said, tested = _decided(tested, even)
+        if said:
+            break
+    assert said == "no better"
 
 
 def test_a_rehearsal_counts_the_tries_of_the_group_it_tries() -> None:
