@@ -11153,10 +11153,11 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # nothing generated versus something generated that was not a
                 # call — and only one of them is about tool calling at all.
                 if tools:
+                    # The tool this pass offered: her step alone where her steps hold one.
                     logger.info(
                         "Tools offered (%s) and the generation came back empty "
                         "on turn %d.",
-                        ",".join(sorted(tools)),
+                        step or ",".join(sorted(tools)),
                         turn + 1,
                     )
                 # A checkpoint that ends its turn on a native tool prompt has
@@ -11208,7 +11209,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 if tools and not tool_calls_made:
                     logger.info(
                         "Tools offered (%s) and none called; model produced: %s",
-                        ",".join(sorted(tools)),
+                        step or ",".join(sorted(tools)),
                         " ".join(response_text.split())[:200],
                     )
                 # An announced action with no action is not an answer.

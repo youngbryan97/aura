@@ -611,7 +611,10 @@ def _builtin_grants() -> tuple[StandingAuthorityGrant, ...]:
             ),
             allowed_origins=(OWN_GOAL_ORIGIN,),
             allowed_tools=tuple(sorted(OWN_GOAL_TOOLS)),
-            allowed_effect_scopes=("read_only", "read_write_artifacts", "sandboxed_compute"),
+            # external_io is search_the_web, the one tool of hers that reads from off the machine (Bryan, 26 November
+            # 2026: "Internet if she has it of course"). Without it every search she asked was refused for want of a
+            # lease, 26 November 2026.
+            allowed_effect_scopes=("read_only", "read_write_artifacts", "sandboxed_compute", "external_io"),
             max_risk="high",
             # A pass makes at most 12 calls (her_goal_at_work.CALLS_A_PASS); ten passes an hour.
             max_actions=120,

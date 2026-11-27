@@ -13,7 +13,10 @@ a loop, try, with, break, continue), and never the only statement of its block. 
 repair makes a failing test pass by removing what the test reached (the anti-patterns of Tan, Yoshida, Prasad and
 Roychoudhury, FSE 2016). LIVE 16 November 2026, the first candidate that made her fault's test pass replaced
 require_governance's raise with ``pass``; seven guarding tests broke, so it was refused, and a file guarded less
-well would have kept it.
+well would have kept it. Nor is it a statement that builds an exception to hand on (``record_degradation(
+RuntimeError(...))``): a report of a fault is the raise of a function that goes on, and dropping it silences what it
+found. LIVE 26 November 2026 her loop offered exactly that for DistributedResilienceCore._request_recovery, whose report
+of an unhealthy subsystem was true.
 
 Where to try them comes from the tests. The lines the failing tests run and
 the passing tests do not are the likeliest places (spectrum-based fault
@@ -38,6 +41,36 @@ _COMPARE_SWAPS = {
 _ARITHMETIC_SWAPS = {"+": ("-",), "-": ("+",), "*": ("/", "//"), "/": ("*", "//"), "//": ("/",), "%": ("//",)}
 #: The statements a dropped statement may be: what a function does, not where it ends or which way it goes.
 _DROPPABLE = (ast.Expr, ast.Assign, ast.AugAssign, ast.AnnAssign, ast.Delete)
+
+
+def _exceptions_named_in(tree: ast.AST) -> frozenset[str]:
+    """The names that are exception classes where ``tree`` is read: Python's own, and the classes it defines on them."""
+    import builtins
+
+    known = {name for name, value in vars(builtins).items()
+             if isinstance(value, type) and issubclass(value, BaseException)}
+    classes = [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    grew = True
+    while grew:
+        grew = False
+        for node in classes:
+            bases = {base.id if isinstance(base, ast.Name) else base.attr if isinstance(base, ast.Attribute) else ""
+                     for base in node.bases}
+            if node.name not in known and bases & known:
+                known.add(node.name)
+                grew = True
+    return frozenset(known)
+
+
+def _builds_an_exception(statement: ast.AST, exceptions: frozenset[str]) -> bool:
+    """Whether ``statement`` builds an exception: a report of a fault, which a dropped statement never is."""
+    for node in ast.walk(statement):
+        if isinstance(node, ast.Call):
+            name = node.func.id if isinstance(node.func, ast.Name) else \
+                node.func.attr if isinstance(node.func, ast.Attribute) else ""
+            if name in exceptions:
+                return True
+    return False
 
 
 def ochiai(failing: Mapping[str, set[Line]], passing: Mapping[str, set[Line]]) -> list[tuple[Line, float]]:
@@ -118,6 +151,7 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
         return list(dict.fromkeys(n for n in names if n not in {"self", "cls"}))
 
     scope = names_in_scope(line)
+    exceptions = _exceptions_named_in(tree)
     alone = {id(block[0]) for holder in ast.walk(tree)
              for block in (getattr(holder, name, None) for name in ("body", "orelse", "finalbody"))
              if isinstance(block, list) and len(block) == 1}
@@ -176,7 +210,8 @@ def changes_at(source: str, line: int) -> Iterator[tuple[str, str]]:
                 swapped = source[:a1] + source[a2:b2] + source[b1:a2] + source[a1:b1] + source[b2:]
                 yield from kept("swap_arguments", swapped)
         elif isinstance(node, _DROPPABLE) and id(node) not in alone and not (
-                isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)):
+                isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)) \
+                and not _builds_an_exception(node, exceptions):
             # A docstring or a bare literal does nothing to drop. LIVE 16 November 2026 her loop spent a candidate
             # dropping the drill function's docstring.
             a, b = _span(source, starts, node)

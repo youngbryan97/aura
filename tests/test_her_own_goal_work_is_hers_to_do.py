@@ -24,6 +24,8 @@ CALLS = {
     "what_went_wrong": {"subsystem": "memory"},
     "read_source": {"path": "core/memory/cold_store.py", "from_line": 1},
     "find_in_source": {"pattern": "TODO", "where": "core/memory"},
+    "look_up": {"query": "two-phase commit"},
+    "search_the_web": {"query": "FLP impossibility result"},
     "edit_draft": {"path": "core/notes.py", "old_text": "", "new_text": "x = 1\n"},
     "check_draft": {"tests": ["tests/test_notes.py"]},
     "offer_draft": {"summary": "A note store."},
@@ -85,6 +87,22 @@ async def test_a_high_risk_call_within_the_grant_needs_no_person_and_without_it_
     assert not bare.approved and bare.requires_confirmation
     forged = asked({"tool": tool, "origin": OWN_GOAL_ORIGIN, "standing_authority_grant_id": OWN_GOAL_GRANT})
     assert not forged.approved and forged.requires_confirmation
+
+
+@pytest.mark.asyncio
+async def test_her_web_search_needs_no_person_and_reaches_only_a_reading_of_the_web(monkeypatch):
+    """LIVE 26 November 2026: her goal pass asked search_the_web and was refused, "signed_standing_authority_lease_missing",
+    on every call. Her grant named the tool and left out the effect it has, reading from outside her machine."""
+    manager = _manager()
+    monkeypatch.setattr("core.executive.standing_authority.get_standing_authority_manager", lambda: manager)
+    tool, args = "search_the_web", CALLS["search_the_web"]
+    scope, risk = _rated(tool, args)
+    lease = await manager.issue_child_lease(tool, args, origin=OWN_GOAL_ORIGIN, effect_scope=scope, risk_level=risk)
+    assert lease.approved and lease.grant_id == OWN_GOAL_GRANT, lease.reason
+    held = PermissionRiskModel().check_permission(
+        "tool_execution", f"tool:{tool}", {**lease.context, "tool": tool, "origin": OWN_GOAL_ORIGIN,
+                                           "authority_arguments": args}, effect_scope=scope, execution_risk=risk)
+    assert held.approved and not held.requires_confirmation, held
 
 
 def _offer(her_source, path, text):

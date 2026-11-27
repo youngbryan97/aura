@@ -93,6 +93,59 @@ async def _what_her_sources_say(record: Any, fault: Any) -> None:
     await goals.save(record)
 
 
+async def _where_it_lies(record: Any, fault: Any, source: str, *, ask: bool = True) -> Any:
+    """Her model's reading of where the fault lies when the function raised it itself (core/self_modification/
+    where_a_fault_lies.py), kept on her goal: read once for each version of the function, and with ``ask`` False only
+    what was kept. None where the function did not raise it itself or her model gave no reading."""
+    from core.agency import her_goal_at_work as goals
+    from core.self_modification.where_a_fault_lies import Judged, judge, version_of
+
+    version = version_of(source, fault.call.qualname)
+    if not version:
+        return None
+    for entry in reversed(record.said):
+        kept = Judged.from_kept(entry.get("judged")) if isinstance(entry, dict) else None
+        if kept is not None and kept.function_digest == version:
+            return kept
+    if not ask:
+        return None
+    consulted = next((str(entry.get("words") or "") for entry in reversed(record.said)
+                      if isinstance(entry, dict) and entry.get("consulted")), "")
+    judged = await judge(fault.call, source, consulted=consulted)
+    if judged is None:
+        return None
+    record.said.append({"words": f"My model read {fault.call.qualname} and the call that failed: it raised this "
+                                 f"{'on purpose' if judged.on_purpose else 'not as it was written to'}, and what should "
+                                 f"change is in {judged.lies_in}. {judged.why}",
+                        "at": time.time(), "judged": judged.as_kept()})
+    await goals.save(record)
+    return judged
+
+
+async def _left_as_it_is(record: Any, workspace: Path, fault: Any, judged: Any) -> dict[str, Any]:
+    """The function left as it is, since her model read its raise as its own and what should change as lying
+    elsewhere: a draft of hers that changed it is set aside, and her workspace goes back to where the draft began."""
+    offer = dict(record.offer or {})
+    if offer.get("commit") and not offer.get("merged_at"):
+        record.offers_before = [*record.offers_before,
+                                {**offer, "set_aside": "my model read the raise as the function's own"}]
+        record.offer = {}
+        if record.base and (Path(workspace) / ".git").exists():
+            await _governed_run(["git", "-c", "core.fsmonitor=false", "reset", "-q", "--hard", record.base],
+                                cwd=Path(workspace), env=None, timeout=60.0, effect="commit")
+    return await _stop(record, f"my model read {fault.call.qualname} as raising this on purpose, and what should change "
+                               f"as in {judged.lies_in}, so I leave it as it is: {judged.why}",
+                       judged.as_kept(), by_design=True)
+
+
+def _the_fault_of(record: Any) -> Any:
+    """The fault she heard that ``record`` is the goal of, or None when it is not one she still holds."""
+    from core.agency import her_goal_at_work as goals
+    from core.self_modification.faults_she_can_reproduce import faults_heard
+
+    return next((fault for fault in faults_heard() if goals.slug_of(goal_for(fault)) == record.slug), None)
+
+
 class InHerWorkspace:
     """Runs tests in her workspace on a candidate's sources, and puts the originals back after."""
 
@@ -230,13 +283,19 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     if again is not None:
         return again
 
+    file = fault.call.file
+    kept = await _where_it_lies(record, fault, (Path(workspace) / file).read_text(encoding="utf-8"), ask=False)
+    if kept is not None and kept.leaves_the_function:
+        return await _left_as_it_is(record, workspace, fault, kept)
     reproduction = await reproduce(fault, workspace)
     if not reproduction.reproduced:
         return await _stop(record, "its test did not raise what she raised", reproduction.output)
     await _what_her_sources_say(record, fault)
-    defect = as_defect(reproduction)
-    file = fault.call.file
     sources = {file: (Path(workspace) / file).read_text(encoding="utf-8")}
+    judged = await _where_it_lies(record, fault, sources[file])
+    if judged is not None and judged.leaves_the_function:
+        return await _left_as_it_is(record, workspace, fault, judged)
+    defect = as_defect(reproduction)
     runner = InHerWorkspace(workspace, sources)
 
     async def neighbours() -> list[str] | None:
@@ -388,6 +447,9 @@ async def _her_draft_asked_again(record: Any, workspace: Path, fault: Any) -> di
     file = fault.call.file
     _, before = await _governed_run(["git", "show", f"{record.base}:{file}"], cwd=workspace, env=None, timeout=30.0,
                                     effect="compute")
+    judged = await _where_it_lies(record, fault, before)
+    if judged is not None and judged.leaves_the_function:
+        return await _left_as_it_is(record, workspace, fault, judged)
     after = (Path(workspace) / file).read_text(encoding="utf-8")
     record.status = goals.OFFERED
     record.offer = {**offer, "commit": head.strip(), "at": time.time(), "asked_again_on": record.base}
@@ -659,6 +721,16 @@ async def _ask_again_of_a_draft_that_waits(*, only_a_changed_judge: bool = False
     if not waiting:
         return None
     record = min(waiting, key=lambda each: float(each.offer.get("asked_at") or each.offer.get("at") or 0.0))
+    fault = await asyncio.to_thread(_the_fault_of, record)
+    if fault is not None:
+        # Read as her source has the function, which her draft has not changed yet.
+        try:
+            source = (goals.source_root() / fault.call.file).read_text(encoding="utf-8")
+        except OSError:
+            source = ""
+        judged = await _where_it_lies(record, fault, source) if source else None
+        if judged is not None and judged.leaves_the_function:
+            return await _left_as_it_is(record, record.workspace, fault, judged)
     record.offer = {**record.offer, "asked_on": head, "asked_at": time.time()}
     try:
         replayed = await asyncio.to_thread(_brought_up, record, head)
