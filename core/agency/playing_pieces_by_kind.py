@@ -780,6 +780,12 @@ async def play_pieces_by_kind(seat: Seat, look: Look, click: Click, *, seconds: 
     if came.get("ended") == "resume unavailable":
         return came
     came["rehearsal"] = rehearsing.rehearsal
+    if came.get("shown_wrong") is not None:
+        from core.agency.where_she_was_shown_wrong import ShownWrong
+
+        if rehearsing.rehearsal.shown_wrong is None:
+            rehearsing.rehearsal.shown_wrong = ShownWrong()
+        rehearsing.rehearsal.shown_wrong.shown(list(came["shown_wrong"]))
     # The game as it went, for its record: every move in order, and who moved first.
     came["the_moves"] = list(the_moves)
     came["first_was_hers"] = getattr(came.get("learned"), "first_was_hers", None)
@@ -2279,6 +2285,10 @@ def _the_end(ended: str, game: _Game, tell: Callable[[str], None], *,
         ended_with["read_from_the_window"] = observed[1]
     outcome = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(result)
     if outcome is not None:
+        # Where the other side showed her wrong, to be looked at again between games, whatever the game came to.
+        from core.agency.where_she_was_shown_wrong import places_shown_wrong
+
+        ended_with["shown_wrong"] = places_shown_wrong(game.judged)
         game.held.came_to([score for _place, _move, score in game.judged], outcome)
         error = game.held.error()
         if error is not None:

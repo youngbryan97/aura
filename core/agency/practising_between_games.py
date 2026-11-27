@@ -39,7 +39,7 @@ PREPARES_TURNS = 20
 #: The kinds of round: rehearsing, preparing, looking into where a lost game went wrong, and working a small ending out
 #: to the end. Which comes next is whichever has lately paid best, with a margin for how little each has been tried
 #: (core/cognition/where_practice_pays.py); a kind with nothing to do gives its turn to the next.
-_ROUNDS = ("rehearses", "prepares", "investigates", "works out an ending")
+_ROUNDS = ("rehearses", "prepares", "investigates", "looks back", "works out an ending")
 _PAYS: dict[str, Any] = {}
 
 
@@ -144,6 +144,12 @@ def _one_round_of(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
             if settled:
                 pays.came_to(kind, settled == 2)
                 return {"investigated": True, "ruled out": settled == 2}
+        elif kind == "looks back":
+            looked, kept = _look_back_some(name, written)
+            if looked:
+                # A position kept from looking back changes what she learns how the pieces stand together from.
+                pays.came_to(kind, kept > 0)
+                return {"looked back": looked, "kept": kept > 0}
         elif kind == "works out an ending":
             if _work_out_an_ending(name, written):
                 pays.came_to(kind, True)
@@ -154,6 +160,34 @@ def _one_round_of(name: str, written: tuple[int, int]) -> dict[str, Any] | None:
                 pays.came_to(kind, bool(last.get("kept")))
             return last
     return None
+
+
+def _look_back_some(name: str, written: tuple[int, int]) -> tuple[int, int]:
+    """A round of looking again, for far longer than a turn could take, at places games in the world showed her wrong
+    (core/agency/where_she_was_shown_wrong.py), for about as long as her last round of rehearsal took. How many places
+    were looked at, and how many positions were kept from them. Blocks; run it in a thread."""
+    from core.agency.playing_pieces_by_kind import _cores_free, _Rehearsing
+    from core.agency.where_she_was_shown_wrong import LOOK_BACK_S, look_back_on_some
+    from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
+
+    if _held(name, written) is None:
+        return 0, 0
+    kept, rehearsal = _HELD["kept"], _HELD["rehearsal"]
+    shown = getattr(rehearsal, "shown_wrong", None)
+    if shown is None or not shown.waiting:
+        return 0, 0
+    rules = kept["rules"]
+    family = rules.family(unseen_go_every_way=True)
+    weights = _Rehearsing(rehearsal).weights_for(family)
+    before = len(shown.parts)
+    looked = look_back_on_some(shown, family, weights, dict(rules.start),
+                               seconds=max(LOOK_BACK_S, float(_HELD.get("round_s") or 0.0)), threads=_cores_free())
+    if looked and not _PLAYING:
+        _keep_what_she_learned(kept.get("app") or name, kept["looks"], rules, rehearsal, kept.get("went_wrong"))
+        held = _the_board_she_last_played()
+        if held is not None and held[0] == name:
+            _HELD["written"] = held[1]
+    return looked, len(shown.parts) - before
 
 
 def _work_out_an_ending(name: str, written: tuple[int, int]) -> int:

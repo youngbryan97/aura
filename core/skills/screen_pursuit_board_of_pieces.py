@@ -336,6 +336,7 @@ async def _her_clock(target_app: str) -> float | None:
 #: What is kept beside her record of a board: how the pieces stand together, and the positions it is learned from.
 _TOGETHER = "how-the-pieces-stand-together"
 _LOOKED_AT_LONGER = "positions-looked-at-longer"
+_SHOWN_WRONG = "where-she-was-shown-wrong"
 _CAME_TO = "what-her-games-came-to"
 _THEY_ANSWERED = "what-they-answered-where"
 #: Her answers, worked out ahead, to the situations she expects to meet (core/agency/thinking_before_it_comes.py).
@@ -426,6 +427,11 @@ def _kept_under(record: str) -> dict[str, Any]:
             positions = recall_beside(record, _LOOKED_AT_LONGER)
             if positions:
                 rehearsal.looked_at_longer = LookedAtLonger.from_bytes(positions)
+            shown = recall_beside(record, _SHOWN_WRONG)
+            if shown:
+                from core.agency.where_she_was_shown_wrong import ShownWrong
+
+                rehearsal.shown_wrong = ShownWrong.from_bytes(shown)
             came_to = recall_beside(record, _CAME_TO)
             if came_to:
                 from core.agency.what_lies_beyond_the_horizon import WhatGamesCameTo
@@ -469,6 +475,41 @@ def _what_no_longer_holds_of_her_rules(world: str, _record: dict[str, Any]) -> l
     return wrong
 
 
+def _what_no_longer_holds_of_what_she_was_shown(world: str, record: dict[str, Any]) -> list[str]:
+    """What was kept of where games showed her wrong, and a run of trying how she looks under way, as this code reads
+    them back: as many positions as first looks, longer looks and games, within the caps, every part on the board; and
+    the run's habits each above nought."""
+    import math
+
+    from core.agency.how_she_looks_set_by_trying import Trying
+    from core.agency.where_she_was_shown_wrong import KEPT_AT_MOST, WAITING_AT_MOST, ShownWrong
+    from core.runtime.what_she_learned import recall_beside
+
+    wrong: list[str] = []
+    data = recall_beside(world, _SHOWN_WRONG)
+    if data:
+        shown = ShownWrong.from_bytes(data)
+        if not (len(shown.parts) == len(shown.glance) == len(shown.slow) == len(shown.game)):
+            wrong.append("where she was shown wrong: its positions, first looks, longer looks and games are not as many "
+                         "as each other")
+        if len(shown.parts) > KEPT_AT_MOST or len(shown.waiting) > WAITING_AT_MOST:
+            wrong.append("where she was shown wrong: more kept or waiting than its caps")
+        rules = _kept_under(world).get("rules")
+        if rules is not None and shown.parts:
+            span = 2 * len(shown.kinds) * rules.rows * rules.columns
+            if any(i < 0 or i >= span for part in shown.parts for i in part):
+                wrong.append("where she was shown wrong: a position names a part outside its kinds and squares")
+    trying = (record.get("worth") or {}).get("trying_looks") if isinstance(record, dict) else None
+    if trying:
+        try:
+            run = Trying.from_dict(trying)
+        except (KeyError, TypeError, ValueError) as why:
+            return [*wrong, f"a run of trying how she looks cannot be read back ({why})"]
+        if any(not math.isfinite(value) or value <= 0 for value in run.habits().values()):
+            wrong.append("a run of trying how she looks holds a habit at or below nought")
+    return wrong
+
+
 @replays("worth")
 def _what_no_longer_holds_of_the_positions_she_looked_at_longer(world: str, _record: dict[str, Any]) -> list[str]:
     """The positions her longer look searched, kept beside the record, as this code reads them back: no more than the
@@ -478,11 +519,11 @@ def _what_no_longer_holds_of_the_positions_she_looked_at_longer(world: str, _rec
     from core.agency.what_a_kind_is_worth import LOOKED_AT_LONGER_AT_MOST, LookedAtLonger
     from core.runtime.what_she_learned import recall_beside
 
+    wrong = _what_no_longer_holds_of_what_she_was_shown(world, _record)
     kept = recall_beside(world, _LOOKED_AT_LONGER)
     if not kept:
-        return []
+        return wrong
     looked = LookedAtLonger.from_bytes(kept)
-    wrong: list[str] = []
     if len(looked.parts) > LOOKED_AT_LONGER_AT_MOST:
         wrong.append(f"{len(looked.parts)} positions read back, over the {LOOKED_AT_LONGER_AT_MOST} kept at most")
     if not (len(looked.parts) == len(looked.glance) == len(looked.slow) == len(looked.game)):
@@ -549,6 +590,9 @@ def _keep_what_she_learned(target_app: str, looks: Any, learned: Any, rehearsal:
                 except (KeyError, OSError, TypeError, ValueError) as why:
                     logger.info("the positions kept beside her record could not be read back (%s)", why)
             remember_beside(_her_record(target_app), _LOOKED_AT_LONGER, looked.as_bytes())
+        shown = getattr(rehearsal, "shown_wrong", None)
+        if shown is not None:
+            remember_beside(_her_record(target_app), _SHOWN_WRONG, shown.as_bytes())
         came_to = getattr(rehearsal, "came_to", None)
         if came_to is not None and came_to.result:
             remember_beside(_her_record(target_app), _CAME_TO, came_to.as_bytes())

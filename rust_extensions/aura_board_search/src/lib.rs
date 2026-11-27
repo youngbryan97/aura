@@ -3220,6 +3220,41 @@ impl Judgement {
     }
 }
 
+/// Positions as her practice reads the ones it keeps for learning how the pieces stand together: for each, which kind
+/// stands where as the side to move sees it, her first judgement of it for that side without the learned one, whether
+/// it is quiet (a look at the takes alone changes her judgement by no more than one quiet move could), and whose turn it
+/// is; and the kinds in the order the first of those counts them. For positions met in the world, not in her model.
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn seen_as_practice_sees(
+    description: &str,
+    positions: Vec<String>,
+    weights: &str,
+) -> PyResult<(Vec<String>, Vec<(Vec<u16>, i32, bool, u8)>)> {
+    let f: FamilyD = serde_json::from_str(description).map_err(|e| PyValueError::new_err(format!("description: {e}")))?;
+    let w: WeightsD = if weights.trim().is_empty() {
+        WeightsD::default()
+    } else {
+        serde_json::from_str(weights).map_err(|e| PyValueError::new_err(format!("weights: {e}")))?
+    };
+    let g = Game::new(&f, &w).map_err(PyValueError::new_err)?;
+    let table = Table::new(1 << 12);
+    let mut rows = Vec::with_capacity(positions.len());
+    for position in &positions {
+        let p: PosD = serde_json::from_str(position).map_err(|e| PyValueError::new_err(format!("position: {e}")))?;
+        let b = Board::from(&g, &p).map_err(PyValueError::new_err)?;
+        measure_the_margin(&g, &b);
+        let mut s = Searcher::fresh(&g, b.clone(), &table, 1e9, Instant::now(), 0);
+        let judged = s.evaluate();
+        let first_look = judged - s.learned_judgement();
+        let (stands, _) = s.judged();
+        let takes_settled = s.quiesce(-INF, INF, 0);
+        let quiet = (takes_settled - stands).abs() <= g.margin.load(Ordering::Relaxed);
+        rows.push((s.cells_seen_by_the_mover(), first_look, quiet, b.turn as u8));
+    }
+    Ok((g.kinds.iter().map(|k| k.letter.clone()).collect(), rows))
+}
+
 /// Her search's habits as they were set, before anything of hers moved them: each by name, as weights carry them.
 #[pyfunction]
 fn habits_as_set() -> PyResult<String> {
@@ -3610,5 +3645,6 @@ fn aura_board_search(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(search, m)?)?;
     m.add_function(wrap_pyfunction!(self_play, m)?)?;
     m.add_function(wrap_pyfunction!(habits_as_set, m)?)?;
+    m.add_function(wrap_pyfunction!(seen_as_practice_sees, m)?)?;
     Ok(())
 }

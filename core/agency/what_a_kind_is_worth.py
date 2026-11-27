@@ -311,6 +311,8 @@ class Rehearsal:
     looks_tried_after: int = -1
     #: Each group's pairs tested so far, its candidates against the weights she plays by, until a test decides.
     trials: dict[str, list[float]] = field(default_factory=dict)
+    #: Where games in the world showed her wrong, looked at again for longer (core/agency/where_she_was_shown_wrong.py).
+    shown_wrong: Any = None
 
 
 def _engine() -> Any | None:
@@ -544,6 +546,25 @@ def _pace(engine: Any, description: str, begin: str, candidate: str, current: st
 PAIRS_TESTED_AT_MOST = 400
 
 
+def _with_what_she_was_shown(rehearsal: Rehearsal) -> LookedAtLonger:
+    """Her practice's positions with those kept from looking again at where games in the world showed her wrong
+    (core/agency/where_she_was_shown_wrong.py), under the practice store's order of kinds: what how the pieces stand
+    together is learned from."""
+    store, shown = rehearsal.looked_at_longer, rehearsal.shown_wrong
+    if shown is None or not shown.parts or not store.squares:
+        return store
+    kinds = list(store.kinds) + [letter for letter in shown.kinds if letter not in store.kinds]
+    span = 2 * store.squares
+    slot = np.array([kinds.index(letter) for letter in shown.kinds], dtype=np.int64)
+    parts = []
+    for p in shown.parts:
+        kind, rest = np.divmod(np.asarray(p, dtype=np.int64), span)
+        parts.append((slot[kind] * span + rest).astype(np.int16))
+    return LookedAtLonger(kinds=kinds, squares=store.squares, columns=store.columns, parts=[*store.parts, *parts],
+                          glance=[*store.glance, *shown.glance], slow=[*store.slow, *shown.slow],
+                          game=[*store.game, *shown.game], scales=list(store.scales))
+
+
 def _decided(earlier: list[float], pairs: list[float]) -> tuple[str | None, list[float]]:
     """What a group's pairs so far and this round's decide (core/cognition/whether_one_way_is_better.py): "better",
     "no better", or None while they decide neither; and the pairs counted. The margin is what a test of
@@ -628,14 +649,14 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     if trying == TOGETHER and refreshing:
         # Learned again, it goes to its match: the layer she plays by was learned on many of the positions any of
         # them would be held back on, so how each foretells them is no fair test between the two.
-        learned = rehearsal.looked_at_longer.judgement(seed=seed)
+        learned = _with_what_she_was_shown(rehearsal).judgement(seed=seed)
         if learned is None:
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
                               "why": "nothing learned yet foretells her longer look better than her first look"}
             return rehearsal
         candidate = replace(rehearsal.weights, learned=learned)
     elif trying == TOGETHER:
-        learned = rehearsal.looked_at_longer.judgement(seed=seed)
+        learned = _with_what_she_was_shown(rehearsal).judgement(seed=seed)
         if learned is None:
             rehearsal.last = {"samples": len(rehearsal.looked_at_longer.parts), "tried": trying, "kept": False,
                               "why": "nothing learned yet foretells her longer look better than her first look"}
