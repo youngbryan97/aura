@@ -197,7 +197,6 @@ class HerCortexReads:
     async def generate(self, prompt: str, *, is_background: bool = True, deadline_s: float = ASK_S) -> BaseModel | None:
         from core.brain.her_unprompted_turn import on_her_lane
         from core.brain.llm.token_budget_evidence import chars_per_token
-        from core.rebuilding.her_model import the_object_in
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
         self.last_defer_reason = ""
@@ -218,8 +217,23 @@ class HerCortexReads:
         if text is None:
             self.last_defer_reason = "her cortex is held for something else"
             return None
-        found = the_object_in(text)
-        return self.schema.model_validate_json(found) if found else None
+        found = _the_object_in(text)
+        return self.schema.model_validate(found) if found is not None else None
+
+
+def _the_object_in(text: str) -> Any:
+    """The first whole JSON object in what her cortex wrote, past what it thought before it; None if there is none."""
+    said = str(text or "")
+    if "</think>" in said:
+        said = said.rsplit("</think>", 1)[1]
+    start = said.find("{")
+    if start < 0:
+        return None
+    try:
+        found, _end = json.JSONDecoder().raw_decode(said[start:])
+    except ValueError:
+        return None
+    return found if isinstance(found, dict) else None
 
 
 def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
