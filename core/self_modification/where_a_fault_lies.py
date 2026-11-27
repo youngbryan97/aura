@@ -30,7 +30,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Judged", "WhereItLies", "judge", "raised_here", "the_function", "version_of"]
+__all__ = ["Judged", "ToLookUp", "WhereItLies", "judge", "raised_here", "the_function", "version_of", "what_to_look_up"]
 
 logger = logging.getLogger("SelfModification.WhereAFaultLies")
 
@@ -168,9 +168,15 @@ def the_call(call: Any) -> dict[str, str]:
     return {name: _shown(value) for name, value in shown.items()}
 
 
-def her_model() -> Any:
+class ToLookUp(BaseModel):
+    searches: list[str] = Field(default_factory=list,
+                                description="what is worth looking up before changing it, each as the words to search by")
+
+
+def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
     """Her model, asked for a typed reading through her router; None where there is none to ask: no router to reach it
-    by (a test, or a process still starting) is no reading, as her model away is."""
+    by (a test, or a process still starting) is no reading, as her model away is. Asked as background work, the router
+    gives it to her brainstem, and holds it while someone is talking with her."""
     from core.container import ServiceContainer
 
     if ServiceContainer.get("llm_router", default=None) is None:
@@ -178,10 +184,48 @@ def her_model() -> Any:
     try:
         from core.brain.llm.structured_llm import StructuredLLM
 
-        return StructuredLLM(WhereItLies, max_retries=1)
+        return StructuredLLM(schema, max_retries=1)
     except (ImportError, RuntimeError) as why:
         logger.info("no model to ask where a fault lies: %s", why)
         return None
+
+
+def _what_was_called(call: Any, source: str) -> dict[str, Any] | None:
+    """The function and the call that failed, as data her model reads; None where the function is not in ``source``."""
+    found = the_function(source, call.qualname)
+    if found is None:
+        return None
+    data: dict[str, Any] = {
+        "the function": _numbered(*found),
+        "it raised": f"{call.error_type.rsplit('.', 1)[-1]}: {call.error_message}",
+        "at line": call.line,
+        "the call that failed": the_call(call),
+        "where it went below before it raised": list(call.below),
+        "what it was raised from": list(call.causes),
+    }
+    if call.receiver_class:
+        data["the instance it was called on"] = {name: _shown(value) for name, value in call.receiver_state}
+    return data
+
+
+async def what_to_look_up(call: Any, source: str, *, advisor: Any = None) -> list[str]:
+    """What her model reads as worth looking up before the function is changed, as the words to search by; none where
+    the function is not there or her model gave no answer. Searched by the error's words alone, her library answered an
+    empty argument to a program with a passage on LL parsers (26 November 2026)."""
+    data = _what_was_called(call, source)
+    advisor = advisor if advisor is not None else her_model(ToLookUp) if data is not None else None
+    if data is None or advisor is None:
+        return []
+    try:
+        read = await advisor.generate("This function raised while she ran. What is worth looking up before changing "
+                                      "it? Data: " + json.dumps(data, ensure_ascii=False),
+                                      is_background=True, deadline_s=ASK_S)
+        read = read if read is None or isinstance(read, ToLookUp) else ToLookUp.model_validate(read)
+    except (RuntimeError, TimeoutError, ValueError, TypeError, OSError) as why:
+        logger.info("her model could not be asked what to look up: %s", why)
+        return []
+    searches = [" ".join(str(each).split()) for each in (read.searches if read is not None else [])]
+    return list(dict.fromkeys(each for each in searches if each))
 
 
 async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = None) -> Judged | None:
@@ -189,25 +233,14 @@ async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = N
     raise it itself, or her model gave no reading."""
     if not raised_here(source, call.line, call.error_type):
         return None
-    found = the_function(source, call.qualname)
-    if found is None:
+    data = _what_was_called(call, source)
+    if data is None:
         return None
-    first, text = found
     digest = version_of(source, call.qualname)
     advisor = advisor if advisor is not None else her_model()
     if advisor is None:
         return None
-    data = {
-        "the function": _numbered(first, text),
-        "it raised": f"{call.error_type.rsplit('.', 1)[-1]}: {call.error_message}",
-        "at line": call.line,
-        "the call that failed": the_call(call),
-        "where it went below before it raised": list(call.below),
-        "what it was raised from": list(call.causes),
-        "what her sources say of it": _shown(consulted),
-    }
-    if call.receiver_class:
-        data["the instance it was called on"] = {name: _shown(value) for name, value in call.receiver_state}
+    data["what her sources say of it"] = _shown(consulted)
     try:
         read = await advisor.generate(
             "This function raised while she ran. Did it raise this on purpose, as it was written to for a call like "

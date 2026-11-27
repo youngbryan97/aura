@@ -87,4 +87,43 @@ def test_a_fault_she_made_again_is_looked_up_once_before_she_mends_it(monkeypatc
                for _tool, query, origin in asked)
     (entry,) = record.said
     assert entry["consulted"] and "Exec (system call) (wikipedia)" in entry["words"]
-    assert "The web: nothing (offline)" in entry["words"] and saved == [record]
+    assert "The web, of ValueError argv entries must not be empty: nothing (offline)" in entry["words"]
+    assert saved == [record]
+
+
+def test_what_she_looks_up_is_what_her_model_reads_as_worth_it_from_the_function(monkeypatch):
+    """LIVE 26 November 2026, searched by the error's words alone, her library answered an empty argument to a program
+    with a passage on LL parsers."""
+    from core.agency import mending_a_fault_of_hers as mending
+    from core.runtime import service_access
+    from core.runtime.a_call_that_failed import FailedCall
+    from core.self_modification import where_a_fault_lies as lies
+
+    asked, read = [], []
+
+    class Engine:
+        async def execute(self, tool, params, context):
+            asked.append((tool, params["query"]))
+            return {"ok": True, "text": f"{tool} found it"}
+
+    class HerModel:
+        async def generate(self, prompt, *, is_background, deadline_s):
+            read.append(prompt)
+            return lies.ToLookUp(searches=["osascript display notification empty subtitle", "  exec argv empty  "])
+
+    async def save(record):
+        return None
+    monkeypatch.setattr(service_access, "optional_service", lambda name, default=None: Engine())
+    monkeypatch.setattr(goals, "save", save)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: HerModel())
+    source = "def coerce(argv):\n    if any(not part for part in argv):\n        raise ValueError('argv entries must not be empty')\n"
+    call = FailedCall(module="core.notes", qualname="coerce", file="core/notes.py", line=3,
+                      error_type="builtins.ValueError", error_message="argv entries must not be empty",
+                      keywords=(("argv", "['osascript', 'Stretch', '']"),))
+    record = goals.GoalRecord(goal="Mend coerce", slug="mend-coerce")
+    asyncio.run(mending._what_her_sources_say(record, SimpleNamespace(call=call), source))
+    assert "raise ValueError" in read[0] and "Stretch" in read[0], "her model read the function and the call"
+    assert asked == [("look_up", "osascript display notification empty subtitle"),
+                     ("search_the_web", "osascript display notification empty subtitle"),
+                     ("look_up", "exec argv empty"), ("search_the_web", "exec argv empty")]
+    assert record.said[0]["searched"] == ["osascript display notification empty subtitle", "exec argv empty"]

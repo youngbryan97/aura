@@ -130,7 +130,7 @@ def _waiting_draft(her_source, monkeypatch, model):
     monkeypatch.setattr(goals, "source_head", lambda: "head-a")
     monkeypatch.setattr(goals, "brought_up", lambda record, head: f"{record.slug}-on-{head}")
     monkeypatch.setattr(goals, "take_it_herself", lambda slug: taken.append(slug) or {"ok": True})
-    monkeypatch.setattr(lies, "her_model", lambda: model)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
     return record, taken
 
 
@@ -155,7 +155,7 @@ def test_a_waiting_draft_her_model_reads_as_a_mend_goes_on_to_her_gates(her_sour
 def test_her_model_reads_each_version_of_the_function_once(her_source, monkeypatch):
     model = _HerModel(True, "what called it")
     fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
-    monkeypatch.setattr(lies, "her_model", lambda: model)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
     record = goals.GoalRecord(goal="g", slug="mend-g")
     for _ in range(2):
         asyncio.run(mending._where_it_lies(record, fault, REFUSES))
@@ -172,7 +172,7 @@ def test_a_fault_her_model_reads_as_done_on_purpose_is_not_searched_for_a_change
     _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "refuses", cwd=her_source)
     fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
     model = _HerModel(True, "what called it")
-    monkeypatch.setattr(lies, "her_model", lambda: model)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
 
     async def made_again(fault, workspace):
         return heard.Reproduction(fault, "tests/her_faults/test_fault_coerce.py", True, "ValueError")

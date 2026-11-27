@@ -59,14 +59,17 @@ async def _governed_run(argv: Sequence[str], *, cwd: Path, env: Mapping[str, str
 _WEB_SECONDS = 60.0
 
 
-async def _what_her_sources_say(record: Any, fault: Any) -> None:
+async def _what_her_sources_say(record: Any, fault: Any, source: str = "") -> None:
     """What her library and the web say of a fault she has made again, kept on her goal once, before any change is
-    searched for: what a pass of hers at the goal reads, with where each came from. Asked as her own goal work asks
-    (her standing grant, core/executive/her_own_passes.py). Bryan, 26 November 2026: "if she consults all her sources
-    to help improve/inform decisions and 'how tos' or find solutions for or descriptions of problems"."""
+    searched for: what a pass of hers at the goal reads, with where each came from. What is looked up is what her model
+    reads as worth it from the function and the call that failed (where_a_fault_lies.what_to_look_up), and the error's
+    own words where it gives nothing. Asked as her own goal work asks (her standing grant,
+    core/executive/her_own_passes.py). Bryan, 26 November 2026: "if she consults all her sources to help
+    improve/inform decisions and 'how tos' or find solutions for or descriptions of problems"."""
     from core.agency import her_goal_at_work as goals
     from core.executive.her_own_passes import OWN_GOAL_ORIGIN
     from core.runtime.service_access import optional_service
+    from core.self_modification.where_a_fault_lies import what_to_look_up
 
     if any(entry.get("consulted") for entry in record.said if isinstance(entry, dict)):
         return
@@ -75,21 +78,29 @@ async def _what_her_sources_say(record: Any, fault: Any) -> None:
         return
     call = fault.call
     asked = " ".join(f"{call.error_type.rsplit('.', 1)[-1]} {call.error_message}".split())[:200]
+    searches = (await what_to_look_up(call, source) if source else []) or [asked]
     context = {"origin": OWN_GOAL_ORIGIN, "intent_source": OWN_GOAL_ORIGIN, "user_facing": False,
                "objective": f"Find out what is known of this error before mending it: {asked}"}
     said: list[str] = []
-    for tool, seconds in (("look_up", 30.0), ("search_the_web", _WEB_SECONDS)):
-        try:
-            came = await asyncio.wait_for(engine.execute(tool, {"query": asked}, context), timeout=seconds)
-        except (TimeoutError, asyncio.TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            came = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
-        if isinstance(came, dict) and came.get("ok") and came.get("text"):
-            said.append(f"{'My library' if tool == 'look_up' else 'The web'}:\n{came['text']}")
-        else:
-            why = came.get("error") or came.get("summary") if isinstance(came, dict) else ""
-            said.append(f"{'My library' if tool == 'look_up' else 'The web'}: nothing ({str(why or 'no answer')[:160]})")
+    # Her library answers each search in well under a second; the web has _WEB_SECONDS for all of them.
+    web_until = time.monotonic() + _WEB_SECONDS
+    for query in searches:
+        for tool, where in (("look_up", "My library"), ("search_the_web", "The web")):
+            seconds = 30.0 if tool == "look_up" else web_until - time.monotonic()
+            if seconds <= 0:
+                said.append(f"{where}, of {query}: not asked (its time had gone on the searches before)")
+                continue
+            try:
+                came = await asyncio.wait_for(engine.execute(tool, {"query": query}, context), timeout=seconds)
+            except (TimeoutError, asyncio.TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
+                came = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            if isinstance(came, dict) and came.get("ok") and came.get("text"):
+                said.append(f"{where}, of {query}:\n{came['text']}")
+            else:
+                why = came.get("error") or came.get("summary") if isinstance(came, dict) else ""
+                said.append(f"{where}, of {query}: nothing ({str(why or 'no answer')[:160]})")
     record.said.append({"words": f"What my sources say of {asked}, before I mend it:\n" + "\n\n".join(said),
-                        "at": time.time(), "consulted": True})
+                        "at": time.time(), "consulted": True, "searched": searches})
     await goals.save(record)
 
 
@@ -290,8 +301,8 @@ async def mend(fault: Any, *, proposals: int, seconds: float, model: Any = None)
     reproduction = await reproduce(fault, workspace)
     if not reproduction.reproduced:
         return await _stop(record, "its test did not raise what she raised", reproduction.output)
-    await _what_her_sources_say(record, fault)
     sources = {file: (Path(workspace) / file).read_text(encoding="utf-8")}
+    await _what_her_sources_say(record, fault, sources[file])
     judged = await _where_it_lies(record, fault, sources[file])
     if judged is not None and judged.leaves_the_function:
         return await _left_as_it_is(record, workspace, fault, judged)
