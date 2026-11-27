@@ -139,6 +139,10 @@ def test_a_practice_game_s_points_are_kept_at_the_setting_it_was_played_at(monke
     asked = []
 
     async def pursue(**options):
+        from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
+
+        # What a practice game changes is marked to be put back.
+        assert FOR_HER_PRACTICE.get()
         asked.append(options["goal"])
         return {"handed_over": {"ended": "won", "settings_set": {"the other player's strength": "4"}}}
 

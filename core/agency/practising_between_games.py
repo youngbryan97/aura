@@ -382,8 +382,15 @@ async def _a_practice_game(name: str, app: str, setting: int) -> dict[str, Any] 
     _GAME_AFTER_ROUND[0] = int(getattr(rehearsal, "rounds", 0))
     goal = f"Play a game against the other player, with the other player's strength set to {setting}."
     logger.info("a practice game in %s: %s", app, goal)
-    result = await pursue_on_screen(goal=goal, success_when="the game has ended", target_app=app,
-                                    max_seconds=A_PRACTICE_GAME_S, narrate=False)
+    from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
+
+    # What this game changes in the application is put back for the next game she is asked to play there.
+    marked = FOR_HER_PRACTICE.set(True)
+    try:
+        result = await pursue_on_screen(goal=goal, success_when="the game has ended", target_app=app,
+                                        max_seconds=A_PRACTICE_GAME_S, narrate=False)
+    finally:
+        FOR_HER_PRACTICE.reset(marked)
     played = result.get("handed_over") or {}
     points = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(str(played.get("ended") or ""))
     settings = dict(played.get("settings_set") or {})

@@ -8,18 +8,29 @@ over it, and the window read again to see the number there. Several numbers besi
 is the goal's number is pressed. Where the setting is not in view, the form is scrolled a step and read again, as a
 person looks further down a form. A setting set is not set again in the same pursuit.
 
+What a game of her own practice changes is put back for the next game she is asked to play there: an application keeps
+a setting from one game to the next, and the person's games go on at what they set. The value a field held before her
+practice first changed it is kept, and the next goal in that application that does not set it itself sets it back.
+
 Nothing here knows an application or what its settings are: a setting is a label and a number.
 """
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import re
 from typing import Any
 
 logger = logging.getLogger("Aura.ScreenPursuit.ASetting")
 
-__all__ = ["numbers_beside_labels", "set_what_the_goal_sets", "settings_the_goal_sets", "without_its_settings"]
+__all__ = ["FOR_HER_PRACTICE", "numbers_beside_labels", "set_what_the_goal_sets", "settings_the_goal_sets",
+           "with_what_she_puts_back", "without_its_settings"]
+
+#: Set while a game of her own practice is pursued: what it changes is to be put back for the person's next game.
+FOR_HER_PRACTICE: contextvars.ContextVar[bool] = contextvars.ContextVar("for_her_practice", default=False)
+#: Where what she is to put back is kept: per application, each setting with the value it held before.
+PUT_BACK = "settings-her-practice-changed"
 
 SETTING = re.compile(r",?\s*\bwith (?P<name>[^,.;]+?) set to (?P<value>\d+(?:\.\d+)?)", re.I)
 #: How far apart, as a share of the window's height, a label and its number may stand on one row; and how far above a
@@ -34,6 +45,36 @@ SCROLLS_AT_MOST = 8
 SCROLL_LINES = 2
 #: The longest a window is given to show what a press or a typing did.
 SHOWS_IN_S = 0.6
+
+
+def with_what_she_puts_back(goal: str, target_app: str) -> str:
+    """The goal, with each setting her practice changed in ``target_app`` set back to what it held, where the goal
+    does not set it itself."""
+    from core.runtime.what_she_learned import recall
+
+    pending = dict((recall(PUT_BACK) or {}).get(target_app) or {}) if target_app else {}
+    named = {name for name, _value in settings_the_goal_sets(goal)}
+    extra = "".join(f", with {name} set to {value}" for name, value in pending.items() if name not in named)
+    if not extra:
+        return goal
+    return goal.rstrip().rstrip(".") + extra + "."
+
+
+def _noted(target_app: str, name: str, before: str | None, value: str) -> None:
+    """A setting set and read back: put back if it was waiting to be, or, in a game of her practice, its value before
+    kept to be put back where nothing is kept for it yet."""
+    from core.runtime.what_she_learned import recall, remember
+
+    held = dict(recall(PUT_BACK) or {})
+    pending = dict(held.get(target_app) or {})
+    if name in pending and float(pending[name]) == float(value):
+        del pending[name]
+    elif FOR_HER_PRACTICE.get() and name not in pending and before is not None and float(before) != float(value):
+        pending[name] = before
+    else:
+        return
+    held[target_app] = pending
+    remember(PUT_BACK, held or {"nothing": {}})
 
 
 def settings_the_goal_sets(goal: str) -> list[tuple[str, str]]:
@@ -115,6 +156,11 @@ async def set_what_the_goal_sets(target_app: str, goal: str, keep: dict[str, Any
     from .screen_pursuit_a_way_on import _a_reading
     from .screen_pursuit_surface import click_normalized
 
+    # Every act here is bound to the window that was read: with no application named, nothing is pressed or typed,
+    # for an act bound to nothing lands in whatever is in front.
+    window_app = str(target_app or "")
+    if not window_app:
+        return False
     done: dict[str, str] = keep.setdefault("settings_set", {})
     left = [(name, value) for name, value in settings_the_goal_sets(goal) if name not in done]
     if not left:
@@ -156,24 +202,26 @@ async def set_what_the_goal_sets(target_app: str, goal: str, keep: dict[str, Any
         await asyncio.sleep(SHOWS_IN_S)
         reading = await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {}
     tried[name] = tried.get(name, 0) + 1
+    before = numbers[0]["text"] if len(numbers) == 1 else None
     if len(numbers) > 1:
         # Choices beside one label: the one that is the goal's number is pressed.
         same = [n for n in numbers if float(n["text"]) == float(value)]
         if not same:
             logger.info("%r offers %s, not %s", label, [n["text"] for n in numbers], value)
             return False
-        await click_normalized(same[0]["x"], same[0]["y"], expect_app=target_app, bounds=bounds)
+        await click_normalized(same[0]["x"], same[0]["y"], expect_app=window_app, bounds=bounds)
     elif float(numbers[0]["text"]) != float(value):
         field = numbers[0]
-        await click_normalized(field["x"], field["y"], expect_app=target_app, bounds=bounds)
-        await host.hotkey("command", "a", expect_app=target_app)
-        await host.type_text(value, use_clipboard=False, expect_app=target_app)
-        await host.hotkey("tab", expect_app=target_app)
+        await click_normalized(field["x"], field["y"], expect_app=window_app, bounds=bounds)
+        await host.hotkey("command", "a", expect_app=window_app)
+        await host.type_text(value, use_clipboard=False, expect_app=window_app)
+        await host.hotkey("tab", expect_app=window_app)
     await asyncio.sleep(SHOWS_IN_S)
     after = await _a_reading(read_screen, target_app, from_a_window=from_a_window) or {}
     shown = numbers_beside_labels(after).get(label, [])
     if any(float(n["text"]) == float(value) for n in shown):
         done[name] = value
+        _noted(target_app, name, before, value)
         _tell(f"I set \"{label}\" to {value}, for {name}.")
         logger.info("set %r to %s in %r, for %s", label, value, target_app, name)
         return True

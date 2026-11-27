@@ -105,3 +105,32 @@ def test_a_setting_not_on_the_form_is_looked_down_for_once_and_scrolled_back(mon
     downs = [d for kind, *rest in hand.done if kind == "scroll" for d in rest if d < 0]
     ups = [d for kind, *rest in hand.done if kind == "scroll" for d in rest if d > 0]
     assert len(downs) == setting.SCROLLS_AT_MOST and sum(ups) == -sum(downs)
+
+
+def test_what_her_practice_changed_is_put_back_for_the_next_game_she_is_asked_to_play() -> None:
+    from core.runtime.what_she_learned import recall
+
+    name = "the other player's strength"
+    marked = setting.FOR_HER_PRACTICE.set(True)
+    try:
+        setting._noted("A Board App", name, "24", "8")
+        # A second practice game does not replace what the setting held before practice changed it.
+        setting._noted("A Board App", name, "8", "4")
+    finally:
+        setting.FOR_HER_PRACTICE.reset(marked)
+    assert recall(setting.PUT_BACK)["A Board App"] == {name: "24"}
+    asked = setting.with_what_she_puts_back("Play a game against the program.", "A Board App")
+    assert setting.settings_the_goal_sets(asked) == [(name, "24")]
+    practice_goal = f"Play a game, with {name} set to 4."
+    assert setting.with_what_she_puts_back(practice_goal, "A Board App") == practice_goal
+    assert setting.with_what_she_puts_back("Play a game.", "Another App") == "Play a game."
+    # Set back and read back: nothing is left to put back.
+    setting._noted("A Board App", name, "4", "24")
+    assert recall(setting.PUT_BACK)["A Board App"] == {}
+
+
+def test_a_setting_the_person_asked_for_is_not_put_back_later() -> None:
+    from core.runtime.what_she_learned import recall
+
+    setting._noted("A Board App", "the other player's strength", "24", "10")
+    assert not (recall(setting.PUT_BACK) or {}).get("A Board App")

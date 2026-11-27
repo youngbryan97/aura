@@ -960,6 +960,11 @@ async def pursue_on_screen(
     # from outside and reported as "Completed 0/0 steps".
     began = time.monotonic()
     ends_at = min(began + float(max_seconds), float(deadline_at) if deadline_at > 0.0 else math.inf)
+    # What her own practice changed in this application is set back before anything else is done there
+    # (core/skills/screen_pursuit_a_setting.py).
+    from .screen_pursuit_a_setting import with_what_she_puts_back
+
+    goal = with_what_she_puts_back(goal, target_app)
     from uuid import uuid4
 
     MOVES_SAID.set({"at": 0.0, "line": "", "goal": goal, "place": target_app or expect_page or open_page,
