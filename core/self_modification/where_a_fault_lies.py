@@ -179,12 +179,58 @@ class ToLookUp(BaseModel):
                                 description="what is worth looking up before changing it, each as the words to search by")
 
 
-def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
-    """Her model, asked for a typed reading through her router; None where there is none to ask: no router to reach it
-    by (a test, or a process still starting) is no reading, as her model away is. Asked as background work, the router
-    gives it to her brainstem, and holds it while someone is talking with her."""
-    from core.container import ServiceContainer
+#: Where her readings of faults come from, by name in her log and to her generation lane.
+ORIGIN = "her_reading_of_a_fault"
 
+
+class HerCortexReads:
+    """A typed reading asked of her cortex as background work, under her generation lane's lease, as her goal passes and
+    her unprompted turns reach it (core/brain/her_unprompted_turn.on_her_lane): it gives way to a person and is not
+    begun while someone waits for her model. Asked of her router as background work, a reading went to her brainstem,
+    a 27B at two bits: LIVE 27 November 2026 it read her watchdog's report of a 59 s lag as a fault of the watchdog's to
+    change. Shaped as StructuredLLM is, ``generate`` and ``last_defer_reason``."""
+
+    def __init__(self, schema: type[BaseModel]) -> None:
+        self.schema = schema
+        self.last_defer_reason = ""
+
+    async def generate(self, prompt: str, *, is_background: bool = True, deadline_s: float = ASK_S) -> BaseModel | None:
+        from core.brain.her_unprompted_turn import on_her_lane
+        from core.brain.llm.token_budget_evidence import chars_per_token
+        from core.rebuilding.her_model import the_object_in
+        from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
+
+        self.last_defer_reason = ""
+        messages = [{"role": "user", "content": prompt}]
+        # One closed question's answer, and the longest text a field of the schema may hold, in her measured tokens.
+        longest = max((int(field.metadata[0].max_length) for field in self.schema.model_fields.values()
+                       if field.metadata and getattr(field.metadata[0], "max_length", None)), default=0)
+        ratio = max(chars_per_token().ratio, 1.0)
+        answer_tokens = A_CLOSED_QUESTIONS_FLOOR + int(longest / ratio)
+
+        async def read(client: Any, seconds: float) -> str:
+            return str(await client.generate_text_async(
+                "", messages=messages, system_prompt="", origin=ORIGIN, is_background=is_background,
+                schema=self.schema.model_json_schema(), output_shape="json_object", read_by_a_machine=True,
+                max_tokens=answer_tokens, timeout=seconds) or "")
+
+        text = await on_her_lane(messages, origin=ORIGIN, least_s=deadline_s, work=read)
+        if text is None:
+            self.last_defer_reason = "her cortex is held for something else"
+            return None
+        found = the_object_in(text)
+        return self.schema.model_validate_json(found) if found else None
+
+
+def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
+    """Her model, asked for a typed reading: her cortex where it is loaded (HerCortexReads), else her router's
+    background tier; None where there is neither (a test, or a process still starting), which is no reading, as her
+    model away is."""
+    from core.container import ServiceContainer
+    from core.runtime.service_access import resolve_inference_gate
+
+    if hasattr(getattr(resolve_inference_gate(default=None), "_mlx_client", None), "generate_text_async"):
+        return HerCortexReads(schema)
     if ServiceContainer.get("llm_router", default=None) is None:
         return None
     try:

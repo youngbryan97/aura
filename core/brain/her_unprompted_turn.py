@@ -265,5 +265,13 @@ async def _on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: 
         release_external_generation_gate_lease(lease)
 
 
+async def on_her_lane(messages: list[dict[str, Any]], *, origin: str, least_s: float, work: Any) -> Any:
+    """``work(client, seconds)`` on her cortex's client under one lease of her generation lane, for one generation of
+    work of hers that is not a turn (her reading of a fault, core/self_modification/where_a_fault_lies.py); None when
+    her cortex is not hers now."""
+    return await _on_her_lane(messages, origin=origin, least_s=least_s, generations=1, needs="generate_text_async",
+                              work=work)
+
+
 __all__ = ["A_LOOK_AT_THE_SCREEN", "CONVERSATION_TURNS", "DESK_ORIGIN", "her_conversation_now_with", "her_turn_at_the_desk", "her_turn_on",
-           "on_her_cortex", "what_she_finished"]
+           "on_her_cortex", "on_her_lane", "what_she_finished"]

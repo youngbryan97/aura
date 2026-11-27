@@ -260,3 +260,33 @@ def test_a_reading_her_model_put_off_leaves_the_fault_to_her_next_cycle(her_sour
     monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
     again = asyncio.run(mending.mend(fault, proposals=4, seconds=30.0))
     assert goals.load(again["slug"]).last_check["by_design"] and model.asked
+
+
+def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_hers(monkeypatch):
+    """Asked of her router as background work, a reading went to her brainstem, a 27B at two bits; it read her
+    watchdog's report of a 59 s lag as the watchdog's to change (LIVE 27 November 2026)."""
+    from core.brain import her_unprompted_turn
+
+    asked: list[dict] = []
+
+    class Cortex:
+        async def generate_text_async(self, prompt, **kwargs):
+            asked.append(kwargs)
+            return '<think>a refusal of an empty word</think>{"on_purpose": true, "lies_in": "what called it", ' \
+                   '"why": "it refuses an empty word, and was given one"}'
+
+    async def lane(messages, *, origin, least_s, work):
+        return await work(Cortex(), least_s)
+
+    monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
+    judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
+    assert judged.leaves_the_function and judged.lies_in == "what called it"
+    assert asked[0]["is_background"] and asked[0]["output_shape"] == "json_object" and asked[0]["schema"]
+    assert asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
+
+    async def held(messages, *, origin, least_s, work):
+        return None
+
+    monkeypatch.setattr(her_unprompted_turn, "on_her_lane", held)
+    with pytest.raises(lies.NotReadNow):
+        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
