@@ -688,6 +688,34 @@ def _record_budget_that_ran_out_thinking(budget_tokens: int, model: str = "") ->
         return
 
 
+def _record_channel_cut_short(budget_tokens: int, model: str = "") -> None:
+    """Tell the reserve the decoder closed the channel at this budget before the model had (a censored reading)."""
+
+    try:
+        from core.brain.llm.thinking_reserve import record_channel_cut_short
+
+        record_channel_cut_short(budget_tokens=budget_tokens, model=model)
+    except (ImportError, TypeError, ValueError) as exc:
+        logger.debug("Channel cut not recorded: %s", exc)
+        return
+
+
+def _channel_and_room(job: dict[str, Any] | None, max_tokens: int, model_path: str) -> tuple[int, int]:
+    """The private channel's bound and the generation's tokens, the channel's room added on top of the answer's.
+
+    What the channel may take is what was added on top for it, as far as this generation's clock allows. It was bound by
+    the answer's own budget instead, which a pressure cap holds at 384 tokens for a call of hers: LIVE 27 November 2026
+    the channel was closed at 368 tokens 75 times in a day with the room for it added and unused, and a step that ends
+    mid-thought writes no call.
+    """
+    channel = _the_private_channel_budget(job, max_tokens)
+    reserve = max(_reasoning_reserve_tokens(model_path), channel)
+    if reserve <= 0:
+        return channel, max_tokens
+    room = max_tokens + reserve
+    return max(channel, min(reserve, _the_private_channel_budget(job, room))), room
+
+
 def _the_private_channel_budget(job: dict[str, Any] | None, max_tokens: Any) -> int:
     """How many tokens the private channel may spend, from its one owner."""
 
@@ -5261,7 +5289,7 @@ def _mlx_worker_loop_single_post_generation(disable_prompt_cache, final_prompt_c
             job.get("origin") or "-",
         )
 
-def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_path, native_channels, native_thinking, surface_control_state, token_count):
+def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_path, native_channels, native_thinking, surface_control_state, token_count, channel_cut_at=0):
     current_response = native_channels.surface
     surface_control_state.update(
         {
@@ -5275,6 +5303,13 @@ def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_pa
         }
     )
     if native_thinking is True:
+        # Cut short, by the decoder at the channel's bound or by the
+        # budget inside the channel: a reading of more than this, recorded
+        # first so the spend below is not read as what reasoning cost.
+        if channel_cut_at > 0:
+            _record_channel_cut_short(channel_cut_at, model_path)
+        elif not native_channels.boundary_closed and not deadline_hit and token_count >= max_tokens:
+            _record_channel_cut_short(token_count, model_path)
         # Only a generation that HAD a private channel says what one
         # costs. Recording the rest fills the window with zeros, and a
         # percentile over mostly-zeros is zero — so the reserve stayed
@@ -6944,10 +6979,7 @@ def _mlx_worker_loop(
                     # measured reserve when there is one; otherwise the bound
                     # the decoder will hold, so the channel never comes out of
                     # the answer's own tokens.
-                    _channel_budget = _the_private_channel_budget(job, max_tokens)
-                    _reserve = max(_reasoning_reserve_tokens(model_path), _channel_budget)
-                    if _reserve > 0:
-                        max_tokens += _reserve
+                    _channel_budget, max_tokens = _channel_and_room(job, max_tokens, model_path)
                 max_tokens = _serving_lane_output_cap(
                     model_path,
                     str(job.get("serving_lane") or "foreground_standard"),
@@ -8208,7 +8240,11 @@ def _mlx_worker_loop(
                                         current_response,
                                         native_thinking=(native_thinking is True),
                                     )
-                                    current_response = _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_path, native_channels, native_thinking, surface_control_state, token_count)
+                                    try:
+                                        _cut_at = int((getattr(_channel_bound, "state", None) or {}).get("forced_at", 0) or 0)
+                                    except (NameError, TypeError, ValueError):
+                                        _cut_at = 0
+                                    current_response = _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_path, native_channels, native_thinking, surface_control_state, token_count, channel_cut_at=_cut_at)
                                     response_text = (
                                         f"{operator_response_prefix}{current_response}"
                                         if operator_evidence_contract and current_response.strip()
@@ -9354,8 +9390,7 @@ def _mlx_worker_loop(
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
                 _channel_budget = 0
                 if native_thinking is True:
-                    _channel_budget = _the_private_channel_budget(job, max_tokens)
-                    max_tokens += max(_reasoning_reserve_tokens(model_path), _channel_budget)
+                    _channel_budget, max_tokens = _channel_and_room(job, max_tokens, model_path)
                 max_tokens = _serving_lane_output_cap(
                     model_path,
                     str(job.get("serving_lane") or "foreground_standard"),

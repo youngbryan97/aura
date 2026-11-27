@@ -52,6 +52,14 @@ _PERCENTILE = 0.9
 _observed: deque[int] = deque(maxlen=_WINDOW)
 _observed_by_model: dict[str, deque[int]] = {}
 
+#: The channel budgets the decoder closed a generation's private channel at before the model had, by model, each with
+#: when: what reasoning cost MORE than, a censored reading beside the window's exact ones. Counted as exact, the cut
+#: readings set the reserve at the bound that cut them: LIVE 27 November 2026, 18 of the cortex's 128 readings were
+#: 360 to 372 tokens, generations closed at a 368-token bound, and the window's 90th percentile stood at 371.
+_cut_short_by_model: dict[str, deque[tuple[int, float]]] = {}
+#: A cut just recorded for a model, whose generation's own spend the window is not to read as what reasoning cost.
+_cut_pending: dict[str, int] = {}
+
 #: The largest budget a generation has been given and still not finished
 #: thinking inside. Unlike the window this is a proof rather than a sample: the
 #: channel demonstrably needs more than this, so one observation is enough and
@@ -90,6 +98,15 @@ def _reasoning_window_for(model: str | None) -> deque[int]:
     if held is None:
         held = deque(maxlen=_WINDOW)
         _observed_by_model[name] = held
+    return held
+
+
+def _cut_short_for(model: str | None) -> deque[tuple[int, float]]:
+    name = _model_key(model)
+    held = _cut_short_by_model.get(name)
+    if held is None:
+        held = deque(maxlen=_WINDOW)
+        _cut_short_by_model[name] = held
     return held
 
 
@@ -140,8 +157,66 @@ def record_reasoning_cost(
         return
     spent = int(round(tokens * (reasoning / total_chars)))
     with _lock:
+        if _cut_pending.pop(_model_key(model), None) is not None:
+            return  # cut short: what it spent is not what reasoning cost, and its reading is the cut's
         _reasoning_window_for(model).append(max(0, spent))
     _written_down()
+
+
+def record_channel_cut_short(*, budget_tokens: int, model: str = "") -> None:
+    """The decoder closed the private channel at this budget before the model had: what reasoning cost was more.
+
+    A censored reading. The same generation's spend is left out of the window, which would read it as an exact cost
+    at the bound that cut it. Recorded before that spend is, by the generation that was cut.
+    """
+    try:
+        budget = int(budget_tokens)
+    except (TypeError, ValueError) as exc:
+        logger.debug("Cut budget is not a number, recording no reading: %s", exc)
+        return
+    if budget <= 0:
+        return
+    import time
+
+    with _lock:
+        _cut_short_for(model).append((budget, round(time.time(), 3)))
+        _cut_pending[_model_key(model)] = budget
+    _written_down()
+
+
+def _what_reasoning_costs(model: str | None) -> int:
+    """What the private channel costs at _PERCENTILE, from exact readings and readings cut short, by the product-limit
+    estimate of Kaplan and Meier (1958), which takes a cut reading as "more than this"; 0 with too few readings. The
+    caller holds ``_lock``.
+
+    Where the cut readings leave more than 1 - _PERCENTILE of generations still thinking past every reading, the
+    quantile lies past all of them, and what is given is twice the largest: the doubling search for a bound nothing yet
+    reaches (Bentley and Yao, 1976). Each generation it is too small for is a cut reading at it, and the next doubles.
+    """
+    exact = list(_reasoning_window_for(model))
+    cut = [budget for budget, _at in _cut_short_for(model)]
+    if len(exact) + len(cut) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
+        return 0
+    if not cut:
+        seen = sorted(exact)
+        return max(0, seen[min(len(seen) - 1, int(_PERCENTILE * len(seen)))])
+    at_risk = len(exact) + len(cut)
+    surviving = 1.0
+    ended: dict[int, int] = {}
+    for value in exact:
+        ended[value] = ended.get(value, 0) + 1
+    censored: dict[int, int] = {}
+    for value in cut:
+        censored[value] = censored.get(value, 0) + 1
+    for value in sorted(set(ended) | set(censored)):
+        # At a tie a reading that ended is counted before one cut there, as the estimate is conventionally taken.
+        finished = ended.get(value, 0)
+        if finished:
+            surviving *= 1.0 - finished / at_risk
+            if surviving <= 1.0 - _PERCENTILE + 1e-12:
+                return max(0, value)
+        at_risk -= finished + censored.get(value, 0)
+    return 2 * max([*exact, *cut])
 
 
 def record_budget_that_ran_out_thinking(
@@ -307,12 +382,8 @@ def reserve_tokens(model: str = "") -> int:
     _restore_once()
     _take_back_any_newer_proof()
     with _lock:
-        seen = sorted(_reasoning_window_for(model))
+        measured = _what_reasoning_costs(model)
         proved = _proved_insufficient_by_model.get(_model_key(model), 0)
-    measured = 0
-    if len(seen) >= _ENOUGH_TO_EXPRESS_A_PERCENTILE:
-        index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
-        measured = max(0, seen[index])
     return max(measured, proved)
 
 
@@ -330,11 +401,7 @@ def measured_reserve_tokens(model: str = "") -> int:
 
     _restore_once()
     with _lock:
-        seen = sorted(_reasoning_window_for(model))
-    if len(seen) < _ENOUGH_TO_EXPRESS_A_PERCENTILE:
-        return 0
-    index = min(len(seen) - 1, int(_PERCENTILE * len(seen)))
-    return max(0, seen[index])
+        return _what_reasoning_costs(model)
 
 
 def record_decode_rate(
@@ -626,6 +693,8 @@ def _drop_what_was_learned() -> None:
 
     _observed.clear()
     _observed_by_model.clear()
+    _cut_short_by_model.clear()
+    _cut_pending.clear()
     _rates.clear()
     _read_rates.clear()
     _delivery_costs.clear()
@@ -799,6 +868,11 @@ def _merge_reasoning_measurements(stored: dict[str, Any]) -> None:
             _one_int,
         )
 
+    cut = stored.get("channel_cut_short_by_model")
+    if isinstance(cut, dict):
+        for name, readings in cut.items():
+            _put_older_readings_first(_cut_short_for(str(name)), readings, _one_pair)
+
     finished = stored.get("finished_within_by_model")
     if isinstance(finished, dict):
         for name, value in finished.items():
@@ -892,6 +966,10 @@ def save() -> bool:
                         name: list(window)
                         for name, window in _observed_by_model.items()
                     },
+                },
+                "channel_cut_short_by_model": {
+                    name: [[budget, at] for budget, at in window]
+                    for name, window in _cut_short_by_model.items()
                 },
                 "finished_within_by_model": dict(_finished_within_by_model),
                 "proved_insufficient_by_model": dict(
