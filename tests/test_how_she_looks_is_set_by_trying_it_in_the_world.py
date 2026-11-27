@@ -68,3 +68,65 @@ def test_a_run_that_found_what_she_has_is_no_better(monkeypatch) -> None:
     said, scores = trying.tried_against_hers(None, _Weights(), {"a": 1.0}, 0, pairs_at_most=300, spread=0.25)
     assert said == "no better"
     assert len(scores) < 300
+
+
+def test_rounds_of_trying_how_she_looks_take_turns_with_rounds_of_rehearsal(monkeypatch) -> None:
+    import core.agency.what_a_kind_is_worth as worth
+
+    monkeypatch.setattr(trying, "felt_habits", lambda *args, **kwargs: ["shorten_by"])
+    monkeypatch.setattr(trying, "habits_as_set", lambda: {"shorten_by": 2.25})
+    monkeypatch.setattr(trying, "paired", lambda *args, **kwargs: 0.5)
+    monkeypatch.setattr(trying, "_engine", lambda: type("Engine", (), {"habits_as_set": staticmethod(lambda: "{}")}))
+    rehearsal = worth.a_first_rehearsal(NOBODYS_GAME)
+    rehearsal.rounds = 5
+    assert trying.wants_a_round(rehearsal)
+    last = trying.a_round_of_trying(rehearsal, NOBODYS_GAME, seconds=0.0)
+    assert last["tried"] == "how she looks" and last["kept"] is False
+    assert not trying.wants_a_round(rehearsal)
+    rehearsal.rounds = 6
+    assert trying.wants_a_round(rehearsal)
+
+
+def test_habits_a_run_finds_better_are_the_ones_she_plays_by(monkeypatch) -> None:
+    import core.agency.what_a_kind_is_worth as worth
+
+    monkeypatch.setattr(trying, "felt_habits", lambda *args, **kwargs: ["shorten_by"])
+    monkeypatch.setattr(trying, "habits_as_set", lambda: {"shorten_by": 2.25})
+    # Enough pairs for the test to decide: four pairs won outright cannot show a way better.
+    monkeypatch.setattr(trying, "PAIRS_GIVEN", 12)
+
+    def paired(family, weights, these, those, nodes, *, seed):
+        # Whatever is tried as found, or moved up, wins its pair.
+        return 1.0 if these != those and these.get("shorten_by", 0) >= those.get("shorten_by", 0) else 0.5
+
+    monkeypatch.setattr(trying, "paired", paired)
+    rehearsal = worth.a_first_rehearsal(NOBODYS_GAME)
+    rehearsal.rounds = 1
+    said = None
+    for _ in range(40):
+        last = trying.a_round_of_trying(rehearsal, NOBODYS_GAME, seconds=0.001)
+        if last["kept"]:
+            said = last
+            break
+        rehearsal.rounds += 1
+    assert said is not None
+    assert rehearsal.weights.habits["shorten_by"] == pytest.approx(said["habits"]["shorten_by"], abs=1e-3)
+    assert rehearsal.trying_looks is None
+
+
+def test_a_run_under_way_is_kept_with_her_record_and_comes_back() -> None:
+    import core.agency.what_a_kind_is_worth as worth
+    import core.skills.screen_pursuit_board_of_pieces as pursuit
+    from core.perception.pieces_by_their_look import Looks
+
+    from tests.fixtures.a_game_of_pieces_to_learn import CHESS
+
+    rehearsal = worth.a_first_rehearsal(CHESS)
+    rehearsal.earned = ["worth"]
+    run = trying.Trying.begun(["shorten_by"], {"shorten_by": 2.25}, pairs_given=400, seed=3)
+    run.played, run.scores = 2, [0.5, 0.75]
+    rehearsal.trying_looks, rehearsal.looks_tried_after = run.as_dict(), 7
+    pursuit._keep_what_she_learned("A Board App", Looks(), None, rehearsal)
+    back = pursuit._what_she_kept("A Board App")["rehearsal"]
+    assert back.looks_tried_after == 7
+    assert trying.Trying.from_dict(back.trying_looks) == run

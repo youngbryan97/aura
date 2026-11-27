@@ -307,6 +307,10 @@ class Rehearsal:
     together_tried_at: float = 1.0
     #: What the positions of her games came to, for learning what lies beyond her search's horizon.
     came_to: WhatGamesCameTo = field(default_factory=WhatGamesCameTo)
+    #: A run of setting how she looks by trying it, under way (core/agency/how_she_looks_set_by_trying.py), and the
+    #: round of rehearsal after which a round of it was last played: rounds of the two take turns.
+    trying_looks: dict[str, Any] | None = None
+    looks_tried_after: int = -1
 
 
 def _engine() -> Any | None:

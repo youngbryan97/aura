@@ -40,7 +40,11 @@ def _rounds_run(monkeypatch) -> list[int]:
         return rehearsal
 
     monkeypatch.setattr(worth, "rehearse", a_round)
-    # Every round here is a round of rehearsal: preparing and looking into losses have tests of their own.
+    # Every round here is a round of rehearsal: preparing, looking into losses and trying how she looks have tests of
+    # their own.
+    import core.agency.how_she_looks_set_by_trying as trying
+
+    monkeypatch.setattr(trying, "wants_a_round", lambda rehearsal: False)
     monkeypatch.setattr(practice, "_prepare_some", lambda name: 0)
     monkeypatch.setattr(practice, "_investigate_some", lambda name, written: 0)
     monkeypatch.setattr(practice, "_HELD", {})

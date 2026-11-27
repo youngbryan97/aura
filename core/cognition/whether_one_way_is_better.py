@@ -42,8 +42,9 @@ class Comparison:
             return 0.0
         mean = sum(self.scores) / n
         # How widely pairs spread, measured as though one more pair had been lost outright and one won (the rule of
-        # succession): a few pairs alike say little of it, and many say what they say. Measured on its own, a short run
-        # of pairs alike read as certainty: a way no better was kept in one test of ten, set at one in twenty.
+        # succession): the two count for much beside a few pairs alike and for little beside hundreds. Measured on its
+        # own, a short run of pairs alike read as certainty: a way no better was kept in one test of ten, set at one in
+        # twenty.
         spread = (sum((s - mean) ** 2 for s in self.scores) + mean ** 2 + (1 - mean) ** 2) / (n + 1)
         even = 0.5
         return n * (self.better - even) * (2 * mean - even - self.better) / (2 * spread)

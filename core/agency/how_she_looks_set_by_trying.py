@@ -94,6 +94,9 @@ class Trying:
     played: int = 0
     seed: int = 0
     scores: list[float] = field(default_factory=list)
+    #: Once the pairs given are played: the habits found, and the pairs they have played against hers since.
+    found: dict[str, float] | None = None
+    tested: list[float] = field(default_factory=list)
 
     @classmethod
     def begun(cls, names: list[str], standing: dict[str, float], pairs_given: int, seed: int = 0) -> Trying:
@@ -127,6 +130,50 @@ class Trying:
 
     def done(self) -> bool:
         return self.played >= self.pairs_given
+
+    def a_round(self, family: Any, weights: Any, nodes: int, seconds: float) -> str | None:
+        """Pairs played for about ``seconds``: the habits moved while the pairs given last, then what they found
+        played against hers. "better" or "no better" once the sequential test decides (undecided after as many pairs
+        as the run was given is no better); None while it goes on."""
+        import statistics
+        import time
+
+        from core.cognition.whether_one_way_is_better import Comparison
+
+        began = time.monotonic()
+        while time.monotonic() - began < seconds:
+            if not self.done():
+                self.one_pair(family, weights, nodes)
+                continue
+            if self.found is None:
+                self.found = self.habits()
+            # The margin is what a test of as many pairs as the run had can tell: two standard errors of pairs that
+            # spread as the run's did.
+            spread = statistics.pstdev(self.scores) if len(self.scores) > 1 else 0.25
+            test = Comparison(better=0.5 + 2 * (spread or 0.25) / math.sqrt(max(1, self.pairs_given)),
+                              scores=list(self.tested))
+            hers = {**habits_as_set(), **dict(weights.habits or {})}
+            rng = random.Random(self.seed * 7_919 + len(self.tested))
+            said = test.add(paired(family, weights, self.found, {n: hers[n] for n in self.found}, nodes,
+                                   seed=rng.randrange(1 << 30)))
+            self.tested = test.scores
+            if said:
+                return said
+            if len(self.tested) >= self.pairs_given:
+                return "no better"
+        return None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"names": self.names, "at": self.at, "pairs_given": self.pairs_given, "played": self.played,
+                "seed": self.seed, "scores": self.scores, "found": self.found, "tested": self.tested}
+
+    @classmethod
+    def from_dict(cls, held: dict[str, Any]) -> Trying:
+        return cls(names=[str(n) for n in held["names"]], at={str(k): float(v) for k, v in held["at"].items()},
+                   pairs_given=int(held["pairs_given"]), played=int(held.get("played", 0)),
+                   seed=int(held.get("seed", 0)), scores=[float(x) for x in held.get("scores", [])],
+                   found=({str(k): float(v) for k, v in held["found"].items()} if held.get("found") else None),
+                   tested=[float(x) for x in held.get("tested", [])])
 
 
 def paired(family: Any, weights: Any, these: dict[str, float], those: dict[str, float], nodes: int, *,
@@ -166,3 +213,60 @@ def tried_against_hers(family: Any, weights: Any, found: dict[str, float], nodes
         if said:
             return said, test.scores
     return "no better", test.scores
+
+
+#: Pairs a run is given: about an hour of her practice at her longer look in her model of chess, and a test of as many
+#: pairs tells a gain of about one game in forty.
+PAIRS_GIVEN = 400
+
+
+def _positions_of(family: Any, seed: int, count: int = 12) -> list[Any]:
+    """Positions of the world, each reached by moves drawn at random from its start: where a habit is felt or not."""
+    from core.agency.pieces_by_their_kind import after, moves
+
+    rng = random.Random(seed)
+    found: list[Any] = []
+    for _ in range(count * 4):
+        if len(found) >= count:
+            break
+        position = family.the_start()
+        for _ply in range(rng.randint(6, 40)):
+            legal = moves(family, position)
+            if not legal:
+                break
+            position = after(family, position, rng.choice(legal))
+        if moves(family, position):
+            found.append(position)
+    return found
+
+
+def wants_a_round(rehearsal: Any) -> bool:
+    """Whether her practice's next round is one of trying how she looks: rounds of it and of rehearsal take turns."""
+    return _engine() is not None and hasattr(_engine(), "habits_as_set") and \
+        int(getattr(rehearsal, "looks_tried_after", -1)) < int(getattr(rehearsal, "rounds", 0))
+
+
+def a_round_of_trying(rehearsal: Any, family: Any, seconds: float) -> dict[str, Any]:
+    """One round of setting how she looks: a run begun where none is under way, its pairs played for about
+    ``seconds``, and what it found kept in the weights she plays by where the test finds it better."""
+    from core.agency.what_a_kind_is_worth import LONGER_LOOK_NODES
+
+    weights = rehearsal.weights
+    rehearsal.looks_tried_after = int(rehearsal.rounds)
+    run = Trying.from_dict(rehearsal.trying_looks) if rehearsal.trying_looks else None
+    if run is None:
+        felt = felt_habits(family, _positions_of(family, int(rehearsal.rounds)), weights, LONGER_LOOK_NODES)
+        if not felt:
+            return {"tried": "how she looks", "felt": 0, "kept": False}
+        standing = {**habits_as_set(), **dict(weights.habits or {})}
+        run = Trying.begun(felt, standing, PAIRS_GIVEN, seed=int(rehearsal.rounds))
+    said = run.a_round(family, weights, LONGER_LOOK_NODES, seconds)
+    last: dict[str, Any] = {"tried": "how she looks", "felt": len(run.names), "moving": run.played,
+                            "tested": len(run.tested), "kept": said == "better"}
+    if run.tested:
+        last["scored"] = round(sum(run.tested) / len(run.tested), 3)
+    if said == "better" and run.found:
+        rehearsal.weights = replace(weights, habits={**dict(weights.habits or {}), **run.found})
+        last["habits"] = {name: round(value, 3) for name, value in run.found.items()}
+    rehearsal.trying_looks = None if said else run.as_dict()
+    return last

@@ -282,7 +282,14 @@ def _one_rehearsal(name: str, written: tuple[int, int]) -> dict[str, Any] | None
     if not any(kind.steps for kind in family.kinds.values()):
         return None
     began = time.monotonic()
-    rehearsal = rehearse(family, family.the_start(), rehearsal, seed=int(time.time()) % 100_000)
+    from core.agency.how_she_looks_set_by_trying import a_round_of_trying, wants_a_round
+
+    if _HELD.get("round_s") and wants_a_round(rehearsal):
+        # Rounds of trying how she looks take turns with rounds of rehearsal, each as long as the last of those took.
+        rehearsal.last = a_round_of_trying(rehearsal, family, seconds=float(_HELD["round_s"]))
+    else:
+        rehearsal = rehearse(family, family.the_start(), rehearsal, seed=int(time.time()) % 100_000)
+        _HELD["round_s"] = time.monotonic() - began
     _HELD["rehearsal"] = rehearsal
     if _PLAYING:
         # A game begun while the round ran owns her record of the board, and writes it when it ends: the round is not
