@@ -2506,6 +2506,20 @@ def _build_prefill_progress_callback(
     return report
 
 
+def _what_mlx_holds(mx_module: Any) -> dict[str, int]:
+    """What MLX holds in this worker: in use (the weights, the caches of prompts in use, what a step works in), and
+    freed buffers kept for reuse, which can be given back. Empty where it cannot say (no MLX, or a build without the
+    readings). LIVE 26 November 2026 the cortex's worker stood at 25 GB, 19 GB of it compressed, beside a second model
+    of 11 GB, and nothing said how much of either was buffers kept for reuse."""
+    if mx_module is None:
+        return {}
+    try:
+        return {"active_bytes": int(mx_module.get_active_memory()), "cache_bytes": int(mx_module.get_cache_memory())}
+    # not a failure: a build of MLX without these readings says nothing of them.
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return {}
+
+
 def _prompt_cache_entry_budget_for_model(model_path: str) -> int:
     # Measured weight class (artifact evidence first): a renamed heavy model
     # previously inherited the 12-entry cache budget of an unknown small lane.
@@ -9177,6 +9191,7 @@ def _mlx_worker_loop(
                             if prompt_cache_lru is not None
                             else 0
                         ),
+                        "mlx_memory": _what_mlx_holds(mx),
                         "soft_cancelled": bool(soft_cancelled),
                         "deadline_exceeded": bool(deadline_hit),
                         "generation_stop_reason": generation_stop_reason,

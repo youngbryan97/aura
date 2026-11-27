@@ -417,6 +417,12 @@ class MemoryGovernor:
             pid = getattr(getattr(client, "_process", None), "pid", None)
             if isinstance(pid, int):
                 models[pid] = os.path.basename(str(key).rstrip("/"))
+                # What its MLX held when it last answered: in use, and freed buffers kept for reuse, which can be given
+                # back. A worker's size alone did not say which.
+                held_by_mlx = getattr(client, "_last_mlx_memory", None) or {}
+                if held_by_mlx:
+                    models[pid] += (f" (MLX in use {int(held_by_mlx.get('active_bytes', 0)) / 2 ** 20:.0f} MB, kept "
+                                    f"for reuse {int(held_by_mlx.get('cache_bytes', 0)) / 2 ** 20:.0f} MB)")
         held = []
         for proc in self._iter_managed_runtime_processes():
             pid = int(proc.info.get("pid") or 0)

@@ -248,6 +248,9 @@ class _RecordsWhatTheWorkerDid:
                 )
             except (TypeError, ValueError, OverflowError) as exc:
                 logger.debug("prompt_cache_bytes is not an integer, leaving the last reading: %s", exc)
+        if isinstance(response, dict) and isinstance(response.get("mlx_memory"), dict):
+            # What MLX held in the worker when it answered: in use, and buffers kept for reuse.
+            self._last_mlx_memory = dict(response["mlx_memory"])
         receipt = _sanitize_surface_control_receipt(
             response.get("surface_control_receipt") if isinstance(response, dict) else None
         )
