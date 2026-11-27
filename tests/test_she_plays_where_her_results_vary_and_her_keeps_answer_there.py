@@ -131,22 +131,31 @@ def test_a_practice_game_is_due_only_when_nobody_is_at_the_machine_and_never_und
 
 
 def test_a_practice_game_s_points_are_kept_at_the_setting_it_was_played_at(monkeypatch) -> None:
+    import json
+
     import core.agency.practising_between_games as practice
-    import core.skills.screen_pursuit as pursuit
     import core.skills.screen_pursuit_board_of_pieces as board
+    from core.container import ServiceContainer
 
     rehearsal = _a_rehearsal()
     asked = []
 
-    async def pursue(**options):
-        from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
+    class _Engine:
+        """Her capability engine: where her will decides on an act of hers on the desktop, and it runs governed."""
 
-        # What a practice game changes is marked to be put back.
-        assert FOR_HER_PRACTICE.get()
-        asked.append(options["goal"])
-        return {"handed_over": {"ended": "won", "settings_set": {"the other player's strength": "4"}}}
+        async def execute(self, skill, params, context=None):
+            from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
 
-    monkeypatch.setattr(pursuit, "pursue_on_screen", pursue)
+            # What a practice game changes is marked to be put back.
+            assert FOR_HER_PRACTICE.get()
+            assert skill == "computer_use" and params["action"] == "pursue_on_screen"
+            assert context["origin"] == "her_practice"
+            asked.append(json.loads(params["target"])["goal"])
+            return {"handed_over": {"ended": "won", "settings_set": {"the other player's strength": "4"}}}
+
+    real_get = ServiceContainer.get
+    monkeypatch.setattr(ServiceContainer, "get",
+                        lambda name, default=None: _Engine() if name == "capability_engine" else real_get(name, default))
     monkeypatch.setattr(board, "_keep_what_she_learned", lambda *args, **kwargs: None)
     monkeypatch.setattr(practice, "_written_now", lambda name: (1, 1))
     monkeypatch.setattr(practice, "_held", lambda name, written: {"app": "A Board App"})

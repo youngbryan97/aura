@@ -374,23 +374,38 @@ def _a_practice_game_due(board: tuple[str, tuple[int, int]]) -> tuple[str, str, 
 async def _a_practice_game(name: str, app: str, setting: int) -> dict[str, Any] | None:
     """A game against the world's other player at ``setting`` of its strength, its points kept where her results vary
     and against any keep of her practice on trial there. What came of it."""
+    import json
+
     from core.agency.where_her_results_vary import came_from_a_game
-    from core.skills.screen_pursuit import pursue_on_screen
+    from core.container import ServiceContainer
+    from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
     from core.skills.screen_pursuit_board_of_pieces import _keep_what_she_learned
 
     rehearsal = _HELD.get("rehearsal")
     _GAME_AFTER_ROUND[0] = int(getattr(rehearsal, "rounds", 0))
     goal = f"Play a game against the other player, with the other player's strength set to {setting}."
+    # Her hands on the desktop act through her capability engine, where her will decides on them and they run under
+    # its lease, as every other act of hers on the desktop does. LIVE 27 November 2026 the first practice game called
+    # the pursuit itself, and its first click was refused as "called outside governed context".
+    engine = ServiceContainer.get("capability_engine", default=None)
+    if engine is None:
+        logger.info("a practice game in %s not begun: no capability engine to act through", app)
+        return None
     logger.info("a practice game in %s: %s", app, goal)
-    from core.skills.screen_pursuit_a_setting import FOR_HER_PRACTICE
-
+    target = {"goal": goal, "success_when": "the game has ended", "target_app": app,
+              "max_seconds": A_PRACTICE_GAME_S, "narrate": False}
+    context = {"origin": "her_practice", "source": "her_practice",
+               "objective": "a practice game against the world's other player where her results vary"}
     # What this game changes in the application is put back for the next game she is asked to play there.
     marked = FOR_HER_PRACTICE.set(True)
     try:
-        result = await pursue_on_screen(goal=goal, success_when="the game has ended", target_app=app,
-                                        max_seconds=A_PRACTICE_GAME_S, narrate=False)
+        result = await engine.execute("computer_use", {"action": "pursue_on_screen", "target": json.dumps(target)},
+                                      context)
     finally:
         FOR_HER_PRACTICE.reset(marked)
+    result = dict(result or {}) if isinstance(result, dict) else {}
+    if "handed_over" not in result and isinstance(result.get("result"), dict):
+        result = dict(result["result"])
     played = result.get("handed_over") or {}
     points = {"won": 1.0, "lost": 0.0, "drawn": 0.5}.get(str(played.get("ended") or ""))
     settings = dict(played.get("settings_set") or {})
