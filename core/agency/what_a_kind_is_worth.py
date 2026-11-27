@@ -609,6 +609,8 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
     rehearsal.rounds += 1
     trying, refreshing = what_to_try(rehearsal)
     groups = [*rehearsal.earned, *([trying] if trying else [])]
+    # Whether the candidate is a refit of the weighted sum, fitted afresh on its groups.
+    refit = False
     if trying == TOGETHER and refreshing:
         # Learned again, it goes to its match: the layer she plays by was learned on many of the positions any of
         # them would be held back on, so how each foretells them is no fair test between the two.
@@ -651,12 +653,9 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         candidate = fitted(family, np.array(rehearsal.samples_x, dtype=np.float64),
                            np.array(rehearsal.samples_y, dtype=np.float64), groups)
         if candidate is not None:
-            # A refit of what a weighted sum holds keeps what it does not fit as it was learned: how the pieces stand
-            # together, and what lies beyond the horizon, which is taught by how her games ended. LIVE 26 November 2026
-            # every refit kept since the 24th had set what lies beyond the horizon to nothing, and an earned group is not
-            # tried again: from 147 rounds to 474 her passed men and the like counted for nothing.
+            # A refit of what a weighted sum holds keeps how the pieces stand together as it was learned.
             candidate.learned = rehearsal.weights.learned
-            candidate.beyond = list(getattr(rehearsal.weights, "beyond", None) or [])
+            refit = True
     if candidate is not None:
         # And how she searches with it: a judgement refitted is played with the habits it is measured against.
         candidate.habits = dict(getattr(rehearsal.weights, "habits", None) or {})
@@ -711,6 +710,14 @@ def rehearse(family: Family, start: Position, rehearsal: Rehearsal, *, games: in
         rehearsal.royal = royal_kinds(family)
         if trying and trying not in rehearsal.earned:
             rehearsal.earned.append(trying)
+        if refit and BEYOND_THE_HORIZON in rehearsal.earned:
+            # What lies beyond the horizon is fitted with her search's score held fixed, on top of the judgement she
+            # had then. A refit fits the rest without it, and what it was worth is taken up by the rest: carried over,
+            # it would count twice; left earned and empty, it is never tried again. It is learned again on top of the
+            # judgement now kept. LIVE 26 November 2026 refits had left it empty and earned since the 24th; put back
+            # on her 474-round weights, the 147-round values scored 0.156 +- 0.075 against Stockfish at depth 7, where
+            # the same weights without them scored 0.312 +- 0.077.
+            rehearsal.earned.remove(BEYOND_THE_HORIZON)
     elif (rehearsal.teacher == RESULTS and trying and trying not in TAUGHT_BY_RESULTS and "worth" in rehearsal.earned
           and tries >= RESULTS_TRIED_AT_MOST):
         # What results could teach they have taught: from here her longer look teaches, on positions of its own.
