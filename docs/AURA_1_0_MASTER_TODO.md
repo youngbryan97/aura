@@ -8536,6 +8536,20 @@ needs her 27B free (her app down, or her app's own influence trials).
     gates again on her source as it now is, once that source has moved since it was last asked
     (`tests/test_a_draft_that_waits_is_asked_again.py`). Left for part 5: a mend undone in her running process
     and taken back out, seen end to end.
+    26 and 27 November, consulting and judgement (Bryan: "if she consults all her sources to help improve/inform
+    decisions"). Her goal passes look up what they need in her library and on the web (look_up, search_the_web,
+    d94daf09b; a lease fix in 119268b4f, after every search was refused). A fault she made again is looked up first,
+    by searches her model writes from the function and the call (b7907a946). Two drafts of hers waited to land wrong:
+    `and not coerced` made `_coerce_argv`'s refusal dead again, and a dropped report hid an unhealthy subsystem. So
+    where the function raised the fault itself, her cortex reads the function and the call before anything changes
+    it, under her lane's lease (`core/self_modification/where_a_fault_lies.py`, 119268b4f to afd68ce4d). A raise
+    read as done on purpose, with what should change lying elsewhere, stops the goal by design. Where that is what
+    called it, the call that built the refused argument, found by object identity, is mended as a fault of its own
+    (2fb4174ed). drop_statement no longer drops a statement that builds an exception. A goal that needs no change ends
+    with what came of it (nothing_to_change, b2345e788): "Running a self-integrity scan" had taken 352 passes. A pass
+    reads its goal as her own call's result, not as a person's message (32a9ae9b9, 3a41e0a20); her model had written
+    "Your messages have been empty the whole time". Left: her cortex's readings seen landing live, and the scan goal
+    ended by her.
 
 - [ ] F17 She carries out what she is asked to make, in full. Added 24 November, Bryan: "a polished, correct, and
     working product", for any game, app, site, tool or document, by systems that drive correctness past the 27B.
