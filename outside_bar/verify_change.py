@@ -554,17 +554,111 @@ def _read_all(descriptor: int, into: list[str]) -> threading.Thread:
     return thread
 
 
+#: Where a test run that finished whole is kept, under the repository's own git folder, so a check stopped before it
+#: ended (her start, a restart) goes on from the runs it had: LIVE 27 November 2026 her own yes's outside check of one
+#: draft ran half an hour four times, each stopped by a restart and begun again from nothing.
+_KEPT_RUNS = "aura-outside-check-runs"
+#: What stands for the checkout's own path in a kept run: each check makes its checkouts afresh, somewhere else.
+_THE_CHECKOUT = "@@the checkout@@"
+
+
+def _the_run_kept_as(checkout: Path, tests: Sequence[str], functions: Mapping[str, Sequence[str]] | None,
+                     lines: Mapping[str, Sequence[int]] | None, ballast: int, vary: bool) -> Path | None:
+    """Where this run is kept: by the commit the checkout holds, clean, what is run and watched, and the check's own
+    code; None where it cannot be kept (a checkout changed from its commit, or no git folder)."""
+    import hashlib
+
+    try:
+        if git(checkout, "status", "--porcelain", "--untracked-files=no").strip():
+            return None
+        head = git(checkout, "rev-parse", "HEAD").strip()
+        common = Path(git(checkout, "rev-parse", "--git-common-dir").strip())
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    common = common if common.is_absolute() else (checkout / common)
+    code = hashlib.sha256(b"".join((HERE / name).read_bytes() for name in ("verify_change.py", "value_witness.py")))
+    asked = json.dumps([head, list(tests), {name: list(names) for name, names in sorted((functions or {}).items())},
+                        {name: sorted(numbers) for name, numbers in sorted((lines or {}).items())}, ballast, vary,
+                        code.hexdigest(), sys.version], sort_keys=True)
+    return common.resolve() / _KEPT_RUNS / f"{hashlib.sha256(asked.encode('utf-8')).hexdigest()}.json"
+
+
+#: The kept runs this check took back or kept: taken away once it ends with a verdict.
+_RUNS_THIS_CHECK: list[Path] = []
+#: How old a kept run may be before it is swept, in seconds: a day. A check stopped and not asked again within a day
+#: has had its draft carried onto her source as it moved, under commits of its own, so its runs can never be taken back.
+_KEPT_RUNS_LAST_S = 86400.0
+
+
+def _sweep_kept_runs(repo: Path) -> None:
+    try:
+        common = Path(git(repo, "rev-parse", "--git-common-dir").strip())
+    except (subprocess.CalledProcessError, OSError):
+        return
+    folder = (common if common.is_absolute() else repo / common).resolve() / _KEPT_RUNS
+    now = time.time()
+    for kept in folder.glob("*") if folder.is_dir() else ():
+        try:
+            if now - kept.stat().st_mtime > _KEPT_RUNS_LAST_S:
+                kept.unlink()
+        except OSError:
+            continue
+
+
+def _kept_run(where: Path | None, checkout: Path) -> dict[str, Any] | None:
+    if where is None or not where.is_file():
+        return None
+    try:
+        text = where.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        run = json.loads(text.replace(_THE_CHECKOUT, json.dumps(os.path.realpath(checkout))[1:-1]))
+    except ValueError:
+        return None
+    _RUNS_THIS_CHECK.append(where)
+    return run
+
+
+def _keep_run(where: Path | None, checkout: Path, run: Mapping[str, Any]) -> None:
+    """A run kept once it finished whole: one that did not end, or whose watch was replaced, is evidence of nothing."""
+    if where is None or not run.get("finished") or not run.get("whole"):
+        return
+    text = json.dumps(run).replace(json.dumps(os.path.realpath(checkout))[1:-1], _THE_CHECKOUT)
+    try:
+        where.parent.mkdir(parents=True, exist_ok=True)
+        partial = where.with_suffix(f".{os.getpid()}.part")
+        partial.write_text(text, encoding="utf-8")
+        os.replace(partial, where)
+        _RUNS_THIS_CHECK.append(where)
+    except OSError:
+        return  # not kept: the next check runs it again, as every check did before
+
+
 def run_tests(checkout: Path, tests: Sequence[str], work: Path,
               functions: Mapping[str, Sequence[str]] | None = None,
               lines: Mapping[str, Sequence[int]] | None = None, ballast: int = 0, vary: bool = False) -> dict[str, Any]:
     """Each test's verdict and what the changed functions did, from a pytest run inside the boundary. ``lines`` names,
     for each file, the lines whose running is written down; ``lines_ran`` gives back those that ran. ``ballast`` is how
     many unrelated objects the run holds (BALLAST). ``vary`` makes each call on an argument no other process can make
-    again once more for each plain value moved, in place, and gives back what each came to as ``varied``."""
+    again once more for each plain value moved, in place, and gives back what each came to as ``varied``. A run of the
+    same commit with the same of these that finished whole before is taken from where it was kept."""
     empty: dict[str, Any] = {"verdicts": {}, "values": {}, "inputs": {}, "seen": [], "ran": [], "finished": True,
                              "whole": True, "ran_here": [], "lines_ran": [], "branches_ran": [], "varied": {}}
     if not tests:
         return empty
+    kept_as = _the_run_kept_as(checkout, tests, functions, lines, ballast, vary)
+    kept = _kept_run(kept_as, checkout)
+    if kept is not None:
+        return kept
+    run = _run_the_tests(checkout, tests, work, functions, lines, ballast, vary)
+    _keep_run(kept_as, checkout, run)
+    return run
+
+
+def _run_the_tests(checkout: Path, tests: Sequence[str], work: Path, functions: Mapping[str, Sequence[str]] | None,
+                   lines: Mapping[str, Sequence[int]] | None, ballast: int, vary: bool) -> dict[str, Any]:
+    """run_tests's run itself: one pytest process under the boundary."""
     token = secrets.token_hex(8)
     private, scratch, ran = work / f"p{token}", work / f"s{token}", work / secrets.token_hex(8)
     for folder in (private, scratch, ran):
@@ -2854,6 +2948,7 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
     except (OSError, subprocess.SubprocessError) as exc:
         raise CouldNotStart(f"{type(exc).__name__}: {exc}") from exc
     _take_away_what_killed_runs_left(repo)
+    _sweep_kept_runs(repo)
     work = Path(tempfile.mkdtemp())
     (work / _OWNER).write_text(str(os.getpid()))
     # Both checkouts carry the repository's own folder name, so the folder a test runs in does not say a check is running.
@@ -3164,11 +3259,16 @@ def verify(repo: Path, commit: str) -> dict[str, Any]:
                    "values_kept": values, "reverts_cleanly": {"held": reverted}}
         refused = not all(answer["held"] for answer in answers.values())
         verdict = "REFUSED" if refused or must_fix else "PROBATION" if doubts else "HELD"
-        return {"commit": commit, "files": files, "verdict": verdict, "held": verdict == "HELD",
-                "must_fix": must_fix[:20], "doubts": doubts[:20], **answers,
-                # Every input behind a line above, as data: a repair search narrows a patch on these without reading prose.
-                "counterexamples": shown_by}
+        result = {"commit": commit, "files": files, "verdict": verdict, "held": verdict == "HELD",
+                  "must_fix": must_fix[:20], "doubts": doubts[:20], **answers,
+                  # Every input behind a line above, as data: a repair search narrows a patch on these without reading prose.
+                  "counterexamples": shown_by}
+        # Ended with a verdict: its kept runs have served, and only a check stopped before it ended leaves its own.
+        for kept in _RUNS_THIS_CHECK:
+            kept.unlink(missing_ok=True)
+        return result
     finally:
+        _RUNS_THIS_CHECK.clear()
         for checkout in (old, new):
             subprocess.run(["git", "-C", str(repo), "worktree", "remove", "--force", str(checkout)], check=False,
                            capture_output=True)
