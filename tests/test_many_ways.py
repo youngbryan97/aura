@@ -661,3 +661,19 @@ def test_a_key_or_the_pointer_among_an_app_s_controls_is_not_looked_for_by_a_nam
 
     seen = next(r for r in _in_a_browser(run).generic if r.name == "the controls it was designed with are there")
     assert seen.ok, seen.why
+
+
+def test_what_a_field_shows_as_an_example_is_put_in_it_when_it_is_tried(tmp_path):
+    """LIVE 28 November 2026 a vocabulary trainer that takes words as "casa = house", as its field showed, was held to have no way
+    in: nothing put in its field when it was tried was ever of that form."""
+    words = """({
+  initial() { return { words: [], typed: "" }; },
+  update(s, e) { if (e.type === "input") return { ...s, typed: e.value }; if (e.name === "add") { const [es, en] = s.typed.split("=").map((x) => x.trim()); return es && en ? { ...s, words: [...s.words, { id: s.words.length + 1, es, en }], typed: "" } : s; } return s; },
+  view(s, ui) { return ui.column(ui.input("New word", "typed", s.typed, { placeholder: "e.g. casa = house" }), ui.button("Add word", "add", null, { icon: "plus" }), ui.list(s.words, (w) => `${w.es}: ${w.en}`)); },
+})"""
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Words", state={"words": [{"id": 1, "es": "casa", "en": "house"}], "typed": ""}), words, tests=""), tmp_path / "t.html", browser)
+
+    seen = next(r for r in _in_a_browser(run).generic if r.name == "it can be filled from how it opens")
+    assert seen.ok, seen.why
