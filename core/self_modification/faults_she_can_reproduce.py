@@ -387,7 +387,11 @@ def test_source(fault: HeardFault) -> str:
     """A test that makes the call again and fails if it raises what she raised, or records it again: her code catches
     and records most of its faults (CLAUDE.md, record_degradation), and a test that only waited for a raise passed on
     every one of those (LIVE 17-21 November 2026: "Not mended: its test did not raise what she raised", 5 of 12 stalls).
-    A fault SQLite named as a held database is made again with the database held."""
+    A fault SQLite named as a held database is made again with the database held.
+
+    The same fault gives the same test, however often it is heard: how often is kept with what she heard. LIVE 27 November
+    2026 the test was written again into her workspace at each hearing with its count changed, and a workspace with a
+    commit of hers on it could not then be brought up to her source, as a tree with changes in it is not rebased."""
     call = fault.call
     owner, _, rest = call.qualname.partition(".")
     callee = f"{owner}.{rest}" if rest else owner
@@ -397,7 +401,7 @@ def test_source(fault: HeardFault) -> str:
     held = _a_held_database(call.codes)
     head = (
         f'"""A fault from her own running, made again: {call.module}.{call.qualname} raised {call.error_type}.\n\n'
-        f"Heard {fault.times} time(s) from {fault.subsystem}, first at {when}: {said}\n"
+        f"Heard from {fault.subsystem}, first at {when}: {said}\n"
         f"Raised at {call.file}:{call.line}. Written by core/self_modification/faults_she_can_reproduce.py.\n"
         '"""\n'
     )

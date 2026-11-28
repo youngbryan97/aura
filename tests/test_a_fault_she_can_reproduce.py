@@ -308,3 +308,13 @@ def test_a_kept_method_fault_survives_a_restart(planted):
     before = faults.faults_heard()
     faults.forget_for_test()
     assert faults.recall() == 1 and faults.faults_heard() == before
+
+
+def test_the_same_fault_heard_again_gives_the_same_test(planted):
+    """LIVE 27 November 2026 her fault's test was written again at each hearing with its count changed, and her workspace,
+    a commit of hers on it and that change under it, could not be brought up to her source."""
+    import dataclasses
+
+    once = faults.HeardFault(the_call_that_failed(_raised(lambda: planted.share(10, 0))), "planted", 1.0, 1.0)
+    again = dataclasses.replace(once, times=4, last_at=9.0)
+    assert faults.test_source(once) == faults.test_source(again)

@@ -372,6 +372,19 @@ def ensure_workspace(record: GoalRecord) -> Path:
     return path
 
 
+def _put_back_her_fault_tests(workspace: Path) -> None:
+    """Where the only changes in a workspace are to the tests her loop writes of her faults, put them back as her commit
+    has them: her loop writes each again before it runs it (core/self_modification/faults_she_can_reproduce.py), so a
+    change to one is not an edit of hers. LIVE 27 November 2026 one, written again with its count changed, kept a
+    workspace with a commit of hers on it from being brought up to her source for five hours."""
+    from core.self_modification.faults_she_can_reproduce import FAULT_TESTS
+
+    changed = _git("status", "--porcelain", "--untracked-files=no", cwd=workspace).stdout.splitlines()
+    paths = [line[3:].strip() for line in changed if line.strip()]
+    if paths and all(Path(path).parent == FAULT_TESTS for path in paths):
+        _git("checkout", "--", *paths, cwd=workspace, effect="workspace")
+
+
 def _bring_it_up_to_the_source(record: GoalRecord) -> None:
     """Her workspace moved to the commit her source is at, carrying her uncommitted edits where git can.
 
@@ -387,6 +400,7 @@ def _bring_it_up_to_the_source(record: GoalRecord) -> None:
         return
     ahead = _git("rev-list", "--count", f"{head}..HEAD", cwd=record.workspace).stdout.strip()
     if ahead not in ("", "0"):
+        _put_back_her_fault_tests(record.workspace)
         # Commits of hers on the branch (a draft Bryan declined): replayed onto the new source, never dropped. A
         # rebase needs a clean tree, and an autostash would use the stash this checkout shares, so a branch that is
         # both ahead and dirty stays where it is.
@@ -409,8 +423,8 @@ def _bring_it_up_to_the_source(record: GoalRecord) -> None:
 _A_CALL_WRITTEN_OUT = re.compile(r"<tool_call>|<function=")
 
 
-def _what_she_said(words: str) -> str:
-    """Her words at a pass's end, up to any call she wrote out that the pass ended before running."""
+def said_before_a_call(words: str) -> str:
+    """Her words up to any call she wrote out that nothing ran: what follows it did not happen."""
     found = _A_CALL_WRITTEN_OUT.search(words or "")
     return (words[:found.start()] if found else words or "").strip()
 
@@ -425,13 +439,13 @@ def turns_from(steps: list[dict[str, Any]], room: int, said: list[dict[str, Any]
     """
     timeline = [("step", float(step.get("at") or 0.0), index, step) for index, step in enumerate(steps)]
     timeline += [("said", float(entry.get("at") or 0.0), index, entry) for index, entry in enumerate(said or ())
-                 if _what_she_said(str(entry.get("words") or ""))]
+                 if said_before_a_call(str(entry.get("words") or ""))]
     timeline.sort(key=lambda item: (item[1], item[0] == "said", item[2]))
     kept: list[dict[str, Any]] = []
     used = 0
     for kind, _at, index, item in reversed(timeline):
         if kind == "said":
-            words = _what_she_said(str(item.get("words") or ""))
+            words = said_before_a_call(str(item.get("words") or ""))
             if kept and used + len(words) > room:
                 break
             used += len(words)

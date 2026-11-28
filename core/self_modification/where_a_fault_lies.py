@@ -266,6 +266,15 @@ class HerCortexReads:
             # read_file for the app the event bridge's message named, and the choice after it had nothing to stand on.
             logger.info("her cortex asked to %s before it could say where the fault lies", wanted.get("tool"))
             return None
+        # A call written out that does not parse is a call all the same, and nothing ran it: what she found is what she
+        # wrote before it. LIVE 27 November 2026, 17:31, "<tool_call> <function=read_file> <path> ..." was kept as the
+        # reason _suppress_internal_leak was left as it is, and stood for five hours.
+        from core.agency.her_goal_at_work import said_before_a_call
+
+        found = said_before_a_call(found)
+        if not found:
+            logger.info("her cortex wrote out a call before it could say where the fault lies")
+            return None
         options = self.choices()
         which = [*asked, {"role": "assistant", "content": found},
                  {"role": "user", "content": "Which of these is what you found?\n" + "\n".join(options)}]

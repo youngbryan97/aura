@@ -121,10 +121,19 @@ async def _where_it_lies(record: Any, fault: Any, source: str, *, ask: bool = Tr
     # A reading her brainstem made is read again by her cortex where it is there: LIVE 27 November 2026 her
     # brainstem's readings, kept on her goals, were taken for her cortex's and it was never asked.
     reader = reader_of(her_model())
+    # A reading stands only where it was held against her model's own words, while her reader of words is here to hold it:
+    # LIVE 27 November 2026 a reading made at 17:31, before that was done, stood for five hours on a call her cortex had
+    # written out in place of a finding.
+    from core.self.how_her_words_stand import can_read_her_words
+
+    words_read = await asyncio.to_thread(can_read_her_words)
     for entry in reversed(record.said):
         kept = Judged.from_kept(entry.get("judged")) if isinstance(entry, dict) else None
-        if kept is not None and kept.function_digest == version and kept.stands_for(reader):
-            return kept
+        if kept is None or kept.function_digest != version or not kept.stands_for(reader):
+            continue
+        if words_read and entry["judged"].get("her_words") is None:
+            continue
+        return kept
     if not ask:
         return None
     consulted = next((str(entry.get("words") or "") for entry in reversed(record.said)

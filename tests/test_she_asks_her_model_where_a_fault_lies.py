@@ -421,3 +421,52 @@ def test_a_reading_her_own_words_do_not_bear_out_leaves_the_function_and_is_coun
     assert judged.leaves_the_function and "disagree" in judged.why
     assert mending.how_often_her_readings_agree(kept) == {"readings": 1, "read_by_her_words": 1, "agree": 0,
                                                          "agree_on_what_to_do": 0}
+
+
+@pytest.mark.parametrize("written, finding", [
+    ("<tool_call> <function=read_file> <path> /Users/her/app/index.html This is clearly a prompt artifact", None),
+    ("The check refuses an empty word on purpose. <tool_call> <function=read_file> <path> index.html", "The check refuses an empty word on purpose."),
+])
+def test_a_call_written_out_that_does_not_parse_is_no_finding(monkeypatch, written, finding):
+    """LIVE 27 November 2026, 17:31: "<tool_call> <function=read_file> <path> ..." did not parse as a call, and was kept as
+    the reason _suppress_internal_leak was left as it is."""
+    from core.brain import her_unprompted_turn
+
+    chose: list[dict] = []
+
+    class Cortex:
+        async def generate_text_async(self, prompt, **kwargs):
+            if kwargs.get("choose_from"):
+                chose.append(kwargs)
+                return "Done on purpose, as it was written to; what should change is in what called it"
+            return written
+
+    async def lane(messages, *, origin, least_s, work):
+        return await work(Cortex(), least_s)
+
+    monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
+    judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads()))
+    if finding is None:
+        assert judged is None and not chose
+    else:
+        assert judged is not None and judged.why == finding and "<tool_call>" not in chose[0]["messages"][-2]["content"]
+
+
+def test_a_reading_kept_before_her_words_were_held_against_it_is_asked_again_where_they_can_be(monkeypatch):
+    """LIVE 27 November 2026 a reading made at 17:31, before her model's words were held against her readings, stood for
+    five hours on a call written out in place of a finding."""
+    from core.self import how_her_words_stand
+
+    fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
+    record = goals.GoalRecord(goal="g", slug="mend-g")
+    old = {"on_purpose": True, "lies_in": "what called it", "why": "<tool_call> <function=read_file>",
+           "function_digest": lies.version_of(REFUSES, ARGV.qualname), "reader": "cortex", "asked": lies.THE_QUESTION_ASKED}
+    record.said.append({"judged": old})
+    model = _HerModel(False, "the function", "the function's own check is wrong")
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
+    # Without her reader of words, what was kept stands.
+    assert asyncio.run(mending._where_it_lies(record, fault, REFUSES)).why == old["why"] and not model.asked
+    monkeypatch.setattr(how_her_words_stand, "can_read_her_words", lambda: True)
+    monkeypatch.setattr(mending, "where_her_words_put_it", lambda judged: {})
+    judged = asyncio.run(mending._where_it_lies(record, fault, REFUSES))
+    assert model.asked and judged.why == "the function's own check is wrong"
