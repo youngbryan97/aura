@@ -56,7 +56,8 @@ def test_her_loop_says_which_pass_writes(monkeypatch):
 
     monkeypatch.setattr(client, "generate_text_async", generate, raising=False)
     monkeypatch.setattr(client, "get_last_surface_control_receipt", dict, raising=False)
-    tools = {"look": {"description": "Look.", "parameters": {"type": "object", "properties": {}}}}
+    # It takes something, so each pass asks her model for the call: one that takes nothing her steps make themselves.
+    tools = {"look": {"description": "Look.", "parameters": {"type": "object", "properties": {"at": {"type": "string"}}}}}
     asyncio.run(client.think_and_act("How many?", "", tools=tools, max_turns=3))
     assert told == [False, False, True]
 

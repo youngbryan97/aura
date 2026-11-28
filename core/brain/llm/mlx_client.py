@@ -11103,8 +11103,12 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 template_tools = self._normalize_tool_definitions_for_template({step: tools[step]})
                 native_tools = (template_tools or None) if native_on else None
                 messages[0]["content"] = system_prompt if native_tools else system_prompt + block_for({step: tools[step]})
+            # A step that takes nothing has nothing for her model to write: her steps make the call, and her model reads what
+            # came back. LIVE 28 November 2026, 00:4x, her model wrote no call for how_i_am_running, which takes nothing,
+            # and the step was let go.
+            given = {"tool": step, "args": {}} if step is not None and not _takes_anything(tools.get(step)) else None
             pass_began = time.monotonic()
-            raw = await self.generate_text_async(
+            raw = "" if given is not None else await self.generate_text_async(
                 "",
                 messages=messages,
                 tools=native_tools,
@@ -11146,7 +11150,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
                 # A call reaches the parser as produced; the REPLY is judged later, on the reply.
             )
             longest_pass_s = max(longest_pass_s, time.monotonic() - pass_began)
-            if not raw or not raw.strip():
+            if given is None and (not raw or not raw.strip()):
                 # An empty generation in tool mode looks identical from the
                 # outside to a model that declined to call anything: both end
                 # the loop with no tool_calls. They are different faults —
@@ -11187,7 +11191,7 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
 
             response_text = raw.strip()
 
-            tool_call = (
+            tool_call = given or (
                 self._extract_tool_call_payload(
                     response_text,
                     allowed_tools=None,  # a call to a tool not offered is a call, refused below, not words to serve
@@ -12113,6 +12117,17 @@ def _tool_effect_observed(raw_result: Any) -> bool:
     from core.epistemics.turn_effects import receipt_verifies_effect
 
     return receipt_verifies_effect({"ok": _tool_turn_outcome(raw_result) == "ok", "result": raw_result})
+
+
+def _takes_anything(definition: Any) -> bool:
+    """Whether a tool takes anything for her model to write. Where what it takes cannot be read, it does."""
+    if not isinstance(definition, dict):
+        return True
+    definition = definition.get("function", definition) if isinstance(definition.get("function"), dict) else definition
+    parameters = definition.get("parameters", definition.get("input_schema"))
+    if not isinstance(parameters, dict):
+        return True
+    return bool(parameters.get("properties")) or bool(parameters.get("required"))
 
 
 def _text_is_a_complete_tool_call(text: Any) -> bool:

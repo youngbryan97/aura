@@ -115,3 +115,33 @@ def test_steps_let_go_in_this_piece_of_work_are_not_offered_again() -> None:
     assert steps.next() == "change"
     steps.not_filled("change")
     assert steps.let_go() == ["find", "change"]
+
+
+def test_a_step_that_takes_nothing_is_called_by_her_steps_without_asking_her_model(monkeypatch) -> None:
+    """LIVE 28 November 2026, 00:4x: her model wrote no call for how_i_am_running, which takes nothing, and the step was
+    let go."""
+    from core.brain.llm.mlx_client import MLXLocalClient, _takes_anything
+    from core.container import ServiceContainer
+
+    tools = {"how": {"description": "how she is running", "parameters": {"type": "object", "properties": {}, "required": []}},
+             "find": TOOLS["find"]}
+    ran: list[tuple[str, dict]] = []
+    asked: list[list[str]] = []
+
+    class Engine:
+        async def execute(self, name, args, context=None, **_kwargs):
+            ran.append((name, dict(args)))
+            return {"ok": True, "result": name}
+
+    async def her_model(*_args, tools=None, writes_no_call=False, messages=None, **_kwargs):
+        system = str((messages or [{}])[0].get("content") or "")
+        asked.append(sorted(t.get("function", t).get("name", "") for t in (tools or [])) or sorted(n for n in ("how", "find") if f"• {n}:" in system))
+        return "All done." if writes_no_call else "I would rather say what I think."
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(lambda name, default=None: Engine() if name == "capability_engine" else default))
+    client = MLXLocalClient.__new__(MLXLocalClient)
+    client.max_tokens, client.model_path, client.generate_text_async = 512, "her-cortex", her_model
+    asyncio.run(client.think_and_act("how am I", "", tools=tools, max_turns=6, her_plan=["how", "find"]))
+    assert ran[0] == ("how", {}), "her steps made the call"
+    assert ["how"] not in asked, "her model was not asked to write a call that takes nothing"
+    assert not _takes_anything(tools["how"]) and _takes_anything(tools["find"]) and _takes_anything({"description": "unread"})

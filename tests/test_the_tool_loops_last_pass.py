@@ -16,7 +16,8 @@ from core.sandbox.untrusted_python import available_boundary
 from core.skills.code_repl import CodeREPLSkill
 from core.skills.her_draft import FindInSourceSkill, ReadSourceSkill
 
-_TOOLS = {"look": {"description": "Look.", "parameters": {"type": "object", "properties": {}}}}
+# It takes something, so each pass asks her model for the call: one that takes nothing her steps make themselves.
+_TOOLS = {"look": {"description": "Look.", "parameters": {"type": "object", "properties": {"at": {"type": "string"}}}}}
 _A_CALL = '```json\n{"tool": "look", "args": {}}\n```'
 
 
