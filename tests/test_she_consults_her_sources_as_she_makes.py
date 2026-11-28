@@ -115,6 +115,9 @@ def test_her_design_is_written_with_what_her_sources_say(tmp_path):
         consulting_module.consult = original
     designed = [p for name, p in prompts if name == "Design"]
     assert designed and "Peanuts and shellfish are common." in designed[0] and "Show each clash beside the dish." in designed[0]
+    (asked_of_sources,) = [p for name, p in prompts if name == "ToAsk"]
+    assert "Make me an app for my dinner party" in asked_of_sources and "Engineered pieces" not in asked_of_sources and "Tools can be written in" not in asked_of_sources, \
+        "her sources are asked about what was asked for, not about what she makes things from"
     assert any(h.get("what") == "consulted" for h in work._happened) and made.consulted is not None
 
 

@@ -214,7 +214,12 @@ class _Maker:
         if self.told:
             told += f"\nYou have told them of it, and what you told them is kept to where it goes with what they asked:\n{self.told}\n"
         if before is None:
-            told += await self._what_her_sources_say(told)
+            # Her sources are asked about what was asked for and what she told them of it, and not about the pieces and
+            # languages she makes things from. LIVE 28 November 2026, asked for a little app to keep track of the books
+            # somebody reads, given those she asked how to structure a Python command line, twelve pages about argparse came
+            # back, and it was designed as a command-line tool twice.
+            told += await self._what_her_sources_say(f"Somebody asked for a program:\n{self.asked}"
+                                                     + (f"\n\nYou have told them of it:\n{self.told}" if self.told else ""))
         if before is not None:
             told += f"\nIt was designed as:\n{before.model_dump_json()}\n\nWhat they have said since is the last of what they asked. "
         wrong: list[str] = []

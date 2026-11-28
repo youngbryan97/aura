@@ -8620,6 +8620,10 @@ needs her 27B free (her app down, or her app's own influence trials).
       shares a word; a passage of hers is kept now only where her encoder holds it as near the question as passages on record
       that answer theirs (`tests/test_she_consults_her_sources_as_she_makes.py`). What she said of a tool as she wrote it
       was shown twice; it is shown once.
+    - Asked again in a new conversation, it was designed as a command-line tool again. Her sources had been asked about the
+      design's whole prompt, with its catalogue of pieces for a tool in Python, so she asked them how to structure a Python
+      command line, and twelve pages about argparse went into the design. They are asked now about what was asked for and
+      what she told them of it (`tests/test_she_consults_her_sources_as_she_makes.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
