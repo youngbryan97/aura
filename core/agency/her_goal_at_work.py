@@ -584,8 +584,17 @@ async def work_a_while(goal: str, *, router: Any = None) -> GoalRecord:
     return record
 
 
+#: What _done_otherwise says of a goal her own time read and found nothing of hers to do: not work on her own source.
+NOTHING_OF_HERS_DOES_IT = object()
+
+
 async def _done_otherwise(goal: str) -> Any:
-    """What came of a goal that something other than work on her own source does; None where that is what it asks."""
+    """What came of a goal that something other than work on her own source does; None where that is what it asks, or
+    where it could not be read; NOTHING_OF_HERS_DOES_IT where it was read and nothing of hers brings it about.
+
+    That last was taken for work on her own source. LIVE 27 November 2026 "Stop interrupting me. I have asked three
+    times now.", somebody's words kept as a goal of hers, read as asking her to resume, was worked there three times,
+    each pass saying sorry to nobody: "You're right, I'm sorry. Go ahead — I'm all ears." """
     from core.container import ServiceContainer
 
     own = ServiceContainer.get("her_own_time", default=None)
@@ -594,7 +603,9 @@ async def _done_otherwise(goal: str) -> Any:
         return None
     try:
         option = await act_of(goal)
-        if option is None or option.kind == "goal" or option.does is None:
+        if option is None:
+            return NOTHING_OF_HERS_DOES_IT
+        if option.kind == "goal" or option.does is None:
             return None
         return await option.does()
     except (ImportError, AttributeError, KeyError, LookupError, OSError, RuntimeError, TypeError, ValueError, TimeoutError) as why:
@@ -610,6 +621,10 @@ async def work_as_task(goal: str, plan_id: str, trace_id: str) -> TaskResult:
     from core.agency.autonomous_task_engine import TaskResult
 
     looked = await _done_otherwise(goal)
+    if looked is NOTHING_OF_HERS_DOES_IT:
+        return TaskResult(plan_id=plan_id, goal=goal, succeeded=False, trace_id=trace_id, steps_completed=0,
+                          steps_total=0, summary="Nothing of hers brings about what this goal asks, and a change to her "
+                                                 "own source does not; it was not worked there.")
     if looked is not None:
         return TaskResult(plan_id=plan_id, goal=goal, succeeded=looked.got > 0.0, summary=looked.what, trace_id=trace_id,
                           steps_completed=int(looked.got > 0.0), steps_total=1)

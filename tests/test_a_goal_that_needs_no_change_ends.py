@@ -104,3 +104,26 @@ def test_a_stalled_goal_is_woken_only_by_what_could_change_how_it_goes(her_sourc
     assert work.what_it_stalled_on_has_moved(record, commit("core/notes.py", "def note_count():\n    return 1\n"))
     record.stalled_on = _git("rev-parse", "HEAD", cwd=her_source).strip()
     assert work.what_it_stalled_on_has_moved(record, commit("core/skills/her_draft.py", "# her tools\n"))
+
+
+def test_a_goal_her_own_time_finds_nothing_of_hers_to_do_is_not_worked_in_her_source(her_source, monkeypatch):
+    """LIVE 27 November 2026 somebody's words kept as a goal of hers, read as asking her to resume, were worked in her
+    source three times, each pass saying sorry to nobody."""
+    from types import SimpleNamespace
+
+    from core.container import ServiceContainer
+
+    async def nothing_does_it(goal):
+        return None
+
+    own = SimpleNamespace(act_of=nothing_does_it)
+    real_get = ServiceContainer.get
+    monkeypatch.setattr(ServiceContainer, "get",
+                        classmethod(lambda cls, name, default=None: own if name == "her_own_time" else real_get(name, default)))
+
+    async def never(goal, *, router=None):
+        raise AssertionError("not worked in her source")
+
+    monkeypatch.setattr(work, "work_a_while", never)
+    result = asyncio.run(work.work_as_task("Stop interrupting me. I have asked three times now.", "plan", "trace"))
+    assert not result.succeeded and "not worked there" in result.summary
