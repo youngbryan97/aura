@@ -114,6 +114,23 @@ def test_what_she_does_not_think_better_made_is_taken_back(tmp_path):
     assert any(row.get("verdict") == "as it was" for row in made.work.seen()["happened"]) and built[-1] == "kept"
 
 
+def test_what_she_would_change_that_cannot_be_built_is_taken_back_before_she_is_asked(tmp_path):
+    from core.making.trying import Result, Trial
+
+    made, built = _a_maker(tmp_path, _VIEW, Compared(better=True, thinks="It looks the same, and I like it."))
+
+    async def added_worse(rules, words=""):
+        built.append(rules)
+        made.has += rules
+        made.trial = Trial(rules=[Result(rules[0], False, "nothing says so where there are no dishes")])
+
+    made.added_where_it_is_not = added_worse
+    asyncio.run(made.looked_at_by_her())
+    assert [r.says for r in made.design.rules] == ["a dish can be added"] and made.has == ["a dish can be added"] and not made.trial.failing()
+    assert "test(" not in made.parts.tests and len(made.thought) == 1, "she is not asked to compare what was not built"
+    assert any(row.get("verdict") == "as it was" for row in made.work.seen()["happened"]) and built[-1] == "kept"
+
+
 def test_without_her_eyes_she_does_not_look_and_nothing_is_changed(tmp_path):
     made, built = _a_maker(tmp_path, _VIEW, None)
     made.eyes = None

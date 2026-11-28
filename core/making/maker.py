@@ -1009,6 +1009,14 @@ class _Maker:
         design.rules += [Rule(says=rule) for rule in rules]
         await self.tested(rules)
         await self.added_where_it_is_not(rules)
+        # What she would change is had only where it is built: where anything fails that did not, her rules or what they
+        # broke, it is taken back before she is asked whether it looks better, for a change not built looks as it did.
+        if {r.name for r in self.trial.failing()} - {r.name for r in was[1].failing()}:
+            self.parts, self.trial, self.design, self.has = was
+            self.work.happened("her_view", thinks="", verdict="as it was")
+            self.work.says("What I would change of it could not be built without something of it failing, so it is as it was.")
+            await self.kept()
+            return
         after = await self._screens()
         verdict = await compared(before, after, view, ask=self.ask, write=self.write, how=self.thinking) if after else None
         if verdict is not None and not verdict.better:
