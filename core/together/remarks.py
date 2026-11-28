@@ -48,7 +48,9 @@ def _interest(capture: str, change: float | None) -> tuple[float, str]:
         from core.conation.what_she_wants import get_what_she_wants
 
         record = get_what_she_wants()
-        about = [f"topic:{term}" for term in record.talk.subjects_of(capture)]
+        # What it is about, where it has been read; where not, read beside her for the next look, which on a still
+        # screen sees the same words.
+        about = [f"topic:{subject.title}" for subject in record.about.read_soon(capture) or []]
         regard = abs(record.regard_for_text(capture))
         stakes = {key: record.care.stake(key) for key in about}
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:

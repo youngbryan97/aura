@@ -31,6 +31,14 @@ include_rules = [
     "+core.affect",
     "+core.memory",
 
+    # What an exchange is about, read against her library by her encoder
+    # (core/conation/what_an_exchange_is_about.py). Both are read and neither
+    # writes text: the library is what things are, the encoder how near two
+    # texts are in meaning. Words alone were made into her wants ("this reply",
+    # "too cool"), and a want must name a thing.
+    "+core.knowledge",
+    "+core.cognition",
+
     # The learning organ, read one way. Conation asks whether a head has
     # earned authority over its arbitration weights and takes them if so; it
     # never writes there. This is the only edge that can change what conation

@@ -39,6 +39,8 @@ from core.runtime.state_ownership import state_root
 logger = logging.getLogger("Aura.Knowledge.LocalCorpus")
 
 _SCHEMA_VERSION = 1
+#: The index that finds a document by its title, in any case.
+TITLE_INDEX = "docs_title_nocase"
 
 # Terms: words of 2+ chars, plus standalone single digits/letters —
 # dropping them loses real discriminators ("Apollo 11" retrieval
@@ -153,6 +155,9 @@ class LocalCorpusStore:
             );
             """
         )
+        # What a name names is found by its title (titled): kept as documents come, so a new library never needs it
+        # built. One made before it was kept has it built once by tools/index_corpus_titles.py, never on a lane of hers.
+        conn.execute(f"CREATE INDEX IF NOT EXISTS {TITLE_INDEX} ON docs(title COLLATE NOCASE)")
         conn.execute(
             "INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)",
             (str(_SCHEMA_VERSION),),
@@ -394,6 +399,77 @@ class LocalCorpusStore:
         finally:
             conn.set_progress_handler(None, 0)
             conn.close()
+
+    def has_title_index(self) -> bool:
+        """Whether this library can find a document by its title without reading every title."""
+        if not self.db_path.exists():
+            return False
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return False
+        try:
+            return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?", (TITLE_INDEX,)).fetchone() is not None
+        except sqlite3.OperationalError:
+            return False
+        finally:
+            conn.close()
+
+    def titled(self, name: str, *, limit: int = 32) -> list[CorpusHit]:
+        """The documents titled ``name``, in any case, and those titled by it with what tells one sense of it from
+        another ("Parameter (computer programming)", "Monterey, California"); [] without the title index, which
+        reading every title instead would take seconds (9.9 s for one title on 28 November 2026)."""
+        said = " ".join(str(name or "").split())
+        if not said or not self.has_title_index():
+            return []
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return []
+        # Ranges on the index rather than LIKE, which would read "%" and "_" in a name as patterns: "Name (sense)", and
+        # "Name, Region", which is how the encyclopedia titles a place by where it is ("Monterey, California").
+        try:
+            rows = conn.execute(
+                "SELECT id, title, source, ingested_at FROM docs WHERE title = ? COLLATE NOCASE "
+                "OR (title >= ? COLLATE NOCASE AND title < ? COLLATE NOCASE) "
+                "OR (title >= ? COLLATE NOCASE AND title < ? COLLATE NOCASE) LIMIT ?",
+                (said, said + " (", said + " )", said + ", ", said + ",!", max(1, int(limit)))).fetchall()
+        except sqlite3.OperationalError as exc:
+            logger.debug("Corpus title lookup degraded to none: %s", exc)
+            return []
+        finally:
+            conn.close()
+        return [CorpusHit(title=str(row[1]), snippet="", source=str(row[2]), rank=0.0, doc_id=int(row[0]),
+                          ingested_at=float(row[3] or 0.0)) for row in rows]
+
+    def largest_id(self) -> int:
+        """The largest document id there is; 0 where there are none or they cannot be read."""
+        if not self.db_path.exists():
+            return 0
+        try:
+            conn = self._connect_ro()
+        except sqlite3.OperationalError:
+            return 0
+        try:
+            return int(conn.execute("SELECT max(id) FROM docs").fetchone()[0] or 0)
+        except sqlite3.OperationalError:
+            return 0
+        finally:
+            conn.close()
+
+    def index_titles(self) -> bool:
+        """Build the title index where this library has none; whether it has one now. Reads every title once: run
+        by tools/index_corpus_titles.py, never on a lane of hers."""
+        if not self.db_path.exists():
+            return False
+        with self._write_lock:
+            conn = self._connect_rw()
+            try:
+                conn.execute(f"CREATE INDEX IF NOT EXISTS {TITLE_INDEX} ON docs(title COLLATE NOCASE)")
+                conn.commit()
+            finally:
+                conn.close()
+        return self.has_title_index()
 
     def documents(self, doc_ids: Sequence[int]) -> list[CorpusHit]:
         """The documents with these ids, in the order given; an id with no document is left out."""

@@ -45,6 +45,10 @@ def test_reading_a_turn_puts_its_worth_on_the_state_and_its_things_on_her_record
     record.talk.remember_talk(
         [("What do you think of the plan, and has the time come?", "I think the plan is fine, and the time has come.")] * 60
     )
+    from tests.fixtures.things_her_library_names import NamesThese
+
+    # What her library names of the turn: the anemone (core/conation/what_an_exchange_is_about.py).
+    record.about = NamesThese("anemone")
     try:
         for turn, valence in enumerate([0.1, 0.4, -0.2, 0.5, -0.3, 0.6, 0.2, 0.7]):
             state = _state(valence, turn)

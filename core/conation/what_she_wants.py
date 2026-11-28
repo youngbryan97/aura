@@ -80,6 +80,7 @@ from pathlib import Path
 from typing import Any
 
 from core.conation.state import Incentive
+from core.conation.what_an_exchange_is_about import READ_AS, WhatItIsAbout, name_of
 from core.conation.what_her_talk_is_about import WhatHerTalkIsAbout, terms_of
 from core.conation.what_she_cares_about import WhatSheCaresAbout
 from core.runtime.errors import record_degradation
@@ -368,9 +369,14 @@ class WhatSheWants(_WantReadouts):
         #: Where she went since the last turn was read, and how. The turn that
         #: is read next is the one that going is part of.
         self._went: list[tuple[str, str]] = []
-        #: What her exchanges have said so far, and so what a new one is about.
-        #: See core/conation/what_her_talk_is_about.py.
+        #: What her exchanges have said so far, word by word: a reply's words beside the words it answers
+        #: (interface/routes/chat.py). See core/conation/what_her_talk_is_about.py.
         self.talk = WhatHerTalkIsAbout(changed=lambda: _save(self, _held(self)))
+        #: What an exchange is about: the things it names that her library knows, read by meaning.
+        #: See core/conation/what_an_exchange_is_about.py.
+        self.about = WhatItIsAbout()
+        #: The subjects she met before they were read as things, when they were words: kept, and no longer met.
+        self._words_let_go: list[dict[str, Any]] = []
         #: What she gives her own turns to, and whose fate reaches her.
         #: See core/conation/what_she_cares_about.py.
         self.care = _care_of(self)
@@ -829,9 +835,11 @@ class WhatSheWants(_WantReadouts):
         lowered = " ".join(str(text or "").lower().split())
         strongest = 0.0
         with self._lock:
-            things = [thing for thing in self._things.values() if len(thing.label) > 2]
+            things = [thing for thing in self._things.values() if len(name_of(thing.label)) > 2]
         for thing in things:
-            if thing.label.lower() not in lowered or self.known(thing.key) is None:
+            # A thing read from her library is called by its name without its sense: "Parameter" of
+            # "Parameter (computer programming)".
+            if name_of(thing.label).lower() not in lowered or self.known(thing.key) is None:
                 continue
             if abs(thing.liking) > abs(strongest):
                 strongest = thing.liking
@@ -1020,6 +1028,8 @@ def read_turn(
     record = record or get_what_she_wants()
     keys = [str(key) for key in present if str(key).strip()]
     words = [str(text) for text in said if str(text or "").strip()]
+    from core.conation.what_an_exchange_is_about import shares_of
+
     # The topic label a turn arrives with is one word for a whole conversation
     # and stays on her state after it: live, 13 October, it read "times"
     # through a morning about tide pools and on the ticks after it. Subjects
@@ -1027,12 +1037,17 @@ def read_turn(
     keys = [key for key in keys if not key.startswith("topic:")]
     stood_out: dict[str, float] = {}
     if words:
-        about = record.talk.about(*words)
-        keys.extend(f"topic:{term}" for term in about)
-        stood_out = {f"topic:{term}": share for term, share in record.talk.shares().items()}
+        # The words are still counted, for what reads a reply's words beside the words it answers. What the exchange
+        # is about is the things it names that her library knows: LIVE 27 November 2026, read as words, the six
+        # things she most wanted were "parameter", "hash", "quiet hours", "this reply", "flights" and "too cool".
+        record.talk.about(*words)
+        subjects = record.about.read(*words)
+        about = [subject.title for subject in subjects]
+        keys.extend(f"topic:{title}" for title in about)
+        stood_out = {f"topic:{title}": share for title, share in shares_of(subjects).items()}
         # The first thing said is the other party's. A subject their message
         # named was brought to her; one only her answer names she raised.
-        theirs = set(terms_of(words[0])) if len(words) > 1 else set(about)
+        theirs = {subject.title for subject in subjects if 0 in subject.named_in} if len(words) > 1 else set(about)
         people = [key for key in keys if key.startswith("person:")]
         record.care.exchange(
             [*(f"topic:{term}" for term in about), *people],
@@ -1080,12 +1095,19 @@ def _load(self) -> None:
         self._noise = max(1e-9, float(stored.get("noise", _UNKNOWN)))
         self._read = max(0, int(stored.get("read", 0)))
         self._going = max(0.0, min(1.0, float(stored.get("going", 0.5))))
+        self._words_let_go = [dict(row) for row in stored.get("words_let_go", []) if isinstance(row, dict)]
+        read_as_things = stored.get("subjects_read_as") == READ_AS
         for row in stored.get("things", []):
             thing = Thing.from_dict(row)
             # What a process was in the middle of ended with it. Live, 13
             # October, two games were still "under way" from runs long gone,
             # so she was busy in every answer and every turn was theirs.
             thing.under_way.clear()
+            if not read_as_things and thing.kind == "topic":
+                # A subject kept when subjects were words is let go of once, and kept beside the record: nothing
+                # is met as a word now, so it could only stand as a want that names no thing.
+                self._words_let_go.append(thing.to_dict())
+                continue
             self._things[thing.key] = thing
         self.talk = WhatHerTalkIsAbout(stored, changed=lambda: _save(self, _held(self)))
         self.care = _care_of(self, stored.get("care"))
@@ -1124,6 +1146,8 @@ def _held(self) -> dict[str, Any]:
         "going": self._going,
         "saved_at": time.time(),
         "things": [thing.to_dict() for thing in self._things.values()],
+        "subjects_read_as": READ_AS,
+        "words_let_go": list(self._words_let_go),
         **self.talk.held(),
         "care": self.care.held(),
         "decided": self._decided,

@@ -38,7 +38,7 @@ SENSES_HEADER = "## WHAT YOU CAN SENSE AND REACH NOW"
 SCREEN_HEADER = "## WHAT IS ON THE SCREEN"
 
 #: The parts of hearing that are begun with the turn (core/runtime/begun_early.py).
-SCORES, SENSES, SCREEN = "what the words ask of her", "her senses", "the screen"
+SCORES, SENSES, SCREEN, SUBJECTS = "what the words ask of her", "her senses", "the screen", "what it is about"
 
 #: What a with is of when what was proposed named nothing she can name.
 BEING_TOGETHER = "being together"
@@ -146,7 +146,9 @@ class TakingItUp:
         took = time.monotonic() - began
         self._keep()
         record = self._her_record()
-        about = [f"topic:{term}" for term in record.talk.subjects_of(said)]
+        # What it is about, where it has been read already (begun with the turn in begin_hearing): read here, on the
+        # turn, it would hold her loop while her library and her encoder are asked.
+        about = [f"topic:{subject.title}" for subject in record.about.read_already(said) or []]
         withs = self._withs()
         held = withs.current(who)
         answer: Answer | None = None
@@ -233,7 +235,7 @@ class TakingItUp:
         if held is None:
             return
         at = time.time() if at is None else at
-        about = [f"topic:{term}" for term in self._her_record().talk.subjects_of(str(said or ""))]
+        about = [f"topic:{subject.title}" for subject in self._her_record().about.read_soon(str(said or "")) or []]
         held.said(HER, at, about=about, until=at, unprompted=unprompted)
 
     def needs_her_senses(self) -> bool:
@@ -435,6 +437,9 @@ def begin_hearing(said: str, client: Any) -> None:
         reader = taking._reads()
         if client is not None and reader.has_a_reference():
             begin(SCORES, (id(client), said), lambda: asked_of_the_worker(client, said, reader.seconds()))
+        # What it is about: read beside the turn, and taken where it is heard if it is done by then.
+        record = taking._her_record()
+        begin(SUBJECTS, said, lambda: asyncio.to_thread(record.about.read, said))
         if taking._withs().current(who_she_is_with(taking._her_record())) is not None:
             begin(SENSES, "", _her_senses_now)
             begin(SCREEN, "", _the_screen_now)

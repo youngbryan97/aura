@@ -80,7 +80,10 @@ def test_with_no_record_the_scores_are_what_they_were(record):
 
 
 def test_what_an_exchange_dwelt_on_pulls_harder_than_what_it_mentioned(record):
+    from tests.fixtures.things_her_library_names import NamesThese
+
     record.talk.remember_talk([("What do you think of the plan?", "I think the plan is fine, and has been.")] * 60)
+    record.about = NamesThese("limpet", "ledge")
     read_turn(
         ["self"],
         _Worth(0.3),

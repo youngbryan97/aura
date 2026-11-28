@@ -269,13 +269,19 @@ def _talked_before(record, exchanges: int = 45) -> None:
 
 
 def test_a_subject_only_her_answer_names_is_a_turn_she_gave(record):
+    from tests.fixtures.things_her_library_names import NamesThese
+
     _talked_before(record)
+    record.about = NamesThese("heron")
     read_turn(["self"], _Worth(1.0), record, said=(HERON_THEIRS, HERON_HERS))
     assert record.care.given(HERON) == 1
 
 
 def test_a_subject_the_other_person_named_is_not(record):
+    from tests.fixtures.things_her_library_names import NamesThese
+
     _talked_before(record)
+    record.about = NamesThese("heron")
     read_turn(["self"], _Worth(1.0), record, said=(HERON_HERS, "Yes. A heron stands and a heron waits, the heron."))
     assert record.thing(HERON) is not None
     assert record.care.given(HERON) == 0

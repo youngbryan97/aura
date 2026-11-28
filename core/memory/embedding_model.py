@@ -148,6 +148,9 @@ TASK_INSTRUCTIONS: dict[str, str] = {
     "same_question": ("Given a message, retrieve messages that ask the same question"),
     # Whether a reply answers a question of a message (core/conversation/left_unanswered.py).
     "answer": ("Given a question, retrieve the words that answer it"),
+    # What an exchange is about, among the documents of her library its words name
+    # (core/conation/what_an_exchange_is_about.py).
+    "what_it_is_about": ("Given what was said in a conversation, retrieve the encyclopedia articles about the things it discusses"),
 }
 
 #: Used when a call site names no task. Deliberately the recall instruction

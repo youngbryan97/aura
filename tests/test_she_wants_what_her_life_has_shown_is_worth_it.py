@@ -225,7 +225,10 @@ def test_the_things_of_a_turn_are_its_particular_terms_in_place_of_the_topic_lab
     class Worth:
         measured, worth, size, payoff = True, 1.0, 0.7, {}
 
+    from tests.fixtures.things_her_library_names import NamesThese
+
     _has_talked_before(record)
+    record.about = NamesThese("anemone")
     read_turn(["self", "topic:times", "attended:deliberation"], Worth(), record, said=TIDE_TALK)
     assert record.thing("topic:times") is None
     assert record.thing("topic:anemone").reachable
