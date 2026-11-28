@@ -513,7 +513,7 @@ def test_taking_up_opens_begins_and_records_the_call(tmp_path, monkeypatch):
     ledger = RequestsOfHer(tmp_path / "r.json")
     monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
     recorded: list[dict] = []
-    monkeypatch.setattr(chat, "_recorded", lambda said, returned, ok=True: recorded.append(returned))
+    monkeypatch.setattr(chat, "_recorded", lambda said, returned, ok=True, **_how: recorded.append(returned))
 
     async def before(session, said):
         return []
@@ -856,7 +856,7 @@ def _turns(tmp_path, monkeypatch):
 
     ledger, begun, recorded, sent = RequestsOfHer(tmp_path / "r.json"), [], [], []
     monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
-    monkeypatch.setattr(chat, "_recorded", lambda said, returned, ok=True: recorded.append(returned))
+    monkeypatch.setattr(chat, "_recorded", lambda said, returned, ok=True, **_how: recorded.append(returned))
 
     async def before(session, said):
         return []

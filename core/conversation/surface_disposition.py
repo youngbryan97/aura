@@ -210,6 +210,7 @@ def record_tool_receipt(
     mirror_to_turn: bool = True,
     vouches_for: str = "",  # core/conversation/what_a_record_vouches_for.py
     as_made: Any = None,
+    not_so: Any = (),
 ) -> bool:
     """Record one structured effect under the exact active turn custody.
 
@@ -224,6 +225,9 @@ def record_tool_receipt(
 
     ``as_made`` is a call of her own tool loop as her model made it: ``{"arguments": ..., "returned": ...}``, the
     arguments she gave and the result as the loop showed it to her (her_calls_this_turn).
+
+    ``not_so``: what the work the call is about has been asked to make so and is not so yet, each in its own words, so
+    that what she says of that work is read against each of them (core/epistemics/what_her_record_refutes.py).
     """
     name = str(tool_name or "").strip()
     if not name:
@@ -282,6 +286,7 @@ def record_tool_receipt(
             "vouches_for": str(vouches_for or "")[:32],
             "recorded_at": time.time(),
             **({"as_made": dict(as_made)} if isinstance(as_made, dict) else {}),
+            **({"not_so": [" ".join(str(x).split())[:300] for x in list(not_so)[:12] if str(x).strip()]} if not_so else {}),
         }
     )
 

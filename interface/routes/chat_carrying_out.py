@@ -30,8 +30,10 @@ __all__ = ["ORIGIN", "ask_them", "her_question_is_asked", "her_word_is_kept", "h
 LEAST_S = 60.0
 
 
-def _recorded(said: str, returned: dict[str, Any], *, ok: bool = True) -> None:
-    """Her call, and what it came back with, where her turn reads its calls."""
+def _recorded(said: str, returned: dict[str, Any], *, ok: bool = True, request: Request | None = None) -> None:
+    """Her call, and what it came back with, where her turn reads its calls; with ``request``, each part of it that is not
+    so yet, so that what she says of the work is held to it. LIVE 28 November 2026 she told somebody the one thing broken in
+    a program of hers was "fixed and verified", and its record had that part not done in every try."""
     from core.conversation.surface_disposition import record_tool_receipt
     from core.conversation.turn_evidence_custody import record_turn_grounding
 
@@ -39,8 +41,9 @@ def _recorded(said: str, returned: dict[str, Any], *, ok: bool = True) -> None:
     # What this turn did is what it records, and that is seen where it is done: the work begun is under way, the question is
     # held, the account is read from the ledger. What the work comes to is its own, told when it ends. Recorded as only
     # asserted, every turn that began a work ended "requested_effect_observed_but_unconfirmed", a fault (LIVE 28 November 2026).
+    not_so = [part.what for part in request.parts if part.stands != "met"] if request is not None else []
     record_tool_receipt(ORIGIN, ok=ok, effect_observed=ok, verification="taken_up_as_work" if ok else "", evidence=text[:1000],
-                        observed_content=text, as_made={"arguments": {"request": said}, "returned": text})
+                        observed_content=text, as_made={"arguments": {"request": said}, "returned": text}, not_so=not_so)
     record_turn_grounding(text)
 
 
@@ -92,7 +95,7 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
         return False
     if settled.what == "how_it_stands" and settled.request is not None:
         hold(dataclasses.replace(asked, request_id=settled.request.id))
-        _recorded(said, {"how_it_stands": settled.request.account(), **_as_it_goes(settled.request)})
+        _recorded(said, {"how_it_stands": settled.request.account(), **_as_it_goes(settled.request)}, request=settled.request)
         return True
     if asked.effect not in carrying_out.carriers():
         return False
@@ -114,7 +117,7 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
         work = get_workbench().get(request.id)
         if work is not None and asked.effect != "status":
             work.say(said)
-        _recorded(said, {"under_way": request.account(), "given_more": said, **_as_it_goes(request)})
+        _recorded(said, {"under_way": request.account(), "given_more": said, **_as_it_goes(request)}, request=request)
         return True
     from core.skills.screen_pursuit import _tell
 
@@ -124,7 +127,7 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
     _recorded(said, {"status": "started" if begun else "not_started", "working_on": BY_NAME[request.effect].met,
                      "for": request.said, "where": "in the background, after this reply",
                      "when_done": "what it came to is said here, in the conversation",
-                     **({"how_it_stood": request.account()} if request.tries else {})}, ok=begun)
+                     **({"how_it_stood": request.account()} if request.tries else {})}, ok=begun, request=request)
     logger.info("Request %s (%s) %s: %s", request.id, request.effect, "begun" if begun else "not begun", said[:120])
     return True
 

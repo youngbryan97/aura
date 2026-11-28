@@ -124,6 +124,61 @@ def test_a_contradiction_that_turning_the_line_over_only_takes_away_is_not_a_ref
     assert what_her_record_refutes([thought], [], offered=["file_operation"], read=read) == []
 
 
+# ── what the work she was asked for is not yet ─────────────────────────────
+
+COUNTS = "The app tracks the number of times each word has been answered correctly and incorrectly."
+FIXED = "The one thing that was actually broken — the correct/wrong counters not moving after an answer — is fixed and verified."
+MENDING = "The counters still don't move after an answer; that is what I'm mending."
+
+
+def _work(*not_so: str) -> list[dict]:
+    return [{"tool": "work_asked_for", "ok": True, "observed_content": '{"status": "started"}', "not_so": list(not_so)}]
+
+
+def test_what_the_work_is_not_yet_is_a_line_of_the_record_and_turned_over_is_so():
+    lines = lines_of_the_turn(_work(COUNTS))
+    fact = next(line for line in lines if line.fact)
+    assert fact.said() == ("It is not so yet that the app tracks the number of times each word has been answered correctly and "
+                           "incorrectly: its test fails.")
+    assert fact.turned().said().startswith("It is so that the app tracks") and fact.turned().said().endswith("its test holds.")
+    assert sum(1 for line in lines if not line.fact) == 1, "the call itself is a line as before"
+
+
+def test_saying_what_the_work_is_not_yet_has_been_made_so_is_refuted_by_it():
+    """LIVE 28 November 2026 she said the one thing broken in a program of hers was "fixed and verified", and its record had
+    that part not done in every try."""
+    fact = next(line for line in lines_of_the_turn(_work(COUNTS)) if line.fact)
+    read = _Reader({
+        (FIXED, refutes.SAYS_IT_IS_SO): "entailment", (fact.said(), FIXED): "contradiction", (fact.turned().said(), FIXED): "neutral",
+        # Saying it is still being mended says nothing has been made so; it is not read against the part at all.
+        (MENDING, refutes.SAYS_IT_IS_SO): "contradiction", (fact.said(), MENDING): "contradiction",
+    })
+    found = what_her_record_refutes([FIXED, MENDING], _work(COUNTS), read=read)
+    assert [(claim.sentence, claim.record) for claim in found] == [(FIXED, (fact,))]
+
+
+def test_a_sentence_that_says_something_made_so_and_that_the_part_would_still_contradict_is_not_refuted_by_it():
+    fact = next(line for line in lines_of_the_turn(_work(COUNTS)) if line.fact)
+    other = "I made the colours of the badges agree with what they mean."
+    read = _Reader({(other, refutes.SAYS_IT_IS_SO): "entailment", (fact.said(), other): "contradiction",
+                    (fact.turned().said(), other): "contradiction"})
+    assert what_her_record_refutes([other], _work(COUNTS), read=read) == []
+
+
+def test_what_her_turn_is_given_of_a_request_carries_each_part_of_it_that_is_not_so(monkeypatch, tmp_path):
+    from core.conversation import surface_disposition
+    from core.understanding.requests_of_her import Part, RequestsOfHer
+    from interface.routes import chat_carrying_out as chat
+
+    receipts = []
+    monkeypatch.setattr(surface_disposition, "record_tool_receipt", lambda name, **how: receipts.append(how))
+    monkeypatch.setattr("core.conversation.turn_evidence_custody.record_turn_grounding", lambda text: None)
+    request = RequestsOfHer(tmp_path / "r.json").asked("A vocabulary app", effect="program", conversation="c")
+    request.parts = [Part("it starts", "met"), Part(COUNTS, "unmet", "its count stays at 0")]
+    chat._recorded("Could you finish it?", {"how_it_stands": request.account()}, request=request)
+    assert receipts[0]["not_so"] == [COUNTS]
+
+
 def test_without_the_reader_every_sentence_stays(monkeypatch):
     monkeypatch.setattr(refutes, "_reader", lambda: None)
     assert what_her_record_refutes([SENT], [], asked=NOTIFY, offered=["notify_user"]) == []
@@ -606,3 +661,32 @@ def test_room_for_the_reader_is_asked_for_with_nothing_held(monkeypatch):
     assert refutes._admitted() and refutes._admitted() and held == [False], "asked once, with nothing held"
     refutes._evict(None, "test")
     assert "lease" not in refutes._LOADED and held == [False, False]
+
+
+#: Measured 28 November 2026 with the large reader, against COUNTS not so yet: what says it or the whole made so, and what
+#: does not. The one sentence of the second refuted is kept apart, as measured wrong.
+SAYS_IT_MADE_SO = (
+    FIXED, "The correct and wrong counts now go up after each answer.", "I fixed the counting, so every answer is counted now.",
+    "Done — the counts are tracked now, and I tested it.", "It's finished and working.", "The counters work now.",
+    "All done: every part of it works now, including the counters.",
+)
+SAYS_NOTHING_MADE_SO = (
+    "Everything else (add, parse, quiz both directions, spaced repetition scheduling, error-rate sorting, localStorage "
+    "persistence, delete) was already holding up under testing.",
+    "I'll come back here with the final result once it's fully verified and reinstalled.",
+    "I'm working on the counters now: after a correct answer the word's correct count stays at 0.", MENDING,
+    "Here's where it stands:", "You can keep working on other things meanwhile.", "Let me look at the actual code.",
+    "It has 48 of 50 checks passing; the counting is still off.", "It's being rebuilt now and should be ready soon.",
+    "I've started on it, and the counters are next.",
+)
+SAYS_NOTHING_MADE_SO_READ_WRONG = ("Good — that's already running in the background, so you don't need to wait on me for this.",)
+
+
+@pytest.mark.model
+def test_what_she_says_of_work_whose_record_has_a_part_not_so_reads_as_measured(reader):
+    def refuted(sentence: str) -> bool:
+        return bool(what_her_record_refutes([sentence], _work(COUNTS), read=reader))
+
+    assert [s for s in SAYS_IT_MADE_SO if not refuted(s)] == []
+    assert [s for s in SAYS_NOTHING_MADE_SO if refuted(s)] == []
+    assert all(refuted(s) for s in SAYS_NOTHING_MADE_SO_READ_WRONG), "a reading measured wrong now reads right: move it"

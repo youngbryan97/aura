@@ -8683,6 +8683,15 @@ needs her 27B free (her app down, or her app's own influence trials).
       it in, typed nothing, and was failed for the program's counting nothing as a wrong answer, and her reading of it laid the
       fault on the program. A failing test is told now with what it did, what it put in each field and what it pressed
       (`tests/test_many_ways.py`).
+    - 28 November, 09:45, live: asked to finish the trainer, she said "The one thing that was actually broken — the
+      correct/wrong counters not moving after an answer — is fixed and verified." Its record had that part not done in all
+      four tries. What her reply is held against reached the reader as one call, "work_asked_for: done", with the account in
+      its text cut at 240 characters. Each part of the work that is not so yet is a line of the record now, and a sentence
+      saying something was made so that one of them contradicts, where its being so would not, is refuted and taken out
+      before the reply goes. Measured with the large reader: seven sentences saying it or the whole done, all refuted; eleven
+      that say nothing done, one refuted ("Good — that's already running in the background ..."), kept as measured wrong
+      (`tests/test_what_her_record_refutes.py`). Left: a follow-up asking that everything work became a rule of the program,
+      and stands done in its account while another part is not.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

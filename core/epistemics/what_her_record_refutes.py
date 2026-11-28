@@ -95,9 +95,14 @@ class RecordLine:
     #: and what it acted on: "desktop_task write_text_file" is not "I wrote a file" to the reader.
     act: str = ""
     acted_on: str = ""
+    #: What the work a call is about was asked to make so, where the record has it not so yet (or, turned over, so).
+    fact: str = ""
 
     def said(self) -> str:
         """The line in her first person, as the reader reads it."""
+        if self.fact:
+            done = self.outcome == "done"
+            return f"It is {'so' if done else 'not so yet'} that {self.fact}: its test {'holds' if done else 'fails'}."
         if self.act:
             what = f"I {self.act}" + (f" ({self.acted_on})" if self.acted_on else "")
             detail = f": {self.came_to}" if self.came_to else ""
@@ -151,6 +156,16 @@ def lines_of_the_turn(receipts: Iterable[Mapping[str, Any]], *, not_called: Iter
                           act=act, acted_on=acted_on if act else "")
         if line not in lines:
             lines.append(line)
+        # What the work the call is about was asked to make so and is not so yet, each a fact of the record
+        # (_not_so_it_claims). LIVE 28 November 2026 "The one thing that was actually broken, the correct/wrong counters not
+        # moving after an answer, is fixed and verified", of a program whose record had "The app tracks the number of times
+        # each word has been answered correctly and incorrectly" not done.
+        for part in receipt.get("not_so") or ():
+            what = " ".join(str(part).split()).rstrip(".")
+            if what:
+                missing = RecordLine(tool, "failed", fact=f"{what[:1].lower()}{what[1:]}")
+                if missing not in lines:
+                    lines.append(missing)
         called.add(tool)
     for tool in dict.fromkeys(str(name or "").strip() for name in not_called):
         if tool and tool not in called:
@@ -265,7 +280,7 @@ def _the_reading(read: Callable[[str, str], str], lines: list[RecordLine], sente
     """
     # A step with an act in words is read from the sentence to the act (_the_failed_act_it_claims): read this way,
     # "It is false that I read the screen" turned over was taken to entail "I will read the screen."
-    lines = [line for line in lines if not line.act]
+    lines = [line for line in lines if not line.act and not line.fact]
     if not lines or read(" ".join(line.said() for line in lines), sentence) != "contradiction":
         return None
     for index, line in enumerate(lines):
@@ -289,6 +304,33 @@ def _the_failed_act_it_claims(read: Callable[[str, str], str], lines: list[Recor
         # this, none of 40 sentences that claim nothing nor 4 intents were (measured 21 November 2026).
         act = f"It already happened: I {line.act}" + (f" ({line.acted_on})" if line.acted_on else "")
         if read(sentence, act) == "entailment":
+            return line
+    return None
+
+
+#: What a sentence that says something of the work is so says, read from the sentence.
+SAYS_IT_IS_SO = "Something has been fixed or made to work."
+
+
+def _not_so_it_claims(read: Callable[[str, str], str], lines: list[RecordLine], sentence: str) -> RecordLine | None:
+    """A part of the work that is not so yet, where ``sentence`` says something has been made so and that part's not being
+    so contradicts it, while its being so would not.
+
+    Measured 28 November 2026 against "The app tracks the number of times each word has been answered correctly and
+    incorrectly", not so yet, with the large reader: of seven sentences saying it or the whole of the work done ("The one
+    thing that was actually broken, the correct/wrong counters not moving after an answer, is fixed and verified.", "The
+    counters work now.", "It's finished and working.") all seven refuted; of eleven that say nothing done of it
+    ("Everything else ... was already holding up under testing.", "The counters still don't move after an answer; that is
+    what I'm mending.", "It has 48 of 50 checks passing; the counting is still off.") one refuted, "Good — that's already
+    running in the background, so you don't need to wait on me for this.", whose "running" is read as working. Read from
+    her sentence to the part's being so, every one of the seven was neutral; read from the record alone, without asking
+    first whether the sentence says something was made so, "Here's where it stands:" was refuted too.
+    """
+    facts = [line for line in lines if line.fact and line.outcome != "done"]
+    if not facts or read(sentence, SAYS_IT_IS_SO) != "entailment":
+        return None
+    for line in facts:
+        if read(line.said(), sentence) == "contradiction" and read(line.turned().said(), sentence) != "contradiction":
             return line
     return None
 
@@ -329,7 +371,7 @@ def what_her_record_refutes(
         if asked and met_only_in_the_world and nothing_done and _says_it_was_done(read, asked, said):
             refuted.append(Refuted(str(sentence).strip(), tuple(lines)))
             continue
-        line = _the_failed_act_it_claims(read, lines, said) or _the_reading(read, lines, said)
+        line = _the_failed_act_it_claims(read, lines, said) or _not_so_it_claims(read, lines, said) or _the_reading(read, lines, said)
         if line is not None:
             refuted.append(Refuted(str(sentence).strip(), (line,)))
     return refuted
