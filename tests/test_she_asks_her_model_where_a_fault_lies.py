@@ -264,30 +264,32 @@ def test_a_reading_her_model_put_off_leaves_the_fault_to_her_next_cycle(her_sour
 
 def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_hers(monkeypatch):
     """Asked of her router as background work, a reading went to her brainstem, a 27B at two bits; it read her
-    watchdog's report of a 59 s lag as the watchdog's to change (LIVE 27 November 2026)."""
+    watchdog's report of a 59 s lag as the watchdog's to change (LIVE 27 November 2026). Held to JSON or offered as a
+    call, her cortex wrote what it found in prose: its words are the why, and which reading it is is a held choice."""
     from core.brain import her_unprompted_turn
 
     asked: list[dict] = []
+    found = "The function refuses an empty word on purpose; the vector it was given had one, built by its caller."
 
     class Cortex:
         async def generate_text_async(self, prompt, **kwargs):
             asked.append(kwargs)
-            # Her call, in her template's tool-call form, its arguments the reading.
-            return '<think>a refusal of an empty word</think><tool_call>\n{"name": "where_it_lies", "arguments": ' \
-                   '{"on_purpose": true, "lies_in": "what called it", "why": "it refuses an empty word, and was ' \
-                   'given one"}}\n</tool_call>'
+            if kwargs.get("choose_from"):
+                return "Raised on purpose; what should change is in what called it"
+            return found
 
     async def lane(messages, *, origin, least_s, work):
         return await work(Cortex(), least_s)
 
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
-    judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
-    assert judged.leaves_the_function and judged.lies_in == "what called it"
-    assert asked[0]["is_background"] and asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
-    assert "private_channel_budget" in asked[0], "its thinking is bounded by what it is measured to cost"
-    offered = asked[0]["tools"]
-    assert json.dumps(offered).count('"where_it_lies"') == 1 and '"lies_in"' in json.dumps(offered), \
-        "the reading is offered as a call of hers whose parameters are its fields"
+    judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads()))
+    assert judged.leaves_the_function and judged.lies_in == "what called it" and judged.why == found
+    assert judged.reader == "cortex"
+    first, second = asked
+    assert first["is_background"] and "private_channel_budget" in first, "its thinking bounded by what it costs"
+    assert first["max_tokens"] > 256, "room for what it finds, as long as its why may be"
+    assert set(second["choose_from"]) == set(lies.HerCortexReads.choices()), "the readings there can be, held"
+    assert second["messages"][1] == {"role": "assistant", "content": found}, "chosen with its own words before it"
 
     class Stopped:
         async def generate_text_async(self, prompt, **kwargs):
@@ -298,14 +300,14 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
 
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", stopped)
     with pytest.raises(lies.NotReadNow):
-        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
+        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads()))
 
     async def held(messages, *, origin, least_s, work):
         return None
 
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", held)
     with pytest.raises(lies.NotReadNow):
-        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
+        asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads()))
 
 
 def test_a_reading_her_brainstem_kept_is_read_again_by_her_cortex(monkeypatch):
@@ -321,7 +323,7 @@ def test_a_reading_her_brainstem_kept_is_read_again_by_her_cortex(monkeypatch):
         async def generate(self, prompt, *, is_background=True, deadline_s=lies.ASK_S):
             return lies.WhereItLies(on_purpose=True, lies_in="what called it", why="it refuses an empty word")
 
-    monkeypatch.setattr(lies, "her_model", lambda schema=None: Cortex(lies.WhereItLies))
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: Cortex())
     judged = asyncio.run(mending._where_it_lies(record, fault, REFUSES))
     assert judged.reader == "cortex" and judged.leaves_the_function
     again = asyncio.run(mending._where_it_lies(record, fault, REFUSES, ask=False))

@@ -25,9 +25,8 @@ import ast
 import hashlib
 import json
 import logging
-import re
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -197,71 +196,87 @@ ORIGIN = "her_reading_of_a_fault"
 
 
 class HerCortexReads:
-    """A typed reading asked of her cortex as background work, under her generation lane's lease, as her goal passes and
-    her unprompted turns reach it (core/brain/her_unprompted_turn.on_her_lane): it gives way to a person and is not
-    begun while someone waits for her model. Asked of her router as background work, a reading went to her brainstem,
-    a 27B at two bits: LIVE 27 November 2026 it read her watchdog's report of a 59 s lag as a fault of the watchdog's to
-    change. Shaped as StructuredLLM is, ``generate`` and ``last_defer_reason``."""
+    """Her cortex's reading of a fault, asked as background work under her generation lane's lease, as her goal passes
+    and her unprompted turns reach it (core/brain/her_unprompted_turn.on_her_lane): it gives way to a person and is not
+    begun while someone waits for her model. Shaped as StructuredLLM is, ``generate`` and ``last_defer_reason``.
 
-    def __init__(self, schema: type[BaseModel]) -> None:
+    In two steps. Her cortex reads the function and the call and says what it finds, in its words, which are the
+    reading's why. Then, its words before it, which of the readings there can be it is, a choice the decoder holds it
+    to. Held to a JSON object, or offered the reading as a call, her cortex wrote its finding in prose each time (LIVE 27
+    November 2026, 16:33 to 17:02): "the function here is doing its job", "what should change is the caller's
+    decision". Asked of her router instead, a reading went to her brainstem, a 27B at two bits, which took her
+    watchdog's report of a 59 s lag for a fault of the watchdog's to change.
+    """
+
+    def __init__(self, schema: type[BaseModel] = WhereItLies) -> None:
         self.schema = schema
         self.last_defer_reason = ""
+
+    @staticmethod
+    def choices() -> dict[str, tuple[bool, str]]:
+        """Each reading there can be, in words, and what it is."""
+        places = list(get_args(WhereItLies.model_fields["lies_in"].annotation))
+        return {f"{'Raised on purpose' if on_purpose else 'Not raised on purpose'}; what should change is in {place}":
+                (on_purpose, place) for on_purpose in (True, False) for place in places}
 
     async def generate(self, prompt: str, *, is_background: bool = True, deadline_s: float = ASK_S) -> BaseModel | None:
         from core.brain.her_unprompted_turn import on_her_lane
         from core.brain.llm.token_budget_evidence import chars_per_token
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
-        from core.brain.llm.mlx_client import MLXLocalClient
-
         self.last_defer_reason = ""
-        messages = [{"role": "user", "content": prompt}]
-        # The reading is a call of hers whose arguments are the answer, in her template's own tool-call form, as her
-        # model writes every call of her goal passes. Held to a JSON object instead, her cortex answered in prose
-        # (LIVE 27 November 2026, 16:33, "no_json_value_found" twice), the decoder's shape waiting on a channel close.
-        name = re.sub(r"(?<!^)(?=[A-Z])", "_", self.schema.__name__).lower()
-        properties = {key: {k: v for k, v in spec.items() if k != "title"}
-                      for key, spec in self.schema.model_json_schema().get("properties", {}).items()}
-        definitions = {name: {"description": " ".join(str(self.schema.__doc__ or name).split()),
-                              "parameters": {"type": "object", "properties": properties,
-                                             "required": list(self.schema.model_json_schema().get("required", []))}}}
-        offered = MLXLocalClient._normalize_tool_definitions_for_template(definitions)
-        # One closed question's answer, and the longest text a field of the schema may hold, in her measured tokens.
-        longest = max((int(field.metadata[0].max_length) for field in self.schema.model_fields.values()
-                       if field.metadata and getattr(field.metadata[0], "max_length", None)), default=0)
+        asked = [{"role": "user", "content": prompt}]
+        # What it finds may run as long as the why it becomes, and a closed question's room beside it.
         ratio = max(chars_per_token().ratio, 1.0)
-        answer_tokens = A_CLOSED_QUESTIONS_FLOOR + int(longest / ratio)
-
+        found_tokens = A_CLOSED_QUESTIONS_FLOOR + int(WhereItLies.model_fields["why"].metadata[0].max_length / ratio)
         thinking = self._thinking_it_costs()
 
-        async def read(client: Any, seconds: float) -> str:
+        async def finds(client: Any, seconds: float) -> str:
             # Its private channel named: unnamed, the worker gave the channel all of the clock but 96 tokens, and the
-            # deadline came mid-thought with no call written (LIVE 27 November 2026, 16:48, bounded at 2,099).
+            # deadline came mid-thought (LIVE 27 November 2026, 16:48, bounded at 2,099).
             return str(await client.generate_text_async(
-                "", messages=messages, system_prompt="", origin=ORIGIN, is_background=is_background, tools=offered,
-                tool_budget_definitions=offered, max_tokens=answer_tokens, timeout=seconds,
-                private_channel_budget=thinking or None) or "")
+                "", messages=asked, system_prompt="", origin=ORIGIN, is_background=is_background,
+                max_tokens=found_tokens, timeout=seconds, private_channel_budget=thinking or None) or "")
 
-        chars = sum(len(str(message.get("content") or "")) for message in messages)
-        text = await on_her_lane(messages, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(
-            chars, answer_tokens + thinking)), work=read)
+        chars = sum(len(str(message.get("content") or "")) for message in asked)
+        found = await on_her_lane(asked, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(
+            chars, found_tokens + thinking)), work=finds)
+        found = self._what_she_said(found)
+        if not found:
+            return None
+        options = self.choices()
+        which = [*asked, {"role": "assistant", "content": found},
+                 {"role": "user", "content": "Which of these is what you found?\n" + "\n".join(options)}]
+
+        async def chooses(client: Any, seconds: float) -> str:
+            return str(await client.generate_text_async(
+                "", messages=which, system_prompt="", origin=ORIGIN, is_background=is_background,
+                choose_from=list(options), max_tokens=A_CLOSED_QUESTIONS_FLOOR, timeout=seconds,
+                private_channel_budget=A_CLOSED_QUESTIONS_FLOOR) or "")
+
+        chars = sum(len(str(message.get("content") or "")) for message in which)
+        chosen = self._what_she_said(await on_her_lane(which, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(
+            chars, 2 * A_CLOSED_QUESTIONS_FLOOR)), work=chooses))
+        if not chosen:
+            return None
+        picked = next((value for words, value in options.items() if words in chosen), None)
+        if picked is None:
+            logger.info("her cortex's choice was none of the readings: %r", chosen[-200:])
+            return None
+        on_purpose, place = picked
+        return WhereItLies(on_purpose=on_purpose, lies_in=place, why=" ".join(found.split())[:900])
+
+    def _what_she_said(self, text: Any) -> str:
+        """Her cortex's words; "" with the reading put off where nothing came back: her cortex held for something else,
+        or its generation stopped for a turn that came first (LIVE 27 November 2026, 15:33, soft-cancelled 986 tokens
+        in), which is a reading put off and not one that found nothing."""
         if text is None:
             self.last_defer_reason = "her cortex is held for something else"
-            return None
-        if not text.strip():
-            # Nothing came back: her generation was stopped for a turn that came first (LIVE 27 November 2026, 15:33,
-            # soft-cancelled 986 tokens in), which is a reading put off and not one that found nothing.
+            return ""
+        if not str(text).strip():
             self.last_defer_reason = "her cortex's generation was stopped before it answered"
-            return None
-        call = MLXLocalClient._extract_tool_call_payload(text, allowed_tools={name}, tool_definitions=definitions)
-        for found in ([call["args"]] if call else []) + _the_objects_in(text):
-            try:
-                return self.schema.model_validate(found)
-            except ValueError:
-                continue
-        logger.info("her cortex's answer held no %s: %r", self.schema.__name__, " ".join(text.split())[-300:])
-        return None
-
+            return ""
+        return str(text).strip()
 
     @staticmethod
     def _thinking_it_costs() -> int:
@@ -282,24 +297,6 @@ class HerCortexReads:
         return time_a_prompt_needs(chars, tokens)
 
 
-def _the_objects_in(text: str) -> list[Any]:
-    """Each whole JSON object in what her cortex wrote, past what it thought before it, in order."""
-    said = str(text or "")
-    if "</think>" in said:
-        said = said.rsplit("</think>", 1)[1]
-    found, at, decoder = [], said.find("{"), json.JSONDecoder()
-    while at >= 0:
-        try:
-            value, end = decoder.raw_decode(said[at:])
-        except ValueError:
-            at = said.find("{", at + 1)
-            continue
-        if isinstance(value, dict):
-            found.append(value)
-        at = said.find("{", at + end)
-    return found
-
-
 def reader_of(advisor: Any) -> str:
     """Which of her models ``advisor`` asks."""
     return "cortex" if isinstance(advisor, HerCortexReads) else "brainstem"
@@ -312,7 +309,8 @@ def her_model(schema: type[BaseModel] = WhereItLies) -> Any:
     from core.container import ServiceContainer
     from core.runtime.service_access import resolve_inference_gate
 
-    if hasattr(getattr(resolve_inference_gate(default=None), "_mlx_client", None), "generate_text_async"):
+    if schema is WhereItLies and hasattr(getattr(resolve_inference_gate(default=None), "_mlx_client", None),
+                                         "generate_text_async"):
         return HerCortexReads(schema)
     if ServiceContainer.get("llm_router", default=None) is None:
         return None
