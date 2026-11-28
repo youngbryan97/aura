@@ -616,3 +616,36 @@ def test_fields_shown_together_are_told_apart_by_their_names(tmp_path):
     seen = check(two)
     assert not seen.ok and "“Name”" in seen.why
     assert check(told_apart).ok, "a field repeated row by row is each row's"
+
+
+def test_tabs_show_which_is_open_and_by_a_name_a_person_would_use(tmp_path):
+    """LIVE 28 November 2026, looking at a vocabulary trainer of hers, she said its "'addWord' tab label ... looks like a code
+    variable leaked into the UI", and that there was no telling which tab was open: none was, and the chosen one was drawn in the
+    card's own white."""
+    tabbed = """({
+  initial() { return { tab: "add", words: [] }; },
+  update(s, e) { return e.name === "tab" ? { ...s, tab: e.value } : s; },
+  view(s, ui) { return ui.card(ui.tabs(["addWord", "Quiz"], s.tab, "tab"), ui.text(s.tab)); },
+})"""
+    told = tabbed.replace('["addWord", "Quiz"]', '["Add words", "Quiz"]').replace('tab: "add"', 'tab: "Add words"')
+
+    def shown(code):
+        async def run(browser):
+            return await try_page(page_of(_design(name="Words", state={"tab": "Quiz", "words": []}), code, tests=""), tmp_path / "t.html", browser)
+
+        return next(r for r in _in_a_browser(run).generic if r.name == "it is shown")
+
+    seen = shown(tabbed)
+    assert not seen.ok and ("“addWord”" in seen.why or "none of its tabs" in seen.why), seen.why
+    assert shown(told).ok, shown(told).why
+
+    async def look(browser):
+        page = await browser.new_page()
+        try:
+            await page.set_content(page_of(_design(name="Words", state={"tab": "Quiz", "words": []}), told))
+            return await page.evaluate("[getComputedStyle(document.querySelector('.tabs .on')).backgroundColor, getComputedStyle(document.querySelector('.tabs')).backgroundColor]")
+        finally:
+            await page.close()
+
+    on, around = _in_a_browser(look)
+    assert on != around, "the open tab is drawn apart from what it stands on"

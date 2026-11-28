@@ -60,3 +60,8 @@ input[type=number], .num, td.num { font-variant-numeric: tabular-nums; }
 .row > .badge, .list .row > .badge, td .row > .badge { flex: 0 0 auto; align-self: center; }
 /* The window's own tools: what clears everything is marked as taking something away, and Undo is there only where there is something to undo. */
 .tool .ico { width: 14px; height: 14px; } .tool.danger { color: var(--bad); } .tool:disabled { opacity: .45; cursor: default; }
+/* The tab chosen is seen wherever the tabs stand: on a card the chosen one was the card's own white (LIVE 28 November 2026, she
+   said there was no telling which tab was open). */
+.tabs { display: inline-flex; align-self: start; justify-self: start; padding: 3px; border-radius: 11px; background: color-mix(in srgb, var(--quiet) 12%, transparent); }
+.tabs button { border: 0; border-radius: 8px; padding: 6px 13px; font-weight: 550; } .tabs button:hover:not(.on) { color: var(--ink); }
+.tabs .on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(15, 20, 30, .14); font-weight: 650; }

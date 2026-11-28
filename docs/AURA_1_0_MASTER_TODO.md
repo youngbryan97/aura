@@ -8665,6 +8665,12 @@ needs her 27B free (her app down, or her app's own influence trials).
       plant tracker at 19 of 27. Where mending a part at a time stops gaining, she now writes the program whole again, its
       rules and then how it looks, from its design, its tests and what still fails, and keeps it where less fails, twice at
       most (`tests/test_making_programs.py`). A button that shows the name of what it sends ("addWord") fails "it is shown".
+    - 28 November, 08:05, live: her view of a vocabulary trainer. "It currently feels like a developer's prototype rather than
+      a finished product. The most glaring issue is the 'addWord' tab label, which looks like a code variable leaked into the
+      UI. Beyond that, the lack of an active state for tabs". Both were so: no tab was open, for what was chosen was none of
+      them, and an open tab on a card was drawn in the card's own white. Tabs stand on a tinted ground now with the open one
+      raised, and "it is shown" fails tabs with none open and a tab named by the value it sends (`tests/test_many_ways.py`).
+      What her eyes said of two buttons drawn twice was not so, the third such misreading in a day.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
