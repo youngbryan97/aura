@@ -234,9 +234,10 @@ def _the_request_this_turn_began(said: str, session_id: str) -> Asked | None:
         # One held open until they say whether they want it is not begun: what she says meanwhile is not her word on it.
         return request is not None and request.conversation == line and request.stands != ASKED and not request.tries and not request.told
 
-    found = next((one for one in (held_for(said), *held_with_requests()) if unbegun(one)), None)
-    logger.info("This turn's request in %s, found %s: %s.", session_id, "by its words" if found is not None and found is held_for(said) else
-                "among those begun lately" if found is not None else "nowhere", found.request_id if found is not None else "none")
+    by_words = held_for(said)
+    found = next((one for one in (by_words, *held_with_requests()) if unbegun(one)), None)
+    if found is not None:  # most turns begin nothing, and are not told of
+        logger.info("This turn's request in %s, found %s: %s.", session_id, "by its words" if found is by_words else "among those begun lately", found.request_id)
     return found
 
 
