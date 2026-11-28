@@ -153,6 +153,9 @@ def test_a_mend_that_gained_nothing_is_written_again_with_what_her_sources_say_o
     assert len(consulted) == 1 and "The list is sorted by name" in consulted[0] and "Bea should come before Cy" in consulted[0]
     assert "Compare the names with localeCompare." not in written[0]
     assert all("Compare the names with localeCompare." in w for w in written[1:])
+    steps = [row["title"] for row in made.work.seen()["happened"] if row["what"] == "step"]
+    assert steps[steps.index("Asking her library, the web and her own model about: The list is sorted by name") + 1] == \
+        "Mending it, with what her sources said: The list is sorted by name", "what she does after asking is the mend, and it says so"
 
 
 def test_what_her_library_gives_that_does_not_answer_the_question_is_left_on_the_shelf():

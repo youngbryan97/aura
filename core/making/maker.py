@@ -1049,8 +1049,12 @@ class _Maker:
             told += "\nWhile it was played, none of this of it ever ran:\n" + "\n".join(f"- {text}" for text in self.trial.never_ran)
         worked = await asyncio.to_thread(get_kept().like, design.kind, f"{first[0].name}: {first[0].why}")
         told += "\nWhat mended failures like these before:\n" + "\n".join(f"- {m}" for m in worked) if worked else ""
-        if warm > 0.2:
+        if warm > 0.2 and rule_of(first[0].name) not in self._consulted_on:
             told += await self._what_her_sources_say_of(first[0])
+            # What she does next is write the mend, and the work says so: the step of asking was over when they answered.
+            self.work.step(f"Mending it, with what her sources said: {first[0].name}" + (f", and {len(failing) - 1} more" if len(failing) > 1 else ""))
+        elif warm > 0.2:
+            told += self._consulted_on[rule_of(first[0].name)]
         said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{tests}\n"
                                 f"Trying it, these fail:\n{told}\n\nSay in a sentence or two what is wrong and what you change, then "
                                 f"{self._how_to_change()}.", MEND_TOKENS, warmth=min(0.8, warm), given=self._given())
