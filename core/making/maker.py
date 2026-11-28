@@ -509,7 +509,7 @@ class _Maker:
             said = await self.write("Say in a sentence or two how you will do it, then write "
                                     f"{'the body of the page, whole' if design.kind == 'site' else 'the whole file'}, in one block.",
                                     CODE_TOKENS, given=self._given())
-            self.work.says(_prose(said))
+            # What she says of it is said where it is taken in, once.
             self._written(said, what)
             return
         first = "" if len(rules) == len(design.rules) else "Only these of its rules are built now:\n" + "\n".join(f"- {r}" for r in rules) + "\n\n"

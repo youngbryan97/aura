@@ -18,7 +18,7 @@ from typing import Any
 
 from core.runtime.lockdep import checked_lock
 
-__all__ = ["Asked", "asked_by", "carried", "clear", "hold", "is_done_and_not_said", "licensed", "take", "this_turn"]
+__all__ = ["Asked", "asked_by", "carried", "clear", "hold", "is_done_and_not_said", "licensed", "take", "this_turn", "held_for"]
 
 #: How long a reading answers for its words outside the context of its turn: as long as a turn can run.
 HELD_FOR_S = 3600.0
@@ -98,6 +98,15 @@ def asked_by(text: Any) -> Asked | None:
     if held is not None and time.time() - held.at <= HELD_FOR_S:
         return held
     return None
+
+
+def held_for(text: Any) -> Asked | None:
+    """What was last held for these words, the turn's own reading aside: where a later hold of the turn, such as the request
+    it began, was made in a task whose context did not come back to the turn."""
+    key = _words(text)
+    with _LOCK:
+        held = _BY_WORDS.get(key) if key else None
+    return held if held is not None and time.time() - held.at <= HELD_FOR_S else None
 
 
 def carried(words: Any = "") -> dict[str, Any] | None:

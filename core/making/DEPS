@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 11 outbound edges when this was generated.
+# 12 outbound edges when this was generated.
 
 description = "core.making: may import only what it already imports; every new edge is an edit here."
 
@@ -19,6 +19,8 @@ include_rules = [
     "+core.governance_context",
     # Her library and the web, which she consults as she makes (consulting.py): what they say is advice, read and weighed.
     "+core.knowledge.local_corpus",
+    # What her encoder is asked as a question (consulting.py): whether a passage of her library answers what she asked it.
+    "+core.memory.embedding_model",
     "+core.perception",
     "+core.rebuilding",
     "+core.runtime",

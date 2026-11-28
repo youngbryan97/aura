@@ -150,3 +150,24 @@ def test_a_mend_that_gained_nothing_is_written_again_with_what_her_sources_say_o
     assert len(consulted) == 1 and "The list is sorted by name" in consulted[0] and "Bea should come before Cy" in consulted[0]
     assert "Compare the names with localeCompare." not in written[0]
     assert all("Compare the names with localeCompare." in w for w in written[1:])
+
+
+def test_what_her_library_gives_that_does_not_answer_the_question_is_left_on_the_shelf():
+    """LIVE 28 November 2026, asked how a reading tracker should keep its data, her library gave Ember.js, Google Cloud Datastore
+    and Object REXX: its search finds any page that shares a word."""
+    from core.making import consulting
+    from core.memory.embedding_model import query_prompt
+
+    asked = query_prompt("document")
+    questions = {asked + q for q, _p in consulting.ANSWERS} | {asked + "How should a reading tracker keep its books between uses?"}
+    passages = {p: [0.6, 0.8] for _q, p in consulting.ANSWERS}
+    passages.update({"Local storage keeps a page's data in the browser after it is closed.": [0.9, 0.436],
+                     "Ember.js is a JavaScript framework for building web applications.": [0.2, 0.98]})
+
+    def vectors(texts):
+        return [[1.0, 0.0] if text in questions else passages[text] for text in texts]
+
+    said = list(passages)[-2:]
+    assert consulting.answering("How should a reading tracker keep its books between uses?", said, vectors) == [True, False]
+    assert consulting.answering("How should a reading tracker keep its books between uses?", said, lambda _texts: []) == [True, True], \
+        "where her encoder is not there, every passage is read as it was"

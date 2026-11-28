@@ -8612,6 +8612,14 @@ needs her 27B free (her app down, or her app's own influence trials).
       becomes a rule of it, tested and built like any other; she looks again, and what she does not think better made is taken
       back. The Work panel shows her view in her words (`core/making/her_view.py`, `tests/test_she_looks_at_what_she_made.py`).
       Left: her view of a program, live.
+    - 28 November, 01:57, live, on 4a70e1310: asked for "a little app for keeping track of the books I am reading", she said
+      she would build a web app to open in a browser, and it was designed as a command-line tool. What she had told them
+      never reached the work: the turn's reading of the request it began was not where her words were kept, so they were
+      not kept. It is found by the turn's words now as well (`tests/test_what_is_asked_of_her.py`). Her library had answered
+      how such an app keeps its data with Ember.js, Google Cloud Datastore and Object REXX, its search taking any page that
+      shares a word; a passage of hers is kept now only where her encoder holds it as near the question as passages on record
+      that answer theirs (`tests/test_she_consults_her_sources_as_she_makes.py`). What she said of a tool as she wrote it
+      was shown twice; it is shown once.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

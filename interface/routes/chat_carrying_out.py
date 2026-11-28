@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.what_this_turn_asks import Asked, hold, this_turn
+from core.runtime.what_this_turn_asks import Asked, held_for, hold, this_turn
 from core.understanding.effects import BY_NAME
 from core.understanding.her_model_between_turns import ORIGIN, nobody_waiting
 from core.understanding.requests_of_her import ASKED, SET_ASIDE, Ask, Request, get_requests_of_her
@@ -187,13 +187,21 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     from core.conversation.surface_disposition import turn_tool_receipts
     from core.utils.task_tracker import get_task_tracker
 
+    # What the turn was read as asking for, and the request it began: held for the turn, and by its words where the turn's
+    # own hold did not come this far. LIVE 28 November 2026 she said she would build a web app to open in a browser, nothing
+    # she said reached the work, and it was designed as a command-line tool.
     asked = this_turn()
+    if asked is None or not asked.request_id:
+        asked = next((one for one in (held_for(said), asked) if one is not None and one.request_id), asked)
     if not str(reply or "").strip() or asked is None:
         return
     begun = get_requests_of_her().get(asked.request_id) if asked.request_id else None
     if begun is not None and not begun.tries and not begun.told:
         # What she says of work as she begins it is said before the work is thought out, so the work holds to it.
         begun.told = str(reply).strip()[:1600]
+        logger.info("What she told them of request %s is what its work holds to.", begun.id)
+    elif begun is not None and not begun.told:
+        logger.info("What she told them of request %s came after it was begun, and is not what it holds to.", begun.id)
     if asked.request_id or turn_tool_receipts():
         return
     get_task_tracker().create_task(_keep_her_word(reply, said, asked, session_id=session_id), name="her_word_is_kept")

@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Sequence
+import math
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Consulted", "Said", "ToAsk", "consult"]
+__all__ = ["ANSWERS", "Consulted", "Said", "ToAsk", "answering", "consult"]
 
 logger = logging.getLogger("Making.Consulting")
 
@@ -28,6 +29,75 @@ logger = logging.getLogger("Making.Consulting")
 QUESTIONS, OF_EACH, AN_ANSWER = 4, 3, 420
 #: How long the web is given for all of them, in seconds, and her library for each: it answers in well under a second.
 WEB_S, LIBRARY_S = 90.0, 10.0
+
+
+#: A question of making something, and a passage of an encyclopedia that answers it. How near her encoder holds the least near
+#: of these is how near a passage of her library has to be to a question to be read as answering it. LIVE 28 November 2026,
+#: asked how a reading tracker should keep its data, her library gave Ember.js, Google Cloud Datastore and Object REXX.
+ANSWERS: tuple[tuple[str, str], ...] = (
+    ("How should a small app keep what is put in it between one use and the next?",
+     "Web storage provides web applications with methods for storing data in the browser. Data kept with localStorage stays after "
+     "the browser is closed and is there the next time the page is opened."),
+    ("How can a search find a title even when it is spelled wrongly?",
+     "Approximate string matching, often called fuzzy string searching, finds strings that match a pattern approximately rather than "
+     "exactly, allowing for letters left out, added or swapped."),
+    ("What makes a progress bar easy to read at a glance?",
+     "A progress bar is a graphical control element that shows how far an operation has gone. The filled part grows from one end, and "
+     "it is often shown with the percentage in text beside it."),
+    ("How should a list with nothing in it yet be shown?",
+     "An empty state is what an interface shows when there is no content yet. A good one says what will appear there and offers the "
+     "action that puts the first thing in."),
+    ("How should dates be written so that people read them easily?",
+     "ISO 8601 writes dates year, month, day, for machines to sort. For people, applications usually show the month as a word and "
+     "follow the conventions of the reader's locale."),
+    ("Which colours can people with colour blindness tell apart?",
+     "People with red-green colour blindness confuse reds and greens of similar lightness, so designers pair colour with shape, "
+     "pattern or text rather than letting colour alone carry the meaning."),
+    ("How does a jump in a platform game come to feel right?",
+     "In platform games a jump is usually a parabola: the character leaves the ground with an upward speed that gravity takes away each "
+     "frame, and many games cut the jump short when the button is let go."),
+)
+#: Her encoder, for some texts: [] where it is not loaded.
+Vectors = Callable[[Iterable[str]], list[list[float]]]
+_BOUND: dict[Any, float] = {}
+
+
+def _vectors(texts: Iterable[str]) -> list[list[float]]:
+    from core.cognition.evidence_relevance import vectors_if_ready
+
+    return vectors_if_ready(list(texts))
+
+
+def _as_asked(question: str) -> str:
+    from core.memory.embedding_model import query_prompt
+
+    return query_prompt("document") + " ".join(str(question).split())
+
+
+def _cosine(a: Sequence[float], b: Sequence[float]) -> float:
+    top, na, nb = sum(x * y for x, y in zip(a, b, strict=False)), math.sqrt(sum(x * x for x in a)), math.sqrt(sum(y * y for y in b))
+    return top / (na * nb) if na and nb else 0.0
+
+
+def _bound(vectors: Vectors) -> float | None:
+    if vectors not in _BOUND:
+        made = vectors([text for question, passage in ANSWERS for text in (_as_asked(question), passage)])
+        if len(made) != 2 * len(ANSWERS):
+            return None
+        _BOUND[vectors] = min(_cosine(made[2 * i], made[2 * i + 1]) for i in range(len(ANSWERS)))
+    return _BOUND[vectors]
+
+
+def answering(question: str, passages: Sequence[str], vectors: Vectors | None = None) -> list[bool]:
+    """For each passage, whether it answers the question as near as the passages on record answer theirs; every one, where her
+    encoder is not there to read them."""
+    vectors = vectors or _vectors
+    texts = [" ".join(str(p or "").split())[:AN_ANSWER * 2] for p in passages]
+    bound = _bound(vectors) if texts else None
+    made = vectors([_as_asked(question), *texts]) if bound is not None else []
+    if bound is None or len(made) != len(texts) + 1:
+        return [True] * len(texts)
+    return [_cosine(made[0], vector) >= bound for vector in made[1:]]
 
 
 class AQuestion(BaseModel):
@@ -108,7 +178,9 @@ async def consult(about: str, *, ask: Ask, write: Write, library: Library = her_
         except (TimeoutError, OSError, RuntimeError, ValueError) as why:
             logger.info("Her library was not read for %r: %s", q.search, why)
             hits = []
-        said += [Said(q.question, "library", f"{title} ({shelf})", _short(words)) for title, shelf, words in hits]
+        # What does not answer the question is left on the shelf.
+        kept = await asyncio.to_thread(answering, q.question, [words for _title, _shelf, words in hits]) if hits else []
+        said += [Said(q.question, "library", f"{title} ({shelf})", _short(words)) for (title, shelf, words), keep in zip(hits, kept, strict=True) if keep]
     if questions:
         try:
             found = await asyncio.wait_for(web([q.search for q in questions]), timeout=WEB_S)

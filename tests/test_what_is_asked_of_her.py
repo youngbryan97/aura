@@ -12,7 +12,7 @@ import pytest
 
 from core.brain.llm import her_states_at_a_turn as states
 from core.runtime import what_this_turn_asks as held
-from core.runtime.what_this_turn_asks import Asked, asked_by, hold, licensed
+from core.runtime.what_this_turn_asks import Asked, asked_by, hold, licensed, this_turn
 from core.understanding import carrying_out, fitted_on_her_model, what_is_asked
 from core.understanding.effects import BY_NAME, EFFECTS
 from core.understanding.examples import Turn, attached, examples, transcript
@@ -753,6 +753,32 @@ def test_nothing_is_begun_beside_work_the_turn_already_did(monkeypatch, tmp_path
     monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
     chat.her_word_is_kept("On it.", "Make it.", session_id="c")
     assert "task" in started
+
+
+def test_what_she_told_them_reaches_the_work_where_the_turn_s_own_hold_did_not_come_back(monkeypatch, tmp_path):
+    """LIVE 28 November 2026 she said she would build a web app to open in a browser, nothing she said reached the work, and it
+    was designed as a command-line tool."""
+    import asyncio
+
+    from core.conversation import surface_disposition
+    from core.runtime.what_this_turn_asks import clear
+    from interface.routes import chat_carrying_out as chat
+
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
+    ledger = RequestsOfHer(tmp_path / "told.json")
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    said = "Could you make me a little app for keeping track of the books I am reading?"
+    begun = ledger.asked(said, effect="program", conversation="c")
+    clear()
+    hold(_read(said, "program"))  # the turn, as it was read
+
+    async def taken_up() -> None:  # the request it began, held where the turn's caller does not see it
+        hold(dataclasses.replace(_read(said, "program"), request_id=begun.id))
+
+    asyncio.run(taken_up())
+    assert this_turn().request_id == ""
+    chat.her_word_is_kept("I'll build a single-file web app you can open in your browser.", said, session_id="c")
+    assert begun.told == "I'll build a single-file web app you can open in your browser."
 
 
 def test_a_reply_to_a_turn_that_work_carries_out_is_not_held_to_being_the_work():
