@@ -254,6 +254,14 @@ class HerCortexReads:
         found = self._what_she_said(found)
         if not found:
             return None
+        from core.brain.llm.mlx_client import MLXLocalClient
+
+        wanted = MLXLocalClient._extract_tool_call_payload(found, allowed_tools=None)
+        if wanted is not None:
+            # A call is what she would do next, not what she found: LIVE 27 November 2026, 17:5x, her cortex wrote
+            # read_file for the app the event bridge's message named, and the choice after it had nothing to stand on.
+            logger.info("her cortex asked to %s before it could say where the fault lies", wanted.get("tool"))
+            return None
         options = self.choices()
         which = [*asked, {"role": "assistant", "content": found},
                  {"role": "user", "content": "Which of these is what you found?\n" + "\n".join(options)}]

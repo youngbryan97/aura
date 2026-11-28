@@ -342,3 +342,24 @@ def test_a_reading_made_under_another_question_is_asked_again(monkeypatch):
     monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
     judged = asyncio.run(mending._where_it_lies(record, fault, REFUSES))
     assert model.asked and judged.leaves_the_function and judged.asked == lies.THE_QUESTION_ASKED
+
+
+def test_a_call_her_cortex_writes_instead_of_a_finding_is_no_reading(monkeypatch):
+    """LIVE 27 November 2026 her cortex wrote a read_file call where its finding goes, and a reading was chosen from it."""
+    from core.brain import her_unprompted_turn
+
+    chose: list[dict] = []
+
+    class Cortex:
+        async def generate_text_async(self, prompt, **kwargs):
+            if kwargs.get("choose_from"):
+                chose.append(kwargs)
+                return "Done on purpose, as it was written to; what should change is in what called it"
+            return "<tool_call>\n<function=read_file>\n<parameter=path>\nindex.html\n</parameter>\n</function>\n</tool_call>"
+
+    async def lane(messages, *, origin, least_s, work):
+        return await work(Cortex(), least_s)
+
+    monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
+    assert asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads())) is None
+    assert not chose, "no reading is chosen from a call"
