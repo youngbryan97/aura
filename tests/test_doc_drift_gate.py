@@ -406,7 +406,7 @@ def test_a_size_far_from_the_lane_name_is_not_attributed_to_it(scan):
 def test_the_registry_is_where_lane_sizes_come_from():
     """Read from the code, so the gate moves when the lane does."""
     lanes = gate.lane_sizes()
-    assert lanes.get("Reflex") == "1.5B"
+    assert lanes.get("Reflex") == "1.7B"
     assert lanes.get("Brainstem"), "the Brainstem default is no longer readable"
 
 

@@ -48,7 +48,7 @@ def test_a_lane_pointed_at_the_cortex_gets_the_cortex_label():
 
 def test_other_lanes_read_the_size_the_registry_assigned_them():
     # A registry-declared name is a declaration, not a guess.
-    assert model_registry.lane_display_label("Reflex").endswith("(1.5B)")
+    assert model_registry.lane_display_label("Reflex").endswith("(1.7B)")
 
 
 def test_a_lane_with_no_declared_size_renders_as_its_own_name(monkeypatch):

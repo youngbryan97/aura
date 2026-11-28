@@ -127,10 +127,13 @@ _FLAG_DEEP_SPECIALIST_TRUST_ROOT = _declare_flag(
     description="Pinned Ed25519 public key that may attest optional specialist qualification.",
     owner="model-registry",
 )
+# Her reflex lane. Qwen2.5-1.5B until 27 November 2026: on her own stream-narration prompt, read blind for twelve
+# moments, Qwen3-1.7B, 939 MB beside its 839, wrote the better narrative for eleven, at 1.6 s against 2.4 s, and the
+# older leaked Chinese words into one.
 _FLAG_FALLBACK_MODEL = _declare_flag(
     "AURA_FALLBACK_MODEL",
     kind=_FlagKind.STRING,
-    default="Qwen2.5-1.5B-Instruct-4bit",
+    default="Qwen3-1.7B-4bit",
     description="Migrated from a raw environment read; see owner for the lane.",
     owner="flag-migration",
 )
@@ -835,6 +838,7 @@ _CORTEX_MANIFEST_TTL_S = 5.0
 _cortex_path_cache: tuple[float, Path] | None = None
 
 HF_FALLBACKS = {
+    "Qwen3-1.7B-4bit": "mlx-community/Qwen3-1.7B-4bit",
     "Qwen2.5-1.5B-Instruct-4bit": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
     "Qwen3.5-9B-4bit": "mlx-community/Qwen3.5-9B-4bit",
     "Qwen2.5-7B-Instruct-4bit": "mlx-community/Qwen2.5-7B-Instruct-4bit",
@@ -898,6 +902,7 @@ _BRAINSTEM_PATH = Path(
 )
 
 MODEL_PATHS = {
+    "Qwen3-1.7B-4bit":            BASE_DIR / "models" / "Qwen3-1.7B-4bit",  # her reflex since 2026-11-27
     "Qwen2.5-1.5B-Instruct-4bit": BASE_DIR / "models" / "Qwen2.5-1.5B-Instruct-4bit",
     "Qwen3.5-9B-4bit":            BASE_DIR / "models" / "Qwen3.5-9B-4bit",  # brainstem until 2026-09-20
     "Qwen2.5-7B-Instruct-4bit":   BASE_DIR / "models" / "Qwen2.5-7B-Instruct-4bit",  # legacy

@@ -46,6 +46,7 @@ _LIFECYCLE_RECOVERABLE_ERRORS = (
 # specialists remain fetchable when explicitly requested, but they are not
 # part of Aura's default installation plan.
 DEFAULT_REPO_MAP: dict[str, str] = {
+    "Qwen3-1.7B-4bit": "mlx-community/Qwen3-1.7B-4bit",
     "Qwen2.5-1.5B-Instruct-4bit": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
     "Qwen3.5-9B-4bit": "mlx-community/Qwen3.5-9B-4bit",
     "Ternary-Bonsai-2.5-27B-mlx-2bit": "prism-ml/Ternary-Bonsai-2.5-27B-mlx-2bit",
@@ -64,6 +65,7 @@ DEFAULT_REPO_MAP: dict[str, str] = {
 # size is known only after the HF metadata fetch; this is for a pre-download
 # "do you have room?" check, not an exact figure.
 _APPROX_SIZE_GB: dict[str, float] = {
+    "Qwen3-1.7B-4bit": 1.0,
     "Qwen2.5-1.5B-Instruct-4bit": 1.0,
     "Qwen3.5-9B-4bit": 5.5,
     "Ternary-Bonsai-2.5-27B-mlx-2bit": 8.9,
