@@ -81,6 +81,9 @@ AT_ONCE = 5
 OWN_S = 60.0
 #: How many mends in a row may gain nothing before the last of what fails is left.
 GAINED_NOTHING = 2
+#: How many times a mending writes the program whole again where mending it a part at a time has stopped gaining. LIVE 28
+#: November 2026 a dinner planner's form showed only once Save was pressed, and no mend of a part of it reached that.
+WHOLE_AGAIN = 2
 #: How many rules are tested again at once, and how many of the ways a search finds are tried whole.
 A_FEW_RULES, BELIEVED = 6, 6
 
@@ -615,7 +618,7 @@ class _Maker:
         assert self.design is not None
         self.trial = await self.tried()
         self._known = set()
-        nothing_gained = doubted = 0
+        nothing_gained = doubted = rewritten = 0
         put_right = False
         while self.trial.failing():
             failing = self.trial.failing()
@@ -629,6 +632,13 @@ class _Maker:
                     continue
             if nothing_gained >= (GAINED_NOTHING if any(not r.ok for r in self.trial.generic) else 1):
                 if doubted or self.design.kind == "site" or not [r for r in self.trial.rules if not r.ok]:
+                    # What mending a part at a time does not reach may be how the whole of it is made: written whole again, kept where
+                    # less fails, before what still fails is left.
+                    if rewritten < WHOLE_AGAIN:
+                        rewritten += 1
+                        if await self._written_whole_again():
+                            nothing_gained, self._known = 0, set()
+                            continue
                     break
                 doubted = 1
                 if not await self._tests_read_again([r for r in self.trial.rules if not r.ok]):
@@ -665,6 +675,38 @@ class _Maker:
             else:
                 nothing_gained += 1
                 self.work.says(f"Not kept: {len(failing)} things failed before it and {len(trial.failing())} after.")
+
+    async def _written_whole_again(self) -> bool:
+        """The program written whole again, its rules and then how it looks, from its design, its tests and what still fails of
+        it; kept where less fails. Whether it was."""
+        design = self.design
+        assert design is not None
+        if design.kind not in {"app", "game"} or not self.parts.functions:
+            return False
+        failing = self.trial.failing()
+        self.work.step("Writing it whole again, from its design, its tests and what still fails")
+        told = "\n".join(f"- {r.name}: {r.why[:300]}" for r in failing[:12])
+        tests = f"\nIts tests:\n```js\n{self.parts.tests[-14000:]}\n```\n" if self.parts.tests else ""
+        functions = "initial, update, score, over and hud" if design.kind == "game" else "initial and update"
+        which = "draw" if design.kind == "game" else "view"
+        parts = self.parts.copy()
+        said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{tests}\nTrying it, these fail, and mending it a part at a time has "
+                                f"not put them right:\n{told}\n\nSay in a few sentences what is wrong in how it is made, then write {functions} again, "
+                                "with every function they call, as one JavaScript object in one block: `({ ... })`.", CODE_TOKENS, warmth=0.4, given=self._given())
+        if not self._written(said, "its rules, written again", parts):
+            return False
+        said = await self.write(f"Its rules are written again:\n```js\n{parts.code()}\n```\n{tests}\nWhat failed:\n{told}\n\nSay in a sentence how it "
+                                f"will look, then write {which} again, with every function it calls, as one JavaScript object in one block: "
+                                f"`({{ {which}(s, {'g' if which == 'draw' else 'ui'}) {{ ... }} }})`. It is to look finished.", CODE_TOKENS, warmth=0.4, given=self._given())
+        self._written(said, "how it looks, written again", parts)
+        trial = await self.tried(parts, "Trying it written again")
+        if self._wrong(trial) < self._wrong(self.trial):
+            self.work.says(f"Kept: written again, {len(trial.failing())} things fail, and {len(failing)} did.")
+            self.parts, self.trial = parts, trial
+            await self.kept()
+            return True
+        self.work.says(f"Not kept: written again, {len(trial.failing())} things fail, and {len(failing)} did.")
+        return False
 
     def _wrong(self, trial: Trial) -> tuple[int, float]:
         """How wrong a trial shows it, beside every check that any trial of it has got as far as."""

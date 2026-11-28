@@ -1524,3 +1524,51 @@ def test_what_runs_is_not_put_out_by_a_change_that_does_not(tmp_path, monkeypatc
     assert "nothing" in kept["parts"]["functions"]["initial"], "and what it has come to is gone on with"
     made.trial = Trial(generic=[Result("it begins", True)])
     assert "does not" in asyncio.run(made.kept()).read_text(encoding="utf-8")
+
+
+def test_what_mending_a_part_at_a_time_does_not_reach_is_written_whole_again_and_kept_where_less_fails(tmp_path):
+    """LIVE 28 November 2026 a dinner planner's form showed only once Save had been pressed, and no mend of a part of it reached
+    that: it was done with what it was asked for still failing."""
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]})
+    gated = APP.replace("ui.row(ui.input(", "s.saved && ui.row(ui.input(").replace('if (e.type === "do" && e.name === "remove")',
+                                                                                  'if (e.type === "do" && e.name === "save") s.saved = true;\n    if (e.type === "do" && e.name === "remove")')
+    tests = 'test("adding shows it", t => { t.type("Loaf", "rye").click("Add"); t.expect(t.sees("Remove rye"), "no rye"); });'
+    rules = "It was hidden behind saving.\n```js\n" + APP[: APP.index("  view(s, ui)")] + "})\n```"
+    looks = "As a column.\n```js\n({" + APP[APP.index("  view(s, ui)"):].rstrip()[:-2] + "})\n```"
+
+    def run(written):
+        async def go(browser):
+            from core.making.maker import Parts, _Maker
+            from core.making.code_parts import patched
+
+            asked = list(written)
+
+            async def write(prompt, n, **_how):
+                return asked.pop(0)
+
+            made = _Maker("Loaves to keep", ask=None, write=write, work=Work("w", "loaves"), folder=tmp_path, browser=browser)
+            made.design, made.parts = design, Parts(functions=patched({}, gated)[0], tests=tests)
+
+            async def kept():
+                return tmp_path / "index.html"
+
+            made.kept = kept
+            made.trial = await made.tried()
+            before = len(made.trial.failing())
+            return before, await made._written_whole_again(), made
+        return _in_a_browser(go)
+
+    before, kept, made = run([rules, looks])
+    assert before > 0 and kept and made.trial.failing() == [] and "s.saved && ui.row" not in made.parts.code()
+    worse = "Worse.\n```js\n({ update(s, e) { s.nothing.there; } })\n```"
+    before, kept, made = run([worse, looks.replace("ui.title(\"Loaves\")", "ui.title(\"Loaves\"), s.nothing.there")])
+    assert not kept and "s.saved && ui.row" in made.parts.code(), "what leaves more failing is not kept"
+
+
+def test_a_button_says_what_it_does_and_not_the_name_of_what_it_sends(tmp_path):
+    """LIVE 28 November 2026 a vocabulary trainer's button said "addWord"."""
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]})
+    coded = APP.replace('ui.button("Add", "add")', 'ui.button("addLoaf", "addLoaf")').replace('e.name === "add"', 'e.name === "addLoaf"')
+    shown = next(r for r in _tried(page_of(design, coded, tests=""), tmp_path).generic if r.name == "it is shown")
+    assert not shown.ok and "“addLoaf”" in shown.why
+    assert next(r for r in _tried(page_of(design, APP, tests=""), tmp_path).generic if r.name == "it is shown").ok

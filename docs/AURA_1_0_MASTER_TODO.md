@@ -8660,6 +8660,11 @@ needs her 27B free (her app down, or her app's own influence trials).
       rightly gives nothing for most dishes: a check is held to say nothing now only where the sure answer is something
       (`tests/test_making_programs.py`). What her changes left behind once taken back no longer shows as how it stands, and
       she is told the window's own Undo, Start over and Help are not the program's to change.
+    - Every program she had kept was tried again with its own tests: two old ones never finished (one cannot be read), and
+      most of the rest end with rules of theirs failing that her mends stopped reaching, the reading app at 35 of 46 and the
+      plant tracker at 19 of 27. Where mending a part at a time stops gaining, she now writes the program whole again, its
+      rules and then how it looks, from its design, its tests and what still fails, and keeps it where less fails, twice at
+      most (`tests/test_making_programs.py`). A button that shows the name of what it sends ("addWord") fails "it is shown".
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
