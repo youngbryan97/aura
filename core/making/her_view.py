@@ -212,7 +212,9 @@ async def her_view_of(shots: list[Shot], *, asked: str, design: Design, ask: Cal
     to be given room to think; ``before`` is what she thought when she last looked, and what came of it; ``measured`` is what
     was measured of it in its page, which her eyes may not have seen as it is."""
     # What was asked and what it is for, as whoever uses it knows them; its rules are its tests', and are left to them.
-    given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}\n\n"
+    window = ("\n\nThe window it runs in has Undo, Start over and Help of its own, in the bar above it: they are the window's, not the program's."
+              if design.kind == "app" else "")
+    given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}{window}\n\n"
              f"This is how it looks, as your eyes saw it:\n\n{_read(shots)}"
              + (f"\n\nMeasured in its page, in a wide and a narrow window: {measured}" if measured else "")
              + (f"\n\nWhen you last looked at it you thought: {before['thinks']}\nWhat you would have changed then: "

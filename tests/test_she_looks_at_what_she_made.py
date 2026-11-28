@@ -103,6 +103,7 @@ def test_what_she_would_change_of_what_she_made_is_built_in_and_kept_where_she_t
     assert [how for _prompt, _given, how in made.thought] == [{"cognitive_mode": "reflective"}] * 2, "she is given room to think, of it and of the change"
     assert "a plain list" in made.thought[0][1] and "a list with an empty state" in made.thought[1][1] and "Is it better made now?" == made.thought[1][0]
     assert "Dishes to cook, please" in made.thought[0][1] and "a dish can be added" not in made.thought[0][1], "she sees it as whoever asked, not by its rules"
+    assert "Undo, Start over and Help of its own" in made.thought[0][1], "what the window does is not the program's to change"
     assert "Measured in its page, in a wide and a narrow window: nothing overlaps" in made.thought[0][1], "what was measured stands beside what her eyes said"
     assert views[0]["saw"] == [{"caption": "as it opens", "seen": "a plain list"}], "what she saw is kept with what she thought"
     assert views[0]["thinks"].startswith("It works") and views[0]["would_change"][0]["why"] == "a blank page reads as broken"
@@ -134,6 +135,7 @@ def test_what_she_would_change_that_cannot_be_built_is_taken_back_before_she_is_
     assert [r.says for r in made.design.rules] == ["a dish can be added"] and made.has == ["a dish can be added"] and not made.trial.failing()
     assert "test(" not in made.parts.tests and len(made.thought) == 1, "she is not asked to compare what was not built"
     assert any(row.get("verdict") == "as it was" for row in made.work.seen()["happened"]) and built[-1] == "kept"
+    assert [row["title"] for row in made.work.seen()["happened"] if row["what"] == "tried"][-1] == "As it was before", "the work shows it as it is kept"
 
 
 def test_without_her_eyes_she_does_not_look_and_nothing_is_changed(tmp_path):

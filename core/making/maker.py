@@ -155,15 +155,16 @@ class Anothers(BaseModel):
 def another_way(check: Another) -> str:
     """A check as a test: the function's answers, on many small inputs made by chance, held to what is surely so of them."""
     name = json.dumps(f"{check.claims.rstrip('.')}{ANOTHER_WAY}")
-    return (f"test({name}, t => {{ const inputs = {check.inputs}, surely = {check.surely}, holds = {check.holds}; let z = 11, says_nothing = 0; "
+    return (f"test({name}, t => {{ const inputs = {check.inputs}, surely = {check.surely}, holds = {check.holds}; let z = 11, says_nothing = 0, probed = 0; "
             "const r = () => (z = (z * 48271) % 2147483647) / 2147483647, copy = (x) => JSON.parse(JSON.stringify(x)); "
             "Object.assign(r, { between: (a, b) => a + r() * (b - a), int: (a, b) => a + Math.floor(r() * (b - a + 1)), pick: (all) => all[Math.floor(r() * all.length)], shuffle: (all) => all.map((x) => [r(), x]).sort((a, b) => a[0] - b[0]).map((x) => x[1]) }); "
             # What it is made of going wrong is its own fault, and no fault of the function's.
             "const own = (f) => { try { return f(); } catch (e) { e.theTest = true; throw e; } }; "
             "for (let i = 0; i < 150; i++) { const args = own(() => inputs(r)), got = t.call(" + json.dumps(check.function) + ", ...copy(args)), sure = own(() => surely(...copy(args))); "
-            "let nothing = false; try { nothing = holds(null, sure, args) === true; } catch (e) { nothing = false; } if (nothing) says_nothing++; "
+            # Held with no answer at all where the sure one is something: where the sure answer is itself nothing, holding of nothing is right.
+            "if (sure !== null && sure !== undefined) { probed++; let nothing = false; try { nothing = holds(null, sure, args) === true; } catch (e) { nothing = false; } if (nothing) says_nothing++; } "
             "t.expect(holds(got, sure, args) === true, `for ${JSON.stringify(args).slice(0, 220)} it gives ${JSON.stringify(got).slice(0, 220)}, and ${JSON.stringify(sure).slice(0, 120)} is what is surely so`); } "
-            "if (says_nothing > 100) { const e = new Error('this holds of no answer at all, so it says nothing of one'); e.theTest = true; throw e; } });")
+            "if (probed >= 10 && says_nothing > (2 * probed) / 3) { const e = new Error('this holds of no answer at all, so it says nothing of one'); e.theTest = true; throw e; } });")
 
 
 class _Maker:
@@ -1029,6 +1030,7 @@ class _Maker:
         if {r.name for r in self.trial.failing()} - {r.name for r in was[1].failing()}:
             self.parts, self.trial, self.design, self.has = was
             self.last_view["came"] = "what she would change could not be built without something failing, and was taken back"
+            self.work.tried("As it was before", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*self.trial.generic, *self.trial.rules]])
             self.work.happened("her_view", thinks="", verdict="as it was")
             self.work.says("What I would change of it could not be built without something of it failing, so it is as it was.")
             await self.kept()
@@ -1038,6 +1040,7 @@ class _Maker:
         if verdict is not None and not verdict.better:
             self.parts, self.trial, self.design, self.has = was
             self.last_view["came"] = f"built, looked at again, and taken back: {verdict.thinks}"[:1200]
+            self.work.tried("As it was before", [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*self.trial.generic, *self.trial.rules]])
             self.work.happened("her_view", thinks=verdict.thinks, verdict="as it was")
             self.work.says("I thought it better as it was, so it is as it was.")
         else:

@@ -593,3 +593,26 @@ def test_the_window_s_own_tools_say_what_they_do_and_what_clears_everything_asks
     assert seen["undo"] and not seen["undo after"] and seen["danger"] == 1, seen
     assert seen["accent"] != "#ffe066" and seen["accent"].startswith("#"), "what the program sets is drawn in a colour white words read on"
     assert seen["asked"] == "Start over?" and seen["focus"] == "Keep it" and seen["kept"] == [0, 1] and seen["cleared"] == [0, 0], seen
+
+
+def test_fields_shown_together_are_told_apart_by_their_names(tmp_path):
+    """LIVE 28 November 2026 a dinner planner had two fields called "Name", a guest's and a dish's, and its tests asked for
+    "Guest Name" and "Dish Name"."""
+    two = """({
+  initial() { return { guests: [], dishes: [], guest: "", dish: "", portions: {} }; },
+  update(s, e) { if (e.type === "input") return { ...s, [e.name]: e.value }; if (e.name === "addGuest") return { ...s, guests: [...s.guests, { id: s.guests.length + 1, name: s.guest }] }; return s; },
+  view(s, ui) { return ui.column(ui.input("Name", "guest", s.guest), ui.button("Add guest", "addGuest"), ui.input("Name", "dish", s.dish),
+    ui.list(s.guests, (g) => ui.row(ui.text(g.name), ui.number("Portions", "portion" + g.id, s.portions[g.id] || 1)))); },
+})"""
+    told_apart = two.replace('ui.input("Name", "guest"', 'ui.input("Guest name", "guest"').replace('ui.input("Name", "dish"', 'ui.input("Dish name", "dish"')
+    state = {"guests": [{"id": 1, "name": "Ana"}, {"id": 2, "name": "Ben"}], "dishes": [], "guest": "", "dish": "", "portions": {}}
+
+    def check(code):
+        async def run(browser):
+            return await try_page(page_of(_design(name="Dinner", state=state), code, tests=""), tmp_path / "t.html", browser)
+
+        return next(r for r in _in_a_browser(run).generic if r.name == "each field can be told from the others by its name")
+
+    seen = check(two)
+    assert not seen.ok and "“Name”" in seen.why
+    assert check(told_apart).ok, "a field repeated row by row is each row's"

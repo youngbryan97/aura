@@ -172,7 +172,7 @@ ui.input(label, name, value, {{placeholder, enter:"name sent on Enter", type}}) 
 ui.empty(title, hint, icon) where there is nothing yet; ui.dialog(title, ..parts) over everything while it is in the view, for what is to be decided first: its first button leaves things as they were, and Escape presses it; ui.toast(words, "good|bad") a word that something was done; ui.icon(name)
 Icons: plus minus check close trash edit download upload search star heart clock calendar play pause stop refresh settings user users cart list filter sort arrow-right arrow-left chevron info warn copy share print home leaf drop sun moon bell tag book chart money pin food
 ui.list(items, (item, i) => part) ui.table(heads, rows of cells) ui.tabs(names, chosen, name) ui.progress(value, of) ui.bars([{{label,value,show}}]) ui.lines([numbers]) ui.canvas(name, w, h, (g, w, h) => ...) sends "do" with {{x, y}} when pressed; g is the pen, with the canvas's own methods and properties too (g.fillRect, g.fillStyle)
-Labels of buttons that stand together differ, so each can be told from the rest. {_CHANCE}"""
+Labels of buttons that stand together differ, and so do those of fields shown together, so each can be told from the rest. {_CHANCE}"""
 
 #: How the pictures she painted are drawn.
 PICTURES = {"game": 'Its pictures, each by its name: g.picture("name", x, y, {size, turn, flip, alpha}) draws one centred on x, y, its longer side as long as size; g.backdrop("name", {scroll, alpha}) fills the view with one, however the world is moved.',

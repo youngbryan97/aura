@@ -558,6 +558,20 @@ const Frame = (() => {
           s = act(s); } }
         if (lost.size) { const e = new Error([...lost.values()].slice(0, 3).join(". ")); e.got = -lost.size; throw e; } });
       check("showing it changes nothing in it", () => { for (let sd = 1; sd <= 3; sd++) { seed = sd; let s = P.initial(); for (let i = 0; i < 30; i++) s = act(s); const before = copy(s); shown(s); shown(s); must(JSON.stringify(s) === JSON.stringify(before), `view changes the state it is given: ${changed(before, s).slice(0, 4).join("; ")}`); } });
+      // Fields shown together are told apart by their names, by whoever uses it and by whatever reads it aloud; those repeated row by row
+      // in a list or a table are each the row's. LIVE 28 November 2026 a dinner planner had two fields called "Name", one for a guest and
+      // one for a dish, and its tests asked for "Guest Name" and "Dish Name".
+      check("each field can be told from the others by its name", () => {
+        // A part's shape: what the fields in it are called, in order. Rows of one list are of one shape, whatever each holds; two forms are not.
+        const shape = (v) => every(v).filter((n) => n.props.in && ["input", "select", "textarea"].includes(n.tag)).map((n) => String(n.props["aria-label"] || "").toLowerCase()).join("|");
+        const fields = (v, path, out) => { if (v.tag === "#") return out; const here = [...path, v]; if (v.props.in && ["input", "select", "textarea"].includes(v.tag) && v.props.type !== "checkbox" && v.props["aria-label"]) out.push([String(v.props["aria-label"]).trim(), here]); v.kids.forEach((k) => fields(k, here, out)); return out; };
+        const look = (s) => { const all = fields(shown(s), [], []);
+          for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) { const [a, pa] = all[i], [b, pb] = all[j]; if (a.toLowerCase() !== b.toLowerCase()) continue; let k = 0; while (k < pa.length && k < pb.length && pa[k] === pb[k]) k++;
+            // Where they part at the fields themselves, or at each one's own label, they stand in one place; where they part at what holds
+            // more than them, those are rows only if alike.
+            const own = (n) => n.tag === "label" && /\b(field|check)\b/.test(String(n.props.class || ""));
+            must(k < pa.length - 1 && k < pb.length - 1 && !own(pa[k]) && !own(pb[k]) && shape(pa[k]) === shape(pb[k]), `two fields shown together are called “${a}”: each is called by what it is for`); } };
+        seed = 7; look(P.initial()); if (P.designed) look({ ...P.initial(), ...copy(P.designed) }); for (let sd = 1; sd <= 3; sd++) { seed = sd; let s = P.initial(); for (let i = 0; i < 40; i++) { s = fill(s, sd + i); s = act(s); look(s); } } });
       check("each thing in it can be told from the others", () => { const now = Date.now; let at = 1.79e12; Date.now = () => (at += 1000); try { for (let sd = 1; sd <= 4; sd++) { seed = sd * 13; let s = P.initial(); for (let i = 0; i < 140; i++) { if (i % 7 === 0) s = fill(s, sd + i); s = act(s); for (const [path, list] of records(s)) { const ids = list.map((x) => x.id).filter((x) => x !== undefined), same = ids.find((x, j) => ids.indexOf(x) !== j); must(same === undefined, `two things in ${path} have the id ${JSON.stringify(same)}, so that what is done to one is done to the other: an id is one that nothing there has had`); } } } } finally { Date.now = now; } });
       // What it keeps is put in it from how it opens, by its own controls. LIVE 28 November 2026 a dinner planner opened on "No plan yet. Add a
       // guest and a dish to get started" with nothing to add one by, and a reading tracker had nothing to add a book by; she saw the first.

@@ -1191,6 +1191,20 @@ def test_what_is_worked_out_is_held_to_the_same_worked_out_another_way(tmp_path)
     assert result.the_test and "says nothing" in result.why
 
 
+def test_a_check_of_what_is_mostly_nothing_is_no_check_that_says_nothing(tmp_path):
+    """LIVE 28 November 2026 a dinner planner's clash finder gave nothing for a dish nobody minds, and was right to for most of
+    what it was tried on; its check was held to say nothing, for holding of nothing where nothing is right."""
+    clash = "clash(dish, guest) { const hit = dish.find((x) => guest.includes(x)); return hit === undefined ? null : hit + ' allergy'; }"
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]}, functions=["clash(dish, guest): what clashes"])
+    app = APP.replace("  view(s, ui)", f"  {clash},\n  view(s, ui)")
+    check = maker.Another(function="clash", claims="It names the first thing in the dish the guest cannot eat, or nothing.",
+                          inputs="r => [[r.pick(['egg', 'rice', 'leek'])], r() < 0.15 ? ['egg'] : ['nuts']]",
+                          surely="(dish, guest) => { const hit = dish.find((x) => guest.includes(x)); return hit === undefined ? null : hit + ' allergy'; }",
+                          holds="(got, sure) => got === sure")
+    (result,) = _tried(page_of(design, app, tests=maker.another_way(check)), tmp_path).rules
+    assert result.ok, result.why
+
+
 def test_a_program_is_held_to_another_way_once_it_is_built(tmp_path):
     made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
     made.design = _design(functions=["settle(b): who pays whom"])

@@ -8652,6 +8652,14 @@ needs her 27B free (her app down, or her app's own influence trials).
       holds read from the page itself: its headings, its buttons and whether each can be used and is in the window, its
       fields, how much each list holds, and its words; her eyes say how it looks
       (`tests/test_she_looks_at_what_she_made.py`).
+    - 28 November, Bryan, reading what still failed when the dinner planner was done: "She should be passing all of those
+      checks too, right? We should strengthen whatever needs to be improved so that ALL check pass too". What failed of the
+      program itself was of two sorts. Its two fields called "Name", a guest's and a dish's, which its tests asked for as
+      "Guest Name" and "Dish Name": fields shown together are now told apart by their names as buttons are, rows of one
+      shape aside (`tests/test_many_ways.py`). And a check of what it works out was held to say nothing, for a clash finder
+      rightly gives nothing for most dishes: a check is held to say nothing now only where the sure answer is something
+      (`tests/test_making_programs.py`). What her changes left behind once taken back no longer shows as how it stands, and
+      she is told the window's own Undo, Start over and Help are not the program's to change.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
