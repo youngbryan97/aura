@@ -240,3 +240,20 @@ async def test_a_runaway_says_which_part_grew_and_what_each_worker_holds(monkeyp
     assert "her own process +0 MB" in said[0] and "Aura-Qwen3.8-27B" in said[0]
     assert "her workers and other children +" in said[0] and "her workers and other children +0 MB" not in said[0]
     governor._reset_trend()
+
+
+def test_a_worker_her_registry_does_not_hold_is_a_load_and_not_a_runaway(monkeypatch):
+    """LIVE 27 November 2026 her brainstem's worker, started by a client her registry does not hold, loaded 12.9 GB
+    with no lifecycle boundary in the governor, and its load was called a runaway 16 times that day."""
+    governor = MemoryGovernor(SimpleNamespace())
+    governor._model_settling_s = 120.0
+    steady = {"state": "steady", "allocation_identity": (("/models/cortex", 111, "ready", True),)}
+    monkeypatch.setattr(governor, "_model_lifecycle_snapshot", lambda: dict(steady))
+    governor._sampled_worker_pids = frozenset({111})
+    governor._update_runaway_lifecycle(1.0)
+    governor._update_runaway_lifecycle(200.0)
+    governor._runaway.observe(20_000.0, now=200.0)
+    assert governor._update_runaway_lifecycle(300.0) == ("steady", False)
+    governor._sampled_worker_pids = frozenset({111, 222})  # her brainstem's worker, which her registry does not hold
+    assert governor._update_runaway_lifecycle(310.0) == ("settling", True)
+    assert governor._runaway.assess(now=310.0).samples == 0, "its load starts a new trend"

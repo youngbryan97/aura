@@ -116,7 +116,10 @@ class MemoryGovernor:
         self._last_policy_sample: dict[str, Any] = {}
         self._cleanup_events: list[dict[str, Any]] = []
         self._model_resource_state = "boot"
-        self._model_allocation_identity: tuple[tuple[str, int, str, bool], ...] = ()
+        self._model_allocation_identity: tuple[tuple[Any, ...], ...] = ()
+        #: The model workers in her process tree at the last sample, by pid, whether or not her client registry holds
+        #: them: a worker that came or went is a load or an unload, which the trend is not to read as growth.
+        self._sampled_worker_pids: frozenset[int] = frozenset()
         self._model_settle_until = 0.0
         self._model_settling_s = max(
             0.0, _env_float("AURA_RUNAWAY_MODEL_SETTLING_S", 180.0)
@@ -348,7 +351,8 @@ class MemoryGovernor:
     def _update_runaway_lifecycle(self, now: float) -> tuple[str, bool]:
         snapshot = self._model_lifecycle_snapshot()
         reported = str(snapshot.get("state") or "cold").lower()
-        identity = tuple(snapshot.get("allocation_identity") or ())
+        identity = tuple(snapshot.get("allocation_identity") or ()) + tuple(
+            ("worker", pid) for pid in sorted(self._sampled_worker_pids))
         previous_state = self._model_resource_state
         boundary = reported != previous_state or identity != self._model_allocation_identity
 
@@ -531,6 +535,15 @@ class MemoryGovernor:
                 action="continued memory policy with core-only RSS after canonical tree sample failed",
             )
             process_tree_mb = rss_mb
+        # Which workers that tree holds, read here off the loop. LIVE 27 November 2026 her brainstem's worker, started
+        # by a client her registry does not hold, loaded 12.9 GB with no lifecycle boundary here, and its load was
+        # called a runaway: a CRITICAL incident, 16 times that day.
+        try:
+            self._sampled_worker_pids = frozenset(
+                pid for pid in (int(proc.info.get("pid") or 0) for proc in self._iter_managed_runtime_processes())
+                if pid > 0)
+        except _RSS_SAMPLE_ERRORS as exc:
+            logger.debug("Memory Governor: could not read which workers the tree holds: %s", exc)
         # The canonical tree already includes the root. Runtime is the residual,
         # not another tree total to add on top of it.
         return rss_mb, max(0.0, process_tree_mb - rss_mb)
