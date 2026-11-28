@@ -56,7 +56,10 @@ _REPORTER: threading.Thread | None = None
 
 def _asked_for_at(frame: Any) -> str:
     """``path:line`` of the line that asked for this collection, or "" when an allocation set it off."""
-    if frame is None:
+    # A frame between lines has none (f_lineno is None), and linecache cannot compare None with a line count: LIVE 27
+    # November 2026, 18:29, "TypeError: '<=' not supported between instances of 'int' and 'NoneType'" in this
+    # callback, and that collection's pause went untimed.
+    if frame is None or frame.f_lineno is None:
         return ""
     path = frame.f_code.co_filename
     if not _ASKS_FOR_ONE.search(linecache.getline(path, frame.f_lineno)):
@@ -77,6 +80,8 @@ def _where_it_came_from(frame: Any) -> str:
     path = frame.f_code.co_filename
     shown = os.path.relpath(path, _ROOT) if path.startswith(_ROOT + os.sep) else os.path.join(
         *path.split(os.sep)[-2:])
+    if frame.f_lineno is None:
+        return f"set off in {shown}, between its lines"
     if _ASKS_FOR_ONE.search(linecache.getline(path, frame.f_lineno)):
         return f"asked for at {shown}:{frame.f_lineno}"
     return f"set off by an allocation at {shown}:{frame.f_lineno}"

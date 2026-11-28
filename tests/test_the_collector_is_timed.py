@@ -150,3 +150,15 @@ def test_a_collection_inside_a_section_whose_lock_logging_needs_does_not_wedge_t
         collector_pauses.uninstall_collector_timing()
         log.removeHandler(handler)
         log.setLevel(previous_level)
+
+
+def test_a_frame_between_its_lines_is_no_fault_of_the_timing():
+    """LIVE 27 November 2026, 18:29: a frame with no line (f_lineno None) raised TypeError in the collector's callback,
+    and that collection went untimed."""
+    from types import SimpleNamespace
+
+    from core.runtime import collector_pauses
+
+    between = SimpleNamespace(f_code=SimpleNamespace(co_filename=collector_pauses.__file__), f_lineno=None)
+    assert collector_pauses._asked_for_at(between) == ""
+    assert "between its lines" in collector_pauses._where_it_came_from(between)
