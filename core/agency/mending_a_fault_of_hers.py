@@ -148,8 +148,9 @@ async def _left_as_it_is(record: Any, workspace: Path, fault: Any, judged: Any) 
         if record.base and (Path(workspace) / ".git").exists():
             await _governed_run(["git", "-c", "core.fsmonitor=false", "reset", "-q", "--hard", record.base],
                                 cwd=Path(workspace), env=None, timeout=60.0, effect="commit")
-    return await _stop(record, f"my model read {fault.call.qualname} as raising this on purpose, and what should change "
-                               f"as in {judged.lies_in}, so I leave it as it is: {judged.why}",
+    done = "doing this on purpose" if judged.on_purpose else "not doing this as it was written to"
+    return await _stop(record, f"my model read {fault.call.qualname} as {done}, and what should change as in "
+                               f"{judged.lies_in}, so I leave it as it is: {judged.why}",
                        judged.as_kept(), by_design=True)
 
 

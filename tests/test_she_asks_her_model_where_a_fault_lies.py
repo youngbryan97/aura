@@ -117,6 +117,13 @@ def test_a_check_her_model_reads_as_wrong_is_hers_to_mend():
     assert not judged.leaves_the_function, "on purpose, and still the function's to change: too strict a check"
 
 
+def test_what_should_change_elsewhere_leaves_the_function_whether_or_not_it_was_on_purpose():
+    """LIVE 27 November 2026: read as not done as written, with the fix in what it depends on (memory pressure), the
+    draft that drops a true report of an unhealthy subsystem went on to her gates."""
+    judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=_HerModel(False, "what it depends on")))
+    assert judged.leaves_the_function
+
+
 def _waiting_draft(her_source, monkeypatch, model):
     (her_source / "core" / "notes.py").write_text(REFUSES)
     _git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "refuses", cwd=her_source)

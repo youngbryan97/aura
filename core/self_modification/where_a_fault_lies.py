@@ -81,8 +81,12 @@ class Judged:
 
     @property
     def leaves_the_function(self) -> bool:
-        """Whether her loop leaves the function as it is: raised on purpose, and what should change is elsewhere."""
-        return self.on_purpose and self.lies_in != THIS_FUNCTION
+        """Whether her loop leaves the function as it is: what should change is elsewhere, in what called it or in what
+        it depends on, whether or not the function did it on purpose. LIVE 27 November 2026 her cortex read the report
+        DistributedResilienceCore._request_recovery made of an unhealthy subsystem as "not as it was written to" with
+        the fix in what it depends on ("the root problem is a memory pressure issue"), and the draft that drops the
+        report went on to her gates."""
+        return self.lies_in != THIS_FUNCTION
 
     def as_kept(self) -> dict[str, Any]:
         return {"on_purpose": self.on_purpose, "lies_in": self.lies_in, "why": self.why,
