@@ -8630,6 +8630,10 @@ needs her 27B free (her app down, or her app's own influence trials).
       nobody had put there; she did not see that no book could be added. Each change she would make was a failing test said
       again, for she had been given the tests that failed and the design's rules. She is given now what was asked and what
       it is for, as whoever uses it knows them, and what her eyes saw is kept with her view and shown in the Work panel.
+    - Building in what she would change, a book's spine drawn with g.fillRect broke the page it was kept as, and 22 of 34 tests
+      held: an app's canvases were never painted while it was tried. They are painted now in "it is shown", and the pen has
+      the canvas's own methods too (`tests/test_many_ways.py`). A badge first in a list's row was as wide as half a card; it
+      is as wide as its words.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
