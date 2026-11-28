@@ -649,3 +649,15 @@ def test_tabs_show_which_is_open_and_by_a_name_a_person_would_use(tmp_path):
 
     on, around = _in_a_browser(look)
     assert on != around, "the open tab is drawn apart from what it stands on"
+
+
+def test_a_key_or_the_pointer_among_an_app_s_controls_is_not_looked_for_by_a_name(tmp_path):
+    """LIVE 28 November 2026 a plant tracker's design had "pointer", "Enter" and "Escape" among its controls, and "the controls it
+    was designed with are there" could never hold of it."""
+    controls = [{"input": name, "does": "x"} for name in ("Save", "pointer", "Enter", "Escape")]
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE, controls=controls), DIARY, tests=DIARY_TESTS), tmp_path / "t.html", browser)
+
+    seen = next(r for r in _in_a_browser(run).generic if r.name == "the controls it was designed with are there")
+    assert seen.ok, seen.why
