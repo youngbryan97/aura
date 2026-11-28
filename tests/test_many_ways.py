@@ -677,3 +677,15 @@ def test_what_a_field_shows_as_an_example_is_put_in_it_when_it_is_tried(tmp_path
 
     seen = next(r for r in _in_a_browser(run).generic if r.name == "it can be filled from how it opens")
     assert seen.ok, seen.why
+
+
+def test_what_a_test_did_is_told_with_what_it_found(tmp_path):
+    """LIVE 28 November 2026 a test took the answer to type from the field it was to type it in, typed nothing, and her reading
+    of it laid the fault on the program, which had counted nothing as a wrong answer."""
+    tests = 'test("an empty answer", t => { t.type("What", t.s.form.what); t.type("Minutes", 5); t.click("Save"); t.expect(t.s.kept.length === 2, "it was not kept"); });'
+
+    async def run(browser):
+        return await try_page(page_of(_design(name="Diary", state=DIARY_STATE), DIARY, tests=tests), tmp_path / "t.html", browser)
+
+    (seen,) = _in_a_browser(run).rules
+    assert not seen.ok and "what the test did: put “” in “What”, put “5” in “Minutes”, pressed “Save”" in seen.why, seen.why

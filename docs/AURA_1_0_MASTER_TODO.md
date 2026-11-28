@@ -8678,6 +8678,11 @@ needs her 27B free (her app down, or her app's own influence trials).
       hold (`tests/test_she_looks_at_what_she_made.py`). The checks' fields are filled with what each shows as its example as
       often as not, for a field that takes "casa = house" takes no "Ana"; and a key or the pointer among an app's controls is
       not looked for on the page by a name (`tests/test_many_ways.py`).
+    - 28 November, 09:03: the trainer ended at 35 of 37 on the new making, from 33 of 39; its one whole writing again came to
+      23 of 37 and was not kept. What still failed was its tests': one took the answer to type from the field it was to type
+      it in, typed nothing, and was failed for the program's counting nothing as a wrong answer, and her reading of it laid the
+      fault on the program. A failing test is told now with what it did, what it put in each field and what it pressed
+      (`tests/test_many_ways.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

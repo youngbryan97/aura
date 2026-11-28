@@ -390,7 +390,10 @@ const Frame = (() => {
     // What the test put in each control, while it is there as it was put, and all it put under each label.
     const put = new Map(), putBy = new Map(), done = new Set(), keyOf = (n) => JSON.stringify(n.props.in), valueOf = (n) => String(n.props.value ?? "").toLowerCase();
     const still = () => { if (!put.size) return; const now = new Map(every(shown(s)).filter((n) => n.props.in).map((n) => [keyOf(n), valueOf(n)])); for (const [k, v] of put) if (now.get(k) !== v) put.delete(k); };
-    const wasPut = (label, v, value) => { const k = keyOf(v), said = String(value).toLowerCase(), l = String(label).toLowerCase().trim(); put.set(k, said); done.add(k); putBy.set(l, [...(putBy.get(l) || []), said]); };
+    // What the test did, in order, to be told with what it found: what it put in and what it pressed. LIVE 28 November 2026 a test took
+    // the answer to type from the field it was to type it in, typed nothing, and the program was blamed for counting that wrong.
+    const steps = [];
+    const wasPut = (label, v, value) => { const k = keyOf(v), said = String(value).toLowerCase(), l = String(label).toLowerCase().trim(); put.set(k, said); done.add(k); putBy.set(l, [...(putBy.get(l) || []), said]); steps.push(`put “${String(value).slice(0, 60)}” in “${label}”`); };
     let first = null, did = 0; const began = Object.keys(s), act = (f) => { only(s); if (!first) first = copy(s); prior = isGame() ? null : JSON.stringify(s); s = f(s); did++; still(); if (watching) watching(s); return t; };
     // What each control shown sets, seen by setting it: a label that no control has may be what one of them sets. A list kept
     // in a form is set by controls that are there once there is something in it to set, so what adds to it is tried first.
@@ -429,7 +432,7 @@ const Frame = (() => {
       hold(k, seconds) { return act((s) => run(s, seconds == null ? 0.1 : seconds, { held: { [k]: true } })); },
       press(k) { return t.hold(k, STEP); },
       point(x, y, seconds) { return act((s) => run(s, seconds == null ? STEP : seconds, { pointer: { x, y, down: false } })); },
-      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do, true); return act((s) => apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] })); } return act((s) => run(s, STEP, { pointer: { x, y, down: true } })); },
+      click(x, y) { if (typeof x === "string") { const v = find(x, (n) => n.props.do, true); steps.push(`pressed “${x}”`); return act((s) => apply(s, { type: "do", name: v.props.do[0], value: v.props.do[1] })); } return act((s) => run(s, STEP, { pointer: { x, y, down: true } })); },
       type(label, text) { return set(label, text); },
       choose(label, value) { return t.type(label, value); },
       enter(label) { const v = find(label, (n) => n.props.enter); return act((s) => apply(s, { type: "do", name: v.props.enter, value: null })); },
@@ -451,7 +454,7 @@ const Frame = (() => {
         P.draw(s, g); return calls; },
       get score() { return scoreOf(s); }, get over() { return ended(s) || false; }, get won() { const e = ended(s); return !!(e && e.won); }, get played() { return played.slice(); },
       expect, initial() { s = P.initial(); return s; }, update(e) { return t.send(e); } };
-    const told = { did: () => did, changed: () => (first ? changed(first, s) : []), asked: (body) => readIn(body).filter((k) => !began.includes(k) && !(P.designed && k in P.designed) && !later().includes(k)), held: () => Object.keys(s) };
+    const told = { did: () => did, steps: () => steps.slice(), changed: () => (first ? changed(first, s) : []), asked: (body) => readIn(body).filter((k) => !began.includes(k) && !(P.designed && k in P.designed) && !later().includes(k)), held: () => Object.keys(s) };
     return new Proxy(t, { get(o, k) { if (k === "__told") return told; if (k in o || typeof k === "symbol") return o[k];
       // A function of the program's own, asked of the test: given the state as it is, where it was not given one.
       if (typeof P[k] === "function") return (...args) => P[k](...(args.length && args[0] && typeof args[0] === "object" && !Array.isArray(args[0]) ? args : [s, ...args]));
@@ -614,7 +617,7 @@ const Frame = (() => {
   function once(body, named) { { waiting = []; const t = cameTo = tester(named); try { try { body(t); } catch (e) { judged(); throw e; } judged(); } catch (e) { const t_ = t.__told; e.got = t_.did();
       // What a test made for itself not being what it takes it for is the test's own.
       const own = /^([A-Za-z_$][\w$]*)\.[\w$]+ is not a function/.exec(String(e && e.message)); if (own && own[1] !== "t" && !(own[1] in P) && new RegExp(`\\b(?:const|let|var)\\s+${own[1].replace(/\$/g, "\\$")}\\b|\\b${own[1].replace(/\$/g, "\\$")}\\s*=>`).test(String(body))) e.theTest = true;
-      const odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } if (!isGame()) { let said = ""; try { said = t.shown; } catch (x) { said = ""; } e.message += `; it shows “${said.slice(0, 260)}”`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; throw e; } } }
+      const odd = t_.asked(body), then = t_.changed(); if (odd.length && !(e instanceof ReferenceError)) { e.theTest = true; e.message += `; the test reads s.${odd.join(", s.")}, and the state has no such thing: it has ${t_.held().join(", ")}`; } if (!isGame()) { let said = ""; try { said = t.shown; } catch (x) { said = ""; } e.message += `; it shows “${said.slice(0, 260)}”`; } e.message += then.length ? `; from where the test began it to its end, what changed: ${then.join("; ")}` : "; nothing in the state changed"; const did = t_.steps(); if (did.length) e.message += `; what the test did: ${did.slice(-10).join(", ")}`; throw e; } } }
   function tried(program, tests, nothing) {
     P = { ...program }; live = false; goesOn = emptied = null;
     if (nothing) P.update = (s) => s;
