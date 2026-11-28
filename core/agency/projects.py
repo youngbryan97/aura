@@ -38,8 +38,8 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from threading import RLock
 from typing import Any, Dict, List, Optional
+from core.runtime.lockdep import checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Projects")
@@ -65,6 +65,19 @@ class Milestone:
     description: str
     completed_at: Optional[float] = None
     artifacts: List[str] = field(default_factory=list)
+    #: What sort of act it is, by the part of her that does it (core/agency/her_objectives.py); "" where none was named.
+    kind: str = ""
+    #: The milestones it waits on, by id.
+    after: List[str] = field(default_factory=list)
+    #: What the part of her that does it knows it by: an inquiry, a request of hers, a goal of hers.
+    key: str = ""
+    tries: int = 0
+    #: Passes in a row that came to nothing.
+    fruitless: int = 0
+    #: What each pass came to, as it was seen, the latest last.
+    came: List[str] = field(default_factory=list)
+    #: Why it was set aside, where it was.
+    set_aside: str = ""
 
 
 @dataclass
@@ -99,11 +112,21 @@ class Project:
     artifacts: List[str] = field(default_factory=list)
     reflections: List[str] = field(default_factory=list)
     last_touched_at: float = field(default_factory=lambda: time.time())
+    why: str = ""
+    #: What would tell her it is not worth going on with, said when she set out, and what she would do instead.
+    not_worth_it_if: str = ""
+    otherwise: List[str] = field(default_factory=list)
+    #: What she wrote of it as she thought it, before it was written in this shape.
+    formed_from: str = ""
+    #: What she wrote in this shape that her own words did not bear out, with how far they did.
+    left_out: List[Dict[str, Any]] = field(default_factory=list)
+    #: Why it is to be thought over before it is gone on with; "" where it is not.
+    to_think_over: str = ""
 
     def is_completable(self) -> bool:
         if not self.acceptance_criteria:
             return False
-        return all(m.completed_at is not None for m in self.milestones) and bool(self.artifacts)
+        return all(m.completed_at is not None or m.set_aside for m in self.milestones) and bool(self.artifacts)
 
     def to_dict(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -122,7 +145,7 @@ class ProjectLedger:
     def __init__(self, path: Path = _LEDGER_PATH) -> None:
         self.path = path
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock = RLock()
+        self._lock = checked_lock("agency.projects", reentrant=True)
         self._cache: Dict[str, Project] = {}
         self._load()
 
@@ -134,7 +157,8 @@ class ProjectLedger:
         origin_drive: str,
         thesis: str,
         acceptance_criteria: List[str],
-        milestones: Optional[List[str]] = None,
+        milestones: Optional[List[Any]] = None,
+        **about: Any,
     ) -> Project:
         project_id = f"PRJ-{uuid.uuid4().hex[:10]}"
         proj = Project(
@@ -142,7 +166,8 @@ class ProjectLedger:
             origin_drive=origin_drive,
             thesis=thesis,
             acceptance_criteria=list(acceptance_criteria),
-            milestones=[Milestone(id=f"MS-{i}", description=m) for i, m in enumerate(milestones or [])],
+            milestones=[m if isinstance(m, Milestone) else Milestone(id=f"MS-{i}", description=m) for i, m in enumerate(milestones or [])],
+            **about,
         )
         self._record_event(proj, "proposed", {})
         return proj
@@ -192,6 +217,17 @@ class ProjectLedger:
                     break
             proj.last_touched_at = time.time()
             self._record_event(proj, "complete_milestone", {"milestone": milestone_id})
+
+    def milestone_changed(self, project_id: str, milestone_id: str, **changes: Any) -> Milestone:
+        """A milestone's record changed: a pass at it, what it came to, what does it, or why it was set aside."""
+        with self._lock:
+            proj = self._cache[project_id]
+            milestone = next(m for m in proj.milestones if m.id == milestone_id)
+            for name, value in changes.items():
+                setattr(milestone, name, value)
+            proj.last_touched_at = time.time()
+            self._record_event(proj, "milestone", {"milestone": milestone_id, "changed": sorted(changes)})
+            return milestone
 
     def record_permission(self, project_id: str, *, action: str, domain: str, decision: str, receipt_id: Optional[str], rationale: str) -> None:
         with self._lock:
@@ -291,6 +327,12 @@ class ProjectLedger:
             artifacts=list(snap.get("artifacts", []) or []),
             reflections=list(snap.get("reflections", []) or []),
             last_touched_at=float(snap.get("last_touched_at", time.time())),
+            why=str(snap.get("why") or ""),
+            not_worth_it_if=str(snap.get("not_worth_it_if") or ""),
+            otherwise=list(snap.get("otherwise", []) or []),
+            formed_from=str(snap.get("formed_from") or ""),
+            left_out=list(snap.get("left_out", []) or []),
+            to_think_over=str(snap.get("to_think_over") or ""),
         )
 
 

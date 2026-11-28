@@ -151,3 +151,78 @@ def how_far_her_words_bear_out(words: str, statements: list[str]) -> list[float]
 def can_read_her_words() -> bool:
     """Whether the entailment model is here to read with."""
     return _reader() is not None
+
+
+def _passages(words: str, statement: str, model: Any) -> list[str]:
+    """Her words as runs of whole sentences, each short enough for the reader to read whole beside the statement and its
+    denial. Without a tokenizer to count by, her words are one passage, and the reader cuts what does not fit."""
+    import re
+
+    said = " ".join(str(words or "").split())
+    tokenizer = getattr(model, "tokenizer", None)
+    if tokenizer is None or not said:
+        return [said] if said else []
+    longest = len(tokenizer.tokenize(f"It is not true that {statement}"))
+    # The pair is read as one sequence with three tokens of the reader's own around and between them.
+    room = int(getattr(model, "max_length", None) or tokenizer.model_max_length) - longest - 3
+    out: list[str] = []
+    run: list[str] = []
+    held = 0
+    for sentence in re.split(r"(?<=[.!?])\s+", said):
+        size = len(tokenizer.tokenize(sentence))
+        if run and held + size > room:
+            out.append(" ".join(run))
+            run, held = [], 0
+        run.append(sentence)
+        held += size
+    if run:
+        out.append(" ".join(run))
+    return out
+
+
+def _most_likely(premise: str, hypotheses: list[str]) -> list[str] | None:
+    """For each hypothesis, what the reader finds most likely of what ``premise`` does to it: entailment, contradiction, or
+    neither; None without a reader."""
+    loaded = _reader()
+    said = " ".join(str(premise or "").split())
+    if loaded is None or not said or not hypotheses:
+        return None
+    model, labels = loaded
+    names = {index: name for name, index in labels.items()}
+    try:
+        import numpy as np
+
+        logits = np.asarray(model.predict([(said, one) for one in hypotheses]), dtype=float)
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("how_her_words_stand", exc, severity="warning")
+        return None
+    return [names.get(int(row.argmax()), "neutral") for row in logits]
+
+
+def what_her_words_say_of(words: str, statement: str) -> int | None:
+    """+1 where a passage of what she wrote says ``statement`` is so, -1 where one says it is not and none says it is, 0
+    where none says either; None without a reader.
+
+    What she writes as she thinks can run past what the reader reads at once, and the reader cuts the rest, so a step she
+    named late in her words was read against none of them. Read in passages, each whole, it is read against each, as SummaC
+    reads a summary against a long document (Laban, Schnabel, Bennett and Hearst, TACL 2022). What a passage says is what
+    the reader finds most likely of the three it reads. A difference of chances above nothing let "I will find out how to
+    bake bread" through at +0.04 from words about her records, where no passage's most likely reading was that it follows.
+    The statement is not read beside its denial here, as whether_her_words_bear_it_out reads it: LIVE 27 November 2026 the
+    reader found "It is not true that I will find out how to bake bread" contradicted, at 1.00, by words about her records,
+    and every statement read beside its denial came out said."""
+    loaded = _reader()
+    said = " ".join(str(statement or "").split())
+    if loaded is None or not said:
+        return None
+    read, says = False, 0
+    for passage in _passages(words, said, loaded[0]):
+        labels = _most_likely(passage, [said])
+        if labels is None:
+            continue
+        read = True
+        if labels[0] == "entailment":
+            return 1
+        if labels[0] == "contradiction":
+            says = -1
+    return says if read else None

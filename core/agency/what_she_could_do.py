@@ -24,7 +24,7 @@ from core.agency.her_inquiries import Answered, Inquiry, NotNowError
 from core.agency.her_own_time import HERSELF, HerOwnTime
 from core.agency.what_she_does_next import CameOf, Option
 
-__all__ = ["WhatSheWouldMake", "act_of_a_goal", "begin_her_own_time", "goals_of_hers", "her_own_makes", "left_unmet", "put_away",
+__all__ = ["OBJECTIVE", "WhatSheWouldMake", "act_of_a_goal", "begin_her_own_time", "doers_of_her_objectives", "goals_of_hers", "her_own_makes", "left_unmet", "put_away",
            "things_to_find_out", "things_to_make", "things_to_tell"]
 
 #: A goal that asks for something to be known or found is looked up; one that asks for something to be built or changed is
@@ -47,6 +47,8 @@ DOES: dict[str, tuple[str, ...]] = {
     "carry_on": ("core/understanding/carriers/*.py", "core/making/*.py", "core/making/*.js"),
     "find_out": ("core/agency/her_inquiries.py",), "look_up": ("core/agency/her_inquiries.py",),
     "goal": ("core/agency/her_goal_at_work.py",), "tell": ("core/agency/what_she_could_do.py",),
+    "objective": ("core/agency/her_objectives.py", "core/agency/her_inquiries.py", "core/agency/her_goal_at_work.py",
+                  "core/understanding/carriers/building.py"),
     "make": ("core/understanding/carriers/building.py", "core/making/*.py", "core/making/*.js"),
 }
 
@@ -303,6 +305,9 @@ def things_to_make(hers: HerOwnTime, make: Callable[[Any], Awaitable[None]], ima
         return []
     out = []
     for request in reversed(own):
+        # What she makes as a step of what she set out to do is gone on with as that step (core/agency/her_objectives.py).
+        if request.made.get(OBJECTIVE):
+            continue
         if request.stands not in {PARTLY, UNMET, CUT_SHORT} or time.time() - (request.changed_at or request.opened_at) > STILL_WANTED_S:
             continue
         met = sum(1 for p in request.parts if p.stands == "met")
@@ -405,15 +410,84 @@ def _short(words: str, most: int = 120) -> str:
     return words if len(words) <= most else words[:most].rsplit(" ", 1)[0] + "…"
 
 
+#: What marks a thing she makes as a step of what she set out to do.
+OBJECTIVE = "objective"
+
+
+def doers_of_her_objectives(hers: HerOwnTime, looks: LooksInto, make: Callable[[Any], Awaitable[None]] | None) -> Any:
+    """What takes each sort of step of what she set out to do (core/agency/her_objectives.py): the same inquiry, making and
+    goal of hers that take each sort of act on her own time, and what each says of how a step stands."""
+    from core.agency import her_goal_at_work as goals
+    from core.agency import her_objectives as objectives
+    from core.understanding.requests_of_her import ASKED, MET, get_requests_of_her
+
+    async def find_out(key: str, what: str, given: list[str]) -> tuple[str, CameOf]:
+        key = key or objectives.key_of_an_inquiry(what)
+        before = {q.question for q in hers.inquiry(key, what).questions if q.answer}
+        came, inquiry = await _look_into(hers, looks, key, what)
+        # What was found, and not only that something was: what her reader holds against what she said would end it.
+        found = [f"{q.question} {q.answer}" for q in inquiry.questions if q.answer and q.question not in before]
+        return key, dataclasses.replace(came, what=came.what + (": " + _short(" ".join(found), 600) if found else ""))
+
+    async def made(key: str, what: str, given: list[str]) -> tuple[str, CameOf]:
+        ledger = get_requests_of_her()
+        request = ledger.get(key) if key else None
+        if request is None:
+            request = ledger.asked(what, effect=HER_PROGRAM, conversation=HERSELF)
+            request.made[OBJECTIVE] = True
+            request.added.extend(given)
+            await ledger.keep()
+            return request.id, await _made(request, make, began=True)
+        return key, await _made(request, make)
+
+    async def change(key: str, what: str, given: list[str]) -> tuple[str, CameOf]:
+        held = await asyncio.to_thread(goals.load, key) if key else None
+        steps = len(held.steps) if held is not None else 0
+        after = await goals.work_a_while(what)
+        done = [s for s in after.steps[steps:] if "error" not in str(s.get("result") or "")[:80].lower()]
+        got = 1.0 if after.status not in {goals.WORKING, goals.STALLED} else len(done) / max(1, goals.CALLS_A_PASS)
+        said = str(after.came_of_it.get("words") or "")
+        return after.slug, CameOf(got=min(1.0, got), what=f"{len(done)} steps further; it is {after.status}" + (f": {_short(said, 300)}" if said else ""))
+
+    def stands(kind: str, key: str) -> tuple[str, str]:
+        if kind == "find_out":
+            inquiry = hers.inquiries.get(key)
+            if inquiry is not None and inquiry.is_done:
+                return objectives.DONE, "; ".join(dict.fromkeys(q.where for q in inquiry.questions if q.where))[:600]
+            return objectives.GOING, ""
+        if kind == "make":
+            request = get_requests_of_her().get(key)
+            if request is None:
+                return objectives.GOING, ""
+            shown = str(request.made.get("page") or request.id)
+            return (objectives.DONE, shown) if request.stands == MET else (objectives.WAITS, "") if request.stands == ASKED else (objectives.GOING, "")
+        record = goals.load(key)
+        if record is None:
+            return objectives.GOING, ""
+        if record.status == goals.MERGED:
+            return objectives.DONE, f"commit {record.offer.get('commit') or ''}".strip()
+        if record.status == goals.DONE:
+            return objectives.DONE, str(record.came_of_it.get("words") or "ended with nothing to change")
+        # An offered draft waits on her own yes and its gates, or on Bryan's word.
+        return (objectives.WAITS, "") if record.status == goals.OFFERED else (objectives.GOING, "")
+
+    does = {"find_out": find_out, "change": change, **({"make": made} if make is not None else {})}
+    return objectives.Doers(does=does, stands=stands, asking=_asking, most=OF_A_SORT,
+                            cost_s={"find_out": 90.0, "make": 900.0, "change": 240.0, "objective": 240.0})
+
+
 async def _nothing_reads(_goal: str) -> str:
     return ""
 
 
 def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[None]], looks: LooksInto,
                        tell: Callable[[dict[str, Any]], Awaitable[bool]], here: Callable[[], float], asks: Asks = _nothing_reads,
-                       make: Callable[[Any], Awaitable[None]] | None = None, imagines: Imagines | None = None) -> HerOwnTime:
+                       make: Callable[[Any], Awaitable[None]] | None = None, imagines: Imagines | None = None,
+                       thinks: Any = None) -> HerOwnTime:
     """Give her own time what she could do with it. ``make`` carries out a thing she set out to make for herself, and
-    ``imagines`` reads whether there is one; without both she makes nothing of her own."""
+    ``imagines`` reads whether there is one; without both she makes nothing of her own. ``thinks`` is her cortex asked
+    whether there is something she wants to bring about over days (core/agency/her_objectives.py); without it she sets out
+    on nothing."""
     def as_done_now(options: list[Option]) -> list[Option]:
         return [dataclasses.replace(option, way=way_of(option.kind)) for option in options]
 
@@ -426,5 +500,14 @@ def begin_her_own_time(hers: HerOwnTime, *, carry_on: Callable[[Any], Awaitable[
     hers.offers("goals", goals)
     if make is not None and imagines is not None:
         hers.offers("makes", lambda: asyncio.to_thread(lambda: as_done_now(things_to_make(hers, make, imagines))))
+    if thinks is not None:
+        from core.agency.her_objectives import objectives_of_hers
+
+        doers = doers_of_her_objectives(hers, looks, make)
+
+        async def objectives() -> list[Option]:
+            return as_done_now(await objectives_of_hers(hers, doers, thinks))
+
+        hers.offers("objectives", objectives)
     hers.act_of = lambda goal: act_of_a_goal(goal, hers=hers, asks=asks, looks=looks)
     return hers

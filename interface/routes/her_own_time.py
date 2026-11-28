@@ -80,6 +80,25 @@ async def _imagines(facts: str) -> Any:
         return None
 
 
+async def _thinks(facts: str, question: str, shape: Any) -> Any:
+    """Her cortex asked a question from some facts: what she wrote as she thought it, and then that written in ``shape``,
+    where one is given; None where her model is away. Two asks, as her model reads where a fault lies
+    (core/self_modification/where_a_fault_lies.py): held to a shape from the start, her model wrote the shape and skipped
+    the thinking."""
+    from core.agency.her_objectives import SHAPES, WRITES
+    from core.rebuilding.her_model import HerModelIsAwayError
+    from core.understanding.her_model_between_turns import ask, write
+
+    try:
+        words = await write(question, WRITES, given=facts)
+        if shape is None or not words.strip():
+            return words, None
+        return words, await ask(f"What you wrote of it:\n\n{words}\n\nWrite that in this shape.", shape, SHAPES, given=facts)
+    except HerModelIsAwayError as away:
+        logger.info("What she would set out to do was not asked: %s", away)
+        return None
+
+
 async def _search(words: str) -> dict[str, Any]:
     from core.capability_engine import execute_tool
 
@@ -206,7 +225,7 @@ def begin_what_she_does_unasked() -> None:
     from core.container import ServiceContainer
 
     hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, looks=_looks, tell=_tell, here=_here, asks=_asks,
-                              make=_make_her_own, imagines=_imagines)
+                              make=_make_her_own, imagines=_imagines, thinks=_thinks)
     hers.may = _her_will_says
     # Where the runtime's own loop, which is under her agency and may not reach up to it, finds it.
     ServiceContainer.register_instance("her_own_time", hers)
