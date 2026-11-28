@@ -15,10 +15,10 @@ from collections.abc import Sequence
 from typing import Any
 
 from core.runtime.errors import record_degradation
-from core.runtime.what_this_turn_asks import Asked, held_for, hold, this_turn
+from core.runtime.what_this_turn_asks import Asked, held_for, held_with_requests, hold, this_turn
 from core.understanding.effects import BY_NAME
 from core.understanding.her_model_between_turns import ORIGIN, nobody_waiting
-from core.understanding.requests_of_her import ASKED, SET_ASIDE, Ask, Request, get_requests_of_her
+from core.understanding.requests_of_her import ASKED, SET_ASIDE, Ask, Request, get_requests_of_her, line_of
 from core.understanding.workbench import get_workbench
 from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
@@ -192,8 +192,9 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     # she said reached the work, and it was designed as a command-line tool.
     asked = this_turn()
     if asked is None or not asked.request_id:
-        asked = next((one for one in (held_for(said), asked) if one is not None and one.request_id), asked)
+        asked = _the_request_this_turn_began(said, session_id) or asked
     if not str(reply or "").strip() or asked is None:
+        logger.info("Her reply in %s is no word of hers to keep: %s.", session_id, "it is empty" if asked is not None else "nothing was read of the turn")
         return
     begun = get_requests_of_her().get(asked.request_id) if asked.request_id else None
     if begun is not None and not begun.tries and not begun.told:
@@ -205,6 +206,22 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     if asked.request_id or turn_tool_receipts():
         return
     get_task_tracker().create_task(_keep_her_word(reply, said, asked, session_id=session_id), name="her_word_is_kept")
+
+
+def _the_request_this_turn_began(said: str, session_id: str) -> Asked | None:
+    """The reading of this turn that began a request, where the turn's own hold of it is not where her reply is given: by the
+    turn's words, or as the request of this conversation begun lately that has neither been tried nor told anything."""
+    ledger, line = get_requests_of_her(), line_of(session_id)
+
+    def unbegun(one: Asked | None) -> bool:
+        request = ledger.get(one.request_id) if one is not None and one.request_id else None
+        # One held open until they say whether they want it is not begun: what she says meanwhile is not her word on it.
+        return request is not None and request.conversation == line and request.stands != ASKED and not request.tries and not request.told
+
+    found = next((one for one in (held_for(said), *held_with_requests()) if unbegun(one)), None)
+    logger.info("This turn's request in %s, found %s: %s.", session_id, "by its words" if found is not None and found is held_for(said) else
+                "among those begun lately" if found is not None else "nowhere", found.request_id if found is not None else "none")
+    return found
 
 
 async def _keep_her_word(reply: str, said: str, asked: Asked, *, session_id: str) -> None:

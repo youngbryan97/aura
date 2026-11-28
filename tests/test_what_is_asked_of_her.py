@@ -994,3 +994,47 @@ def test_work_her_model_went_from_for_a_while_is_gone_on_with_when_it_is_back(tm
     tries.clear()
     asyncio.run(carrying_out.carry_out(gone, never, tell=lambda line: None, ledger=ledger))
     assert gone.stands == CUT_SHORT and len(tries) == carrying_out.AWAY_TRIES + 1 and ledger.left_off() == []
+
+
+def test_what_she_told_them_reaches_the_work_where_neither_the_turn_nor_its_words_hold_the_request(monkeypatch, tmp_path):
+    """28 November 2026, live again: her words did not reach the work with the turn's words to find it by either. The request
+    of this conversation begun lately, tried and told nothing, is the one."""
+    import asyncio
+
+    from core.conversation import surface_disposition
+    from core.runtime.what_this_turn_asks import clear
+    from interface.routes import chat_carrying_out as chat
+
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
+    ledger = RequestsOfHer(tmp_path / "told.json")
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    said = "Could you make me a little app for keeping track of the books I am reading?"
+    elsewhere = ledger.asked("Make me a clock.", effect="program", conversation="d")
+    begun = ledger.asked(said, effect="program", conversation="c")
+    clear()
+
+    async def taken_up() -> None:
+        hold(dataclasses.replace(_read("Make me a clock.", "program"), request_id=elsewhere.id))
+        hold(dataclasses.replace(_read(said, "program"), request_id=begun.id))
+
+    asyncio.run(taken_up())
+    hold(_read("a draft of hers, read as the turn goes on", "talk"))
+    chat.her_word_is_kept("A web app, to open in your browser.", "the words as the turn was given them, cleaned", session_id="c")
+    assert begun.told == "A web app, to open in your browser." and elsewhere.told == "", "only this conversation's request"
+    from core.utils import task_tracker
+
+    class Tracker:
+        def create_task(self, coroutine, **_how):
+            coroutine.close()
+
+    monkeypatch.setattr(task_tracker, "get_task_tracker", lambda: Tracker())
+    held_open = ledger.asked("Shall I make you a map?", effect="program", conversation="c")
+    held_open.stands = ASKED
+
+    async def asked_first() -> None:
+        hold(dataclasses.replace(_read("Shall I make you a map?", "program"), request_id=held_open.id))
+
+    asyncio.run(asked_first())
+    hold(_read("Lovely weather.", "talk"))
+    chat.her_word_is_kept("It is.", "Lovely weather.", session_id="c")
+    assert held_open.told == "", "what she says while it waits on their yes is not her word on it"
