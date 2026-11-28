@@ -206,6 +206,8 @@ class _Maker:
         #: What she thought of it when she last looked, and of what code: kept with it, so that she does not look again at what has
         #: not changed, and is told what she thought where it has.
         self.last_view: dict[str, Any] = {}
+        #: The rules of it that were her own changes, not asked for.
+        self._hers: set[str] = set()
         #: How her model is given room to think where she is asked what she thinks, not what to write.
         self.thinking: dict[str, Any] = {}
         self.began = time.monotonic()
@@ -430,6 +432,7 @@ class _Maker:
             await self.kept()
         await self.worked_out_another_way()
         await self.finished()
+        await self.her_own_that_do_not_hold_let_go()
         await self.looked_at_by_her()
 
     async def worked_out_another_way(self) -> None:
@@ -1033,6 +1036,32 @@ class _Maker:
         pictures = await asyncio.to_thread(as_data, self.folder, self.design)
         return await as_she_saw_it(await looked_at(self.design, self.parts.code(), self.parts.tests, self.browser, pictures=pictures), self.eyes)
 
+    def her_own(self) -> set[str]:
+        """The rules of it that were hers, from what she would change of it as she looked at it, and not anybody's asking."""
+        return {str(c).strip() for c in self.last_view.get("would_change") or []} | set(self._hers)
+
+    async def her_own_that_do_not_hold_let_go(self) -> None:
+        """What she would have changed of it and does not hold once it has been mended, let go of, with its tests: what was asked
+        and what any finished program is holds, and what she chose to add to it is had only where it holds too. LIVE 28 November
+        2026 a vocabulary trainer was held to "Fix the rendering bug where 'Add a New Word' and 'Start Quiz' buttons appear
+        twice", which her eyes had seen and was not so, and it could never be done."""
+        design = self.design
+        if design is None:
+            return
+        failing = {rule_of(r.name) for r in self.trial.failing()}
+        gone = [rule for rule in design.rules if rule.says in self.her_own() and rule.says in failing]
+        if not gone:
+            return
+        says = {rule.says for rule in gone}
+        before, found = each_test_in(self.parts.tests)
+        self.parts.tests = "\n\n".join([*([before.strip()] if before.strip() else []), *(f"{text};" for name, text in found if rule_of(name) not in says)]).strip()
+        design.rules = [rule for rule in design.rules if rule.says not in says]
+        self.has = [rule for rule in self.has if rule not in says]
+        self._hers -= says
+        self.work.says("What I would have changed of it and could not make hold, I let go: " + "; ".join(sorted(says))[:600] + ".")
+        self.trial = await self.tried(what="Trying it without what I let go")
+        await self.kept()
+
     async def looked_at_by_her(self) -> None:
         """Her own view of what she made: what she thinks of it as it looks, and what she would change of it, built in and tried
         like anything else; then she looks again, and what she does not think better made is taken back (core/making/her_view.py)."""
@@ -1068,6 +1097,7 @@ class _Maker:
         was = (self.parts.copy(), self.trial, design.model_copy(deep=True), list(self.has))
         rules = [c.change.strip() for c in changes]
         design.rules += [Rule(says=rule) for rule in rules]
+        self._hers |= set(rules)
         await self.tested(rules)
         await self.added_where_it_is_not(rules)
         # What she would change is had only where it is built: where anything fails that did not, her rules or what they

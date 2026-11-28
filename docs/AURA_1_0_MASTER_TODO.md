@@ -8671,6 +8671,13 @@ needs her 27B free (her app down, or her app's own influence trials).
       them, and an open tab on a card was drawn in the card's own white. Tabs stand on a tinted ground now with the open one
       raised, and "it is shown" fails tabs with none open and a tab named by the value it sends (`tests/test_many_ways.py`).
       What her eyes said of two buttons drawn twice was not so, the third such misreading in a day.
+    - What that trainer still failed, taken up again on the new making: its own rules, and four of hers, built in from her view
+      before what the page holds stood beside her eyes, one of them "Fix the rendering bug where 'Add a New Word' and 'Start
+      Quiz' buttons appear twice", which was never so. What she would change of a program and does not hold once it has been
+      mended is let go now, with its tests and a word of it; what was asked and what any finished program is still have to
+      hold (`tests/test_she_looks_at_what_she_made.py`). The checks' fields are filled with what each shows as its example as
+      often as not, for a field that takes "casa = house" takes no "Ana"; and a key or the pointer among an app's controls is
+      not looked for on the page by a name (`tests/test_many_ways.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

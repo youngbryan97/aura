@@ -292,3 +292,27 @@ def test_what_she_thought_is_kept_with_the_program_and_read_back(tmp_path, monke
     made.last_view = {"code": "abc", "thinks": "Calm.", "would_change": [], "came": "nothing to change"}
     asyncio.run(made.kept())
     assert maker._her_view_of(tmp_path) == made.last_view
+
+
+def test_what_she_would_have_changed_and_does_not_hold_is_let_go_and_what_was_asked_is_not(tmp_path):
+    """LIVE 28 November 2026 a vocabulary trainer was held to "Fix the rendering bug where 'Add a New Word' and 'Start Quiz'
+    buttons appear twice", which her eyes had seen and was not so."""
+    from core.making.trying import Result, Trial
+
+    made, built = _a_maker(tmp_path, _VIEW, None)
+    phantom = "Fix the rendering bug where the Add button appears twice"
+    made.design.rules += [Rule(says=phantom)]
+    made.has = ["a dish can be added", phantom]
+    made.last_view = {"code": "x", "thinks": "", "would_change": [phantom], "came": ""}
+    made.parts.tests = 'test("a dish can be added", t => {});\n\ntest("' + phantom + '", t => {});\n\ntest("' + phantom + ', tested again", t => {});'
+    made.trial = Trial(rules=[Result("a dish can be added", False, "no"), Result(phantom, False, "seen once"), Result(phantom + ", tested again", False, "seen once")])
+
+    async def tried(*_a, **_k):
+        return Trial(rules=[Result("a dish can be added", False, "no")])
+
+    made.tried = tried
+    asyncio.run(made.her_own_that_do_not_hold_let_go())
+    assert [r.says for r in made.design.rules] == ["a dish can be added"] and made.has == ["a dish can be added"]
+    assert phantom not in made.parts.tests and 'test("a dish can be added"' in made.parts.tests and built == ["kept"]
+    assert any("I let go" in (row.get("words") or "") for row in made.work.seen()["happened"])
+    assert [r.name for r in made.trial.failing()] == ["a dish can be added"], "what was asked still has to hold"
