@@ -164,6 +164,7 @@ APP = f"""An app is one JavaScript object. Its state is plain data: numbers, str
   initial()       the state as it begins, before anybody has used it: empty of records
   update(s, e)    changes s for one event e: {{type:"do", name, value}} from a button, {{type:"input", name, value}} from a field, {{type:"key", key, down}}, and {{type:"tick", dt, now}} ten times a second where it moves by itself (now is milliseconds)
   view(s, ui)     what is shown for s, changing nothing: a tree of ui parts. Anything longer is split into functions beside these, called as this.name(...).
+  look            {{ accent: "#rrggbb" }}: the colour its main buttons and marks are drawn in, where it is to be other than its design's
   derived(s)      what is worked out from the state (totals, a list sorted, filtered or added up, what clashes with what), as {{name: value}}: view and the tests read it as part of s, and update never keeps or changes it.
 ui.column(..) ui.row(..) ui.card(..) ui.grid(..) ui.title(t) ui.heading(t) ui.text(t) ui.note(t) ui.big(t) ui.badge(t,"good|bad|warm") ui.divider() ui.spacer()
 ui.button(label, name, value, {{tone, icon, disabled, hint}}) icon is one of the icons below; tone is "primary" for the one used most there, "danger" for what takes something away, and none for the rest; ui.toggle(label, name, value, on) sends "do"

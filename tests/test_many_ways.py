@@ -539,3 +539,57 @@ def test_what_is_painted_in_an_app_is_painted_when_it_is_tried_and_the_pen_has_t
     assert shown(spine).ok, shown(spine).why
     seen = shown(broken)
     assert not seen.ok and "drawing it raised" in seen.why and "paintTheSpine" in seen.why
+
+
+def test_what_it_keeps_can_be_put_in_it_from_how_it_opens(tmp_path):
+    """LIVE 28 November 2026 a dinner planner opened on "No plan yet. Add a guest and a dish to get started" with nothing to add a
+    guest by; looking at it, she said "the empty state is a dead end because it lacks the primary affordance to start"."""
+    dead_end = """({
+  initial() { return { guests: [], dishes: [], saved: false }; },
+  update(s, e) { if (e.name === "save") return { ...s, saved: true }; if (e.name === "add") return { ...s, guests: [...s.guests, { id: s.guests.length + 1, name: "x" }] }; return s; },
+  view(s, ui) { return ui.column(ui.button("Save", "save", null, { icon: "download" }), s.guests.length ? ui.list(s.guests, (g) => g.name) : ui.empty("No plan yet", "Add a guest and a dish to get started", "food")); },
+})"""
+    begun = dead_end.replace('ui.button("Save", "save", null, { icon: "download" })', 'ui.row(ui.button("Save", "save"), ui.button("Add a guest", "add", null, { icon: "plus" }))')
+    state = {"guests": [{"id": 1, "name": "Ana"}], "dishes": [{"id": 1, "name": "Soup"}], "saved": False}
+
+    def check(code):
+        async def run(browser):
+            return await try_page(page_of(_design(name="Dinner", state=state), code, tests=""), tmp_path / "t.html", browser)
+
+        return next(r for r in _in_a_browser(run).generic if r.name == "it can be filled from how it opens")
+
+    seen = check(dead_end)
+    assert not seen.ok and "there is nothing to begin with" in seen.why and "guests" in seen.why
+    assert check(begun).ok, check(begun).why
+
+
+def test_the_window_s_own_tools_say_what_they_do_and_what_clears_everything_asks_in_the_app_s_own_look(tmp_path):
+    """LIVE 28 November 2026, looking at an app of hers, she said "Start over" was "a plain white button that looks identical to
+    safe actions", and that a red Save looked alarming: the accent was the design's, and no change of hers could reach it."""
+    pale = DISHES.replace("  initial() {", '  look: { accent: "#ffe066" },\n  initial() {', 1)
+
+    async def run(browser):
+        page = await browser.new_page()
+        try:
+            await page.set_content(page_of(_design(name="Dishes", state={"dishes": [], "asking": False, "said": ""}), pale))
+            seen = {"undo": await page.locator("header .tool:has-text('Undo')").is_disabled(),
+                    "danger": await page.locator("header .tool.danger:has-text('Start over') svg.ico").count(),
+                    "accent": await page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()")}
+            await page.click("main button:has-text('Add')")
+            seen["undo after"] = await page.locator("header .tool:has-text('Undo')").is_disabled()
+            await page.click("header .tool:has-text('Start over')")
+            seen["asked"] = await page.locator(".scrim [role=dialog] h2").inner_text()
+            seen["focus"] = await page.evaluate("document.activeElement.textContent")
+            await page.keyboard.press("Escape")
+            seen["kept"] = [await page.locator(".scrim").count(), await page.locator("main .list li").count()]
+            await page.click("header .tool:has-text('Start over')")
+            await page.click(".dialog button.danger")
+            seen["cleared"] = [await page.locator(".scrim").count(), await page.locator("main .list li").count()]
+            return seen
+        finally:
+            await page.close()
+
+    seen = _in_a_browser(run)
+    assert seen["undo"] and not seen["undo after"] and seen["danger"] == 1, seen
+    assert seen["accent"] != "#ffe066" and seen["accent"].startswith("#"), "what the program sets is drawn in a colour white words read on"
+    assert seen["asked"] == "Start over?" and seen["focus"] == "Keep it" and seen["kept"] == [0, 1] and seen["cleared"] == [0, 0], seen

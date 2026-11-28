@@ -58,3 +58,5 @@ input[type=number], .num, td.num { font-variant-numeric: tabular-nums; }
 /* A badge is as wide as what it says, wherever it stands: first in a row of a list it was stretched as a title is
    (LIVE 28 November 2026, "Reading" as wide as half a card). */
 .row > .badge, .list .row > .badge, td .row > .badge { flex: 0 0 auto; align-self: center; }
+/* The window's own tools: what clears everything is marked as taking something away, and Undo is there only where there is something to undo. */
+.tool .ico { width: 14px; height: 14px; } .tool.danger { color: var(--bad); } .tool:disabled { opacity: .45; cursor: default; }

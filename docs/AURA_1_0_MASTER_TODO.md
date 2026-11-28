@@ -8634,6 +8634,18 @@ needs her 27B free (her app down, or her app's own influence trials).
       held: an app's canvases were never painted while it was tried. They are painted now in "it is shown", and the pen has
       the canvas's own methods too (`tests/test_many_ways.py`). A badge first in a list's row was as wide as half a card; it
       is as wide as its words.
+    - 28 November, 03:36 and 03:42, live: her view of a dinner planner she made. "It fails at the most basic level of
+      usability: it doesn't show me that my actions have any effect. The empty state is a dead end because it lacks the
+      primary affordance to start, and the critical 'Save' button is both visually alarming (red) and physically
+      inaccessible on mobile." Her four changes were built; she looked again, found the form drawn twice on a phone, Save still
+      red and a dialog's buttons the wrong way round, and took them back: "I thought it better as it was". She was right about
+      the dead end: its form showed only after Save had been pressed. From that:
+      - "it can be filled from how it opens": what it keeps can be put in, by its own controls, from how it opens. It finds a
+        program with no way in; one whose way in is an accident, as hers was, is for her eyes.
+      - Save was red because the accent was, and no change of hers could reach the design's accent: a program may set
+        look: { accent }, drawn in a colour white words read on.
+      - The window's own "Start over" is marked as clearing everything and asks in the app's own look, Escape or a click beside
+        it leaving things as they were; Undo is there only where there is something to undo (`tests/test_many_ways.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
