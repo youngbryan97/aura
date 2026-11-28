@@ -170,12 +170,15 @@ async def _thought_out(question: str, given: str, shape: type[BaseModel], *, ask
 
 
 async def her_view_of(shots: list[Shot], *, asked: str, design: Design, ask: Callable[..., Awaitable[Any]], write: Callable[..., Awaitable[str]],
-                      how: dict[str, Any] | None = None) -> HerView | None:
+                      how: dict[str, Any] | None = None, before: dict[str, Any] | None = None) -> HerView | None:
     """What she thinks of it as she sees it; None where her model gave nothing that could be read. ``how`` is how her model is
-    to be given room to think."""
+    to be given room to think; ``before`` is what she thought when she last looked, and what came of it."""
     # What was asked and what it is for, as whoever uses it knows them; its rules are its tests', and are left to them.
     given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}\n\n"
-             f"This is how it looks, as your eyes saw it:\n\n{_read(shots)}")
+             f"This is how it looks, as your eyes saw it:\n\n{_read(shots)}"
+             + (f"\n\nWhen you last looked at it you thought: {before['thinks']}\nWhat you would have changed then: "
+                + "; ".join(before.get("would_change") or ["nothing"]) + (f"\nWhat came of it: {before['came']}" if before.get("came") else "")
+                if before and before.get("thinks") else ""))
     view = await _thought_out("What do you think of it, as somebody who would use it? What works in it, and what would you change to "
                               "make it better made: more finished, clearer, better to use?", given, HerView, ask=ask, write=write, how=how or {})
     return view if isinstance(view, HerView) and view.thinks.strip() else None

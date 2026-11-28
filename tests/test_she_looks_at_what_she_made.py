@@ -248,3 +248,42 @@ def test_what_she_thinks_is_shown_in_her_voice_beside_what_she_did(tmp_path):
     assert "What she thinks of it" in views[0] and "2 screens looked at" in views[0] and "What she would change" in views[0] and "a blank page reads as broken" in views[0]
     assert "Looked at again, and kept" in views[1] and "Much clearer" in views[1]
     assert "What she thinks of what she did" in own and "Find out more about tides" in own and "The moon half of it made sense." in own and "+0.90" in own
+
+
+def test_she_does_not_look_again_at_what_has_not_changed_and_is_told_what_she_thought_where_it_has(tmp_path):
+    """LIVE 28 November 2026 she looked again, minutes after she had looked, at a dinner planner whose request was tried again."""
+    import hashlib
+
+    made, built = _a_maker(tmp_path, _VIEW, Compared(better=False, thinks="The note crowds the list."))
+    asyncio.run(made.looked_at_by_her())
+    view = dict(made.last_view)
+    assert view["thinks"].startswith("It works") and "taken back" in view["came"]
+    assert view["code"] == hashlib.sha256(made.parts.code().encode("utf-8")).hexdigest()[:16], "what she looked at is what is kept"
+
+    again, built_again = _a_maker(tmp_path, _VIEW, Compared(better=True, thinks="Clearer."))
+    again.last_view = view
+    asyncio.run(again.looked_at_by_her())
+    assert built_again == [] and again.thought == [], "the same code is not looked at again"
+
+    changed, _built = _a_maker(tmp_path, _VIEW, Compared(better=True, thinks="Clearer."))
+    changed.last_view = view
+    changed.parts.functions = {"view": "view(s, ui) { return ui.text('something else'); }"}
+    asyncio.run(changed.looked_at_by_her())
+    assert "When you last looked at it you thought: It works" in changed.thought[0][1] and "taken back" in changed.thought[0][1]
+
+
+def test_what_she_thought_is_kept_with_the_program_and_read_back(tmp_path, monkeypatch):
+    from core.making import maker
+    from core.rebuilding import her_build_writes
+
+    def governed(how, path, *payload, **_how):
+        Path(path).write_text(payload[0], encoding="utf-8") if how == "write_text" else None
+
+    monkeypatch.setattr(her_build_writes, "governed", governed)
+    made, _built = _a_maker(tmp_path, _VIEW, None)
+    made.kept = maker._Maker.kept.__get__(made)
+    made.folder, made.design.kind = tmp_path, "tool"
+    made.design.language = "python"
+    made.last_view = {"code": "abc", "thinks": "Calm.", "would_change": [], "came": "nothing to change"}
+    asyncio.run(made.kept())
+    assert maker._her_view_of(tmp_path) == made.last_view

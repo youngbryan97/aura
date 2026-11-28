@@ -14,6 +14,7 @@ Every step is a step of her work (core/understanding/workbench.py): watched as i
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import dataclasses
 import json
 import logging
@@ -195,6 +196,9 @@ class _Maker:
         #: Her eyes, where she is to look at what she made herself (core/making/her_view.py); and whether she has, this time.
         self.eyes: Any = None
         self.viewed = False
+        #: What she thought of it when she last looked, and of what code: kept with it, so that she does not look again at what has
+        #: not changed, and is told what she thought where it has.
+        self.last_view: dict[str, Any] = {}
         #: How her model is given room to think where she is asked what she thinks, not what to write.
         self.thinking: dict[str, Any] = {}
         self.began = time.monotonic()
@@ -992,6 +996,10 @@ class _Maker:
         if self.eyes is None or self.viewed or design is None or design.kind not in {"app", "site", "game"} or not self.parts.code().strip() or self.trial.breaks():
             return
         self.viewed = True
+        code = hashlib.sha256(self.parts.code().encode("utf-8")).hexdigest()[:16]
+        if self.last_view.get("code") == code:
+            # LIVE 28 November 2026 she looked again, minutes after, at a dinner planner she had looked at, for its request was tried again.
+            return
         self.work.step("Looking at it as somebody using it would")
         before = await self._screens()
         if not before:
@@ -999,10 +1007,11 @@ class _Maker:
             return
         # She looks at it as somebody using it, not by its tests: what still fails is the mending's. LIVE 28 November 2026, given
         # them, each change she would make was a failing test said again, and she did not see that no book could be added.
-        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, how=self.thinking)
+        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, how=self.thinking, before=self.last_view)
         if view is None:
             return
         changes = [c for c in view.would_change if c.change.strip() and c.change.strip() not in {r.says for r in design.rules}][:CHANGES]
+        self.last_view = {"code": code, "thinks": view.thinks, "would_change": [c.change for c in changes], "came": "nothing to change" if not changes else ""}
         self.work.happened("her_view", thinks=view.thinks, works=view.works, would_change=[c.model_dump() for c in changes], looked_at=[s.caption for s in before],
                            saw=[{"caption": s.caption, "seen": s.seen[:900]} for s in before])
         if not changes:
@@ -1016,6 +1025,7 @@ class _Maker:
         # broke, it is taken back before she is asked whether it looks better, for a change not built looks as it did.
         if {r.name for r in self.trial.failing()} - {r.name for r in was[1].failing()}:
             self.parts, self.trial, self.design, self.has = was
+            self.last_view["came"] = "what she would change could not be built without something failing, and was taken back"
             self.work.happened("her_view", thinks="", verdict="as it was")
             self.work.says("What I would change of it could not be built without something of it failing, so it is as it was.")
             await self.kept()
@@ -1024,10 +1034,14 @@ class _Maker:
         verdict = await compared(before, after, view, ask=self.ask, write=self.write, how=self.thinking) if after else None
         if verdict is not None and not verdict.better:
             self.parts, self.trial, self.design, self.has = was
+            self.last_view["came"] = f"built, looked at again, and taken back: {verdict.thinks}"[:1200]
             self.work.happened("her_view", thinks=verdict.thinks, verdict="as it was")
             self.work.says("I thought it better as it was, so it is as it was.")
         else:
+            self.last_view["came"] = f"built and kept: {verdict.thinks}"[:1200] if verdict is not None else "built and kept"
             self.work.happened("her_view", thinks=verdict.thinks if verdict is not None else "", verdict="kept")
+        # What she looked at is the code as it stands now, kept or put back.
+        self.last_view["code"] = hashlib.sha256(self.parts.code().encode("utf-8")).hexdigest()[:16]
         await self.kept()
 
     async def _unfinished(self, parts: Parts) -> list[str]:
@@ -1205,7 +1219,7 @@ class _Maker:
                 await asyncio.to_thread(lambda: governed("write_text", path, self.page()))
         record = {"title": design.name, "accent": design.look.accent, "asked": self.asked, "design": design.model_dump(),
                   "parts": {"functions": self.parts.functions, "text": self.parts.text, "tests": self.parts.tests,
-                            "cases": self.parts.cases}, "built": self.has,
+                            "cases": self.parts.cases}, "built": self.has, **({"her_view": self.last_view} if self.last_view else {}),
                   "tried": [{"name": r.name, "ok": r.ok, "why": r.why} for r in [*self.trial.generic, *self.trial.rules]]}
         await asyncio.to_thread(governed, "write_text", self.folder / "program.json", json.dumps(record, indent=1, ensure_ascii=False))
         tried = [*self.trial.generic, *self.trial.rules]
@@ -1408,6 +1422,7 @@ async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Wo
     maker = _Maker(f"{was_asked}\n{asked}", ask=ask, write=write, work=work, folder=folder, browser=browser)
     maker.design, maker.parts, maker.paints, maker.eyes, maker.thinking = design, parts, paints, eyes, thinking or {}
     maker.has = await asyncio.to_thread(_built_of, folder, design)
+    maker.last_view = await asyncio.to_thread(_her_view_of, folder)
     return await _run(maker, maker_again(maker))
 
 
@@ -1418,6 +1433,7 @@ async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: A
     maker = _Maker(was_asked, ask=ask, write=write, work=work, folder=folder, browser=browser)
     maker.design, maker.parts, maker.paints, maker.eyes, maker.thinking = with_an_icon(design), parts, paints, eyes, thinking or {}
     maker.has = await asyncio.to_thread(_built_of, folder, design)
+    maker.last_view = await asyncio.to_thread(_her_view_of, folder)
     return await _run(maker, maker.gone_on_with)
 
 
@@ -1425,6 +1441,16 @@ def parts_of(folder: Path) -> tuple[Design, Parts, str]:
     """A program made before: its design, its parts, and what was asked for."""
     kept = json.loads((Path(folder) / "program.json").read_text("utf-8"))
     return Design.model_validate(kept["design"]), Parts(**kept["parts"]), str(kept.get("asked") or "")
+
+
+def _her_view_of(folder: Path) -> dict[str, Any]:
+    """What she thought of a program when she last looked at it, as it is kept with it; {} where she has not looked."""
+    try:
+        view = json.loads((Path(folder) / "program.json").read_text("utf-8")).get("her_view")
+    # not a failure: a program kept without her view is one she has not looked at.
+    except (OSError, ValueError):
+        return {}
+    return dict(view) if isinstance(view, dict) else {}
 
 
 def _built_of(folder: Path, design: Design) -> list[str]:
