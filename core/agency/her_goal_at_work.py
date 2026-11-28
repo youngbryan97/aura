@@ -875,6 +875,13 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     if MEASURING_HOLD.exists():
         logger.info("her draft for '%s' waits: a run is measuring her", record.goal[:60])
         return {"ok": False, "why": "a run is measuring her; her draft waits until it ends"}
+    standing = change_on_probation()
+    if standing is not None and record.offer.get("waited_behind") == standing.slug:
+        # Its gates doubted it while that change was on probation, and it waits behind it whatever they say again: asked
+        # once more it costs half an hour of her outside check for the same answer. LIVE 27 November 2026 one draft was
+        # asked of every gate four times behind a change on probation 34 hours, and waited each time.
+        logger.info("her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
+        return {"ok": False, "why": f"another change of hers is on probation: {standing.slug}"}
     head, commit = source_head(), str(record.offer.get("commit") or "")
     if head and commit and _git("merge-base", "--is-ancestor", head, commit, cwd=source_root()).returncode != 0:
         # Her source moved past the draft, and approve takes a draft only by fast-forward: it is carried onto her source
@@ -917,6 +924,10 @@ def take_it_herself(slug: str) -> dict[str, Any]:
     doubted = bool(doubted_by(gates))
     standing = change_on_probation()
     if doubted and standing is not None:
+        # Kept, so it is not asked of every gate again until that probation settles.
+        record = load(slug, require_readable=True) or record
+        record.offer = {**record.offer, "gates": gates, "waited_behind": standing.slug}
+        _write_now(record)
         logger.info("her draft for '%s' waits: '%s' is still on probation", record.goal[:60], standing.goal[:60])
         return {"ok": False, "why": f"another change of hers is on probation: {standing.slug}"}
     record.offer = {**record.offer, "on_probation": doubted}

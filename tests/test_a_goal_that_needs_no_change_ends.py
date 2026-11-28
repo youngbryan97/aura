@@ -127,3 +127,23 @@ def test_a_goal_her_own_time_finds_nothing_of_hers_to_do_is_not_worked_in_her_so
     monkeypatch.setattr(work, "work_a_while", never)
     result = asyncio.run(work.work_as_task("Stop interrupting me. I have asked three times now.", "plan", "trace"))
     assert not result.succeeded and "not worked there" in result.summary
+
+
+def test_a_draft_doubted_behind_a_change_on_probation_waits_without_asking_its_gates_again(her_source, monkeypatch):
+    """LIVE 27 November 2026 one draft was asked of every gate four times, half an hour each, behind a change on
+    probation for 34 hours, and waited each time."""
+    standing = work.GoalRecord(goal="A change on probation", slug="on-probation")
+    standing.status, standing.offer = work.MERGED, {"on_probation": True, "commit": "c" * 40}
+    asyncio.run(work.save(standing))
+    draft = work.GoalRecord(goal="A doubted draft", slug="doubted-draft")
+    draft.status, draft.offer = work.OFFERED, {"commit": "d" * 40, "files": ["core/notes.py"], "waited_behind": "on-probation"}
+    asyncio.run(work.save(draft))
+    asked: list[str] = []
+    monkeypatch.setattr(work, "the_gates_her_yes_asks", lambda record: asked.append(record.slug) or {})
+    monkeypatch.setattr(work, "source_head", lambda: "")
+    waited = work.take_it_herself("doubted-draft")
+    assert not waited["ok"] and "on probation" in waited["why"] and not asked
+    standing.offer = {**standing.offer, "probation_over": 1.0}
+    asyncio.run(work.save(standing))
+    work.take_it_herself("doubted-draft")
+    assert asked == ["doubted-draft"], "asked again once that probation is over"
