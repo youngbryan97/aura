@@ -8682,6 +8682,22 @@ needs her 27B free (her app down, or her app's own influence trials).
     means both say so (`tests/test_left_unanswered.py`). What she says of how she does something is from what does it
     (`tests/test_how_she_does_it.py`).
 
+- [ ] F22 She forms an objective of her own and sustains it. Added 27 November, Bryan: "independently construct and sustain
+    a complex strategic objective", which takes coherent objectives that sit under what she wants, a plan of stages kept over
+    days, development governed by evidence, foresight of what would end it, and the same parts in any situation. Her own
+    goals that day were what her drives named: "Acting on relief: stabilize" was worked seventeen times for less than nothing
+    each time. Closed when one objective she formed has been pursued for two days across restarts, revised at least once on
+    what its steps came to, and ended on evidence.
+  - 27 November: her own time offers setting out on something when nothing she set out on stands
+    (`core/agency/her_objectives.py`, `tests/test_she_sets_out_on_an_objective_of_her_own.py`). Her cortex writes what she
+    would set out to do as she thinks it, then the objective: what it is for among the things she wants, its steps, what each
+    waits on, what will be so when it is done, and what would tell her it is not worth going on with. The project ledger
+    (`core/agency/projects.py`), which nothing had used, keeps it across restarts. Each step is a finding out, a making or a
+    change to her own source, taken by the part of her that takes that sort of act on her own time, and is done when that
+    part says so. Her reader of words holds what would end it against every pass, and what will be so against what the steps
+    came to at the end. A step that comes to nothing twice has her think it over: as it is, with changed steps from here, or
+    no further. Left: one formed, pursued and ended, live.
+
 ## Live session 2026-09-07: what the runtime showed
 
 Five root-cause defects found by running the desktop the way a person does and
