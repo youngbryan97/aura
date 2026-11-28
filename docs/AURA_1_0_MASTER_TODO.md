@@ -8692,6 +8692,13 @@ needs her 27B free (her app down, or her app's own influence trials).
       that say nothing done, one refuted ("Good — that's already running in the background ..."), kept as measured wrong
       (`tests/test_what_her_record_refutes.py`). Left: a follow-up asking that everything work became a rule of the program,
       and stands done in its account while another part is not.
+    - 28 November, Bryan: "if we can make this mending and building process faster and better and just a much much higher
+      level and sophistication and quality of coding". Measured over three makings that day, 285 minutes: writing a program
+      and its tests took 6 in a hundred of it, mending the rest. Mends her model wrote, 26 in a hundred, kept 12 of 55; small
+      edits, 15, kept 10 of 42; reading again tests that still failed, 12, 33 readings. The code had been written without
+      its tests in front of her, though they were written first: names the tests use for controls and state were what
+      mending chased. What is written now is written with the tests it is to pass, and a test read as right against a
+      program as it is is not read again (`tests/test_making_programs.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

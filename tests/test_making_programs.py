@@ -1600,3 +1600,48 @@ def test_whether_a_test_or_the_program_is_wrong_is_read_with_the_program_in_fron
     made.parts.tests = 'test("adding shows it", t => { t.type("Loaf", t.s.name); t.click("Add"); t.expect(t.s.items.length === 1); });'
     asyncio.run(made._tests_read_again([Result("adding shows it", False, "it was not added; what the test did: put “” in “Loaf”, pressed “Add”", the_test=True)]))
     assert givens and 'initial() { return { name: "", items: [] }; }' in givens[0] and givens[0].startswith(made._given())
+
+
+def test_what_is_written_is_written_with_the_tests_it_is_to_pass_in_front_of_her(tmp_path):
+    """Measured 28 November 2026 over three makings: nine tenths of their time went to mending, much of it code written with
+    names its tests did not use. The tests were written first and never shown to what wrote the code."""
+    prompts = []
+
+    async def write(prompt, n, **_how):
+        prompts.append(prompt)
+        return "As a list.\n```js\n" + APP + "\n```"
+
+    made = maker._Maker("Loaves", ask=None, write=write, work=Work("w", "loaves"), folder=tmp_path, browser=None)
+    made.design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": []},
+                          rules=[Rule(says="adding shows it"), Rule(says="removing")])
+    made.parts.tests = ('test("adding shows it", t => { t.type("Loaf", "rye").click("Add"); t.expect(t.sees("Remove rye")); });\n\n'
+                        'test("adding shows it, tested again", t => { t.type("Loaf", "oat").click("Add"); t.expect(t.sees("oat")); });\n\n'
+                        'test("removing", t => { t.click("Remove rye"); });')
+    asyncio.run(made.coded(["adding shows it"]))
+    assert all('t.type("Loaf", "rye")' in p and 't.type("Loaf", "oat")' in p and 't.click("Remove rye")' not in p for p in prompts), \
+        "the rules and how it looks are both written with the tests of what is built, and only those"
+    prompts.clear()
+    asyncio.run(made.added(["removing"]))
+    assert 't.click("Remove rye")' in prompts[0]
+
+
+def test_a_test_read_as_right_against_the_program_as_it_is_is_not_read_again(tmp_path):
+    from core.making.trying import Result
+
+    asked = []
+
+    async def write(prompt, n, **_how):
+        asked.append(prompt)
+        return "It is the program."
+
+    made = maker._Maker("Loaves", ask=None, write=write, work=Work("w", "loaves"), folder=tmp_path, browser=None)
+    made.design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": []})
+    made.parts.functions = {"initial": 'initial() { return { name: "", items: [] }; }'}
+    made.parts.tests = 'test("adding shows it", t => { t.click("Add"); t.expect(t.s.items.length === 1); });'
+    failing = [Result("adding shows it", False, "not added", the_test=True)]
+    asyncio.run(made._tests_read_again(failing))
+    asyncio.run(made._tests_read_again(failing))
+    assert len(asked) == 1
+    made.parts.functions["initial"] = 'initial() { return { name: "x", items: [] }; }'
+    asyncio.run(made._tests_read_again(failing))
+    assert len(asked) == 2, "read again once the program has changed"

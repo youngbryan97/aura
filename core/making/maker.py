@@ -208,6 +208,8 @@ class _Maker:
         self.last_view: dict[str, Any] = {}
         #: The rules of it that were her own changes, not asked for.
         self._hers: set[str] = set()
+        #: Each test read as right against a program as it was, by the two of them.
+        self._read_as_right: set[str] = set()
         #: How her model is given room to think where she is asked what she thinks, not what to write.
         self.thinking: dict[str, Any] = {}
         self.began = time.monotonic()
@@ -532,6 +534,10 @@ class _Maker:
             self._written(said, what)
             return
         first = "" if len(rules) == len(design.rules) else "Only these of its rules are built now:\n" + "\n".join(f"- {r}" for r in rules) + "\n\n"
+        # What it is written to pass is in front of whoever writes it: the names its tests use for its controls and its state
+        # are the names it is to have. Measured over three makings on 28 November 2026, nine tenths of their time went to
+        # mending, much of it what was written with names its tests did not use, for the tests had been written and never shown.
+        first += self._its_tests(rules)
         functions = "initial, update, score, over and hud" if design.kind == "game" else "initial and update"
         earlier = await asyncio.to_thread(functions_like, design.functions, self.folder.parent, kind=design.kind, but=self.folder)
         if earlier:
@@ -554,9 +560,15 @@ class _Maker:
         assert design is not None
         self.work.step("Building in: " + "; ".join(rules)[:160] if rules else "Changing it to what you said")
         told = (("\nTo be built in now:\n" + "\n".join(f"- {rule}" for rule in rules)) if rules else "") + (f"\nThey said: {words}" if words else "")
+        told += f"\n{self._its_tests(rules)}" if rules else ""
         said = await self.write(f"It is written as:\n```\n{self.parts.code()}\n```\n{told}\n\n"
                                 f"Say in a sentence or two what you change, then {self._how_to_change()}.", CODE_TOKENS, given=self._given())
         self._written(said, "what changed" if self.parts.functions else "it")
+
+    def _its_tests(self, rules: list[str]) -> str:
+        """The tests of these rules, as what is written is to pass them; "" where there are none."""
+        tests = _tests_named(self.parts.tests, [*rules, *(f"{rule}{AGAIN}" for rule in rules)]) if self.parts.tests else ""
+        return f"Its tests, which it is to pass:\n```js\n{tests[-14000:]}\n```\n\n" if tests.strip() else ""
 
     def _how_to_change(self) -> str:
         design = self.design
@@ -1241,8 +1253,14 @@ class _Maker:
         # how it is used. LIVE 28 November 2026 a test took the field an answer is typed in for the answer, and the program was blamed.
         # Given once, before every test read, so her model reads it once.
         given = f"{self._given()}\n\nThe program as it stands:\n```js\n{self.parts.code()}\n```"
+        code = hashlib.sha256(self.parts.code().encode("utf-8")).hexdigest()
         for result in self._to_be_doubted(failing)[:AT_ONCE]:
             if result.name not in held:
+                continue
+            # A test read as right against the program as it is says the same read again: 33 readings in three makings of 28
+            # November 2026, a minute each, kept nothing.
+            read_as = hashlib.sha256(f"{held[result.name]}\n{code}".encode("utf-8")).hexdigest()
+            if read_as in self._read_as_right:
                 continue
             other = held.get(f"{result.name}{AGAIN}", "")
             holds = any(r.ok and r.name == f"{result.name}{AGAIN}" for r in self.trial.rules)
@@ -1253,6 +1271,8 @@ class _Maker:
                                     "code.", A_TEST, given=given)
             self.work.says(_prose(said))
             new = each_test_in(_code(said))[1] if "```" in said else []
+            if not (new and new[0][1] != held[result.name]):
+                self._read_as_right.add(read_as)
             if new and new[0][1] != held[result.name]:
                 held[result.name] = _named(new[0][1], result.name)
                 self.corrected.add(result.name)
