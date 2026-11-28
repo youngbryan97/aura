@@ -363,3 +363,15 @@ def test_a_call_her_cortex_writes_instead_of_a_finding_is_no_reading(monkeypatch
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
     assert asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads())) is None
     assert not chose, "no reading is chosen from a call"
+
+
+def test_a_waiting_drafts_fault_is_found_in_her_state_before_this_run_has_heard_it(her_source, monkeypatch, tmp_path):
+    """LIVE 27 November 2026 her first step at a start asked a waiting draft again before the faults of her last run
+    were heard again, and its fault was not found, so her model was never asked of it."""
+    kept = tmp_path / "heard.json"
+    fault = heard.HeardFault(ARGV, "notes", 1.0, 2.0)
+    kept.write_text(json.dumps([heard._as_row(fault)]))
+    monkeypatch.setattr(heard, "faults_heard", lambda: [])
+    monkeypatch.setattr(heard, "where_heard_faults_are_kept", lambda: kept)
+    record = goals.GoalRecord(goal=mending.goal_for(fault), slug=goals.slug_of(mending.goal_for(fault)))
+    assert mending._the_fault_of(record) == fault

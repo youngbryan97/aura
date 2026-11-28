@@ -169,11 +169,26 @@ def the_callers_fault(fault: Any) -> Any:
 
 
 def _the_fault_of(record: Any) -> Any:
-    """The fault she heard that ``record`` is the goal of, or None when it is not one she still holds."""
-    from core.agency import her_goal_at_work as goals
-    from core.self_modification.faults_she_can_reproduce import faults_heard
+    """The fault she heard that ``record`` is the goal of, from what this run heard or else what her state keeps of
+    what she heard before; None when it is in neither.
 
-    return next((fault for fault in faults_heard() if goals.slug_of(goal_for(fault)) == record.slug), None)
+    LIVE 27 November 2026 her mending's first step at a start asked a waiting draft of hers again before the faults
+    kept from her last run were heard again here, so its fault was not found, her model was never asked of it, and the
+    draft that drops a true report of an unhealthy subsystem went on to her gates."""
+    import json
+
+    from core.agency import her_goal_at_work as goals
+    from core.self_modification.faults_she_can_reproduce import _from_row, faults_heard, where_heard_faults_are_kept
+
+    found = next((fault for fault in faults_heard() if goals.slug_of(goal_for(fault)) == record.slug), None)
+    if found is not None:
+        return found
+    try:
+        rows = json.loads(where_heard_faults_are_kept().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    kept = (_from_row(row) for row in rows if isinstance(row, dict)) if isinstance(rows, list) else ()
+    return next((fault for fault in kept if fault is not None and goals.slug_of(goal_for(fault)) == record.slug), None)
 
 
 class InHerWorkspace:
