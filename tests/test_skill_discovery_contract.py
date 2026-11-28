@@ -278,8 +278,9 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     # search_the_web, so a goal of hers consults her library and the web; on 27 November nothing_to_change, so a goal
     # that needs no change to her source can end, and my_goal, so a pass of hers reads its goal as her own and not as
     # somebody's message. One more came in between without this count moving (96 on 27 November, before
-    # nothing_to_change).
-    assert len(catalog.accepted) == 98
+    # nothing_to_change). Late on 27 November how_i_am_running, so a goal of hers can read what her runtime measures of
+    # itself: she had stopped short of a change for want of it.
+    assert len(catalog.accepted) == 99
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"

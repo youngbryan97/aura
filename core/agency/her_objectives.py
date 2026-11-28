@@ -193,13 +193,47 @@ def _done_when(project: Project) -> str:
     return project.acceptance_criteria[0] if project.acceptance_criteria else ""
 
 
+#: How many of each sort of fact she is given to set out from: as many as she is given of what she wants and found when
+#: she is asked whether there is something she would make (core/agency/what_she_could_do.py).
+FACTS_OF_A_SORT = 6
+
+
+def _goals_under_way() -> list[dict[str, Any]]:
+    """Her goals that are under way, the latest worked first, each with what she said of it last."""
+    from core.agency import her_goal_at_work as goals
+
+    try:
+        records = goals.all_records()
+    except _READ_FAILS:
+        return []
+    held = sorted((r for r in records if r.status in {goals.WORKING, goals.STALLED, goals.OFFERED}), key=lambda r: -r.last_worked_at)
+    out = []
+    for record in held[:FACTS_OF_A_SORT]:
+        said = next((str(entry["words"]) for entry in reversed(record.said) if isinstance(entry, dict) and entry.get("words")), "")
+        out.append({"goal": _short(record.goal, 200), "stands": record.status, "passes": record.passes,
+                    "what_you_said_of_it_last": _short(goals.said_before_a_call(said), 500)})
+    return out
+
+
+def _what_has_gone_wrong() -> list[str]:
+    """What has gone wrong in her running since it started, the most frequent first, as her goal work reads it."""
+    from core.skills.her_draft import faults_recorded
+
+    try:
+        return faults_recorded()[0][:FACTS_OF_A_SORT]
+    except _READ_FAILS:
+        return []
+
+
 def what_she_has_to_go_on(hers: HerOwnTime, ledger: ProjectLedger) -> str:
-    """What she wants, what acts of each sort have come to for her, what she found on her own, and what came of what she set
-    out to do before, as facts."""
+    """What she wants, what she is in the middle of and what she said of it, what has gone wrong in her running, what
+    acts of each sort have come to for her, what she found on her own, and what came of what she set out to do before,
+    as facts. LIVE 27 November 2026, 23:09, given only the first and the last two, the most she wanted was "parameter",
+    and she set out on nothing."""
     from core.conation.what_she_wants import get_what_she_wants
 
     try:
-        wants = [{"thing": w.label, "why": _short(w.why, 200)} for w in get_what_she_wants().wants(limit=6)]
+        wants = [{"thing": w.label, "why": _short(w.why, 200)} for w in get_what_she_wants().wants(limit=FACTS_OF_A_SORT)]
     except _READ_FAILS:
         wants = []
     try:
@@ -207,9 +241,10 @@ def what_she_has_to_go_on(hers: HerOwnTime, ledger: ProjectLedger) -> str:
     except _READ_FAILS:
         kinds = {}
     came = {SORTS.get(kind, kind): {"done": one.get("done"), "came_to": one.get("came_to")} for kind, one in kinds.items() if one.get("done")}
-    return json.dumps({"what_you_want_now": wants,
+    return json.dumps({"what_you_want_now": wants, "your_goals_under_way": _goals_under_way(),
+                       "what_has_gone_wrong_in_your_running_most_often_first": _what_has_gone_wrong(),
                        "what_acts_of_each_sort_came_to_for_you_from_minus_one_nothing_to_one_all_they_set_out_to": came,
-                       "what_you_found_on_your_own": [f.get("about") for f in hers.found[-6:]],
+                       "what_you_found_on_your_own": [f.get("about") for f in hers.found[-FACTS_OF_A_SORT:]],
                        "what_you_set_out_to_do_before": [_as_she_reads_it(p) for p in _ended(ledger)[-4:]]}, ensure_ascii=False)
 
 

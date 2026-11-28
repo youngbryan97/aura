@@ -270,6 +270,28 @@ class WhatWentWrongInput(BaseModel):
 _NOT_A_FAULT = frozenset({"debug", "info"})
 
 
+def faults_recorded(subsystem: str = "") -> tuple[list[str], int]:
+    """What has gone wrong in her own running since it started, from the faults her runtime recorded: each kind once, the
+    most frequent first, as a line; and how many there were in all."""
+    from core.runtime.errors import get_degradation_tracker
+
+    kinds: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for record in get_degradation_tracker().recent(limit=10_000):
+        if str(record.severity) in _NOT_A_FAULT or not str(record.subsystem).startswith(subsystem.strip()):
+            continue
+        call = record.failed_call
+        where = (f"{call.file}:{call.line} in {call.qualname}" if getattr(call, "file", "")
+                 else ".".join(record.raised_in) if record.raised_in else "where it was raised was not kept")
+        kind = kinds.setdefault((record.subsystem, record.error_type, where), {"times": 0})
+        kind.update(times=kind["times"] + 1, severity=record.severity, error=record.error_message[:200],
+                    action=record.action[:160], last=record.timestamp)
+    ranked = sorted(kinds.items(), key=lambda item: (-item[1]["times"], -item[1]["last"]))
+    rows = [f"{kind['times']}x {kind['severity']} {subsystem}: {error_type} at {where}: {kind['error']}"
+            + (f" (then: {kind['action']})" if kind["action"] else "")
+            for (subsystem, error_type, where), kind in ranked]
+    return rows, sum(kind["times"] for kind in kinds.values())
+
+
 class WhatWentWrongSkill(BaseSkill):
     result_schema = THE_SHARED_RESULT
     name = "what_went_wrong"
@@ -284,30 +306,68 @@ class WhatWentWrongSkill(BaseSkill):
         """Her runtime's own record, read in her own process: LIVE 21 November 2026 her goal "Find something productive
         to work on" had made 2,022 calls over 290 passes with no edit, searching her source for TODO and FIXME, while
         her causal world model's every save was being refused in the same process, sixty times that afternoon."""
-        from core.runtime.errors import get_degradation_tracker
-
         try:
             asked = _params(WhatWentWrongInput, params)
         except Refused as why:
             return {"ok": False, "error": str(why)}
-        kinds: dict[tuple[str, str, str], dict[str, Any]] = {}
-        for record in get_degradation_tracker().recent(limit=10_000):
-            if str(record.severity) in _NOT_A_FAULT or not str(record.subsystem).startswith(asked.subsystem.strip()):
-                continue
-            call = record.failed_call
-            where = (f"{call.file}:{call.line} in {call.qualname}" if getattr(call, "file", "")
-                     else ".".join(record.raised_in) if record.raised_in else "where it was raised was not kept")
-            kind = kinds.setdefault((record.subsystem, record.error_type, where), {"times": 0})
-            kind.update(times=kind["times"] + 1, severity=record.severity, error=record.error_message[:200],
-                        action=record.action[:160], last=record.timestamp)
-        ranked = sorted(kinds.items(), key=lambda item: (-item[1]["times"], -item[1]["last"]))
-        rows = [f"{kind['times']}x {kind['severity']} {subsystem}: {error_type} at {where}: {kind['error']}"
-                + (f" (then: {kind['action']})" if kind["action"] else "")
-                for (subsystem, error_type, where), kind in ranked]
-        summary = f"{len(rows)} kind(s) of fault recorded, {sum(kind['times'] for kind in kinds.values())} in all"
+        rows, times = faults_recorded(asked.subsystem)
+        summary = f"{len(rows)} kind(s) of fault recorded, {times} in all"
         shown = _what_fits(rows, {"ok": True, "kinds": len(rows), "summary": summary})
         return {"ok": True, "kinds": len(rows), "text": "\n".join(shown),
                 "summary": summary + (f"; the first {len(shown)} shown" if len(shown) < len(rows) else "")}
+
+
+class HowIAmRunningInput(BaseModel):
+    """Nothing to say: what is read is how she is running now."""
+
+
+class HowIAmRunningSkill(BaseSkill):
+    result_schema = THE_SHARED_RESULT
+    name = "how_i_am_running"
+    description = ("How her own running stands now, as her runtime measures it: the memory her own process and her workers "
+                   "hold, each sample her memory governor kept over its last stretch and the change across it, what each "
+                   "worker holds and runs now, and what her runtime's health contract says of itself.")
+    input_model = HowIAmRunningInput
+    effect_scope = "read_only"
+    timeout_seconds = 30.0
+
+    async def execute(self, params: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Read in her own process, where her runtime measures itself. LIVE 27 November 2026 her goal of steadying herself
+        read her lane control's source for a leak for eleven passes and stopped short of a change each time: "I have no
+        live RSS or process probe", and she asked Bryan for a sample."""
+        from core.container import ServiceContainer
+
+        governor = ServiceContainer.get("memory_governor", default=None)
+        measured = governor.what_it_measured() if hasattr(governor, "what_it_measured") else None
+        rows: list[str] = []
+        if measured and measured["samples"]:
+            first, last = measured["samples"][0], measured["samples"][-1]
+            said = (f"over the last {(last[0] - first[0]) / 60.0:.0f} min her own process went from {first[1]:.0f} to "
+                    f"{last[1]:.0f} MB and her workers from {first[2]:.0f} to {last[2]:.0f} MB; her memory stands "
+                    f"{measured['state']}")
+            rows += [f"worker {pid} holds {mb:.0f} MB" + (f": {name}" if name else "") for mb, pid, name in measured["workers_now"]]
+            rows += [f"{time.strftime('%H:%M:%S', time.localtime(at))}: her process {core:.0f} MB, her workers {runtime:.0f} MB"
+                     for at, core, runtime in reversed(measured["samples"])]
+        else:
+            said = "her memory governor has measured nothing yet" if governor is not None else "her memory governor is not running"
+        try:
+            from core.runtime.health_contract import runtime_health_report
+
+            report = await asyncio.to_thread(runtime_health_report)
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as why:
+            report = {}
+            rows.append(f"her health contract could not be read: {why}")
+        if report:
+            said += f"; her runtime reads itself {report.get('status')}"
+            failing = {name: probe for name, probe in dict(report.get("required_probes") or {}).items()
+                       if isinstance(probe, dict) and not probe.get("ok", True)}
+            rows[:0] = [f"probe {name} failing: {json.dumps(probe, default=str)[:200]}" for name, probe in failing.items()]
+            for name, value in dict(report.get("integrity") or {}).items():
+                if value not in (None, [], {}, ""):
+                    rows.insert(len(failing), f"integrity {name}: {json.dumps(value, default=str)[:240]}")
+        shown = _what_fits(rows, {"ok": True, "summary": said})
+        return {"ok": True, "text": "\n".join(shown),
+                "summary": said + (f"; the first {len(shown)} of {len(rows)} lines shown" if len(shown) < len(rows) else "")}
 
 
 class EditDraftInput(BaseModel):
@@ -599,7 +659,7 @@ class SearchTheWebSkill(BaseSkill):
         return {"ok": True, "found": len(rows), "text": "\n".join(shown), "summary": summary}
 
 
-HER_TOOLS = (WhatWentWrongSkill, ReadSourceSkill, FindInSourceSkill, LookUpSkill, SearchTheWebSkill,
+HER_TOOLS = (WhatWentWrongSkill, HowIAmRunningSkill, ReadSourceSkill, FindInSourceSkill, LookUpSkill, SearchTheWebSkill,
              NothingToChangeSkill, EditDraftSkill, CheckDraftSkill, OfferDraftSkill)
 
 

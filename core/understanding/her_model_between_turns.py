@@ -210,7 +210,8 @@ async def ask(prompt: str, schema: type[BaseModel], max_tokens: int, *, given: s
     return as_answered(text, schema)
 
 
-async def write(prompt: str, max_tokens: int, *, warmth: float = 0.2, given: str = "") -> str:
-    """What her cortex writes for ``prompt``, as it wrote it: prose, code, or the one around the other."""
-    text = await _asked_until_answered(prompt, max_tokens, goes_on=True, temperature=warmth, given=given)
+async def write(prompt: str, max_tokens: int, *, warmth: float = 0.2, given: str = "", **how: Any) -> str:
+    """What her cortex writes for ``prompt``, as it wrote it: prose, code, or the one around the other. ``how`` goes to
+    her cortex as it is: her private channel's room, where she is to think before she writes."""
+    text = await _asked_until_answered(prompt, max_tokens, goes_on=True, temperature=warmth, given=given, **how)
     return re.sub(r"<think>.*?</think>", "", text, flags=re.S).strip()

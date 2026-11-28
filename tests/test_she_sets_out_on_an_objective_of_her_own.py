@@ -265,3 +265,20 @@ def test_a_step_named_late_in_long_words_is_read_in_a_passage_of_its_own(monkeyp
     assert (reader.whether_her_words_bear_it_out(words, step) or 0.0) <= 0.0, "read whole, the reader cut the step off"
     assert reader.what_her_words_say_of(words, step) == 1
     assert reader.what_her_words_say_of(filler, step) == 0
+
+
+def test_she_sets_out_knowing_what_she_is_in_the_middle_of_and_what_has_gone_wrong(ledger, monkeypatch):
+    """LIVE 27 November 2026, 23:09: given what she wanted, what she found and what her acts came to, the most she wanted
+    was "parameter", and she set out on nothing in three tokens."""
+    from core.agency import her_goal_at_work as goals
+    from core.skills import her_draft
+
+    record = goals.GoalRecord(goal="Acting on relief: stabilize", slug="acting", status=goals.WORKING, passes=11,
+                              said=[{"words": "I have no live RSS or process probe. <tool_call> <function=read_file>", "at": 1.0},
+                                    {"judged": {"why": "kept"}, "at": 2.0}])
+    monkeypatch.setattr(goals, "all_records", lambda: [record, goals.GoalRecord(goal="done one", slug="d", status=goals.MERGED)])
+    monkeypatch.setattr(her_draft, "faults_recorded", lambda subsystem="": (["4x warning memory: grew at lanes.py:3"], 4))
+    facts = __import__("json").loads(objectives.what_she_has_to_go_on(_hers(), ledger))
+    assert facts["your_goals_under_way"] == [{"goal": "Acting on relief: stabilize", "stands": "working", "passes": 11,
+                                              "what_you_said_of_it_last": "I have no live RSS or process probe."}]
+    assert facts["what_has_gone_wrong_in_your_running_most_often_first"] == ["4x warning memory: grew at lanes.py:3"]

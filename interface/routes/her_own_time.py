@@ -80,6 +80,15 @@ async def _imagines(facts: str) -> Any:
         return None
 
 
+def _what_her_thinking_takes() -> int:
+    """What her cortex's private channel has been measured to take, in tokens (core/brain/llm/thinking_reserve.py)."""
+    from core.brain.llm.thinking_reserve import reserve_tokens
+    from core.runtime.service_access import resolve_inference_gate
+
+    client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+    return int(reserve_tokens(str(getattr(client, "model_path", "") or "")))
+
+
 async def _thinks(facts: str, question: str, shape: Any) -> Any:
     """Her cortex asked a question from some facts: what she wrote as she thought it, and then that written in ``shape``,
     where one is given; None where her model is away. Two asks, as her model reads where a fault lies
@@ -90,7 +99,9 @@ async def _thinks(facts: str, question: str, shape: Any) -> Any:
     from core.understanding.her_model_between_turns import ask, write
 
     try:
-        words = await write(question, WRITES, given=facts)
+        # Room to think first, as much as her thinking has been measured to take: without it, LIVE 27 November 2026,
+        # 23:09, asked whether there was something she wanted to bring about over days, her cortex wrote three tokens.
+        words = await write(question, WRITES, given=facts, private_channel_budget=_what_her_thinking_takes() or None)
         if shape is None or not words.strip():
             return words, None
         return words, await ask(f"What you wrote of it:\n\n{words}\n\nWrite that in this shape.", shape, SHAPES, given=facts)

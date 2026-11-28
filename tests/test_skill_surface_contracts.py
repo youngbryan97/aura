@@ -29,6 +29,7 @@ EXPECTED_REGISTERED_SKILLS = {
     "look_up",
     "search_the_web",
     "nothing_to_change",
+    "how_i_am_running",
     "my_goal",
     "edit_draft",
     "check_draft",

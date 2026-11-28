@@ -33,10 +33,10 @@ __all__ = [
 
 #: Her own tools for a goal she set herself (core/skills/her_draft.py), the eight
 #: core.skills.catalog_policy.HER_GOAL_TOOLS names (a test holds the two equal).
-#: Each acts only inside a git worktree of her source that she works the goal in, but what_went_wrong, which only
-#: reads her runtime's record of its own faults, in her own process.
-OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "look_up", "my_goal", "nothing_to_change",
-                            "offer_draft", "read_source", "search_the_web", "what_went_wrong"})
+#: Each acts only inside a git worktree of her source that she works the goal in, but what_went_wrong and
+#: how_i_am_running, which only read what her runtime records and measures of itself, in her own process.
+OWN_GOAL_TOOLS = frozenset({"check_draft", "edit_draft", "find_in_source", "how_i_am_running", "look_up", "my_goal",
+                            "nothing_to_change", "offer_draft", "read_source", "search_the_web", "what_went_wrong"})
 #: What each takes, and the arguments among them that name a place in her workspace.
 _OWN_GOAL_ARGUMENTS = {
     "what_went_wrong": frozenset({"subsystem"}),
@@ -51,6 +51,7 @@ _OWN_GOAL_ARGUMENTS = {
     "offer_draft": frozenset({"summary"}),
     "nothing_to_change": frozenset({"what_came_of_it"}),
     "my_goal": frozenset(),
+    "how_i_am_running": frozenset(),
 }
 #: The pass that works a goal of hers (core.agency.her_goal_at_work.ORIGIN).
 OWN_GOAL_ORIGIN = "her_goal_background"

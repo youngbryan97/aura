@@ -425,11 +425,9 @@ class MemoryGovernor:
         self._called_runaway = verdict.is_runaway()
         return verdict
 
-    def _say_what_grew(self) -> None:
-        parts = list(self._trend_parts)
-        span = parts[-1][0] - parts[0][0]
-        since = parts[-1][0] - span * self._runaway.policy.confirm_fraction
-        began = next(part for part in parts if part[0] >= since)
+    def _workers_now(self) -> list[tuple[float, int, str]]:
+        """Each of her workers and other children, the largest first: what it holds now in MB, its pid, and which model it
+        runs with what its MLX held when it last answered, where it runs one."""
         models = {}
         for key, client in _mlx_registry_snapshot(sys.modules.get("core.brain.llm.mlx_client")).items():
             pid = getattr(getattr(client, "_process", None), "pid", None)
@@ -445,16 +443,34 @@ class MemoryGovernor:
         for proc in self._iter_managed_runtime_processes():
             pid = int(proc.info.get("pid") or 0)
             try:
-                held.append((process_memory_bytes(pid) / (1024 * 1024), pid))
+                held.append((process_memory_bytes(pid) / (1024 * 1024), pid, models.get(pid, "")))
             except _RSS_SAMPLE_ERRORS:
                 continue
-        held.sort(reverse=True)
+        return sorted(held, reverse=True)
+
+    def what_it_measured(self) -> dict[str, Any]:
+        """Her memory as this governor measured it, for her to read: each sample it holds over the stretch its runaway
+        check judges, oldest first, her own process and her workers kept apart; each worker now; and how it stands.
+        LIVE 27 November 2026 her goal of steadying herself stopped short of a change for want of one: "I have no live
+        RSS or process probe", and she asked Bryan for a sample."""
+        return {"samples": [(at, round(core, 1), round(runtime, 1)) for at, core, runtime in list(self._trend_parts)],
+                "workers_now": [(round(mb, 1), pid, name) for mb, pid, name in self._workers_now()],
+                "state": self._model_resource_state,
+                "thresholds_mb": {"prune": self.threshold_prune, "unload": self.threshold_unload, "critical": self.threshold_critical},
+                "recent_cleanup_events": list(self._cleanup_events[-10:])}
+
+    def _say_what_grew(self) -> None:
+        parts = list(self._trend_parts)
+        span = parts[-1][0] - parts[0][0]
+        since = parts[-1][0] - span * self._runaway.policy.confirm_fraction
+        began = next(part for part in parts if part[0] >= since)
+        held = self._workers_now()
         logger.critical(
             "RUNAWAY, what grew over its last %.0f min: her own process %+.0f MB (now %.0f MB), her workers and other "
             "children %+.0f MB (now %.0f MB); workers now: %s",
             (parts[-1][0] - began[0]) / 60.0, parts[-1][1] - began[1], parts[-1][1], parts[-1][2] - began[2],
             parts[-1][2],
-            ", ".join(f"{models.get(pid, 'pid ' + str(pid))} {mb:.0f} MB" for mb, pid in held) or "none",
+            ", ".join(f"{name or 'pid ' + str(pid)} {mb:.0f} MB" for mb, pid, name in held) or "none",
         )
 
     async def start(self):

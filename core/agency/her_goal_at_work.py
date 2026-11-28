@@ -65,7 +65,7 @@ def _what_she_reads_of_before() -> int:
 #: Her way of working on a body of work, a step at a time: what went wrong last, where the work is, what is there, the
 #: change, its check, and the change offered. Each pass takes them in this order; her model writes what each takes.
 #: Once she has read and looked up what she needs, a goal that needs no change ends there (nothing_to_change).
-HER_WAY = ("what_went_wrong", "find_in_source", "read_source", "look_up", "search_the_web", "nothing_to_change",
+HER_WAY = ("what_went_wrong", "how_i_am_running", "find_in_source", "read_source", "look_up", "search_the_web", "nothing_to_change",
            "edit_draft", "check_draft", "offer_draft")
 #: A step and the one that must have come back done first: a draft is checked once made, and offered once it passed.
 HER_WAY_NEEDS = {"check_draft": "edit_draft", "offer_draft": "check_draft"}
