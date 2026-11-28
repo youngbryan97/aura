@@ -66,18 +66,14 @@ async def _make_her_own(request: Any) -> None:
 
 
 async def _imagines(facts: str) -> Any:
-    """Her model's reading of whether there is something she wants made now; None where her model is away."""
+    """Her model's reading of whether there is something she wants made now, thought first and then written in its shape;
+    None where her model is away or wrote nothing."""
     from core.agency.what_she_could_do import WhatSheWouldMake
-    from core.rebuilding.her_model import HerModelIsAwayError
-    from core.understanding.her_model_between_turns import ask
 
-    try:
-        return await ask(f"{facts}\n\nIs there something you would like to make for yourself now: a program, a tool, a game, an experiment, "
-                         "something to practise on? You need not make anything. Is there anything you made for yourself that you no "
-                         "longer want kept?", WhatSheWouldMake, 600)
-    except HerModelIsAwayError as away:
-        logger.info("Whether she would make something was not asked: %s", away)
-        return None
+    got = await _thinks(facts, "Is there something you would like to make for yourself now: a program, a tool, a game, an experiment, "
+                        "something to practise on? You need not make anything. Is there anything you made for yourself that you no "
+                        "longer want kept?", WhatSheWouldMake)
+    return got[1] if got else None
 
 
 def _what_her_thinking_takes() -> int:
@@ -109,8 +105,18 @@ async def _thinks(facts: str, question: str, shape: Any) -> Any:
             return words, None
         return words, await ask(f"What you wrote of it:\n\n{words}\n\nWrite that in this shape.", shape, SHAPES, given=facts)
     except HerModelIsAwayError as away:
-        logger.info("What she would set out to do was not asked: %s", away)
+        logger.info("Her model was not asked: %s", away)
         return None
+
+
+async def _reflects(facts: dict[str, Any]) -> Any:
+    """What she makes of something she did on her own time, thought first and then written as a Thought; None where her
+    model is away or wrote nothing."""
+    from core.agency.her_own_time import Thought
+
+    got = await _thinks(json.dumps(facts, ensure_ascii=False), "This is something you did on your own time, with nobody asking, and what "
+                        "came of it. What do you make of it?", Thought)
+    return got[1] if got else None
 
 
 async def _search(words: str) -> dict[str, Any]:
@@ -191,9 +197,15 @@ async def _tell(find: dict[str, Any]) -> bool:
     orchestrator = resolve_orchestrator()
     if orchestrator is None:
         return False
-    reading = json.dumps({"what_she_found": find["what"], "about": find["about"], "where": find.get("where") or ""}, ensure_ascii=False)
+    if find.get("thought"):
+        # What she makes of something she did is hers, and is said as hers: it was not found anywhere.
+        reading = json.dumps({"what_you_think_of_it": find["what"], "what_you_did": find["about"]}, ensure_ascii=False)
+        looked_with: tuple[str, dict[str, Any]] = ("her_own_time", {"looked_back_at": find["about"]})
+    else:
+        reading = json.dumps({"what_she_found": find["what"], "about": find["about"], "where": find.get("where") or ""}, ensure_ascii=False)
+        looked_with = ("web_search", {"query": find["about"]})
     await nobody_waiting()
-    messages = her_conversation_now_with("", reading, looked_with=("web_search", {"query": find["about"]}))
+    messages = her_conversation_now_with("", reading, looked_with=looked_with)
     words = what_she_finished(await on_her_cortex(messages, origin=ORIGIN, least_s=60.0))
     if not words:
         return False
@@ -244,7 +256,7 @@ def begin_what_she_does_unasked() -> None:
 
     hers = begin_her_own_time(get_her_own_time(), carry_on=_carry_on, looks=_looks, tell=_tell, here=_here, asks=_asks,
                               make=_make_her_own, imagines=_imagines, thinks=_thinks)
-    hers.may = _her_will_says
+    hers.may, hers.reflects = _her_will_says, _reflects
     # Where the runtime's own loop, which is under her agency and may not reach up to it, finds it.
     ServiceContainer.register_instance("her_own_time", hers)
 
@@ -266,6 +278,7 @@ async def her_own_time(_: None = Depends(_require_internal)) -> JSONResponse:
     choices = await asyncio.to_thread(hers.chooser.choices, 30)
     return JSONResponse({
         "doing": hers.doing, "before": hers.before, "found": len(hers.found), "learned": learned, "goals": dict(_READ),
+        "thoughts": list(reversed(hers.thoughts[-8:])),
         "finding_out": [{"of": of, "about": one.about, "met": round(one.met, 2), "done": one.is_done,
                          "questions": [{"question": q.question, "stands": q.stands, "answer": q.answer, "where": q.where} for q in one.questions[-8:]]}
                         for of, one in sorted(hers.inquiries.items(), key=lambda kept: -kept[1].changed_at)[:8]],

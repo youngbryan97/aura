@@ -188,7 +188,8 @@ const Frame = (() => {
 
   function openApp() {
     document.body.className = "app";
-    state = P.initial(); const was = kept(); if (was && typeof was === "object") state = { ...state, ...was };
+    // Opened where it was left, or where it is to be looked at.
+    state = P.initial(); const was = window.__openIn || kept(); if (was && typeof was === "object") state = { ...state, ...was };
     const bar = el("header"); if (P.pictures && P.pictures.icon) { const mark = el("img", "mark"); mark.src = P.pictures.icon; mark.alt = ""; bar.appendChild(mark); } bar.appendChild(el("strong", "", P.name));
     const tools = el("div", "tools"); bar.appendChild(tools);
     const tool = (label, hint, act) => { const b = el("button", "tool", label); b.title = hint; b.onclick = act; tools.appendChild(b); };
@@ -562,10 +563,17 @@ const Frame = (() => {
     if (nothing) P.update = (s) => s;
     return { generic: nothing || tests ? [] : generic(), rules: rules(tests, nothing) };
   }
+  // Where each of its tests leaves it, as the state it is in then: what it is looked at in, beside how it opens.
+  function ends(program, tests) {
+    P = { ...program }; live = false; goesOn = emptied = null; const out = [];
+    for (const [name, body] of tests || []) { let t = null; try { t = tester(); body(t); } catch (e) { /* where it got to is where it is */ } finally { waiting = []; emptied = null; }
+      if (t) { try { out.push([name, JSON.parse(JSON.stringify(t.s))]); } catch (e) { /* a state that cannot be written down is not looked at */ } } }
+    return out;
+  }
   // Some of the checks of any program, by their names.
   let only = null;
   function checked(program, names) { P = { ...program }; live = false; goesOn = emptied = null; only = names; try { return generic(); } finally { only = null; } }
-  return { open, tried, checked, last, rnd, chance, play, expect, ui, pen, W, H };
+  return { open, tried, checked, ends, last, rnd, chance, play, expect, ui, pen, W, H };
 })();
 const { rnd, between, int, pick, shuffle } = { rnd: Frame.rnd, ...Frame.chance };
 Object.assign(rnd, { between, int, pick, shuffle });

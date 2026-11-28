@@ -31,6 +31,24 @@ __all__ = ["build", "change", "runs_here"]
 STARTS_WITHIN_S = 20.0
 
 
+def _room_to_think() -> dict[str, Any]:
+    """How her model is given room to think where she is asked what she thinks of what she made: in the mode that opens her
+    thinking channel, with as much room as her thinking has been measured to take (core/brain/llm/thinking_reserve.py)."""
+    from core.brain.llm.thinking_reserve import reserve_tokens
+    from core.runtime.service_access import resolve_inference_gate
+
+    client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
+    room = int(reserve_tokens(str(getattr(client, "model_path", "") or "")))
+    return {"cognitive_mode": "reflective", **({"private_channel_budget": room} if room else {})}
+
+
+async def _her_eyes(prompt: str, png: str) -> str:
+    """What her eyes see in a screen of what she made."""
+    from core.making.her_view import her_eyes
+
+    return await her_eyes(prompt, png)
+
+
 def _builds() -> Path:
     from core.skills.changing_a_program import where_builds_are
 
@@ -148,11 +166,11 @@ async def build(request: Request, tell: Tell) -> CameTo:
     async with _a_browser() as browser:
         if folder is None:
             made = await maker.make(request.whole, ask=_ask, write=_write, work=_this(request), where=_builds(), browser=browser,
-                                    told=request.told, when_kept=_keeps(request), paints=by_her)
+                                    told=request.told, when_kept=_keeps(request), paints=by_her, eyes=_her_eyes, thinking=_room_to_think())
         elif request.added and not await asyncio.to_thread(_taken_in, folder, request.added[-1]):
-            made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+            made = await maker.change(folder, "\n".join(request.added), ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her, eyes=_her_eyes, thinking=_room_to_think())
         else:
-            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her, eyes=_her_eyes, thinking=_room_to_think())
     if made is None:
         return CameTo(how="read what was asked as a design", came_to="no design of it could be had",
                       parts=[Part("the program exists", "unmet", "no design of it came that held everything asked")])
@@ -178,9 +196,9 @@ async def change(request: Request, tell: Tell) -> CameTo:
     taken_in = await asyncio.to_thread(_taken_in, folder, wanted)
     async with _a_browser() as browser:
         if taken_in:
-            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+            made = await maker.mend(folder, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her, eyes=_her_eyes, thinking=_room_to_think())
         else:
-            made = await maker.change(folder, wanted, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her)
+            made = await maker.change(folder, wanted, ask=_ask, write=_write, work=_this(request), browser=browser, paints=by_her, eyes=_her_eyes, thinking=_room_to_think())
     if made is None:
         return CameTo(how="read the change into the design", came_to="it could not be read into the design",
                       parts=[Part("the change asked for", "unmet", "no design with it came")])

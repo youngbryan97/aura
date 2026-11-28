@@ -8605,6 +8605,13 @@ needs her 27B free (her app down, or her app's own influence trials).
       designed, with what was asked under it; in the panel the works open from its head as a list of its own, which the keys
       go through and Escape shuts; and where there is nothing yet each part says so in its place
       (`tests/test_the_workbench_keeps_works_apart.py`).
+    - The same evening, Bryan: "she shouldnt be blind to her own autonomous activity. she should have the ability to actually
+      reason about what's going on (which is where taste can come in". Once a program she makes runs, she looks at it: as it
+      opens, at a phone's width, and where the tests least like that leave it. Her eyes say what is on each screen; her own
+      model reads that beside what was asked and says what she thinks of it, what works and what she would change. Each change
+      becomes a rule of it, tested and built like any other; she looks again, and what she does not think better made is taken
+      back. The Work panel shows her view in her words (`core/making/her_view.py`, `tests/test_she_looks_at_what_she_made.py`).
+      Left: her view of a program, live.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
@@ -8641,6 +8648,10 @@ needs her 27B free (her app down, or her app's own influence trials).
     tell or not. What she began and did not finish is hers to go on with, and is not among what people asked for. What she
     no longer wants kept is put away beside the others, where it can be had back; only her own things can be. The Work panel
     marks them as hers (`tests/test_she_makes_things_of_her_own.py`). Left: one of her own, made live.
+  - 27 November: after an act of her own time she is asked what she makes of it, and may say nothing. What she says is kept,
+    shown in the Work panel and read to her with what she is doing; what it was worth to her counts beside how far it got in
+    what she learns of such acts; and where she would tell somebody, it is among what she could tell
+    (`tests/test_she_looks_at_what_she_made.py`).
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.

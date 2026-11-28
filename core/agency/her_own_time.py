@@ -19,6 +19,8 @@ from collections.abc import Awaitable, Callable, Iterable
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel, Field
+
 from core.agency.her_inquiries import KEPT, Inquiry
 from core.agency.what_she_does_next import CameOf, Option, WhatSheDoesNext, get_what_she_does_next
 from core.runtime.errors import record_degradation
@@ -26,7 +28,7 @@ from core.runtime.lockdep import checked_async_lock, checked_lock
 
 logger = logging.getLogger("Aura.HerOwnTime")
 
-__all__ = ["HerOwnTime", "Offers", "get_her_own_time", "reset_for_test"]
+__all__ = ["HerOwnTime", "Offers", "Thought", "get_her_own_time", "reset_for_test"]
 
 _RECOVERABLE = (ImportError, AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError, TimeoutError, LookupError)
 
@@ -41,6 +43,20 @@ ANSWERED_WITHIN_S = 1800.0
 HELD, READ = 24, 4000
 #: Who her own requests are from.
 HERSELF = "herself"
+#: How many of her thoughts on what she did are kept, and how long she is given to think of one, in seconds.
+THOUGHTS, THINKING_S = 24, 300.0
+
+
+class Thought(BaseModel):
+    """What she makes of something she did on her own time, as she says it."""
+
+    thinks: str = Field(default="", description="What you make of it, in your own words; nothing where you have nothing to say of it.")
+    worth: float | None = Field(default=None, ge=-1.0, le=1.0, description="How worthwhile it was to you, from -1 to 1; none where you cannot say.")
+    tell: bool = Field(default=False, description="Whether you would want to tell somebody what you think of it.")
+
+
+#: Her model, asked what she makes of something she did: given what she did and what came of it.
+Reflects = Callable[[dict[str, Any]], Awaitable[Thought | None]]
 
 
 class HerOwnTime:
@@ -65,6 +81,9 @@ class HerOwnTime:
         self.may: Callable[[Option], Awaitable[bool]] | None = None
         #: What would do a goal of hers, where something would.
         self.act_of: Callable[[str], Awaitable[Option | None]] | None = None
+        #: What she makes of what she did, asked of her once it is done; and what she has made of what she did.
+        self.reflects: Reflects | None = None
+        self.thoughts: list[dict[str, Any]] = []
         self._loaded = False
         self._going = checked_async_lock("her_own_time.going")
 
@@ -121,12 +140,43 @@ class HerOwnTime:
                 came = CameOf(got=0.0, what=f"it broke off: {type(exc).__name__}: {exc}"[:200])
             if not came.seconds:
                 came = CameOf(came.got, came.worth, came.put_down, came.what, time.monotonic() - began)
+            # What it was worth to her is hers to say, and counts beside how far it got.
+            thought = await self._thought_of(option, came)
+            if thought is not None and thought["worth"] is not None and not came.put_down and came.worth is None:
+                came = CameOf(came.got, thought["worth"], came.put_down, came.what, came.seconds)
             reward = await asyncio.to_thread(self.chooser.learn, chosen, came, cost_s=option.cost_s)
             logger.info("What came of it (%s): %s; %s", "put down" if reward is None else f"{reward:+.2f}", came.what[:200] or "nothing that can be seen", option.what[:120])
             self.before = {**self.doing, "came": came.what, "got": came.got, "ended": time.time()}
             self.doing = {}
             await self.keep()
-            return {"what": option.what, "kind": option.kind, "why": chosen.says(), "came": came.what, "got": came.got, "reward": reward}
+            return {"what": option.what, "kind": option.kind, "why": chosen.says(), "came": came.what, "got": came.got, "reward": reward,
+                    "thinks": thought["thinks"] if thought is not None else ""}
+
+    async def _thought_of(self, option: Option, came: CameOf) -> dict[str, Any] | None:
+        """What she makes of what she did, where she makes anything of it: kept, and where she would tell somebody, among what
+        she would tell. None where she was not asked or said nothing that could be read."""
+        if self.reflects is None:
+            return None
+        facts = {"what_you_did": option.what, "why_you_did_it": option.why, "what_came_of_it": came.what, "how_far_it_got": round(came.got, 2),
+                 **({"it_was_stopped": True} if came.put_down else {})}
+        try:
+            got = await asyncio.wait_for(self.reflects(facts), timeout=THINKING_S)
+        except (TimeoutError, *_RECOVERABLE) as exc:
+            logger.info("What she makes of it was not asked: %s", exc)
+            return None
+        if got is None:
+            return None
+        thinks = " ".join(str(got.thinks or "").split())[:1600]
+        thought = {"at": time.time(), "of": option.what, "kind": option.kind, "thinks": thinks,
+                   "worth": None if got.worth is None else max(-1.0, min(1.0, float(got.worth)))}
+        if thinks:
+            with self._lock:
+                self.thoughts.append(thought)
+                del self.thoughts[:-THOUGHTS]
+            if got.tell:
+                self.finds(option.what, thinks, thought=True)
+            logger.info("What she makes of it (%s): %s", "no worth said" if thought["worth"] is None else f"{thought['worth']:+.2f}", thinks[:200])
+        return thought
 
     # ── what she found, and telling it ───────────────────────────────
 
@@ -141,10 +191,11 @@ class HerOwnTime:
                 del self._read[page]
         return new
 
-    def finds(self, about: str, what: str, where: str = "") -> None:
-        """Something she found on her own, held until it is told or is old."""
+    def finds(self, about: str, what: str, where: str = "", *, thought: bool = False) -> None:
+        """Something she found on her own, or ``thought`` of something she did, held until it is told or is old."""
         with self._lock:
-            self.found.append({"about": str(about)[:120], "what": " ".join(str(what).split())[:600], "where": str(where)[:300], "at": time.time()})
+            self.found.append({"about": str(about)[:120], "what": " ".join(str(what).split())[:600], "where": str(where)[:300], "at": time.time(),
+                               **({"thought": True} if thought else {})})
             del self.found[:-HELD]
 
     def has_told(self, find: dict[str, Any]) -> None:
@@ -187,7 +238,10 @@ class HerOwnTime:
         if self.before and now - float(self.before.get("ended") or 0.0) < 2 * 86400:
             at = time.strftime("%H:%M", time.localtime(self.before["ended"]))
             parts.append(f"last {self.before['what']} (until {at}" + (f", {self.before['came']}" if self.before.get("came") else "") + ")")
-        return "; ".join(" ".join(str(p).split()) for p in parts)[:420]
+        last = self.thoughts[-1] if self.thoughts else None
+        if last is not None and now - float(last.get("at") or 0.0) < 2 * 86400:
+            parts.append(f"what you made of it: {last['thinks'][:300]}")
+        return "; ".join(" ".join(str(p).split()) for p in parts)[:760]
 
     def _where(self) -> Path:
         if self._path is None:
@@ -210,6 +264,7 @@ class HerOwnTime:
         self._read = {**{str(page): float(at) for page, at in dict(kept.get("read") or {}).items()}, **self._read}
         held = {str(of): Inquiry.of(one) for of, one in dict(kept.get("inquiries") or {}).items()}
         self.inquiries = {**{of: one for of, one in held.items() if one is not None}, **self.inquiries}
+        self.thoughts = [*list(kept.get("thoughts") or []), *self.thoughts][-THOUGHTS:]
         doing = dict(kept.get("doing") or {})
         self.before = {**doing, "came": "left off when she was closed", "got": 0.0, "ended": float(kept.get("at") or 0.0)} if doing else dict(kept.get("before") or {})
 
@@ -218,7 +273,7 @@ class HerOwnTime:
         from core.rebuilding.her_build_writes import governed
 
         with self._lock:
-            kept = {"at": time.time(), "doing": self.doing, "before": self.before, "found": self.found, "read": self._read,
+            kept = {"at": time.time(), "doing": self.doing, "before": self.before, "found": self.found, "read": self._read, "thoughts": self.thoughts,
                     "inquiries": {of: one.kept() for of, one in self.inquiries.items()}}
 
         def write() -> None:

@@ -80,3 +80,9 @@
 .wb-own-time .wb-card > summary { position: relative; } .wb-own-time .wb-card > summary > .wb-meter { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0; height: 2px; } .wb-own-time .wb-card-in p { margin: 0 0 6px; overflow-wrap: anywhere; }
 .wb-own-time .wb-checks li.open > svg { color: var(--aura-fg-mute); } .wb-own-time .wb-checks li.part > svg { opacity: .55; } .wb-answer { color: var(--aura-fg-dim); margin-top: 2px; overflow-wrap: anywhere; } .wb-answer a { color: var(--aura-accent); white-space: nowrap; }
 .wb-learned { border-collapse: collapse; font-size: 13px; align-self: flex-start; min-width: min(100%, 420px); } .wb-learned td { padding: 3px 18px 3px 0; color: var(--aura-fg-dim); } .wb-learned td:first-child { color: var(--aura-fg); } .wb-learned td:last-child { text-align: right; font-variant-numeric: tabular-nums; padding-right: 0; }
+
+/* Her own view of what she made: in her voice, set apart from what was done. */
+.wb-her-view { border: 1px solid var(--wb-line); border-left: 3px solid var(--aura-accent); background: var(--aura-card); border-radius: 10px; padding: 11px 14px 12px; display: flex; flex-direction: column; gap: 8px; animation: wb-in .2s ease-out; }
+.wb-her-view.kept { border-left-color: var(--aura-ok); } .wb-her-view.back { border-left-color: var(--aura-warn); }
+.wb-her-head { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 12.5px; color: var(--aura-fg-dim); } .wb-her-head > svg { color: var(--aura-accent); } .wb-her-view.kept .wb-her-head > svg { color: var(--aura-ok); } .wb-her-view.back .wb-her-head > svg { color: var(--aura-warn); } .wb-her-head .wb-about { margin-left: auto; font-weight: 400; }
+.wb-her-sub { font-size: 12px; font-weight: 600; color: var(--aura-fg-mute); margin-top: 2px; } .wb-her-view .wb-checks li.to > svg { color: var(--aura-accent); margin-top: 3px; }

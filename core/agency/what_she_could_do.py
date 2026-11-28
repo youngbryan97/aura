@@ -192,7 +192,8 @@ def things_to_tell(hers: HerOwnTime, tell: Callable[[dict[str, Any]], Awaitable[
             return CameOf(got=0.5, what=f"told them about {find['about']}")
 
         age = time.time() - float(find.get("at") or 0.0)
-        out.append(Option(f"tell:{find['about']}", "tell", f"tell them what she found about {find['about']}", _short(find["what"], 160),
+        said = f"tell them what she thinks of {_short(find['about'], 90)}" if find.get("thought") else f"tell them what she found about {find['about']}"
+        out.append(Option(f"tell:{find['about']}", "tell", said, _short(find["what"], 160),
                           known={"here": here(), "fresh": math.exp(-age / 21600.0)}, drives={"social": _asking("social")}, cost_s=30.0, does=does))
     return out
 
@@ -256,8 +257,19 @@ async def _made(request: Any, make: Callable[[Any], Awaitable[None]], *, began: 
     met = sum(1 for p in request.parts if p.stands == "met")
     so = met / max(1, len(request.parts))
     got = so if holds is None else holds if held is None or held >= 1.0 else max(0.0, (holds - held) / (1.0 - held))
+    view = _what_she_thought_of(request)
     return CameOf(got=max(0.0, min(1.0, got)), what=f"“{_short(request.said, 80)}”: {met} of {len(request.parts)} things asked of it are so"
-                  + (f"; {holds:.0%} of what it is tried by holds" + (f", and {held:.0%} did" if held is not None else "") if holds is not None else ""))
+                  + (f"; {holds:.0%} of what it is tried by holds" + (f", and {held:.0%} did" if held is not None else "") if holds is not None else "")
+                  + (f"; looking at it, she thought: {_short(view, 400)}" if view else ""))
+
+
+def _what_she_thought_of(request: Any) -> str:
+    """What she thought of what she made, as she looked at it (core/making/her_view.py); "" where she did not look."""
+    from core.understanding.workbench import get_workbench
+
+    work = get_workbench().get(request.id)
+    views = [row for row in (work.seen()["happened"] if work is not None else []) if row.get("what") == "her_view" and not row.get("verdict")]
+    return str(views[-1].get("thinks") or "") if views else ""
 
 
 def put_away(request: Any) -> str:

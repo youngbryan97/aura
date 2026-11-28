@@ -192,6 +192,11 @@ class _Maker:
         self.consulted: Any = None
         self._consulted_on: dict[str, str] = {}
         self.painting: asyncio.Task[list[str]] | None = None
+        #: Her eyes, where she is to look at what she made herself (core/making/her_view.py); and whether she has, this time.
+        self.eyes: Any = None
+        self.viewed = False
+        #: How her model is given room to think where she is asked what she thinks, not what to write.
+        self.thinking: dict[str, Any] = {}
         self.began = time.monotonic()
 
     # ── 1. the design ────────────────────────────────────────────────
@@ -409,6 +414,7 @@ class _Maker:
             await self.kept()
         await self.worked_out_another_way()
         await self.finished()
+        await self.looked_at_by_her()
 
     async def worked_out_another_way(self) -> None:
         """What its functions work out, held to the same worked out another way: by a slow sure method over many small inputs
@@ -963,6 +969,51 @@ class _Maker:
                     self.parts, self.trial, before = parts, trial, after
         self.trial.generic.append(Result("nothing in it overlaps, is cut off or is hard to read", not before, "; ".join(before)[:400]))
 
+    async def _screens(self) -> list[Any]:
+        """What it looks like, as her eyes see it."""
+        from core.making.her_view import as_she_saw_it, looked_at
+        from core.making.pictures import as_data
+
+        assert self.design is not None
+        pictures = await asyncio.to_thread(as_data, self.folder, self.design)
+        return await as_she_saw_it(await looked_at(self.design, self.parts.code(), self.parts.tests, self.browser, pictures=pictures), self.eyes)
+
+    async def looked_at_by_her(self) -> None:
+        """Her own view of what she made: what she thinks of it as it looks, and what she would change of it, built in and tried
+        like anything else; then she looks again, and what she does not think better made is taken back (core/making/her_view.py)."""
+        from core.making.her_view import CHANGES, compared, her_view_of
+
+        design = self.design
+        if self.eyes is None or self.viewed or design is None or design.kind not in {"app", "site", "game"} or not self.parts.code().strip() or self.trial.breaks():
+            return
+        self.viewed = True
+        self.work.step("Looking at it as somebody using it would")
+        before = await self._screens()
+        if not before:
+            self.work.says("My eyes could not see it this time, so it is as it is.")
+            return
+        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, failing=[r.name for r in self.trial.failing()], how=self.thinking)
+        if view is None:
+            return
+        changes = [c for c in view.would_change if c.change.strip() and c.change.strip() not in {r.says for r in design.rules}][:CHANGES]
+        self.work.happened("her_view", thinks=view.thinks, works=view.works, would_change=[c.model_dump() for c in changes], looked_at=[s.caption for s in before])
+        if not changes:
+            return
+        was = (self.parts.copy(), self.trial, design.model_copy(deep=True), list(self.has))
+        rules = [c.change.strip() for c in changes]
+        design.rules += [Rule(says=rule) for rule in rules]
+        await self.tested(rules)
+        await self.added_where_it_is_not(rules)
+        after = await self._screens()
+        verdict = await compared(before, after, view, ask=self.ask, write=self.write, how=self.thinking) if after else None
+        if verdict is not None and not verdict.better:
+            self.parts, self.trial, self.design, self.has = was
+            self.work.happened("her_view", thinks=verdict.thinks, verdict="as it was")
+            self.work.says("I thought it better as it was, so it is as it was.")
+        else:
+            self.work.happened("her_view", thinks=verdict.thinks if verdict is not None else "", verdict="kept")
+        await self.kept()
+
     async def _unfinished(self, parts: Parts) -> list[str]:
         from core.rebuilding.her_build_writes import governed
         from core.rebuilding.how_finished_it_is import what_is_unfinished
@@ -1313,12 +1364,13 @@ def maker_again(maker: _Maker) -> Callable[[], Awaitable[None]]:
 
 
 async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path, browser: Any, told: str = "",
-               when_kept: Callable[[Path], None] | None = None, paints: Any = None) -> Made | None:
+               when_kept: Callable[[Path], None] | None = None, paints: Any = None, eyes: Any = None, thinking: dict[str, Any] | None = None) -> Made | None:
     """Make what was asked for, in a folder of its own under ``where``; None where no design of it could be had. ``told`` is
     what she said to whoever asked as she began, which the design holds to; ``when_kept`` is told where it stands each time
-    it is kept, so that what cuts it short leaves something to go on with."""
+    it is kept, so that what cuts it short leaves something to go on with. ``eyes`` are hers, to look at what she made with
+    (core/making/her_view.py); without them she does not."""
     maker = _Maker(asked, ask=ask, write=write, work=work, folder=where, browser=browser)
-    maker.told, maker.when_kept, maker.paints = told, when_kept, paints
+    maker.told, maker.when_kept, maker.paints, maker.eyes, maker.thinking = told, when_kept, paints, eyes, thinking or {}
 
     async def first() -> None:
         if await maker.designed() is None:
@@ -1329,20 +1381,22 @@ async def make(asked: str, *, ask: Asks, write: Writes, work: Work, where: Path,
     return await _run(maker, first)
 
 
-async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None) -> Made | None:
+async def change(folder: Path, asked: str, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None, eyes: Any = None,
+                 thinking: dict[str, Any] | None = None) -> Made | None:
     """Change a program made before to what is asked of it now, its tests kept and held to."""
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(f"{was_asked}\n{asked}", ask=ask, write=write, work=work, folder=folder, browser=browser)
-    maker.design, maker.parts, maker.paints = design, parts, paints
+    maker.design, maker.parts, maker.paints, maker.eyes, maker.thinking = design, parts, paints, eyes, thinking or {}
     maker.has = await asyncio.to_thread(_built_of, folder, design)
     return await _run(maker, maker_again(maker))
 
 
-async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None) -> Made | None:
+async def mend(folder: Path, *, ask: Asks, write: Writes, work: Work, browser: Any, paints: Any = None, eyes: Any = None,
+               thinking: dict[str, Any] | None = None) -> Made | None:
     """Go on with a program made before where something of it still fails."""
     design, parts, was_asked = await asyncio.to_thread(parts_of, folder)
     maker = _Maker(was_asked, ask=ask, write=write, work=work, folder=folder, browser=browser)
-    maker.design, maker.parts, maker.paints = with_an_icon(design), parts, paints
+    maker.design, maker.parts, maker.paints, maker.eyes, maker.thinking = with_an_icon(design), parts, paints, eyes, thinking or {}
     maker.has = await asyncio.to_thread(_built_of, folder, design)
     return await _run(maker, maker.gone_on_with)
 
