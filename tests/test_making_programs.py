@@ -1205,6 +1205,15 @@ def test_a_check_of_what_is_mostly_nothing_is_no_check_that_says_nothing(tmp_pat
     assert result.ok, result.why
 
 
+def test_a_check_that_breaks_on_whatever_it_is_given_is_the_check_s_fault(tmp_path):
+    """LIVE 28 November 2026 "sure is not a function", from a check's own words, was laid on a reading app's search."""
+    design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": [{"name": "rye"}]}, functions=["settle(b): who pays whom"])
+    app = APP.replace("  view(s, ui)", f"  {SETTLES},\n  view(s, ui)")
+    broken = _fewest().model_copy(update={"holds": "(got, sure) => got.length <= sure()"})
+    (result,) = _tried(page_of(design, app, tests=maker.another_way(broken)), tmp_path).rules
+    assert result.the_test and not result.ok and "sure is not a function" in result.why
+
+
 def test_a_program_is_held_to_another_way_once_it_is_built(tmp_path):
     made = maker._Maker("x", ask=None, write=None, work=Work("w", "x"), folder=tmp_path, browser=None)
     made.design = _design(functions=["settle(b): who pays whom"])

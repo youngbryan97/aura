@@ -164,9 +164,12 @@ def another_way(check: Another) -> str:
             # What it is made of going wrong is its own fault, and no fault of the function's.
             "const own = (f) => { try { return f(); } catch (e) { e.theTest = true; throw e; } }; "
             "for (let i = 0; i < 150; i++) { const args = own(() => inputs(r)), got = t.call(" + json.dumps(check.function) + ", ...copy(args)), sure = own(() => surely(...copy(args))); "
+            # Where it breaks on the function's answer and breaks as well on its own sure one, it breaks on whatever it is given, and the
+            # fault is the check's. LIVE 28 November 2026, "sure is not a function" was laid on a reading app's search.
+            "let held; try { held = holds(got, sure, args); } catch (e) { try { holds(copy(sure), sure, args); } catch (x) { e.theTest = true; } throw e; } "
             # Held with no answer at all where the sure one is something: where the sure answer is itself nothing, holding of nothing is right.
             "if (sure !== null && sure !== undefined) { probed++; let nothing = false; try { nothing = holds(null, sure, args) === true; } catch (e) { nothing = false; } if (nothing) says_nothing++; } "
-            "t.expect(holds(got, sure, args) === true, `for ${JSON.stringify(args).slice(0, 220)} it gives ${JSON.stringify(got).slice(0, 220)}, and ${JSON.stringify(sure).slice(0, 120)} is what is surely so`); } "
+            "t.expect(held === true, `for ${JSON.stringify(args).slice(0, 220)} it gives ${JSON.stringify(got).slice(0, 220)}, and ${JSON.stringify(sure).slice(0, 120)} is what is surely so`); } "
             "if (probed >= 10 && says_nothing > (2 * probed) / 3) { const e = new Error('this holds of no answer at all, so it says nothing of one'); e.theTest = true; throw e; } });")
 
 
