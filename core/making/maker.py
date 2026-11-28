@@ -1237,6 +1237,10 @@ class _Maker:
         before, tests = each_test_in(self.parts.tests)
         held = dict(tests)
         corrected = 0
+        # Whether the test or the program is wrong is read with the program in front of her: what a name in its state means is in
+        # how it is used. LIVE 28 November 2026 a test took the field an answer is typed in for the answer, and the program was blamed.
+        # Given once, before every test read, so her model reads it once.
+        given = f"{self._given()}\n\nThe program as it stands:\n```js\n{self.parts.code()}\n```"
         for result in self._to_be_doubted(failing)[:AT_ONCE]:
             if result.name not in held:
                 continue
@@ -1246,7 +1250,7 @@ class _Maker:
             said = await self.write(f"{_HOW_TESTS[self.design.kind]}\n\nA test of one rule:\n```js\n{held[result.name]}\n```\n"
                                     f"It fails: {result.why}\n{beside}\nBy the rule and what the state means, is the test wrong, or is it the program? In a sentence "
                                     "say which and why. Where it is the test, then write it corrected, in one block; where it is the program, write no "
-                                    "code.", A_TEST, given=self._given())
+                                    "code.", A_TEST, given=given)
             self.work.says(_prose(said))
             new = each_test_in(_code(said))[1] if "```" in said else []
             if new and new[0][1] != held[result.name]:

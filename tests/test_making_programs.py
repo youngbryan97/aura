@@ -1581,3 +1581,22 @@ def test_a_button_says_what_it_does_and_not_the_name_of_what_it_sends(tmp_path):
     shown = next(r for r in _tried(page_of(design, coded, tests=""), tmp_path).generic if r.name == "it is shown")
     assert not shown.ok and "“addLoaf”" in shown.why
     assert next(r for r in _tried(page_of(design, APP, tests=""), tmp_path).generic if r.name == "it is shown").ok
+
+
+def test_whether_a_test_or_the_program_is_wrong_is_read_with_the_program_in_front_of_her(tmp_path):
+    """LIVE 28 November 2026 a test took the field an answer is typed in for the answer, and asked which was wrong with only the
+    test and the rule in front of her, her model laid it on the program."""
+    from core.making.trying import Result
+
+    givens = []
+
+    async def write(prompt, n, *, given="", **_how):
+        givens.append(given)
+        return "It is the program."
+
+    made = maker._Maker("Loaves", ask=None, write=write, work=Work("w", "loaves"), folder=tmp_path, browser=None)
+    made.design = _design(name="Loaves", kind="app", controls=[], state={"name": "", "items": []})
+    made.parts.functions = {"initial": 'initial() { return { name: "", items: [] }; }'}
+    made.parts.tests = 'test("adding shows it", t => { t.type("Loaf", t.s.name); t.click("Add"); t.expect(t.s.items.length === 1); });'
+    asyncio.run(made._tests_read_again([Result("adding shows it", False, "it was not added; what the test did: put “” in “Loaf”, pressed “Add”", the_test=True)]))
+    assert givens and 'initial() { return { name: "", items: [] }; }' in givens[0] and givens[0].startswith(made._given())
