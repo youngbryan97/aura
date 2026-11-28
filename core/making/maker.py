@@ -997,11 +997,14 @@ class _Maker:
         if not before:
             self.work.says("My eyes could not see it this time, so it is as it is.")
             return
-        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, failing=[r.name for r in self.trial.failing()], how=self.thinking)
+        # She looks at it as somebody using it, not by its tests: what still fails is the mending's. LIVE 28 November 2026, given
+        # them, each change she would make was a failing test said again, and she did not see that no book could be added.
+        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, how=self.thinking)
         if view is None:
             return
         changes = [c for c in view.would_change if c.change.strip() and c.change.strip() not in {r.says for r in design.rules}][:CHANGES]
-        self.work.happened("her_view", thinks=view.thinks, works=view.works, would_change=[c.model_dump() for c in changes], looked_at=[s.caption for s in before])
+        self.work.happened("her_view", thinks=view.thinks, works=view.works, would_change=[c.model_dump() for c in changes], looked_at=[s.caption for s in before],
+                           saw=[{"caption": s.caption, "seen": s.seen[:900]} for s in before])
         if not changes:
             return
         was = (self.parts.copy(), self.trial, design.model_copy(deep=True), list(self.has))

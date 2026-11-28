@@ -170,15 +170,14 @@ async def _thought_out(question: str, given: str, shape: type[BaseModel], *, ask
 
 
 async def her_view_of(shots: list[Shot], *, asked: str, design: Design, ask: Callable[..., Awaitable[Any]], write: Callable[..., Awaitable[str]],
-                      failing: list[str] = (), how: dict[str, Any] | None = None) -> HerView | None:
+                      how: dict[str, Any] | None = None) -> HerView | None:
     """What she thinks of it as she sees it; None where her model gave nothing that could be read. ``how`` is how her model is
     to be given room to think."""
-    rules = "\n".join(f"- {rule.says}" for rule in design.rules)
-    still = ("\n\nWhat its tests still find wrong:\n" + "\n".join(f"- {name}" for name in failing[:8])) if failing else ""
-    given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}\nWhat has to be so of it:\n{rules}{still}\n\n"
+    # What was asked and what it is for, as whoever uses it knows them; its rules are its tests', and are left to them.
+    given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}\n\n"
              f"This is how it looks, as your eyes saw it:\n\n{_read(shots)}")
-    view = await _thought_out("What do you think of it? What works in it, and what would you change to make it better made: more "
-                              "finished, clearer, better to use?", given, HerView, ask=ask, write=write, how=how or {})
+    view = await _thought_out("What do you think of it, as somebody who would use it? What works in it, and what would you change to "
+                              "make it better made: more finished, clearer, better to use?", given, HerView, ask=ask, write=write, how=how or {})
     return view if isinstance(view, HerView) and view.thinks.strip() else None
 
 

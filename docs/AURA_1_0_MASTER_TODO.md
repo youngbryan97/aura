@@ -8624,6 +8624,12 @@ needs her 27B free (her app down, or her app's own influence trials).
       design's whole prompt, with its catalogue of pieces for a tool in Python, so she asked them how to structure a Python
       command line, and twelve pages about argparse went into the design. They are asked now about what was asked for and
       what she told them of it (`tests/test_she_consults_her_sources_as_she_makes.py`).
+    - 28 November, 02:45, live: her first view of a program she made, the reading app, from five screens her eyes described
+      in 35 s: "a solid, quiet visual foundation, but it fails on the specific functional requirements that define its
+      character. It ships with ghost data, the 'bookmark' metaphor is just a generic progress bar". She saw the sample books
+      nobody had put there; she did not see that no book could be added. Each change she would make was a failing test said
+      again, for she had been given the tests that failed and the design's rules. She is given now what was asked and what
+      it is for, as whoever uses it knows them, and what her eyes saw is kept with her view and shown in the Work panel.
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her
