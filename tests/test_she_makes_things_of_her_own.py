@@ -74,7 +74,8 @@ def test_whether_she_makes_anything_is_hers_and_nothing_is_made_where_she_wants_
     (option,) = what_she_could_do.things_to_make(hers, make, imagines)
     assert option.kind == "make" and option.id == "make:new"
     came = asyncio.run(option.does())
-    assert came.got == 0.0 and not came.put_down and "nothing she wanted to make" in came.what
+    assert came.got == 0.0 and not came.put_down and came.declined and "nothing she wanted to make" in came.what
+    assert -0.1 < came.reward(option.cost_s) <= 0.0, "wanting nothing made is worth what resting is, less what asking took"
     assert made == [] and ledger.all() == [] and read[0]["what_you_have_made_for_yourself"] == []
 
 

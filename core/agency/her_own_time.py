@@ -12,6 +12,7 @@ she is up (core/understanding/carrying_out.py). And what she was doing is kept, 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
 import logging
 import time
@@ -139,11 +140,11 @@ class HerOwnTime:
                 record_degradation("her_own_time", exc, severity="info", action=f"what she chose to do broke off: {option.what[:80]}")
                 came = CameOf(got=0.0, what=f"it broke off: {type(exc).__name__}: {exc}"[:200])
             if not came.seconds:
-                came = CameOf(came.got, came.worth, came.put_down, came.what, time.monotonic() - began)
+                came = dataclasses.replace(came, seconds=time.monotonic() - began)
             # What it was worth to her is hers to say, and counts beside how far it got.
             thought = await self._thought_of(option, came)
             if thought is not None and thought["worth"] is not None and not came.put_down and came.worth is None:
-                came = CameOf(came.got, thought["worth"], came.put_down, came.what, came.seconds)
+                came = dataclasses.replace(came, worth=thought["worth"])
             reward = await asyncio.to_thread(self.chooser.learn, chosen, came, cost_s=option.cost_s)
             logger.info("What came of it (%s): %s; %s", "put down" if reward is None else f"{reward:+.2f}", came.what[:200] or "nothing that can be seen", option.what[:120])
             self.before = {**self.doing, "came": came.what, "got": came.got, "ended": time.time()}

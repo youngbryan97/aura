@@ -296,6 +296,7 @@ def test_each_way_of_setting_out_on_nothing_says_which_it_was_and_her_answer_is_
     assert came.what == "she set out on nothing now"
     came = asyncio.run(objectives.set_out(_hers(), _thinks((declined, WhatSheSetsOut(sets_out=False))), ledger=ledger, bears_out=BORNE))
     assert came.what == "she set out on nothing now: “Not now.”"
+    assert came.declined and abs(came.reward(240.0)) < 0.1, "choosing to set out on nothing is no failure (28 November 2026: it came to -1.00)"
     came, _ = _set_out(ledger, shaped=WhatSheSetsOut(sets_out=True))
     assert came.what == "she would set out on something, and named nothing to bring about"
     came, _ = _set_out(ledger, shaped=WhatSheSetsOut(sets_out=True, what=SET_OUT.what))

@@ -301,13 +301,13 @@ async def _make_something(hers: HerOwnTime, make: Callable[[Any], Awaitable[None
     let = f"; she put away {len(put)} thing(s) she had made: " + "; ".join(_short(said, 60) for said in put) if put else ""
     if not read.wants_to or not read.what.strip():
         await ledger.keep()
-        return CameOf(got=0.0, what="there was nothing she wanted to make" + let)
+        return CameOf(got=0.0, what="there was nothing she wanted to make" + let, declined=True)
     request = ledger.asked(read.what.strip(), effect=HER_PROGRAM, conversation=HERSELF)
     if read.why.strip():
         request.added.append(read.why.strip())
     await ledger.keep()
     came = await _made(request, make, began=True)
-    return CameOf(came.got, came.worth, came.put_down, came.what + let, came.seconds)
+    return dataclasses.replace(came, what=came.what + let)
 
 
 def things_to_make(hers: HerOwnTime, make: Callable[[Any], Awaitable[None]], imagines: Imagines) -> list[Option]:

@@ -68,10 +68,15 @@ class CameOf:
     put_down: bool = False
     what: str = ""
     seconds: float = 0.0
+    #: Whether, asked, she chose to do nothing of it: worth what resting is, which is nothing, less what asking took. LIVE 28
+    #: November 2026, "there was nothing she wanted to make" came to -1.00, as an act that broke does, and making was expected
+    #: to come to -0.72 from then on.
+    declined: bool = False
 
     def reward(self, cost_s: float) -> float:
         """What it comes to in all: how far it got, what it was worth where that was measured, and what it took."""
-        came = 2.0 * self.got - 1.0 if self.worth is None else 0.5 * (2.0 * self.got - 1.0) + 0.5 * self.worth
+        got = 0.0 if self.declined else 2.0 * self.got - 1.0
+        came = got if self.worth is None else 0.5 * got + 0.5 * self.worth
         took = 0.1 * math.tanh(max(0.0, self.seconds) / max(60.0, 4.0 * cost_s))
         return max(-1.0, min(1.0, came - took))
 

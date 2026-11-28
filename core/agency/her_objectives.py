@@ -364,7 +364,7 @@ async def _set_out_on(words: str, shaped: Any, ledger: ProjectLedger, bears_out:
     if not isinstance(shaped, WhatSheSetsOut):
         return CameOf(got=0.0, what="what she wrote could not be written in the shape an objective is kept in")
     if not shaped.sets_out:
-        return CameOf(got=0.0, what="she set out on nothing now" + (f": “{_first_sentence(words)}”" if words.strip() else ""))
+        return CameOf(got=0.0, what="she set out on nothing now" + (f": “{_first_sentence(words)}”" if words.strip() else ""), declined=True)
     if not shaped.what.strip():
         return CameOf(got=0.0, what="she would set out on something, and named nothing to bring about")
     if not shaped.steps:

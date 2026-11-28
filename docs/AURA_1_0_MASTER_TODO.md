@@ -8670,6 +8670,10 @@ needs her 27B free (her app down, or her app's own influence trials).
     shown in the Work panel and read to her with what she is doing; what it was worth to her counts beside how far it got in
     what she learns of such acts; and where she would tell somebody, it is among what she could tell
     (`tests/test_she_looks_at_what_she_made.py`).
+  - 28 November, from what she chose since: four times she chose to make something, and the last time there was nothing
+    she wanted made; that came to -1.00, as an act that broke does, and making was expected to come to -0.72. Setting out on
+    nothing came to -1.00 as well. What she chose not to do is worth what resting is now, nothing less what asking took
+    (`tests/test_she_makes_things_of_her_own.py`, `tests/test_she_sets_out_on_an_objective_of_her_own.py`).
 - [ ] F21 Her loop from seeing to acting is tight. Added 24 November, Bryan, from Aura's own words: a channel that answers
     in 200 ms is more alive than five that answer in 5 s. Left: measured end to end, and each part of it brought down.
   - 25 November, measured on three typed turns at 19:20 the evening before: 102 s, the smaller model's words; 109 s; 62 s.
