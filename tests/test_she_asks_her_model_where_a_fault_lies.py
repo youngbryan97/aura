@@ -272,9 +272,10 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     class Cortex:
         async def generate_text_async(self, prompt, **kwargs):
             asked.append(kwargs)
-            # LIVE 27 November 2026 her cortex's first object was the data it was given.
-            return '<think>a refusal of an empty word</think>{"the function": "0006: raise"} {"on_purpose": true, ' \
-                   '"lies_in": "what called it", "why": "it refuses an empty word, and was given one"}'
+            # Her call, in her template's tool-call form, its arguments the reading.
+            return '<think>a refusal of an empty word</think><tool_call>\n{"name": "where_it_lies", "arguments": ' \
+                   '{"on_purpose": true, "lies_in": "what called it", "why": "it refuses an empty word, and was ' \
+                   'given one"}}\n</tool_call>'
 
     async def lane(messages, *, origin, least_s, work):
         return await work(Cortex(), least_s)
@@ -282,9 +283,10 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     monkeypatch.setattr(her_unprompted_turn, "on_her_lane", lane)
     judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
     assert judged.leaves_the_function and judged.lies_in == "what called it"
-    assert asked[0]["is_background"] and asked[0]["output_shape"] == "json_object" and asked[0]["schema"]
-    assert asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
-    assert '"lies_in"' in asked[0]["messages"][0]["content"], "the answer's fields reach her cortex"
+    assert asked[0]["is_background"] and asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
+    offered = asked[0]["tools"]
+    assert json.dumps(offered).count('"where_it_lies"') == 1 and '"lies_in"' in json.dumps(offered), \
+        "the reading is offered as a call of hers whose parameters are its fields"
 
     class Stopped:
         async def generate_text_async(self, prompt, **kwargs):

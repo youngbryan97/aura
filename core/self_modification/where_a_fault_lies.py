@@ -25,6 +25,7 @@ import ast
 import hashlib
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -51,6 +52,8 @@ class NotReadNow(RuntimeError):
 
 
 class WhereItLies(BaseModel):
+    """Where what should change lies, as her model reads the function and the call that failed."""
+
     on_purpose: bool = Field(description="whether the function raised or reported this as it was written to, for a call "
                                          "like the one that failed")
     lies_in: Literal["the function", "what called it", "what it depends on"] = Field(
@@ -183,6 +186,8 @@ def the_call(call: Any) -> dict[str, str]:
 
 
 class ToLookUp(BaseModel):
+    """What is worth looking up before the function is changed."""
+
     searches: list[str] = Field(default_factory=list,
                                 description="what is worth looking up before changing it, each as the words to search by")
 
@@ -207,11 +212,20 @@ class HerCortexReads:
         from core.brain.llm.token_budget_evidence import chars_per_token
         from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
+        from core.brain.llm.mlx_client import MLXLocalClient
+
         self.last_defer_reason = ""
-        # The answer's fields reach her cortex as a tool's parameters do: the decoder holds the answer to JSON, not to
-        # these keys. LIVE 27 November 2026, without them, her cortex's object was the data it had been given.
-        fields = {name: (field.description or name) for name, field in self.schema.model_fields.items()}
-        messages = [{"role": "user", "content": f"{prompt}\nThe answer's fields: {json.dumps(fields)}"}]
+        messages = [{"role": "user", "content": prompt}]
+        # The reading is a call of hers whose arguments are the answer, in her template's own tool-call form, as her
+        # model writes every call of her goal passes. Held to a JSON object instead, her cortex answered in prose
+        # (LIVE 27 November 2026, 16:33, "no_json_value_found" twice), the decoder's shape waiting on a channel close.
+        name = re.sub(r"(?<!^)(?=[A-Z])", "_", self.schema.__name__).lower()
+        properties = {key: {k: v for k, v in spec.items() if k != "title"}
+                      for key, spec in self.schema.model_json_schema().get("properties", {}).items()}
+        definitions = {name: {"description": " ".join(str(self.schema.__doc__ or name).split()),
+                              "parameters": {"type": "object", "properties": properties,
+                                             "required": list(self.schema.model_json_schema().get("required", []))}}}
+        offered = MLXLocalClient._normalize_tool_definitions_for_template(definitions)
         # One closed question's answer, and the longest text a field of the schema may hold, in her measured tokens.
         longest = max((int(field.metadata[0].max_length) for field in self.schema.model_fields.values()
                        if field.metadata and getattr(field.metadata[0], "max_length", None)), default=0)
@@ -220,9 +234,8 @@ class HerCortexReads:
 
         async def read(client: Any, seconds: float) -> str:
             return str(await client.generate_text_async(
-                "", messages=messages, system_prompt="", origin=ORIGIN, is_background=is_background,
-                schema=self.schema.model_json_schema(), output_shape="json_object", read_by_a_machine=True,
-                max_tokens=answer_tokens, timeout=seconds) or "")
+                "", messages=messages, system_prompt="", origin=ORIGIN, is_background=is_background, tools=offered,
+                tool_budget_definitions=offered, max_tokens=answer_tokens, timeout=seconds) or "")
 
         text = await on_her_lane(messages, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(messages,
                                                                                                     answer_tokens)),
@@ -235,7 +248,8 @@ class HerCortexReads:
             # soft-cancelled 986 tokens in), which is a reading put off and not one that found nothing.
             self.last_defer_reason = "her cortex's generation was stopped before it answered"
             return None
-        for found in _the_objects_in(text):
+        call = MLXLocalClient._extract_tool_call_payload(text, allowed_tools={name}, tool_definitions=definitions)
+        for found in ([call["args"]] if call else []) + _the_objects_in(text):
             try:
                 return self.schema.model_validate(found)
             except ValueError:
