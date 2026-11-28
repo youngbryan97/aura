@@ -74,3 +74,12 @@ def test_the_channel_may_take_the_room_added_for_it_on_top_of_the_answer(monkeyp
     monkeypatch.setattr(mlx_worker, "_the_private_channel_budget", lambda job, max_tokens: min(int(max_tokens), 500))
     channel, room = mlx_worker._channel_and_room({}, 384, MODEL)
     assert channel == 500 and room == 384 + 736, "as far as the clock allows"
+
+
+def test_a_runaways_proof_does_not_size_every_channel_once_a_smaller_budget_was_enough():
+    """LIVE 27 November 2026, 15:52: read raw, one runaway's proof of 7,955 sized every thinking channel."""
+    for tokens in range(1, 101):
+        _finished(tokens)
+    thinking_reserve.record_budget_that_ran_out_thinking(budget_tokens=7955, model=MODEL)
+    thinking_reserve.record_budget_that_finished_thinking(budget_tokens=32, model=MODEL)
+    assert thinking_reserve.reserve_tokens(MODEL) == 91, "the measured cost, not the runaway"

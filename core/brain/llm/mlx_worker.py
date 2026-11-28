@@ -700,6 +700,16 @@ def _record_channel_cut_short(budget_tokens: int, model: str = "") -> None:
         return
 
 
+def _record_a_cut(channel_cut_at: int, native_channels: Any, deadline_hit: bool, token_count: int, max_tokens: int,
+                  model_path: str) -> None:
+    """A thinking generation cut short, at the channel's bound or by the budget inside the channel, as a censored
+    reading: a deadline that stopped it says nothing of what the thinking cost."""
+    if channel_cut_at > 0:
+        _record_channel_cut_short(channel_cut_at, model_path)
+    elif not native_channels.boundary_closed and not deadline_hit and token_count >= max_tokens:
+        _record_channel_cut_short(token_count, model_path)
+
+
 def _channel_and_room(job: dict[str, Any] | None, max_tokens: int, model_path: str) -> tuple[int, int]:
     """The private channel's bound and the generation's tokens, the channel's room added on top of the answer's.
 
@@ -5303,13 +5313,9 @@ def _mlx_worker_loop_current_response(deadline_hit, logger, max_tokens, model_pa
         }
     )
     if native_thinking is True:
-        # Cut short, by the decoder at the channel's bound or by the
-        # budget inside the channel: a reading of more than this, recorded
-        # first so the spend below is not read as what reasoning cost.
-        if channel_cut_at > 0:
-            _record_channel_cut_short(channel_cut_at, model_path)
-        elif not native_channels.boundary_closed and not deadline_hit and token_count >= max_tokens:
-            _record_channel_cut_short(token_count, model_path)
+        # Cut short (at the bound, or out of budget inside the channel): a
+        # reading of more than this, recorded before the spend below.
+        _record_a_cut(channel_cut_at, native_channels, deadline_hit, token_count, max_tokens, model_path)
         # Only a generation that HAD a private channel says what one
         # costs. Recording the rest fills the window with zeros, and a
         # percentile over mostly-zeros is zero — so the reserve stayed

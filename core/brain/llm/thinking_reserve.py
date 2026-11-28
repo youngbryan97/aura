@@ -383,8 +383,10 @@ def reserve_tokens(model: str = "") -> int:
     _take_back_any_newer_proof()
     with _lock:
         measured = _what_reasoning_costs(model)
-        proved = _proved_insufficient_by_model.get(_model_key(model), 0)
-    return max(measured, proved)
+    # The proof as proved_insufficient bounds it, below a budget since seen to be enough. Read raw, the 27B's stood at
+    # 7,955, one runaway's, and once the channel could take the room added for it (1db7e4990) every thinking
+    # generation was given a channel that size: LIVE 27 November 2026, 15:52, "Private channel bounded at 7955".
+    return max(measured, proved_insufficient(model))
 
 
 def measured_reserve_tokens(model: str = "") -> int:
