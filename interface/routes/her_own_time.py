@@ -99,9 +99,12 @@ async def _thinks(facts: str, question: str, shape: Any) -> Any:
     from core.understanding.her_model_between_turns import ask, write
 
     try:
-        # Room to think first, as much as her thinking has been measured to take: without it, LIVE 27 November 2026,
-        # 23:09, asked whether there was something she wanted to bring about over days, her cortex wrote three tokens.
-        words = await write(question, WRITES, given=facts, private_channel_budget=_what_her_thinking_takes() or None)
+        # Room to think first, as much as her thinking has been measured to take, and in the mode that opens her thinking
+        # channel: what is written between turns is asked for fast, and fast keeps the channel shut whatever room it is
+        # given. LIVE 27 November 2026, 23:09, asked whether there was something she wanted to bring about over days, her
+        # cortex wrote three tokens; at 23:35, given the room alone, 571, with her thinking shut.
+        words = await write(question, WRITES, given=facts, cognitive_mode="reflective",
+                            private_channel_budget=_what_her_thinking_takes() or None)
         if shape is None or not words.strip():
             return words, None
         return words, await ask(f"What you wrote of it:\n\n{words}\n\nWrite that in this shape.", shape, SHAPES, given=facts)
@@ -119,18 +122,22 @@ async def _search(words: str) -> dict[str, Any]:
 
 async def _pages(words: str) -> list[Any]:
     """The pages her search finds for some words, each read when it is come to."""
-    from core.agency.her_inquiries import Page
+    from core.agency.her_inquiries import Page, page_from_her_library
     from core.understanding.carriers.finding import page_at
 
     result = await _search(words)
     held = next((result[name] for name in ("citations", "results", "sources") if isinstance(result.get(name), list) and result[name]), [])
     found = list(dict.fromkeys(str(c.get("url") or "") for c in held if isinstance(c, dict) and c.get("url")))
+    # What her search answered from her library has no address on the web: it is read from her library.
+    kept = {int(c["doc_id"]): str(c.get("title") or "") for c in held if isinstance(c, dict) and not c.get("url")
+            and c.get("provenance") == "local_corpus" and isinstance(c.get("doc_id"), int)}
 
     async def read(url: str) -> Page | None:
         says, _why = await page_at(url)
         return Page(url, says.title, says.text) if says is not None else None
 
-    return [lambda url=url: read(url) for url in found]
+    return [*(lambda url=url: read(url) for url in found),
+            *(lambda doc_id=doc_id, title=title: page_from_her_library(doc_id, title) for doc_id, title in kept.items())]
 
 
 async def _looks(inquiry: Any, seen: Any) -> Any:

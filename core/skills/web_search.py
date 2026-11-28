@@ -602,6 +602,10 @@ class EnhancedWebSearchSkill(BaseSkill):
                         "snippet": hit.snippet,
                         "source": hit.source,
                         "provenance": "local_corpus",
+                        # Which document of her library it is, so the whole of it can be read where the snippet is
+                        # not enough: LIVE 27 November 2026 her inquiries read only results with an address, and
+                        # every one answered from her library read nothing.
+                        "doc_id": hit.doc_id,
                     }
                     for hit in hits
                 ],

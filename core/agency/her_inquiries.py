@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-__all__ = ["Answered", "Inquiry", "LET_GO_AFTER", "NotNowError", "Page", "Pages", "Question", "look_into_one"]
+__all__ = ["Answered", "Inquiry", "LET_GO_AFTER", "NotNowError", "Page", "Pages", "Question", "look_into_one", "page_from_her_library"]
 
 logger = logging.getLogger("Aura.HerInquiries")
 
@@ -137,6 +137,19 @@ class Inquiry:
         self.questions += new
         self.changed_at = time.time()
         return bool(new)
+
+
+async def page_from_her_library(doc_id: int, title: str) -> Page | None:
+    """A document of her library (core/knowledge/local_corpus.py) as a page to read, as much of it as a page is read; None
+    where it cannot be read. What her search answers from her library has no address on the web: LIVE 27 November 2026
+    "What are the standard times for quiet hours in residential areas?" was answered by five documents of hers, and her
+    inquiry read none of them."""
+    import asyncio
+
+    from core.knowledge.local_corpus import get_local_corpus_store
+
+    text = await asyncio.to_thread(get_local_corpus_store().body, int(doc_id), max_chars=PAGE_ROOM)
+    return Page(f"her library, document {doc_id}", title, text) if text.strip() else None
 
 
 def _plain(words: str) -> str:

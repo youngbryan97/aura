@@ -136,3 +136,30 @@ def test_the_inquiries_kept_are_the_ones_last_worked_on(tmp_path, monkeypatch):
     for n in range(5):
         hers.inquiry(f"want:{n}", str(n)).changed_at = float(n + 1)
     assert set(hers.inquiries) == {"want:2", "want:3", "want:4"}
+
+
+def test_what_her_search_answered_from_her_library_is_read_from_her_library(monkeypatch):
+    """LIVE 27 November 2026 "What are the standard times for quiet hours in residential areas?" was answered by five
+    documents of her library, which have no address on the web, and her inquiry read none of them."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import core.knowledge.local_corpus as corpus
+    from interface.routes import her_own_time as route
+
+    async def searched(words):
+        return {"ok": True, "provenance": "local_corpus", "results": [
+            {"title": "Noise regulation", "snippet": "quiet hours", "source": "wikipedia", "provenance": "local_corpus", "doc_id": 7},
+            {"title": "Elsewhere", "snippet": "", "source": "web", "url": "https://example.org/quiet"}]}
+
+    bodies = {7: "Many towns set quiet hours from 10 pm to 7 am."}
+    monkeypatch.setattr(route, "_search", searched)
+    monkeypatch.setattr(corpus, "get_local_corpus_store", lambda: SimpleNamespace(body=lambda doc_id, max_chars: bodies.get(doc_id, "")[:max_chars]))
+
+    async def read_them():
+        pages = await route._pages("standard quiet hours")
+        return len(pages), await pages[-1]()
+
+    count, page = asyncio.run(read_them())
+    assert count == 2, "the page on the web and the document of her library"
+    assert page.url == "her library, document 7" and page.title == "Noise regulation" and "10 pm to 7 am" in page.text

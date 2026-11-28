@@ -57,6 +57,8 @@ def _thinks(*answers):
 def ledger(tmp_path, monkeypatch):
     import core.conation.what_she_wants as wants
 
+    monkeypatch.setattr(objectives, "answers_kept_at", lambda: tmp_path / "answers.jsonl")
+
     monkeypatch.setattr(wants, "get_what_she_wants", lambda: SimpleNamespace(wants=lambda limit: [SimpleNamespace(label="knowing myself", why="it matters")]))
     return ProjectLedger(path=tmp_path / "ledger.jsonl")
 
@@ -282,3 +284,22 @@ def test_she_sets_out_knowing_what_she_is_in_the_middle_of_and_what_has_gone_wro
     assert facts["your_goals_under_way"] == [{"goal": "Acting on relief: stabilize", "stands": "working", "passes": 11,
                                               "what_you_said_of_it_last": "I have no live RSS or process probe."}]
     assert facts["what_has_gone_wrong_in_your_running_most_often_first"] == ["4x warning memory: grew at lanes.py:3"]
+
+
+def test_each_way_of_setting_out_on_nothing_says_which_it_was_and_her_answer_is_kept(ledger, tmp_path):
+    """LIVE 27 November 2026, 23:35: she wrote 571 tokens and an answer in its shape, it came to "there was nothing she set
+    out to do", and nothing kept what she had said."""
+    import json
+
+    declined = "Not now. I am in the middle of mending my lane control."
+    came = asyncio.run(objectives.set_out(_hers(), _thinks(("", WhatSheSetsOut(sets_out=False))), ledger=ledger, bears_out=BORNE))
+    assert came.what == "she set out on nothing now"
+    came = asyncio.run(objectives.set_out(_hers(), _thinks((declined, WhatSheSetsOut(sets_out=False))), ledger=ledger, bears_out=BORNE))
+    assert came.what == "she set out on nothing now: “Not now.”"
+    came, _ = _set_out(ledger, shaped=WhatSheSetsOut(sets_out=True))
+    assert came.what == "she would set out on something, and named nothing to bring about"
+    came, _ = _set_out(ledger, shaped=WhatSheSetsOut(sets_out=True, what=SET_OUT.what))
+    assert came.what.endswith("and named no step she can take")
+    kept = [json.loads(line) for line in (tmp_path / "answers.jsonl").read_text().splitlines()]
+    assert len(kept) == 4 and kept[1]["words"] == declined and kept[1]["shaped"]["sets_out"] is False
+    assert kept[1]["question"] == objectives.THE_QUESTION and kept[1]["came"] == "she set out on nothing now: “Not now.”"

@@ -37,8 +37,11 @@ import dataclasses
 import hashlib
 import json
 import logging
+import re
+import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -47,6 +50,7 @@ from core.agency.her_inquiries import LET_GO_AFTER
 from core.agency.her_own_time import HerOwnTime
 from core.agency.projects import Lifecycle, Milestone, Project, ProjectLedger, get_ledger
 from core.agency.what_she_does_next import CameOf, Option
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.HerObjectives")
 
@@ -248,6 +252,34 @@ def what_she_has_to_go_on(hers: HerOwnTime, ledger: ProjectLedger) -> str:
                        "what_you_set_out_to_do_before": [_as_she_reads_it(p) for p in _ended(ledger)[-4:]]}, ensure_ascii=False)
 
 
+def answers_kept_at() -> Path:
+    """Every answer she gave when asked of what she sets out to do, as she wrote it and in its shape, with what came of it."""
+    from core.runtime.state_ownership import state_root
+
+    return Path(state_root()) / "her_objectives" / "answers.jsonl"
+
+
+async def _keep_her_answer(question: str, words: str, shaped: Any, came: CameOf) -> None:
+    """Keep what she said when she was asked: LIVE 27 November 2026, 23:35, she wrote 571 tokens and then an answer in its
+    shape, it came to nothing, and nothing kept either."""
+    from core.runtime.her_writes import governed
+
+    line = json.dumps({"at": time.time(), "question": question, "words": words,
+                       "shaped": shaped.model_dump() if isinstance(shaped, BaseModel) else None, "came": came.what},
+                      ensure_ascii=False) + "\n"
+    path = answers_kept_at()
+    try:
+        await asyncio.to_thread(governed, "ensure_directory", path.parent, source="her_objectives.answers")
+        await asyncio.to_thread(governed, "append_text", path, line, source="her_objectives.answers")
+    except (OSError, RuntimeError, ValueError) as exc:
+        record_degradation("her_objectives", exc, severity="warning", action="what she answered was not kept")
+
+
+def _first_sentence(words: str) -> str:
+    said = " ".join(str(words).split())
+    return _short(re.split(r"(?<=[.!?])\s+", said, maxsplit=1)[0], 200) if said else ""
+
+
 def _borne_out(words: str, statements: list[str], bears_out: BearsOut) -> list[float | None]:
     return [bears_out(words, statement) if statement.strip() else None for statement in statements]
 
@@ -280,10 +312,21 @@ async def set_out(hers: HerOwnTime, thinks: Thinks, *, ledger: ProjectLedger | N
     if read is None:
         return CameOf(put_down=True, what="her model could not be asked")
     words, shaped = read
+    came = await _set_out_on(words, shaped, ledger, bears_out)
+    await _keep_her_answer(THE_QUESTION, words, shaped, came)
+    return came
+
+
+async def _set_out_on(words: str, shaped: Any, ledger: ProjectLedger, bears_out: BearsOut) -> CameOf:
+    """What came of her answer: an objective set out on, or which of the ways there are to set out on nothing it was."""
     if not isinstance(shaped, WhatSheSetsOut):
         return CameOf(got=0.0, what="what she wrote could not be written in the shape an objective is kept in")
-    if not shaped.sets_out or not shaped.what.strip() or not shaped.steps:
-        return CameOf(got=0.0, what="there was nothing she set out to do")
+    if not shaped.sets_out:
+        return CameOf(got=0.0, what="she set out on nothing now" + (f": “{_first_sentence(words)}”" if words.strip() else ""))
+    if not shaped.what.strip():
+        return CameOf(got=0.0, what="she would set out on something, and named nothing to bring about")
+    if not shaped.steps:
+        return CameOf(got=0.0, what=f"she would bring about “{_short(shaped.what)}”, and named no step she can take")
     # What she set out to do is not hers where her own words, as she thought it, say it is not. Her words can mean it without
     # saying it whole ("I keep losing what I learn between restarts" read as neither "I want to keep what I learn"); each
     # step has to be said.
@@ -399,6 +442,13 @@ async def go_on_or_not(project_id: str, thinks: Thinks, why_now: str, *, ledger:
     if read is None:
         return CameOf(put_down=True, what="her model could not be asked")
     words, shaped = read
+    came = await _goes_on(project, project_id, words, shaped, ledger, bears_out)
+    await _keep_her_answer(THE_QUESTION_GOING_ON, words, shaped, came)
+    return came
+
+
+async def _goes_on(project: Project, project_id: str, words: str, shaped: Any, ledger: ProjectLedger, bears_out: BearsOut) -> CameOf:
+    """What came of her answer to whether she goes on."""
     if not isinstance(shaped, HowSheGoesOn):
         return CameOf(got=0.0, what="what she wrote could not be read as whether she goes on")
     # What is acted on is whether she goes on, and her words are held against that: where what she chose and what she wrote
@@ -458,7 +508,9 @@ async def see_whether_it_is_so(project_id: str, thinks: Thinks, *, ledger: Proje
         await asyncio.to_thread(finish)
     except ValueError as exc:
         return CameOf(got=0.0, what=f"it could not be called done: {exc}")
-    return CameOf(got=1.0, what=f"what she set out to do is done: {_short(project.thesis, 100)}; {_short(words, 200)}")
+    came = CameOf(got=1.0, what=f"what she set out to do is done: {_short(project.thesis, 100)}; {_short(words, 200)}")
+    await _keep_her_answer(THE_QUESTION_AT_THE_END, words, None, came)
+    return came
 
 
 async def objectives_of_hers(hers: HerOwnTime, doers: Doers, thinks: Thinks, *, ledger: ProjectLedger | None = None,
