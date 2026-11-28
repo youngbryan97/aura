@@ -27,8 +27,10 @@ __all__ = ["AChange", "Compared", "Eyes", "HerView", "Shot", "as_she_saw_it", "c
 
 #: Her eyes: what they see in a picture, asked a question of it. The picture is a PNG, base64.
 Eyes = Callable[[str, str], Awaitable[str]]
-#: The window it is looked at in, and a phone's.
-WIDE, NARROW = (1120, 780), (390, 844)
+#: The windows it is looked at in: those it is measured in (core/rebuilding/how_finished_it_is.py), so that what her eyes say of
+#: each can be weighed against what was measured there. A phone's width, which nothing measured, had her eyes find a button
+#: cut off that was not (LIVE 28 November 2026).
+WIDE, NARROW = (1280, 860), (820, 860)
 #: How many of the states its tests leave it in she looks at: those least like each other and like how it opens.
 STATES = 3
 #: How many changes she makes of one look.
@@ -128,7 +130,7 @@ async def looked_at(design: Design, code: str, tests: str, browser: Any, *, pict
 
     shots = [Shot("as it opens", await _shot(page_of(design, code, pictures=pictures), browser, WIDE))]
     if design.kind in {"app", "site"}:
-        shots.append(Shot("at a phone's width, as it opens", await _shot(page_of(design, code, pictures=pictures), browser, NARROW)))
+        shots.append(Shot("in a narrow window, as it opens", await _shot(page_of(design, code, pictures=pictures), browser, NARROW)))
     if design.kind == "app" and tests.strip():
         try:
             states = ends if ends is not None else await _ends(design, code, tests, browser)
@@ -170,12 +172,14 @@ async def _thought_out(question: str, given: str, shape: type[BaseModel], *, ask
 
 
 async def her_view_of(shots: list[Shot], *, asked: str, design: Design, ask: Callable[..., Awaitable[Any]], write: Callable[..., Awaitable[str]],
-                      how: dict[str, Any] | None = None, before: dict[str, Any] | None = None) -> HerView | None:
+                      how: dict[str, Any] | None = None, before: dict[str, Any] | None = None, measured: str = "") -> HerView | None:
     """What she thinks of it as she sees it; None where her model gave nothing that could be read. ``how`` is how her model is
-    to be given room to think; ``before`` is what she thought when she last looked, and what came of it."""
+    to be given room to think; ``before`` is what she thought when she last looked, and what came of it; ``measured`` is what
+    was measured of it in its page, which her eyes may not have seen as it is."""
     # What was asked and what it is for, as whoever uses it knows them; its rules are its tests', and are left to them.
     given = (f"Somebody asked for this:\n{asked}\n\nYou made it: {design.name}. {design.about}\n\n"
              f"This is how it looks, as your eyes saw it:\n\n{_read(shots)}"
+             + (f"\n\nMeasured in its page, in a wide and a narrow window: {measured}" if measured else "")
              + (f"\n\nWhen you last looked at it you thought: {before['thinks']}\nWhat you would have changed then: "
                 + "; ".join(before.get("would_change") or ["nothing"]) + (f"\nWhat came of it: {before['came']}" if before.get("came") else "")
                 if before and before.get("thinks") else ""))

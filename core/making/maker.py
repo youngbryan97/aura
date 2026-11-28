@@ -1007,7 +1007,10 @@ class _Maker:
             return
         # She looks at it as somebody using it, not by its tests: what still fails is the mending's. LIVE 28 November 2026, given
         # them, each change she would make was a failing test said again, and she did not see that no book could be added.
-        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, how=self.thinking, before=self.last_view)
+        finish = next((r for r in self.trial.generic if r.name == "nothing in it overlaps, is cut off or is hard to read"), None)
+        measured = "" if finish is None else "nothing overlaps, is cut off or is hard to read" if finish.ok else finish.why
+        view = await her_view_of(before, asked=self.asked, design=design, ask=self.ask, write=self.write, how=self.thinking, before=self.last_view,
+                                 measured=measured)
         if view is None:
             return
         changes = [c for c in view.would_change if c.change.strip() and c.change.strip() not in {r.says for r in design.rules}][:CHANGES]
