@@ -111,6 +111,7 @@ class WhatSheSetsOut(BaseModel):
     done_when: str = Field(default="", description="What will be so when it is done, said as the fact it will be.")
     not_worth_it_if: str = Field(default="", description="What, if it turned out to be so, would tell you it is not worth going on with, said as the fact it would be.")
     otherwise: list[str] = Field(default_factory=list, description="What you would do instead, if it stopped being worth it.")
+    let_go: list[str] = Field(default_factory=list, description="The ids of your goals under way that you no longer want worked.")
 
 
 class HowSheGoesOn(BaseModel):
@@ -214,9 +215,45 @@ def _goals_under_way() -> list[dict[str, Any]]:
     out = []
     for record in held[:FACTS_OF_A_SORT]:
         said = next((str(entry["words"]) for entry in reversed(record.said) if isinstance(entry, dict) and entry.get("words")), "")
-        out.append({"goal": _short(record.goal, 200), "stands": record.status, "passes": record.passes,
+        out.append({"id": record.slug, "goal": _short(record.goal, 200), "stands": record.status, "passes": record.passes,
                     "what_you_said_of_it_last": _short(goals.said_before_a_call(said), 500)})
     return out
+
+
+def _goals_she_may_let_go() -> dict[str, Any]:
+    """Her goals under way that she may let go of, by id: those worked or stalled. One whose draft is offered waits on its
+    gates or on Bryan's word, and is not hers to drop here."""
+    from core.agency import her_goal_at_work as goals
+
+    try:
+        records = goals.all_records()
+    except _READ_FAILS:
+        return {}
+    return {r.slug: r for r in records if r.status in {goals.WORKING, goals.STALLED}}
+
+
+async def _let_go(named: list[str], why: str) -> list[str]:
+    """Let go of the goals of hers she named by id: each record ends with her reason, and her goal store holds it
+    abandoned, so nothing works it again. Both are kept. What she let go of, as each goal is written.
+
+    LIVE 27 November 2026 her goals under way included "Stop interrupting me. I have asked three times now.", somebody's
+    words to her, and "Working on wanting both energy and social", a reading of how she was, and each was worked pass
+    after pass."""
+    from core.agency import her_goal_at_work as goals
+    from core.container import ServiceContainer
+
+    held = await asyncio.to_thread(_goals_she_may_let_go)
+    gone = [held[key] for key in dict.fromkeys(str(n).strip() for n in named) if key in held]
+    engine = ServiceContainer.get("goal_engine", default=None)
+    standing = await engine.get_active_goals_async(limit=200, include_external=False) if engine is not None and gone else []
+    for record in gone:
+        record.status = goals.DONE
+        record.came_of_it = {"words": f"let go: {why}" if why else "let go", "at": time.time()}
+        await goals.save(record)
+        for goal in standing:
+            if goals.slug_of(str(goal.get("objective") or goal.get("name") or "")) == record.slug and goal.get("id"):
+                await engine.update_goal_status(str(goal["id"]), status="abandoned", summary=f"she let it go: {why}"[:600])
+    return [record.goal for record in gone]
 
 
 def _what_has_gone_wrong() -> list[str]:
@@ -313,6 +350,11 @@ async def set_out(hers: HerOwnTime, thinks: Thinks, *, ledger: ProjectLedger | N
         return CameOf(put_down=True, what="her model could not be asked")
     words, shaped = read
     came = await _set_out_on(words, shaped, ledger, bears_out)
+    if isinstance(shaped, WhatSheSetsOut) and shaped.let_go:
+        gone = await _let_go(shaped.let_go, _first_sentence(shaped.why or words))
+        if gone:
+            came = dataclasses.replace(came, what=f"{came.what}; she let go of {len(gone)} goal(s) of hers: "
+                                                  + "; ".join(_short(goal, 60) for goal in gone))
     await _keep_her_answer(THE_QUESTION, words, shaped, came)
     return came
 

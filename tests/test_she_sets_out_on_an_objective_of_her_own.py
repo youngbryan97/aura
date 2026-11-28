@@ -281,7 +281,7 @@ def test_she_sets_out_knowing_what_she_is_in_the_middle_of_and_what_has_gone_wro
     monkeypatch.setattr(goals, "all_records", lambda: [record, goals.GoalRecord(goal="done one", slug="d", status=goals.MERGED)])
     monkeypatch.setattr(her_draft, "faults_recorded", lambda subsystem="": (["4x warning memory: grew at lanes.py:3"], 4))
     facts = __import__("json").loads(objectives.what_she_has_to_go_on(_hers(), ledger))
-    assert facts["your_goals_under_way"] == [{"goal": "Acting on relief: stabilize", "stands": "working", "passes": 11,
+    assert facts["your_goals_under_way"] == [{"id": "acting", "goal": "Acting on relief: stabilize", "stands": "working", "passes": 11,
                                               "what_you_said_of_it_last": "I have no live RSS or process probe."}]
     assert facts["what_has_gone_wrong_in_your_running_most_often_first"] == ["4x warning memory: grew at lanes.py:3"]
 
@@ -303,3 +303,37 @@ def test_each_way_of_setting_out_on_nothing_says_which_it_was_and_her_answer_is_
     kept = [json.loads(line) for line in (tmp_path / "answers.jsonl").read_text().splitlines()]
     assert len(kept) == 4 and kept[1]["words"] == declined and kept[1]["shaped"]["sets_out"] is False
     assert kept[1]["question"] == objectives.THE_QUESTION and kept[1]["came"] == "she set out on nothing now: “Not now.”"
+
+
+def test_she_lets_go_of_goals_under_way_she_no_longer_wants_worked(ledger, monkeypatch):
+    """LIVE 27 November 2026 her goals under way included "Stop interrupting me. I have asked three times now.", somebody's
+    words to her, worked pass after pass."""
+    from core.agency import her_goal_at_work as goals
+    from core.container import ServiceContainer
+
+    said = "Stop interrupting me. I have asked three times now."
+    words_of_theirs = goals.GoalRecord(goal=said, slug=goals.slug_of(said), status=goals.WORKING)
+    offered = goals.GoalRecord(goal="Mend f", slug="mend-f", status=goals.OFFERED)
+    saved: list = []
+    monkeypatch.setattr(goals, "all_records", lambda: [words_of_theirs, offered])
+
+    async def save(record):
+        saved.append((record.slug, record.status, record.came_of_it.get("words")))
+
+    monkeypatch.setattr(goals, "save", save)
+    abandoned: list = []
+
+    class Store:
+        async def get_active_goals_async(self, limit, include_external):
+            return [{"id": "g1", "objective": words_of_theirs.goal}, {"id": "g2", "objective": "something else"}]
+
+        async def update_goal_status(self, goal_id, *, status, summary=""):
+            abandoned.append((goal_id, status))
+
+    monkeypatch.setattr(ServiceContainer, "get", classmethod(lambda cls, name, default=None: Store() if name == "goal_engine" else default))
+    shaped = WhatSheSetsOut(sets_out=False, why="Those are somebody's words, not something I set out to do.",
+                            let_go=[words_of_theirs.slug, "mend-f", "no-such-goal"])
+    came = asyncio.run(objectives.set_out(_hers(), _thinks((WORDS, shaped)), ledger=ledger, bears_out=BORNE))
+    assert saved == [(words_of_theirs.slug, goals.DONE, "let go: Those are somebody's words, not something I set out to do.")]
+    assert abandoned == [("g1", "abandoned")], "her store holds it abandoned; a draft that waits is not let go"
+    assert came.what.endswith("she let go of 1 goal(s) of hers: Stop interrupting me. I have asked three times now.")
