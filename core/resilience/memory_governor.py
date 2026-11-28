@@ -291,6 +291,20 @@ class MemoryGovernor:
             except _RSS_SAMPLE_ERRORS:
                 continue
 
+    def _worker_pids_in_the_tree(self) -> frozenset[int]:
+        """Her model workers in her process tree, by pid: those her registry holds or that run her worker's file, and
+        every child started by multiprocessing's spawn, which is how her model workers start. Her brainstem's worker
+        is the last of those alone: its command line is "spawn_main(...)" and her registry does not hold it (LIVE 27
+        November 2026, 19:5x, its 13 GB load called a runaway again)."""
+        pids = {int(proc.info.get("pid") or 0) for proc in self._iter_managed_runtime_processes()}
+        for proc in self._proc.children(recursive=True):
+            try:
+                if "spawn_main" in " ".join(proc.cmdline() or []):
+                    pids.add(int(proc.pid))
+            except _RSS_SAMPLE_ERRORS:
+                continue
+        return frozenset(pid for pid in pids if pid > 0)
+
     def _managed_runtime_rss_mb(self) -> float:
         total_mb = 0.0
         for proc in self._iter_managed_runtime_processes():
@@ -539,9 +553,7 @@ class MemoryGovernor:
         # by a client her registry does not hold, loaded 12.9 GB with no lifecycle boundary here, and its load was
         # called a runaway: a CRITICAL incident, 16 times that day.
         try:
-            self._sampled_worker_pids = frozenset(
-                pid for pid in (int(proc.info.get("pid") or 0) for proc in self._iter_managed_runtime_processes())
-                if pid > 0)
+            self._sampled_worker_pids = self._worker_pids_in_the_tree()
         except _RSS_SAMPLE_ERRORS as exc:
             logger.debug("Memory Governor: could not read which workers the tree holds: %s", exc)
         # The canonical tree already includes the root. Runtime is the residual,

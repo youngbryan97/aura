@@ -257,3 +257,22 @@ def test_a_worker_her_registry_does_not_hold_is_a_load_and_not_a_runaway(monkeyp
     governor._sampled_worker_pids = frozenset({111, 222})  # her brainstem's worker, which her registry does not hold
     assert governor._update_runaway_lifecycle(310.0) == ("settling", True)
     assert governor._runaway.assess(now=310.0).samples == 0, "its load starts a new trend"
+
+
+def test_a_worker_started_by_spawn_is_counted_among_her_workers(monkeypatch):
+    """LIVE 27 November 2026, 19:5x: her brainstem's worker runs as "spawn_main(...)", not her worker's file, and her
+    registry does not hold it, so its arrival was missed and its load was called a runaway again."""
+    governor = MemoryGovernor(SimpleNamespace())
+
+    class Child:
+        def __init__(self, pid, cmdline):
+            self.pid, self._cmdline = pid, cmdline
+
+        def cmdline(self):
+            return self._cmdline
+
+    children = [Child(222, ["python", "-B", "-c", "from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=11)"]),
+                Child(333, ["git", "status"])]
+    monkeypatch.setattr(governor, "_iter_managed_runtime_processes", lambda: iter(()))
+    monkeypatch.setattr(governor._proc, "children", lambda recursive=True: children)
+    assert governor._worker_pids_in_the_tree() == frozenset({222})
