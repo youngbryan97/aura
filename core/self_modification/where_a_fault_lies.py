@@ -232,14 +232,19 @@ class HerCortexReads:
         ratio = max(chars_per_token().ratio, 1.0)
         answer_tokens = A_CLOSED_QUESTIONS_FLOOR + int(longest / ratio)
 
+        thinking = self._thinking_it_costs()
+
         async def read(client: Any, seconds: float) -> str:
+            # Its private channel named: unnamed, the worker gave the channel all of the clock but 96 tokens, and the
+            # deadline came mid-thought with no call written (LIVE 27 November 2026, 16:48, bounded at 2,099).
             return str(await client.generate_text_async(
                 "", messages=messages, system_prompt="", origin=ORIGIN, is_background=is_background, tools=offered,
-                tool_budget_definitions=offered, max_tokens=answer_tokens, timeout=seconds) or "")
+                tool_budget_definitions=offered, max_tokens=answer_tokens, timeout=seconds,
+                private_channel_budget=thinking or None) or "")
 
-        text = await on_her_lane(messages, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(messages,
-                                                                                                    answer_tokens)),
-                                 work=read)
+        chars = sum(len(str(message.get("content") or "")) for message in messages)
+        text = await on_her_lane(messages, origin=ORIGIN, least_s=max(deadline_s, self._time_it_needs(
+            chars, answer_tokens + thinking)), work=read)
         if text is None:
             self.last_defer_reason = "her cortex is held for something else"
             return None
@@ -259,19 +264,22 @@ class HerCortexReads:
 
 
     @staticmethod
-    def _time_it_needs(messages: list[dict[str, Any]], answer_tokens: int) -> float:
-        """What reading the question, thinking and answering take on this machine: the prompt, the thinking her
-        cortex's private channel has been measured to cost on top of the answer, and the answer. Given 120 s, a
-        reading thought until its time ran out and came back as thinking with no answer (LIVE 27 November 2026, 15:4x,
-        "the function deliberately raises RuntimeError(\"warmup_precompile_worker_dead\")")."""
-        from core.brain.llm.mlx_client import time_a_prompt_needs
+    def _thinking_it_costs() -> int:
+        """What her cortex's private channel has been measured to cost (core/brain/llm/thinking_reserve.py)."""
         from core.brain.llm.thinking_reserve import reserve_tokens
         from core.runtime.service_access import resolve_inference_gate
 
         client = getattr(resolve_inference_gate(default=None), "_mlx_client", None)
-        thinking = reserve_tokens(str(getattr(client, "model_path", "") or ""))
-        chars = sum(len(str(message.get("content") or "")) for message in messages)
-        return time_a_prompt_needs(chars, answer_tokens + thinking)
+        return int(reserve_tokens(str(getattr(client, "model_path", "") or "")))
+
+    @staticmethod
+    def _time_it_needs(chars: int, tokens: int) -> float:
+        """What reading the question and writing ``tokens`` take on this machine, thinking among them. Given 120 s, a
+        reading thought until its time ran out and came back as thinking with no answer (LIVE 27 November 2026, 15:40,
+        "the function deliberately raises RuntimeError(\"warmup_precompile_worker_dead\")")."""
+        from core.brain.llm.mlx_client import time_a_prompt_needs
+
+        return time_a_prompt_needs(chars, tokens)
 
 
 def _the_objects_in(text: str) -> list[Any]:

@@ -284,6 +284,7 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
     judged = asyncio.run(lies.judge(ARGV, REFUSES, advisor=lies.HerCortexReads(lies.WhereItLies)))
     assert judged.leaves_the_function and judged.lies_in == "what called it"
     assert asked[0]["is_background"] and asked[0]["max_tokens"] > 256, "room for the longest field of the answer"
+    assert "private_channel_budget" in asked[0], "its thinking is bounded by what it is measured to cost"
     offered = asked[0]["tools"]
     assert json.dumps(offered).count('"where_it_lies"') == 1 and '"lies_in"' in json.dumps(offered), \
         "the reading is offered as a call of hers whose parameters are its fields"
