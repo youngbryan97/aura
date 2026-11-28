@@ -43,6 +43,8 @@ def test_what_she_made_is_looked_at_as_it_opens_at_a_phone_s_width_and_where_its
     assert [s.caption for s in shots] == ["as it opens", "in a narrow window, as it opens", "where the test “Two are added” leaves it", "where the test “Clearing asks” leaves it"]
     pictures = [base64.b64decode(s.png) for s in shots]
     assert all(p.startswith(b"\x89PNG") for p in pictures) and len(set(pictures)) == 4, "each is a picture of its own"
+    assert "buttons: “Undo (cannot be used now)”; “Start over”; “Help”; “Add”; “Clear”" in shots[0].holds and "“No dishes yet”" in shots[0].holds, shots[0].holds
+    assert "lists holding 2 items" in shots[2].holds, "what the page holds is read from it, beside the picture"
 
 
 # ── her view, in the making ──────────────────────────────────────────

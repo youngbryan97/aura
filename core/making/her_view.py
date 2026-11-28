@@ -40,6 +40,32 @@ CHANGES = 4
 WRITES, SHAPES = 700, 900
 #: Where each of its tests leaves it, read in the page that tries it.
 _ENDS = page_script("() => Frame.ends(PROGRAM, window.TESTS || [])")
+#: What a screen holds, read from the page and not from a picture of it: its headings, its buttons and whether each can be used
+#: and is in the window, its fields, how much each list holds, and the words it shows. LIVE 28 November 2026 her eyes saw a
+#: button cut off and three buttons drawn twice that were not; what the page holds stands beside what they say.
+_HOLDS = page_script("""() => {
+  const shown = (el) => { const r = el.getBoundingClientRect(), s = getComputedStyle(el); return r.width > 1 && r.height > 1 && s.visibility !== "hidden" && s.display !== "none" && Number(s.opacity) > 0.05; };
+  const text = (el) => (el.innerText || el.getAttribute("aria-label") || el.getAttribute("placeholder") || "").replace(/\\s+/g, " ").trim();
+  const all = (q) => [...document.querySelectorAll(q)].filter(shown);
+  const out = (el) => { const r = el.getBoundingClientRect(); return r.right > innerWidth + 1 || r.left < -1; };
+  return {
+    headings: all("h1, h2, h3, header strong").map(text).filter(Boolean).slice(0, 12),
+    buttons: all("button").map((b) => text(b) + (b.disabled ? " (cannot be used now)" : "") + (out(b) ? " (past the edge of the window)" : "")).filter(Boolean).slice(0, 30),
+    fields: all("input, select, textarea").map((f) => { const l = f.closest("label"); return (l && text(l)) || f.getAttribute("aria-label") || f.placeholder || f.type; }).slice(0, 20),
+    lists: all("ul.list, tbody").map((u) => u.children.length),
+    words: all("p, .note, .empty strong, .badge, .big").map(text).filter(Boolean).slice(0, 20),
+  };
+}""")
+
+
+def _as_held(held: Any) -> str:
+    """What a screen holds, said plainly."""
+    if not isinstance(held, dict):
+        return ""
+    parts = [f"{name}: " + "; ".join(f"“{x}”" for x in held.get(name) or []) for name in ("headings", "buttons", "fields") if held.get(name)]
+    parts += [f"lists holding {', '.join(str(n) for n in held['lists'])} items"] if held.get("lists") else []
+    parts += ["words shown: " + "; ".join(f"“{x}”" for x in held["words"])] if held.get("words") else []
+    return ". ".join(parts)
 #: What her eyes are asked of each screen.
 LOOK = ("Say what is on this screen and how it is drawn: what is where, the colours, the type, the spacing, the buttons and "
         "what they say, and anything that looks unfinished, crowded, cut off, out of line or hard to read.")
@@ -69,6 +95,8 @@ class Shot:
     caption: str
     png: str
     seen: str = ""
+    #: What the page held there, read from the page itself.
+    holds: str = ""
 
 
 async def her_eyes(prompt: str, png: str) -> str:
@@ -113,12 +141,18 @@ async def _ends(design: Design, code: str, tests: str, browser: Any) -> list[tup
         await page.close()
 
 
-async def _shot(html: str, browser: Any, size: tuple[int, int]) -> str:
+async def _shot(caption: str, html: str, browser: Any, size: tuple[int, int]) -> Shot:
     page = await get_page_gateway().new_page(browser, source="making.her_view", viewport={"width": size[0], "height": size[1]})
     try:
         await page.set_content(html, wait_until="load")
         await page.wait_for_timeout(450)  # what comes in has come in
-        return base64.b64encode(await page.screenshot(type="png")).decode("ascii")
+        png = base64.b64encode(await page.screenshot(type="png")).decode("ascii")
+        try:
+            holds = _as_held(await get_page_gateway().read(page, _HOLDS, source="making.her_view"))
+        except Exception as why:  # noqa: BLE001 - a screen whose page cannot be read is looked at with her eyes alone
+            logger.info("What %s holds was not read: %s", caption, why)
+            holds = ""
+        return Shot(caption, png, holds=holds)
     finally:
         await page.close()
 
@@ -128,9 +162,9 @@ async def looked_at(design: Design, code: str, tests: str, browser: Any, *, pict
     """It as it opens, at a phone's width, and where the tests that leave it least like that leave it."""
     from core.making.trying import page_of
 
-    shots = [Shot("as it opens", await _shot(page_of(design, code, pictures=pictures), browser, WIDE))]
+    shots = [await _shot("as it opens", page_of(design, code, pictures=pictures), browser, WIDE)]
     if design.kind in {"app", "site"}:
-        shots.append(Shot("in a narrow window, as it opens", await _shot(page_of(design, code, pictures=pictures), browser, NARROW)))
+        shots.append(await _shot("in a narrow window, as it opens", page_of(design, code, pictures=pictures), browser, NARROW))
     if design.kind == "app" and tests.strip():
         try:
             states = ends if ends is not None else await _ends(design, code, tests, browser)
@@ -139,7 +173,7 @@ async def looked_at(design: Design, code: str, tests: str, browser: Any, *, pict
             states = []
         for name, state in most_unlike(design.state, states):
             opened_in = f"window.__openIn = {json.dumps(state, ensure_ascii=False)};"
-            shots.append(Shot(f"where the test “{name}” leaves it", await _shot(page_of(design, code, pictures=pictures, before=opened_in), browser, WIDE)))
+            shots.append(await _shot(f"where the test “{name}” leaves it", page_of(design, code, pictures=pictures, before=opened_in), browser, WIDE))
     return shots
 
 
@@ -153,12 +187,13 @@ async def as_she_saw_it(shots: list[Shot], eyes: Eyes) -> list[Shot]:
             logger.info("Her eyes did not see %s: %s", shot.caption, why)
             continue
         if seen:
-            out.append(Shot(shot.caption, shot.png, seen))
+            out.append(Shot(shot.caption, shot.png, seen, shot.holds))
     return out
 
 
 def _read(shots: list[Shot]) -> str:
-    return "\n\n".join(f"{shot.caption.capitalize()}: {shot.seen}" for shot in shots)
+    return "\n\n".join(f"{shot.caption.capitalize()}: {shot.seen}" + (f"\nWhat the page holds there, read from it: {shot.holds}" if shot.holds else "")
+                       for shot in shots)
 
 
 async def _thought_out(question: str, given: str, shape: type[BaseModel], *, ask: Callable[..., Awaitable[Any]],

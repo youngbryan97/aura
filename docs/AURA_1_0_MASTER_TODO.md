@@ -8646,6 +8646,12 @@ needs her 27B free (her app down, or her app's own influence trials).
         look: { accent }, drawn in a colour white words read on.
       - The window's own "Start over" is marked as clearing everything and asks in the app's own look, Escape or a click beside
         it leaving things as they were; Undo is there only where there is something to undo (`tests/test_many_ways.py`).
+    - Read back from that work: her four changes were built and their tests held (30 of 33, from 29 of 32), and she judged it
+      worse, partly by what her eyes said, a button cut off and three drawn twice, which was not so. Her eyes are a 4B vision
+      model. She looks now in the windows the page is measured in, with what was measured there, and with what each screen
+      holds read from the page itself: its headings, its buttons and whether each can be used and is in the window, its
+      fields, how much each list holds, and its words; her eyes say how it looks
+      (`tests/test_she_looks_at_what_she_made.py`).
 - [ ] F18 She persists between sessions. Added 24 November, Bryan. A request belongs to who asked it and not to one start
     of hers; what she was in the middle of when she was closed is gone on with unasked
     (`tests/test_what_she_does_next.py`); the works are kept (`tests/test_making_programs.py`); what she was doing on her

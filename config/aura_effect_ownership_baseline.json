@@ -8201,6 +8201,14 @@
       "scope": "<module>._shot"
     },
     {
+      "callee": "core.runtime.page_gateway.get_page_gateway().read",
+      "canonical_owner": false,
+      "category": "page_gateway",
+      "count": 1,
+      "path": "core/making/her_view.py",
+      "scope": "<module>._shot"
+    },
+    {
       "callee": "core.runtime.page_gateway.get_page_gateway().go_to",
       "canonical_owner": false,
       "category": "page_gateway",
@@ -17690,6 +17698,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "ecf4e725709a2cdd4cb9caf7b7fb7aa8704aa31ba026a7b9fec7392614275e19",
+  "inventory_sha256": "38ca67df54e2bfae94941f384c1af7c9295dc376725d91af7bc9cba0f86a6868",
   "schema_version": 1
 }
