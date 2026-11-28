@@ -1308,6 +1308,16 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     )
                     response.status_code = 500 if strict_output_status else 200
 
+            # Her reply is her word on what this turn began, whichever way it came, and the work begun waits for it.
+            if not conversation_only and body is not None:
+                try:
+                    from interface.routes.chat_carrying_out import her_word_on_the_request
+
+                    her_word_on_the_request(str(payload.get("response") or ""), str(getattr(body, "message", "") or ""),
+                                            session_id=_resolved_conversation_session(request, body))
+                except _CHAT_RECOVERABLE_ERRORS as exc:
+                    record_degradation("chat.her_word_on_the_request", exc, severity="info",
+                                       action="the work this turn began goes on without her reply")
             terminal_state = _chat_delivery_state_for_response(
                 payload,
                 response.status_code,

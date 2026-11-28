@@ -24,7 +24,7 @@ from interface.routes.chat_common import _CHAT_RECOVERABLE_ERRORS
 
 logger = logging.getLogger("Aura.Chat")
 
-__all__ = ["ORIGIN", "ask_them", "her_question_is_asked", "her_word_is_kept", "said_to_work", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
+__all__ = ["ORIGIN", "ask_them", "her_question_is_asked", "her_word_is_kept", "her_word_on_the_request", "said_to_work", "take_up_what_is_asked", "tell_what_it_came_to", "the_message"]
 
 #: The least time her words on what a request came to may take to form.
 LEAST_S = 60.0
@@ -116,6 +116,8 @@ async def _take_up(asked: Asked, said: str, *, session_id: str, attachments: lis
     from core.skills.screen_pursuit import _tell
 
     begun = carrying_out.begin(request, tell=_tell, told=tell_what_it_came_to, asks=ask_them)
+    if begun:  # before its work has run at all: it runs once this turn next waits on anything
+        carrying_out.a_reply_comes(request.id)
     _recorded(said, {"status": "started" if begun else "not_started", "working_on": BY_NAME[request.effect].met,
                      "for": request.said, "where": "in the background, after this reply",
                      "when_done": "what it came to is said here, in the conversation",
@@ -181,6 +183,25 @@ async def ask_them(request: Request, ask: Ask) -> None:
     logger.info("She asked of request %s: %s", request.id, ask.words[:160])
 
 
+def her_word_on_the_request(reply: str, said: str, *, session_id: str) -> str:
+    """Her reply, kept on the request this turn began as what she told them of it, which its work holds to; and the work let
+    go on. Every reply passes here (interface/routes/chat_delivery.py), whichever way it came. The request's id, or ""."""
+    from core.understanding import carrying_out
+
+    asked = this_turn()
+    if asked is None or not asked.request_id:
+        asked = _the_request_this_turn_began(said, session_id) or asked
+    begun = get_requests_of_her().get(asked.request_id) if asked is not None and asked.request_id else None
+    if begun is None:
+        return ""
+    if not begun.tries and not begun.told and str(reply or "").strip():
+        # What she says of work as she begins it is said before the work is thought out, so the work holds to it.
+        begun.told = str(reply).strip()[:1600]
+        logger.info("What she told them of request %s is what its work holds to.", begun.id)
+    carrying_out.the_reply_came(begun.id)
+    return begun.id
+
+
 def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     """After a reply is given: what it says she is doing is begun, where nothing she did this turn is that. Off the turn,
     so no reply waits for it."""
@@ -190,19 +211,11 @@ def her_word_is_kept(reply: str, said: str, *, session_id: str) -> None:
     # What the turn was read as asking for, and the request it began: held for the turn, and by its words where the turn's
     # own hold did not come this far. LIVE 28 November 2026 she said she would build a web app to open in a browser, nothing
     # she said reached the work, and it was designed as a command-line tool.
-    asked = this_turn()
-    if asked is None or not asked.request_id:
-        asked = _the_request_this_turn_began(said, session_id) or asked
-    if not str(reply or "").strip() or asked is None:
-        logger.info("Her reply in %s is no word of hers to keep: %s.", session_id, "it is empty" if asked is not None else "nothing was read of the turn")
+    if her_word_on_the_request(reply, said, session_id=session_id):
         return
-    begun = get_requests_of_her().get(asked.request_id) if asked.request_id else None
-    if begun is not None and not begun.tries and not begun.told:
-        # What she says of work as she begins it is said before the work is thought out, so the work holds to it.
-        begun.told = str(reply).strip()[:1600]
-        logger.info("What she told them of request %s is what its work holds to.", begun.id)
-    elif begun is not None and not begun.told:
-        logger.info("What she told them of request %s came after it was begun, and is not what it holds to.", begun.id)
+    asked = this_turn()
+    if not str(reply or "").strip() or asked is None:
+        return
     if asked.request_id or turn_tool_receipts():
         return
     get_task_tracker().create_task(_keep_her_word(reply, said, asked, session_id=session_id), name="her_word_is_kept")

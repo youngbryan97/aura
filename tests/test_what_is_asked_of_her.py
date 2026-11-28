@@ -1038,3 +1038,47 @@ def test_what_she_told_them_reaches_the_work_where_neither_the_turn_nor_its_word
     hold(_read("Lovely weather.", "talk"))
     chat.her_word_is_kept("It is.", "Lovely weather.", session_id="c")
     assert held_open.told == "", "what she says while it waits on their yes is not her word on it"
+
+
+def test_a_work_a_turn_began_waits_for_the_turn_s_reply_and_holds_to_what_she_said_in_it(monkeypatch, tmp_path):
+    """LIVE 28 November 2026 the work began in the second her reply was still being finished, before her word on it was kept,
+    and was designed against what she had told them."""
+    import asyncio
+
+    from core.conversation import surface_disposition
+    from core.understanding import carrying_out
+    from core.understanding.requests_of_her import Part
+    from interface.routes import chat_carrying_out as chat
+
+    async def nobody():
+        return None
+
+    for name in ("nobody_waiting", "_keeps_the_bench", "_bench_kept"):
+        monkeypatch.setattr(carrying_out, name, nobody)
+    monkeypatch.setattr(surface_disposition, "turn_tool_receipts", lambda: ())
+    ledger = RequestsOfHer(tmp_path / "r.json")
+    ledger.keep = nobody
+    monkeypatch.setattr(chat, "get_requests_of_her", lambda: ledger)
+    said = "Could you make me a little app for keeping track of the books I am reading?"
+    request = ledger.asked(said, effect="program", conversation="c")
+    held_to: list[str] = []
+
+    async def carrier(begun, tell):
+        held_to.append(begun.told)
+        return carrying_out.CameTo(how="built", parts=[Part("it runs", "met")])
+
+    async def told(_request):
+        return None
+
+    async def turn():
+        hold(dataclasses.replace(_read(said, "program"), request_id=request.id))
+        assert carrying_out.begin(request, tell=lambda line: None, told=told, carrier=carrier, ledger=ledger)
+        carrying_out.a_reply_comes(request.id)
+        for _ in range(5):
+            await asyncio.sleep(0)
+        assert held_to == [], "it waits for the reply"
+        assert chat.her_word_on_the_request("A web app, to open in your browser.", said, session_id="c") == request.id
+        await carrying_out._UNDER_WAY[request.id]
+
+    asyncio.run(turn())
+    assert held_to == ["A web app, to open in your browser."] and request.id not in carrying_out._REPLY

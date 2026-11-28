@@ -70,6 +70,34 @@ def carriers() -> dict[str, Carrier]:
 
 
 _UNDER_WAY: dict[str, asyncio.Task[Any]] = {}
+#: The requests whose turn has not given its reply yet, and how long that reply is waited for, in seconds: longer than the
+#: slowest typed turn measured, 109 s on 25 November 2026. Her word on a request is said in that reply, and its work holds to it.
+_REPLY: dict[str, asyncio.Event] = {}
+REPLY_S = 180.0
+
+
+def a_reply_comes(request_id: str) -> None:
+    """The turn that began a request has yet to give its reply: its work waits for it."""
+    _REPLY.setdefault(request_id, asyncio.Event())
+
+
+def the_reply_came(request_id: str) -> None:
+    """The turn that began a request has given its reply."""
+    came = _REPLY.pop(request_id, None)
+    if came is not None:
+        came.set()
+
+
+async def _the_reply(request_id: str) -> None:
+    came = _REPLY.get(request_id)
+    if came is None:
+        return
+    try:
+        await asyncio.wait_for(came.wait(), timeout=REPLY_S)
+    except TimeoutError:
+        logger.info("Request %s went on without its turn's reply, which did not come in %.0f s.", request_id, REPLY_S)
+    finally:
+        _REPLY.pop(request_id, None)
 
 
 def is_under_way(request: Request) -> bool:
@@ -225,9 +253,11 @@ def begin(request: Request, *, tell: Tell, told: Callable[[Request], Awaitable[N
         work_somebody_asked_for.begun(request.id)
         keeper = get_task_tracker().create_task(_keeps_the_bench(), name=f"request.bench.{request.id}")
         try:
-            # The turn that asked is answered first.
+            # The turn that asked is answered first, and what she said of it there is what it holds to. LIVE 28 November 2026
+            # a work began in the second her reply was still being finished, before her word on it was kept.
             bench.waits("the conversation, which comes first")
             await nobody_waiting()
+            await _the_reply(request.id)
             with working_on(bench):
                 await carry_out(request, carrier, tell=tell, ledger=ledger)
         finally:
