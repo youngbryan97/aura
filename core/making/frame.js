@@ -72,7 +72,7 @@ const Frame = (() => {
       ctx.shadowBlur = 0; ctx.globalAlpha = 1; };
     const g = { W, H, t, ctx, base: ctx.getTransform(),
       // Drawn in the view's own place, wherever the world has been moved to.
-      screen(draw) { ctx.save(); ctx.setTransform(g.base); draw(g); ctx.restore(); },
+      screen(draw) { ctx.save(); ctx.setTransform(g.base); draw(drawn); ctx.restore(); },
       glow(x, y, r, color, strength) { ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.globalAlpha = strength == null ? 0.6 : Math.max(0, Math.min(1, strength)); const f = ctx.createRadialGradient(x, y, 0, x, y, Math.max(1, r)); f.addColorStop(0, color || "#ffe9a8"); f.addColorStop(1, "rgba(0,0,0,0)"); ctx.fillStyle = f; ctx.beginPath(); ctx.arc(x, y, Math.max(1, r), 0, Math.PI * 2); ctx.fill(); ctx.restore(); },
       clear(color) { ctx.globalAlpha = 1; ctx.fillStyle = color || "#101418"; ctx.fillRect(0, 0, W, H); },
       sky(top, bottom) { const f = ctx.createLinearGradient(0, 0, 0, H); f.addColorStop(0, top); f.addColorStop(1, bottom); ctx.globalAlpha = 1; ctx.fillStyle = f; ctx.fillRect(0, 0, W, H); },
@@ -87,8 +87,14 @@ const Frame = (() => {
       // What she painted for it, by its name; where there is no such picture, the figure of that name, or a plain shape.
       picture(name, x, y, o) { o = o || {}; const img = painted(name), size = o.size || 40; if (img) { const k = size / Math.max(img.naturalWidth, img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k; ctx.save(); ctx.translate(x, y); if (o.turn) ctx.rotate(o.turn); if (o.flip) ctx.scale(-1, 1); if (o.alpha != null) ctx.globalAlpha = Math.max(0, Math.min(1, o.alpha)); ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.restore(); return; } if (typeof figures !== "undefined" && figures.all[name]) return figures.draw(g, name, x, y, { ...o, t: g.t }); g.rect(x - size / 2, y - size / 2, size, size, (P.look && P.look.accent) || "#888", { r: size / 4, alpha: o.alpha }); },
       backdrop(name, o) { o = o || {}; const img = painted(name); g.screen(() => { if (!img) return g.sky("#26304a", "#8593b5"); const k = Math.max(W / img.naturalWidth, H / img.naturalHeight), w = img.naturalWidth * k, h = img.naturalHeight * k, off = (((o.scroll || 0) % (2 * w)) + 2 * w) % (2 * w); ctx.globalAlpha = o.alpha != null ? o.alpha : 1; for (let i = 0; i * w - off < W; i++) { const left = i * w - off; if (left + w < 0) continue; if (i % 2) { ctx.save(); ctx.translate(left + w, (H - h) / 2); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0, w, h); ctx.restore(); } else ctx.drawImage(img, left, (H - h) / 2, w, h); } ctx.globalAlpha = 1; }); },
-      at(x, y, turn, draw) { ctx.save(); ctx.translate(x, y); if (turn) ctx.rotate(turn); draw(g); ctx.restore(); } };
-    return g;
+      at(x, y, turn, draw) { ctx.save(); ctx.translate(x, y); if (turn) ctx.rotate(turn); draw(drawn); ctx.restore(); } };
+    // What the pen does not name is the canvas's own, as a canvas is drawn on anywhere: g.fillRect(...), g.fillStyle = ...
+    // LIVE 28 November 2026 a book's spine drawn with g.fillRect broke the page it was in, and every test of it held.
+    const drawn = new Proxy(g, {
+      get: (o, k) => (k in o || typeof k === "symbol" ? o[k] : typeof ctx[k] === "function" ? ctx[k].bind(ctx) : ctx[k]),
+      set: (o, k, v) => { if (k in o) o[k] = v; else ctx[k] = v; return true; },
+    });
+    return drawn;
   }
 
   // ── what an app is shown with: a tree of plain things, drawn into the page and kept in step with it ────────────
@@ -481,7 +487,9 @@ const Frame = (() => {
       check("it is quick enough", () => { const c = document.createElement("canvas"); c.width = W; c.height = H; const g = pen(c.getContext("2d"), 0); let s = wander(null, 10, 4); const at = performance.now(); for (let i = 0; i < 120; i++) { s = apply(s, { type: "tick", dt: STEP, held: {}, pointer: NONE }); P.draw(s, g); } const ms = (performance.now() - at) / 120; must(ms < 12, `a frame takes ${ms.toFixed(1)} ms`); return `${ms.toFixed(1)} ms a frame`; });
       if (P.hud) check("what it counts is shown", () => { seed = 7; const rows = P.hud(P.initial()); must(Array.isArray(rows) && rows.every((r) => r && r.label != null && r.value != null), "hud() does not give {label, value} rows"); });
     } else {
-      const shownAt = (s) => { const v = shown(s); const said = words(v); must(said.length > 0, "nothing is shown"); const odd = /\bundefined\b|\bNaN\b|\[object Object\]|\bInfinity\b|\bInvalid Date\b/.exec(said); must(!odd, `it shows “${odd && odd[0]}” in “${odd && said.slice(Math.max(0, odd.index - 40), odd.index + 30)}”`); const bare = every(v).find((n) => n.kids.length === 1 && n.kids[0].tag === "#" && /^(true|false|null)$/.test(n.kids[0].text)); must(!bare, `it shows a bare “${bare && bare.kids[0].text}”`); return v; };
+      // Shown is drawn too: what is painted on a canvas in it is painted, and what breaks as it is painted breaks it.
+      const drawnAt = (v) => { try { document.createElement("div").appendChild(make(v)); } catch (e) { must(false, `drawing it raised: ${e && e.message ? e.message : e}`); } };
+      const shownAt = (s) => { const v = shown(s); drawnAt(v); const said = words(v); must(said.length > 0, "nothing is shown"); const odd = /\bundefined\b|\bNaN\b|\[object Object\]|\bInfinity\b|\bInvalid Date\b/.exec(said); must(!odd, `it shows “${odd && odd[0]}” in “${odd && said.slice(Math.max(0, odd.index - 40), odd.index + 30)}”`); const bare = every(v).find((n) => n.kids.length === 1 && n.kids[0].tag === "#" && /^(true|false|null)$/.test(n.kids[0].text)); must(!bare, `it shows a bare “${bare && bare.kids[0].text}”`); return v; };
       check("it is shown", () => { seed = 7; shownAt(P.initial()); if (P.designed) shownAt({ ...P.initial(), ...copy(P.designed) }); });
       check("it begins with nothing in it that nobody put there", () => { seed = 7; const s = P.initial(); const mine = Object.keys(P.designed || {}).filter((k) => Array.isArray(P.designed[k]) && Array.isArray(s[k]) && s[k].some((x) => x && typeof x === "object" && "id" in x && Object.values(x).every((v) => v === null || typeof v !== "object"))); must(!mine.length, `it begins with records already in ${mine.join(", ")}: it is to begin empty, for whoever uses it to fill`);
         // What is worked out from what is put in is nothing, too, where nothing has been: the example of the design's state is an example.

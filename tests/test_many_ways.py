@@ -518,3 +518,24 @@ def test_a_badge_is_as_wide_as_what_it_says_first_in_a_row_of_a_list(tmp_path):
             await page.close()
 
     assert _in_a_browser(run) < 120
+
+
+def test_what_is_painted_in_an_app_is_painted_when_it_is_tried_and_the_pen_has_the_canvas_s_own_too(tmp_path):
+    """LIVE 28 November 2026 a book's spine painted with g.fillRect broke the page, and every test of the app held: what an app
+    paints was never painted while it was tried, and the pen had no fillRect."""
+    spine = """({
+  initial() { return { read: 155, of: 310 }; },
+  update(s, e) { return s; },
+  view(s, ui) { return ui.column(ui.text(`${s.read} of ${s.of} pages`), ui.canvas("spine", 60, 200, (g, w, h) => { g.fillStyle = "#b5523b"; g.fillRect(20, 0, 20, h); g.at(30, h * s.read / s.of, 0, (p) => p.fillRect(-14, -2, 28, 4)); })); },
+})"""
+    broken = spine.replace("g.fillRect(20, 0, 20, h)", "g.paintTheSpine(h)")
+
+    def shown(code):
+        async def run(browser):
+            return await try_page(page_of(_design(name="Shelf", state={"read": 0, "of": 1}), code, tests=""), tmp_path / "t.html", browser)
+
+        return next(r for r in _in_a_browser(run).generic if r.name == "it is shown")
+
+    assert shown(spine).ok, shown(spine).why
+    seen = shown(broken)
+    assert not seen.ok and "drawing it raised" in seen.why and "paintTheSpine" in seen.why
