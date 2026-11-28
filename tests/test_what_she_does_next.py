@@ -539,3 +539,12 @@ def test_a_request_gone_on_with_is_measured_by_how_far_it_came_and_not_by_being_
 
     (option,) = what_she_could_do.left_unmet(closed)
     assert asyncio.run(option.does()).put_down
+
+
+def test_where_her_own_time_is_joined_to_her_search_is_part_of_how_she_finds_things_out():
+    """LIVE 27 November 2026 her inquiries read nothing for days for want of a change in where her own time is joined to her
+    search, and the change made there did not count as a change in how she finds things out."""
+    from core.agency import what_she_could_do
+
+    for kind in ("find_out", "look_up", "make", "tell", "objective"):
+        assert "interface/routes/her_own_time.py" in what_she_could_do.DOES[kind], kind

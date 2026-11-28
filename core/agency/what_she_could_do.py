@@ -42,14 +42,18 @@ OF_A_SORT = 4
 STILL_WANTED_S = 2 * 86400.0
 
 
-#: What does each sort of act, by its source: where that changes, what came of it before was done another way.
+#: Where her own time is joined to what does each act: how her pages are found and read, her model asked, and her words said.
+_JOINED = "interface/routes/her_own_time.py"
+#: What does each sort of act, by its source: where that changes, what came of it before was done another way. LIVE 27
+#: November 2026 her inquiries read nothing for days for want of a change in where her own time is joined to her search,
+#: and the change made there was not a change in how she finds things out.
 DOES: dict[str, tuple[str, ...]] = {
     "carry_on": ("core/understanding/carriers/*.py", "core/making/*.py", "core/making/*.js"),
-    "find_out": ("core/agency/her_inquiries.py",), "look_up": ("core/agency/her_inquiries.py",),
-    "goal": ("core/agency/her_goal_at_work.py",), "tell": ("core/agency/what_she_could_do.py",),
+    "find_out": ("core/agency/her_inquiries.py", _JOINED), "look_up": ("core/agency/her_inquiries.py", _JOINED),
+    "goal": ("core/agency/her_goal_at_work.py",), "tell": ("core/agency/what_she_could_do.py", _JOINED),
     "objective": ("core/agency/her_objectives.py", "core/agency/her_inquiries.py", "core/agency/her_goal_at_work.py",
-                  "core/understanding/carriers/building.py"),
-    "make": ("core/understanding/carriers/building.py", "core/making/*.py", "core/making/*.js"),
+                  "core/understanding/carriers/building.py", _JOINED),
+    "make": ("core/understanding/carriers/building.py", "core/making/*.py", "core/making/*.js", _JOINED),
 }
 
 
