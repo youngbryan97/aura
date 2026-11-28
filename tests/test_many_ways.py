@@ -499,3 +499,22 @@ def test_what_an_app_is_shown_with_has_icons_an_empty_state_a_dialog_over_it_and
     assert seen["listed"] == 2 and seen["asked"] == "Clear every dish?", seen
     assert seen["focus"] == "Keep them" and seen["escaped"] == [0, 2], "Escape leaves things as they were"
     assert seen["after"] == [0, 1, "Cleared"], seen
+
+
+def test_a_badge_is_as_wide_as_what_it_says_first_in_a_row_of_a_list(tmp_path):
+    """LIVE 28 November 2026 "Reading", first in a row of a book's card in a list, was as wide as half the card."""
+    shelf = """({
+  initial() { return { books: [{ title: "The Hobbit", read: 155, of: 310 }] }; },
+  update(s, e) { return s; },
+  view(s, ui) { return ui.column(ui.list(s.books, (b) => ui.row(ui.badge("Reading", "warm"), ui.text(`${b.read}/${b.of} pages`)))); },
+})"""
+
+    async def run(browser):
+        page = await browser.new_page(viewport={"width": 1000, "height": 600})
+        try:
+            await page.set_content(page_of(_design(name="Shelf", state={"books": []}), shelf))
+            return await page.evaluate("document.querySelector('.list .badge').getBoundingClientRect().width")
+        finally:
+            await page.close()
+
+    assert _in_a_browser(run) < 120

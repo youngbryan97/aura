@@ -55,3 +55,6 @@ button { display: inline-flex; align-items: center; justify-content: center; gap
 @keyframes made-in { from { opacity: 0; transform: translateY(3px); } } @keyframes made-fade { from { opacity: 0; } } @keyframes made-rise { from { opacity: 0; transform: translateY(10px) scale(.98); } } @keyframes made-toast { from { opacity: 0; transform: translate(-50%, 8px); } } @keyframes made-gone { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 input[type=number], .num, td.num { font-variant-numeric: tabular-nums; }
+/* A badge is as wide as what it says, wherever it stands: first in a row of a list it was stretched as a title is
+   (LIVE 28 November 2026, "Reading" as wide as half a card). */
+.row > .badge, .list .row > .badge, td .row > .badge { flex: 0 0 auto; align-self: center; }
