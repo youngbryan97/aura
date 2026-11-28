@@ -87,8 +87,12 @@ def _measuring() -> str:
 
     if MEASURING_HOLD.exists():
         return "a run is measuring her"
+    # The harness's own runs, its panel and its cold restart (the_chain below), and nothing else under outside_bar/. The
+    # outside check of a draft (outside_bar/verify_change.py) matched "outside_bar" too, and her own yes runs one for
+    # half an hour on every draft it asks: LIVE 26 to 27 November 2026, 34 hours, her change on probation was never
+    # compared, so it never settled, and each draft her checks doubted waited behind it and was checked again.
     try:
-        shown = _read(["pgrep", "-f", "[o]utside_bar"], "measuring")
+        shown = _read(["pgrep", "-f", "[o]utside_bar[./](run|cold_restart)"], "measuring")
     except (OSError, RuntimeError, subprocess.SubprocessError):
         return "whether a run of the outside bar is going could not be read"
     return "a run of the outside bar is going" if shown.stdout.strip() else ""

@@ -182,3 +182,28 @@ def test_resuming_runs_the_same_run_again_and_counts_the_attempt(ready, monkeypa
     resumed = measuring.start_a_comparison_when_due()
     assert resumed == {"started": True, "run": "probation-1", "against": "baseline-1", "attempt": 2}
     assert written[-1]["comparison_started"]["rows"] == 1, "the next resume asks for progress past this"
+
+
+def test_a_drafts_outside_check_is_not_a_run_of_the_outside_bar(monkeypatch, tmp_path):
+    """LIVE 26 to 27 November 2026 every outside check of a draft, outside_bar/verify_change.py, read as a run of the
+    outside bar, so for 34 hours her change on probation was never compared and never settled."""
+    import re
+    import subprocess as sp
+
+    from core.agency import her_goal_at_work, measuring_her_on_probation as measuring
+
+    monkeypatch.setattr(her_goal_at_work, "MEASURING_HOLD", tmp_path / "measuring.hold")
+    running: list[str] = []
+
+    def pgrep(argv, why):
+        pattern = argv[-1]
+        hits = [line for line in running if re.search(pattern, line)]
+        return sp.CompletedProcess(argv, 0, stdout="\n".join(hits), stderr="")
+
+    monkeypatch.setattr(measuring, "_read", pgrep)
+    running[:] = ["python outside_bar/verify_change.py --repo /her_goals/x --commit abc"]
+    assert measuring._measuring() == ""
+    running[:] = ["python -W ignore -m outside_bar.run ask --run probation-1"]
+    assert measuring._measuring() == "a run of the outside bar is going"
+    running[:] = ["python -W ignore -m outside_bar.cold_restart --run probation-1 --facts 8"]
+    assert measuring._measuring() == "a run of the outside bar is going"
