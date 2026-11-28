@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import json
+import logging
 import re
 import sys
 import time
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+
+logger = logging.getLogger("Aura.MendingAFaultOfHers")
 
 #: A test's verdict in pytest's ``-rA`` summary.
 _RESULT = re.compile(r"^(PASSED|FAILED|ERROR|XPASS|XFAIL|SKIPPED)\s+(\S+)", re.MULTILINE)
@@ -129,12 +132,88 @@ async def _where_it_lies(record: Any, fault: Any, source: str, *, ask: bool = Tr
     judged = await judge(fault.call, source, consulted=consulted)
     if judged is None:
         return None
+    borne = await asyncio.to_thread(where_her_words_put_it, judged)
+    await _keep_the_reading(fault, judged, borne)
+    if borne and not borne["agrees_on_what_to_do"]:
+        # Her words and the reading chosen from them part on whether the function is hers to change: what is not
+        # settled leaves it as it is, and a change made by search is the one that could silence a refusal.
+        logger.info("her model's words of %s do not bear out the reading chosen from them (%s against %s); the function "
+                    "is left as it is", fault.call.qualname, borne["lies_in"], judged.lies_in)
+        judged = dataclasses.replace(judged, lies_in=borne["lies_in"] if borne["lies_in"] != "the function"
+                                     else judged.lies_in,
+                                     why=f"my reading and my own words of it disagree on where the change lies "
+                                         f"({judged.lies_in} or {borne['lies_in']}), so I leave it as it is. "
+                                         f"{judged.why}")
     record.said.append({"words": f"My model read {fault.call.qualname} and the call that failed: it raised this "
                                  f"{'on purpose' if judged.on_purpose else 'not as it was written to'}, and what should "
                                  f"change is in {judged.lies_in}. {judged.why}",
-                        "at": time.time(), "judged": judged.as_kept()})
+                        "at": time.time(), "judged": {**judged.as_kept(), "her_words": borne or None}})
     await goals.save(record)
     return judged
+
+
+#: What her model's words may say of a fault, each held against them by her reader of words: the two answers to whether
+#: the function did it on purpose, and the three places what should change may be.
+_ON_PURPOSE = ("The function did this on purpose, as it was written to.",
+               "The function did not do this as it was written to.")
+_PLACES = {"the function": "What should change is in the function itself.",
+           "what called it": "What should change is in the code that called the function.",
+           "what it depends on": "What should change is in something the function depends on."}
+
+
+def where_her_words_put_it(judged: Any) -> dict[str, Any]:
+    """Whether her model's own words, the reading's why, bear out the reading chosen from them, by her reader of words
+    (core/self/how_her_words_stand.py), a model of its own. The two can disagree: LIVE 27 November 2026, 17:3x, of her
+    watchdog's report her cortex wrote "yes, it did this on purpose" and chose "Not raised on purpose". Empty where her
+    words cannot be read."""
+    from core.self.how_her_words_stand import how_far_her_words_bear_out
+
+    purpose = how_far_her_words_bear_out(judged.why, list(_ON_PURPOSE))
+    places = how_far_her_words_bear_out(judged.why, list(_PLACES.values()))
+    if purpose is None or places is None:
+        return {}
+    said_place = list(_PLACES)[max(range(len(places)), key=places.__getitem__)]
+    said_on_purpose = purpose[0] > purpose[1]
+    return {"on_purpose": said_on_purpose, "lies_in": said_place,
+            "agrees": said_on_purpose == judged.on_purpose and said_place == judged.lies_in,
+            # What her loop acts on is whether the function is left as it is.
+            "agrees_on_what_to_do": (said_place != "the function") == judged.leaves_the_function,
+            "purpose": [round(value, 3) for value in purpose], "places": [round(value, 3) for value in places]}
+
+
+def readings_kept_at() -> Path:
+    """Every reading her model made of a fault, with whether her own words bore it out: how often the two agree, kept."""
+    from core.runtime.state_ownership import state_root
+
+    return Path(state_root()) / "her_faults" / "readings.jsonl"
+
+
+async def _keep_the_reading(fault: Any, judged: Any, borne: dict[str, Any]) -> None:
+    from core.runtime.her_writes import governed
+
+    line = json.dumps({"at": time.time(), "function": f"{fault.call.module}.{fault.call.qualname}",
+                       "reader": judged.reader, "chosen": {"on_purpose": judged.on_purpose, "lies_in": judged.lies_in},
+                       "her_words": borne or None}) + "\n"
+    path = readings_kept_at()
+    try:
+        await asyncio.to_thread(governed, "ensure_directory", path.parent, source="mending_a_fault_of_hers.readings")
+        await asyncio.to_thread(governed, "append_text", path, line, source="mending_a_fault_of_hers.readings")
+    except (OSError, RuntimeError, ValueError) as exc:
+        record_degradation("mending_a_fault_of_hers", exc, severity="warning",
+                           action="a reading of a fault was not kept with whether her words bore it out")
+
+
+def how_often_her_readings_agree(path: Path | None = None) -> dict[str, Any]:
+    """Of the readings kept, how many her own words bore out, wholly and on what her loop does."""
+    path = path or readings_kept_at()
+    try:
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError, ValueError):
+        rows = []
+    read = [row for row in rows if row.get("her_words")]
+    return {"readings": len(rows), "read_by_her_words": len(read),
+            "agree": sum(1 for row in read if row["her_words"].get("agrees")),
+            "agree_on_what_to_do": sum(1 for row in read if row["her_words"].get("agrees_on_what_to_do"))}
 
 
 async def _left_as_it_is(record: Any, workspace: Path, fault: Any, judged: Any) -> dict[str, Any]:

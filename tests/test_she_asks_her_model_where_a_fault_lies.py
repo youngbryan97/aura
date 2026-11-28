@@ -382,3 +382,42 @@ def test_a_waiting_drafts_fault_is_found_in_her_state_before_this_run_has_heard_
     monkeypatch.setattr(heard, "where_heard_faults_are_kept", lambda: kept)
     record = goals.GoalRecord(goal=mending.goal_for(fault), slug=goals.slug_of(mending.goal_for(fault)))
     assert mending._the_fault_of(record) == fault
+
+
+def _her_words_say(monkeypatch, on_purpose: bool, place: str):
+    from core.self import how_her_words_stand
+
+    places = list(mending._PLACES)
+
+    def bear(words, statements):
+        if statements == list(mending._ON_PURPOSE):
+            return [0.8, -0.6] if on_purpose else [-0.6, 0.8]
+        return [0.7 if name == place else -0.3 for name in places]
+
+    monkeypatch.setattr(how_her_words_stand, "how_far_her_words_bear_out", bear)
+
+
+def test_a_reading_her_own_words_bear_out_is_acted_on_and_kept_as_agreeing(monkeypatch, tmp_path):
+    kept = tmp_path / "readings.jsonl"
+    monkeypatch.setattr(mending, "readings_kept_at", lambda: kept)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: _HerModel(True, "what called it"))
+    _her_words_say(monkeypatch, True, "what called it")
+    record = goals.GoalRecord(goal="g", slug="mend-g")
+    judged = asyncio.run(mending._where_it_lies(record, heard.HeardFault(ARGV, "notes", 0.0, 0.0), REFUSES))
+    assert judged.leaves_the_function and record.said[-1]["judged"]["her_words"]["agrees"]
+    assert mending.how_often_her_readings_agree(kept) == {"readings": 1, "read_by_her_words": 1, "agree": 1,
+                                                         "agree_on_what_to_do": 1}
+
+
+def test_a_reading_her_own_words_do_not_bear_out_leaves_the_function_and_is_counted(monkeypatch, tmp_path):
+    """LIVE 27 November 2026, 17:3x: her cortex wrote "yes, it did this on purpose" and chose otherwise. Measured, and
+    what is not settled leaves the function as it is."""
+    kept = tmp_path / "readings.jsonl"
+    monkeypatch.setattr(mending, "readings_kept_at", lambda: kept)
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: _HerModel(False, "the function"))
+    _her_words_say(monkeypatch, True, "what called it")
+    record = goals.GoalRecord(goal="g", slug="mend-g")
+    judged = asyncio.run(mending._where_it_lies(record, heard.HeardFault(ARGV, "notes", 0.0, 0.0), REFUSES))
+    assert judged.leaves_the_function and "disagree" in judged.why
+    assert mending.how_often_her_readings_agree(kept) == {"readings": 1, "read_by_her_words": 1, "agree": 0,
+                                                         "agree_on_what_to_do": 0}

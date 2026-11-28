@@ -141,6 +141,13 @@ def whether_her_words_bear_it_out(words: str, statement: str) -> float | None:
     return max(-1.0, min(1.0, (borne[0] - borne[1]) / 2.0))
 
 
+def how_far_her_words_bear_out(words: str, statements: list[str]) -> list[float] | None:
+    """For each statement, how far ``words`` bear it out: entailment less contradiction, -1 to +1; None without a
+    reader. Read by a model of its own, so what a reading of her model's says can be held against what her model's own
+    words said (core/agency/mending_a_fault_of_hers.py)."""
+    return _how_far_it_bears_out(words, list(statements))
+
+
 def can_read_her_words() -> bool:
     """Whether the entailment model is here to read with."""
     return _reader() is not None
