@@ -43,6 +43,11 @@ SHOWN = 1200
 
 THIS_FUNCTION = "the function"
 
+#: What her model is asked of a fault.
+THE_QUESTION = ("This function raised or reported this while she ran. Did it do so on purpose, as it was written to for "
+                "a call like this one, and where is what should change: in the function, in what called it, or in what "
+                "it depends on?")
+
 
 class NotReadNow(RuntimeError):
     """Her model put the reading off (her background policy: the quiet window after a start, someone talking with her):
@@ -71,6 +76,8 @@ class Judged:
     #: Which of her models read it: "cortex", or "brainstem" for her router's background tier. Readings kept before
     #: this was kept were her brainstem's.
     reader: str = "brainstem"
+    #: The question it answers (THE_QUESTION's digest): a reading made under another question is asked again.
+    asked: str = ""
 
     @property
     def leaves_the_function(self) -> bool:
@@ -79,19 +86,19 @@ class Judged:
 
     def as_kept(self) -> dict[str, Any]:
         return {"on_purpose": self.on_purpose, "lies_in": self.lies_in, "why": self.why,
-                "function_digest": self.function_digest, "reader": self.reader}
+                "function_digest": self.function_digest, "reader": self.reader, "asked": self.asked}
 
     @classmethod
     def from_kept(cls, kept: Any) -> Judged | None:
         if not isinstance(kept, dict) or not kept.get("function_digest"):
             return None
         return cls(bool(kept.get("on_purpose")), str(kept.get("lies_in") or ""), str(kept.get("why") or ""),
-                   str(kept["function_digest"]), str(kept.get("reader") or "brainstem"))
+                   str(kept["function_digest"]), str(kept.get("reader") or "brainstem"), str(kept.get("asked") or ""))
 
     def stands_for(self, reader: str) -> bool:
         """Whether this reading stands where ``reader`` would read now: her cortex's always, her brainstem's only
-        where her cortex is not there to read it again."""
-        return self.reader == "cortex" or reader != "cortex"
+        where her cortex is not there to read it again; and only one that answered the question asked now."""
+        return self.asked == THE_QUESTION_ASKED and (self.reader == "cortex" or reader != "cortex")
 
 
 def _name_called(node: ast.AST) -> str:
@@ -216,8 +223,11 @@ class HerCortexReads:
     def choices() -> dict[str, tuple[bool, str]]:
         """Each reading there can be, in words, and what it is."""
         places = list(get_args(WhereItLies.model_fields["lies_in"].annotation))
-        return {f"{'Raised on purpose' if on_purpose else 'Not raised on purpose'}; what should change is in {place}":
-                (on_purpose, place) for on_purpose in (True, False) for place in places}
+        # "Done", not "raised": a function that reports a fault does not raise it. LIVE 27 November 2026, 17:3x, of her
+        # watchdog's report her cortex wrote "It didn't raise. It described ... yes, it did this on purpose", and
+        # chose "Not raised on purpose".
+        return {f"{'Done on purpose, as it was written to' if on_purpose else 'Not as it was written to'}; what should "
+                f"change is in {place}": (on_purpose, place) for on_purpose in (True, False) for place in places}
 
     async def generate(self, prompt: str, *, is_background: bool = True, deadline_s: float = ASK_S) -> BaseModel | None:
         from core.brain.her_unprompted_turn import on_her_lane
@@ -295,6 +305,11 @@ class HerCortexReads:
         from core.brain.llm.mlx_client import time_a_prompt_needs
 
         return time_a_prompt_needs(chars, tokens)
+
+
+#: The question and the readings that can answer it, as one digest a kept reading carries.
+THE_QUESTION_ASKED = hashlib.sha256(
+    json.dumps([THE_QUESTION, sorted(HerCortexReads.choices())]).encode("utf-8")).hexdigest()[:16]
 
 
 def reader_of(advisor: Any) -> str:
@@ -386,9 +401,7 @@ async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = N
     data["what her sources say of it"] = _shown(consulted)
     try:
         read = await advisor.generate(
-            "This function raised while she ran. Did it raise this on purpose, as it was written to for a call like "
-            "this one, and where is what should change: in the function, in what called it, or in what it depends on? "
-            "Data: " + json.dumps(data, ensure_ascii=False),
+            THE_QUESTION + " Data: " + json.dumps(data, ensure_ascii=False),
             is_background=True, deadline_s=ASK_S,
         )
     except (RuntimeError, TimeoutError, ValueError, TypeError, OSError) as why:
@@ -400,7 +413,8 @@ async def judge(call: Any, source: str, *, consulted: str = "", advisor: Any = N
         return None
     if not isinstance(read, WhereItLies):
         read = WhereItLies.model_validate(read)
-    judged = Judged(read.on_purpose, read.lies_in, " ".join(read.why.split()), digest, reader_of(advisor))
+    judged = Judged(read.on_purpose, read.lies_in, " ".join(read.why.split()), digest, reader_of(advisor),
+                    THE_QUESTION_ASKED)
     logger.info("her model read %s: %s, and what should change is in %s", call.qualname,
                 "raised on purpose" if judged.on_purpose else "not raised on purpose", judged.lies_in)
     return judged

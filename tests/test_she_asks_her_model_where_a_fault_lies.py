@@ -275,7 +275,7 @@ def test_her_cortex_reads_the_fault_under_her_lane_and_gives_way_when_it_is_not_
         async def generate_text_async(self, prompt, **kwargs):
             asked.append(kwargs)
             if kwargs.get("choose_from"):
-                return "Raised on purpose; what should change is in what called it"
+                return "Done on purpose, as it was written to; what should change is in what called it"
             return found
 
     async def lane(messages, *, origin, least_s, work):
@@ -328,3 +328,17 @@ def test_a_reading_her_brainstem_kept_is_read_again_by_her_cortex(monkeypatch):
     assert judged.reader == "cortex" and judged.leaves_the_function
     again = asyncio.run(mending._where_it_lies(record, fault, REFUSES, ask=False))
     assert again.reader == "cortex", "her cortex's reading stands from then on"
+
+
+def test_a_reading_made_under_another_question_is_asked_again(monkeypatch):
+    """LIVE 27 November 2026, 17:3x: asked whether it raised the fault on purpose, of a report it did not raise her
+    cortex chose "Not raised on purpose" over its own words "yes, it did this on purpose"; the question was put right,
+    and the reading it made under the old one is not kept as an answer to the new."""
+    fault = heard.HeardFault(ARGV, "notes", 0.0, 0.0)
+    record = goals.GoalRecord(goal="g", slug="mend-g")
+    record.said.append({"judged": {"on_purpose": False, "lies_in": "the function", "why": "old",
+                                   "function_digest": lies.version_of(REFUSES, ARGV.qualname), "reader": "cortex"}})
+    model = _HerModel(True, "what called it")
+    monkeypatch.setattr(lies, "her_model", lambda schema=None: model)
+    judged = asyncio.run(mending._where_it_lies(record, fault, REFUSES))
+    assert model.asked and judged.leaves_the_function and judged.asked == lies.THE_QUESTION_ASKED
