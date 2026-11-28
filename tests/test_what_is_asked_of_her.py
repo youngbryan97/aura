@@ -1082,3 +1082,17 @@ def test_a_work_a_turn_began_waits_for_the_turn_s_reply_and_holds_to_what_she_sa
 
     asyncio.run(turn())
     assert held_to == ["A web app, to open in your browser."] and request.id not in carrying_out._REPLY
+
+
+def test_a_turn_that_takes_a_request_up_as_work_has_done_what_it_says(monkeypatch):
+    """LIVE 28 November 2026 every turn that began a work ended "requested_effect_observed_but_unconfirmed", logged as a fault:
+    what it did, begin the work, was recorded as only asserted."""
+    from core.conversation import surface_disposition
+    from interface.routes import chat_carrying_out as chat
+
+    receipts = []
+    monkeypatch.setattr(surface_disposition, "record_tool_receipt", lambda name, **how: receipts.append(how))
+    monkeypatch.setattr("core.conversation.turn_evidence_custody.record_turn_grounding", lambda text: None)
+    chat._recorded("Make me a map.", {"status": "started"}, ok=True)
+    chat._recorded("Make me a map.", {"status": "not_started"}, ok=False)
+    assert [(r["ok"], r["effect_observed"]) for r in receipts] == [(True, True), (False, False)]

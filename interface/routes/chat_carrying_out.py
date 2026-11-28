@@ -36,8 +36,11 @@ def _recorded(said: str, returned: dict[str, Any], *, ok: bool = True) -> None:
     from core.conversation.turn_evidence_custody import record_turn_grounding
 
     text = json.dumps(returned, ensure_ascii=False)
-    record_tool_receipt(ORIGIN, ok=ok, evidence=text[:1000], observed_content=text,
-                        as_made={"arguments": {"request": said}, "returned": text})
+    # What this turn did is what it records, and that is seen where it is done: the work begun is under way, the question is
+    # held, the account is read from the ledger. What the work comes to is its own, told when it ends. Recorded as only
+    # asserted, every turn that began a work ended "requested_effect_observed_but_unconfirmed", a fault (LIVE 28 November 2026).
+    record_tool_receipt(ORIGIN, ok=ok, effect_observed=ok, verification="taken_up_as_work" if ok else "", evidence=text[:1000],
+                        observed_content=text, as_made={"arguments": {"request": said}, "returned": text})
     record_turn_grounding(text)
 
 
